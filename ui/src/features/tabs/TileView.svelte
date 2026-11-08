@@ -10,7 +10,7 @@
      stream never moves in the page, so it never restarts. V103-07 The mod view's stream
      panel shows this tile's player in its place. -->
 <script lang="ts">
-  import { getContext, onDestroy, untrack } from 'svelte';
+  import { getContext, untrack } from 'svelte';
 
   import { popOut } from '../../app/panels';
   import IconButton from '../../components/IconButton.svelte';
@@ -133,7 +133,6 @@
     const away = barAway;
     untrack(() => aboveChat.mark(tab.id, away));
   });
-  onDestroy(() => aboveChat.mark(tab.id, false));
   // V110-F11 While the window holds the bar elsewhere, the chat keeps its room free (`spacer`).
   const barHere = $derived(!!host && !background && !popout && host.current === tab.id ? aboveChat.bar(tab) : null);
   const barOver = $derived(!!barHere?.own);
@@ -476,7 +475,7 @@
     {/if}
   {:else if id === 'chat'}
     <!-- V110-U52 Always the same wrapper, so the chat isn't rebuilt when the bar comes or goes. -->
-    <div class="chat-col">
+    <div class="chat-col" data-chat-col>
       {#if barOver && host}
         <div class="above-bar" data-bar-box data-bar-above><TabBar current={host.current} onopen={host.open} /></div>
       {:else if barHere?.spacer}

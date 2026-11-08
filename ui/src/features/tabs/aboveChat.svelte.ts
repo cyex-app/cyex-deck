@@ -25,10 +25,12 @@ class AboveChat {
   private off = $state.raw<Set<string>>(new Set());
 
   mark(tab: string, away: boolean): void {
-    if (this.off.has(tab) === away) return;
-    const next = new Set(this.off);
+    // V110-F19 Marks stay while a tile is gone (coming back to a narrow tab must not move the
+    // bar); they go with their tab, pruned here.
+    const next = new Set([...this.off].filter((id) => tabs.list.some((t) => t.id === id)));
     if (away) next.add(tab);
     else next.delete(tab);
+    if (next.size === this.off.size && [...next].every((id) => this.off.has(id))) return;
     this.off = next;
   }
 
@@ -51,6 +53,26 @@ class AboveChat {
   release(x?: number, y?: number): void {
     const h = this.held;
     if (h && (x === undefined || y === undefined || !inHold(h.rect, x, y))) this.held = null;
+  }
+
+  /** V110-F19 A hold only makes sense with "Above chat" and no theatre mode: drop a stored one. */
+  clearHeld(): void {
+    this.held = null;
+  }
+
+  /** V110-F19 Once the new tab has drawn: the hold ends at once when that tab has no bar over a
+   * chat (the bar would float over its stream) or its chat column isn't where the held bar is. */
+  settle(tab: Tab | undefined): void {
+    const h = this.held;
+    if (!h?.above) return;
+    if (!this.applies(tab)) {
+      this.held = null;
+      return;
+    }
+    const col = [...document.querySelectorAll('[data-chat-col]')]
+      .map((c) => c.getBoundingClientRect())
+      .find((r) => r.width > 0 && r.height > 0);
+    if (col && (Math.abs(col.left - h.rect.x) > 2 || Math.abs(col.width - h.rect.w) > 2)) this.held = null;
   }
 
   /** V110-F11 How the bar is drawn for `tab` (see `aboveBar`). */

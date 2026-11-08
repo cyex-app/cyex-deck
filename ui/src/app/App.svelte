@@ -125,7 +125,22 @@
     const now = current;
     if (now === barTab) return;
     barTab = now;
-    untrack(() => aboveChat.hold());
+    untrack(() => {
+      // V110-F19 "Above chat" draws the bar anew for the new tab: keyboard focus that sat in
+      // the bar goes to the shown tab's item (a focus that moved on, to the chat, stays).
+      const inBar = !!document.activeElement?.closest('[data-tab-bar]');
+      aboveChat.hold();
+      void tick().then(() =>
+        requestAnimationFrame(() => {
+          const lost = !document.activeElement || document.activeElement === document.body;
+          if (inBar && lost && settings.v.appearance.tabBarSide === 'aboveChat') {
+            document.querySelector<HTMLElement>('[data-tab-bar] [role="tab"][aria-selected="true"]')?.focus({ preventScroll: true });
+          }
+          // V110-F19 Not held if the new tab's bar belongs elsewhere.
+          aboveChat.settle(shownTab ? tab : undefined);
+        }),
+      );
+    });
   });
   // V110-F11 It goes where the tab on screen wants it once the pointer leaves it.
   $effect(() => {
@@ -155,6 +170,10 @@
   });
   /** V108-N14 A stream of the tab on screen fills the window: no tab bars, no side chrome. */
   const theatreOn = $derived(!!shownTab && !!tab && stillHere(theatre.tile, tiles(tab).map((t) => t.id)) !== null);
+  // V110-F19 A stored hold ends with the setting or with theatre mode.
+  $effect(() => {
+    if (aboveChat.held && (side !== 'aboveChat' || theatreOn)) untrack(() => aboveChat.clearHeld());
+  });
   $effect(() => {
     if (theatre.tile && !theatreOn) untrack(() => theatre.leave());
   });
