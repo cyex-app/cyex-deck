@@ -8,6 +8,7 @@ export const CHIPS = [
   { key: 'raid', label: 'Raids' },
   { key: 'bet', label: 'Bets' },
   { key: 'drop', label: 'Drops' },
+  { key: 'badge', label: 'Badges' },
   { key: 'channel', label: 'Channels' },
   { key: 'error', label: 'Errors' },
 ] as const;

@@ -16,5 +16,5 @@ test('visible drops the kinds that are off', () => {
 });
 
 test('every kind has a chip', () => {
-  assert.deepEqual(CHIPS.map((c) => c.key), ['points', 'claim', 'raid', 'bet', 'drop', 'channel', 'error']);
+  assert.deepEqual(CHIPS.map((c) => c.key), ['points', 'claim', 'raid', 'bet', 'drop', 'badge', 'channel', 'error']);
 });
