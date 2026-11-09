@@ -6,7 +6,7 @@
 import { playerIpc } from '../../ipc/player';
 import { onShown, pageHidden } from '../../lib/awake';
 import type { Engine } from './engine.svelte';
-import { COALESCE_MS, DVR_GAP, DVR_RETRY_MS, DVR_YOUNG, dvrTarget, edgeAt, sameStart, stepTarget, uptimeAt } from './liveEdge';
+import { COALESCE_MS, DVR_GAP, DVR_RETRY_MS, DVR_YOUNG, beforeStart, dvrTarget, edgeAt, sameStart, stepTarget, uptimeAt } from './liveEdge';
 import { replayBarStart } from './replayClock';
 import type { SeekResult } from './liveKeys';
 import { clearRewound, hasOwn, setRewound } from './rewound.svelte';
@@ -180,6 +180,9 @@ export class Rewind {
     if (!this.on) return;
     this.pending = null;
     clearTimeout(this.flushTimer);
+    // V110-U62 Asked for before the replay's first second: it lands there, and says so.
+    const e = this.host.engine();
+    if (e && beforeStart(t, this.min)) e.note = 'Can’t go back further';
     this.go(dvrTarget(t, this.uptime, this.min));
   }
 

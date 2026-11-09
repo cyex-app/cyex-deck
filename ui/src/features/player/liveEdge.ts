@@ -59,6 +59,12 @@ export function dvrTarget(t: number, uptime: number, min = 0): number | 'live' {
   return Math.max(min, t);
 }
 
+/** V110-U62 A bar seek that asks for a second before where going back can start (a second of slack
+ *  for the bar's rounding). */
+export function beforeStart(t: number, min: number): boolean {
+  return min > 0 && t < min - 1;
+}
+
 /** Key step from `base`. Back into the gap lands at uptime − DVR_GAP (A-L5); forward into it → 'live'. */
 export function stepTarget(base: number, s: number, uptime: number, min = 0): { at: number | 'live'; edge: 'start' | null } {
   const t = base + s;

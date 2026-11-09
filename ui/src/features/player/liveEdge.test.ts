@@ -3,6 +3,7 @@ import { test } from 'node:test';
 
 import { StreamLoader } from './fmp4Stream.ts';
 import {
+  beforeStart,
   behindLive,
   broadcastLatency,
   chatBarText,
@@ -66,6 +67,13 @@ test('key steps', () => {
   assert.deepEqual(stepTarget(70, 15, 100), { at: 'live', edge: null });
   assert.deepEqual(stepTarget(15, -10, 15), { at: 'live', edge: 'start' });
   assert.deepEqual(stepTarget(50, 10, 100), { at: 60, edge: null });
+});
+
+test('V110-U62 a bar seek before the replay’s start is told apart from one at it', () => {
+  assert.equal(beforeStart(10, 100), true);
+  assert.equal(beforeStart(99.5, 100), false);
+  assert.equal(beforeStart(100, 100), false);
+  assert.equal(beforeStart(-5, 0), false, 'Twitch’s rewind starts at 0');
 });
 
 test('V108-N24 a replay starts where it was recorded', () => {
