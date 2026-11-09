@@ -1,6 +1,7 @@
 <!-- U1 Quick switcher (Ctrl+K): jump to a tab or view, or open any channel. Followed
      channels (1.6) show once something is typed. -->
 <script lang="ts">
+  import { enterKey } from '../../lib/keys';
   import { onMount } from 'svelte';
 
   import Icon from '../../components/Icon.svelte';
@@ -279,7 +280,7 @@
       e.preventDefault();
       const step = e.key === 'ArrowDown' ? 1 : -1;
       index = (index + step + choices.length) % Math.max(choices.length, 1);
-    } else if (e.key === 'Enter') {
+    } else if (enterKey(e)) {
       e.preventDefault();
       run(choices[index]);
     }

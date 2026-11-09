@@ -1,6 +1,7 @@
 <!-- 1.42 Power-ups paid with Bits: message effects, a gigantified emote, a celebration,
      and the channel's Bits rewards. Spending always asks once more, with the price. -->
 <script lang="ts">
+  import { enterKey } from '../../lib/keys';
   import Button from '../../components/Button.svelte';
   import type { PowerUpBuy } from '../../ipc/bindings/PowerUpBuy';
   import type { PowerUps } from '../../ipc/bindings/PowerUps';
@@ -124,7 +125,7 @@
         maxlength="500"
         placeholder={picked.kind === 'celebration' ? 'Emote name' : 'Your message'}
         autofocus
-        onkeydown={(e) => e.key === 'Enter' && void buy()}
+        onkeydown={(e) => enterKey(e) && void buy()}
       />
     {/if}
     {#if locked}<p class="note">{locked}</p>{/if}

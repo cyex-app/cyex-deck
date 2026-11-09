@@ -1,6 +1,7 @@
 <!-- 1.26 The whisper box: Enter sends, Up recalls the last one, the emote menu with your
      Twitch and 7TV/BTTV/FFZ emotes, and Twitch's 500-character cap. -->
 <script lang="ts">
+  import { enterKey } from '../../lib/keys';
   import { tick } from 'svelte';
 
   import IconButton from '../../components/IconButton.svelte';
@@ -52,7 +53,7 @@
   }
 
   function keydown(e: KeyboardEvent) {
-    if (e.key === 'Enter' && !e.shiftKey) {
+    if (enterKey(e) && !e.shiftKey) {
       e.preventDefault();
       void send();
     } else if (e.key === 'ArrowUp' && !text && last) {

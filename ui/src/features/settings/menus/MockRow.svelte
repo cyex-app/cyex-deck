@@ -2,6 +2,7 @@
      cx-item styles) with the manager's extras: a dim tag for conditions, eye-off when hidden,
      a dashed outline for the slots, an insertion line while something is dragged over it. -->
 <script lang="ts">
+  import { enterKey } from '../../../lib/keys';
   import Icon from '../../../components/Icon.svelte';
   import { tooltip } from '../../../components/tooltip.svelte';
   import { MAX_LABEL } from '../../../components/menus/ops.ts';
@@ -49,7 +50,7 @@
 
   function renameKey(e: KeyboardEvent) {
     e.stopPropagation();
-    if (e.key === 'Enter') {
+    if (enterKey(e)) {
       e.preventDefault();
       onrename((e.currentTarget as HTMLInputElement).value);
     } else if (e.key === 'Escape') {

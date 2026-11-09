@@ -5,7 +5,7 @@ import { keyTaken, layers } from './escape';
 import { settings } from './settings.svelte';
 import { zoomHotkeys } from './zoom';
 
-import { ACTIONS, comboAlias, resolveBinding } from './hotkeyActions';
+import { ACTIONS, comboAlias, repeatAllowed, resolveBinding, typesChar } from './hotkeyActions';
 export { ACTIONS };
 
 export type ActionId = keyof typeof ACTIONS;
@@ -84,9 +84,12 @@ const OVER_SHEET: ReadonlySet<string> = new Set(['settings.open', 'tabs.switcher
 export function useHotkeys(own: Partial<Record<ActionId, (e: KeyboardEvent) => unknown>>): void {
   const handlers = { ...zoomHotkeys, ...own };
   $effect(() => {
+    let consumed: ActionId | undefined;
     const onKey = (e: KeyboardEvent) => {
       // An open dialog, menu or select has the keyboard; so does a key something already used.
       if (recording.active) return;
+      // V110-F81 AltGr (@, € on German or Polish layouts) is typing, not Ctrl+Alt.
+      if (typesChar(e)) return;
       const combo = comboFromEvent(e);
       if (!combo) return;
       // An open menu doesn't hold back the switcher: it opens and the menu goes (030e896).
@@ -97,8 +100,15 @@ export function useHotkeys(own: Partial<Record<ActionId, (e: KeyboardEvent) => u
       // Plain keys belong to text fields; only Ctrl/Alt combos fire while typing.
       if (isTyping(e.target) && !/^(Ctrl|Alt)\+/.test(combo)) return;
       const id = actionOfPress(combo);
+      // V110-F81 A held toggle (play, mute, fullscreen) runs once; its repeats are still kept from the page.
+      if (id && !repeatAllowed(id, e.repeat)) {
+        if (consumed === id) e.preventDefault();
+        return;
+      }
       const run = id && handlers[id];
-      if (run && run(e) !== false) e.preventDefault();
+      const used = !!run && run(e) !== false;
+      if (used) e.preventDefault();
+      consumed = used ? id : undefined;
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);

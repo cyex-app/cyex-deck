@@ -39,8 +39,10 @@
     input?.focus();
   }
 
+  // V110-F81 After the layer around it (focusScope in a dialog or popover) has noted who had focus;
+  // focusing in this effect came first, so closing it dropped focus on the body.
   $effect(() => {
-    if (autofocus) input?.focus();
+    if (autofocus) queueMicrotask(() => input?.focus());
   });
 
   function clear() {

@@ -510,7 +510,14 @@
     scroll.drag(true);
     stopGlide();
     letGo();
-    addEventListener('pointerup', () => scroll.drag(false), { once: true });
+    // V110-F81 A cancelled pointer lets go too, or the chat would stop following for good.
+    const release = () => {
+      removeEventListener('pointerup', release);
+      removeEventListener('pointercancel', release);
+      scroll.drag(false);
+    };
+    addEventListener('pointerup', release);
+    addEventListener('pointercancel', release);
   }
 
   /** V110-C55 A press on a scrollbar tick goes to its line when let go in place. A drag of the

@@ -38,9 +38,30 @@ export function inTabOrder(tabindex: string | null): boolean {
   return tabindex !== '-1';
 }
 
-/** What Tab can reach inside `node`, in order, skipping hidden ones. */
+/** V110-F81 Whether an element is a Tab stop: not roved out (-1), drawn, and not inside an `inert`
+ *  subtree (a preview that only looks like UI): focus() on it does nothing and the trap swallowed Tab. */
+export function isStop(tabindex: string | null, drawn: boolean, inertAbove: boolean): boolean {
+  return inTabOrder(tabindex) && drawn && !inertAbove;
+}
+
+/** What Tab can reach inside `node`, in order, skipping hidden and inert ones. */
 export function tabbables(node: HTMLElement): HTMLElement[] {
-  return [...node.querySelectorAll<HTMLElement>(TABBABLE)].filter((el) => inTabOrder(el.getAttribute('tabindex')) && el.getClientRects().length > 0);
+  return [...node.querySelectorAll<HTMLElement>(TABBABLE)].filter((el) =>
+    isStop(el.getAttribute('tabindex'), el.getClientRects().length > 0, !!el.closest('[inert]')),
+  );
+}
+
+/** V110-F81 Moves Tab on from `stops[start]`: the first stop that really takes focus wins, so one that
+ *  refuses (disabled late, removed) doesn't swallow the key. Returns whether focus moved. */
+export function focusFrom(stops: HTMLElement[], start: number, back: boolean): boolean {
+  if (start < 0) return false;
+  let i = start;
+  for (let n = 0; n < stops.length; n++) {
+    stops[i].focus();
+    if (document.activeElement === stops[i]) return true;
+    i = wrapTab(i, stops.length, back);
+  }
+  return false;
 }
 
 /** A dialog's first focus: a `data-autofocus` element, the first text field, the primary
@@ -98,7 +119,7 @@ export function focusScope(node: HTMLElement, opts: ScopeOptions = {}): () => vo
     const stops = tabbables(node);
     const next = tabTarget(stops, document.activeElement, e.shiftKey);
     e.preventDefault();
-    (stops[next] ?? node).focus();
+    if (!focusFrom(stops, next, e.shiftKey)) node.focus();
   };
   if (opts.trap) node.addEventListener('keydown', onKey);
 

@@ -2,6 +2,7 @@
      in groups (V101-07); narrow windows show icons only, with lines between the groups.
      Search finds any setting in the registry and jumps to it (V103-13). -->
 <script lang="ts">
+  import { enterKey } from '../../lib/keys';
   import { onDestroy, tick, untrack, type Component } from 'svelte';
 
   import Icon from '../../components/Icon.svelte';
@@ -271,7 +272,7 @@
     if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
       e.preventDefault();
       active = Math.max(0, Math.min(hits.length - 1, active + (e.key === 'ArrowDown' ? 1 : -1)));
-    } else if (e.key === 'Enter' && hits[active]) {
+    } else if (enterKey(e) && hits[active]) {
       e.preventDefault();
       void jump(hits[active]);
     }

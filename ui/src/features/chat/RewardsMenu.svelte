@@ -3,6 +3,7 @@
      GQL sign-in; without one the menu only lists rewards. The balance follows Hermes
      (points earned, chests, 08). -->
 <script lang="ts">
+  import { enterKey } from '../../lib/keys';
   import Button from '../../components/Button.svelte';
   import GateFlag from '../../components/GateFlag.svelte';
   import Icon from '../../components/Icon.svelte';
@@ -247,7 +248,7 @@
               maxlength="500"
               placeholder="Your message"
               autofocus
-              onkeydown={(e) => e.key === 'Enter' && void redeem()}
+              onkeydown={(e) => enterKey(e) && void redeem()}
             />
           {/if}
           <div class="actions">

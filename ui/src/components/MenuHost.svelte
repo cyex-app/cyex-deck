@@ -4,6 +4,7 @@
      V110-U69 A submenu opens beside its row on hover (or Right / Enter) and the lists stay side by
      side; a window too narrow for two menus swaps the list in place with a back row, as before. -->
 <script lang="ts">
+  import { enterKey } from '../lib/keys';
   import { tick } from 'svelte';
 
   import { layer } from '../lib/escape';
@@ -49,7 +50,7 @@
   });
 
   function fieldKey(e: KeyboardEvent, item: MenuItem) {
-    if (e.key !== 'Enter' || !item.field) return;
+    if (!enterKey(e) || !item.field) return;
     e.preventDefault();
     const said = item.field.submit((e.currentTarget as HTMLInputElement).value);
     if (!said) return closeMenu();

@@ -1,5 +1,6 @@
 <!-- V1051-04 The name field of a combo, in place: the Save card, or a card being renamed. -->
 <script lang="ts">
+  import { enterKey } from '../../lib/keys';
   import { onMount } from 'svelte';
 
   import { cleanName, MAX_NAME, shortError } from './comboName';
@@ -40,7 +41,7 @@
     if (e.key === 'Escape') {
       e.preventDefault();
       oncancel(true);
-    } else if (e.key === 'Enter' && !busy) {
+    } else if (enterKey(e) && !busy) {
       e.preventDefault();
       touched = true;
       const r = check();

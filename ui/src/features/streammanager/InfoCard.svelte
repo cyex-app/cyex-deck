@@ -1,6 +1,7 @@
 <!-- 1.35 Edit the stream title and change the category. Categories are searched as you
      type; saving sends only what changed. -->
 <script lang="ts">
+  import { enterKey } from '../../lib/keys';
   import Button from '../../components/Button.svelte';
   import type { CategoryHit } from '../../ipc/bindings/CategoryHit';
   import { smIpc } from '../../ipc/streammanager';
@@ -94,7 +95,7 @@
       maxlength={TITLE_MAX}
       bind:value={title}
       disabled={!loaded}
-      onkeydown={(e) => e.key === 'Enter' && canSave && save()}
+      onkeydown={(e) => enterKey(e) && canSave && save()}
     />
     <span class="count" class:near={title.length > TITLE_MAX - 15}>{title.length}/{TITLE_MAX}</span>
   </div>
@@ -112,7 +113,7 @@
     bind:value={query}
     disabled={!loaded}
     onkeydown={(e) => {
-      if (e.key === 'Enter' && hits.length) pick(hits[0]);
+      if (enterKey(e) && hits.length) pick(hits[0]);
       else if (e.key === 'Escape' && query) {
         e.stopPropagation();
         query = '';

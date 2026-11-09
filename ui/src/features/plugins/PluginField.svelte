@@ -1,5 +1,6 @@
 <!-- S5 One setting a plugin asks for, drawn from its info file. -->
 <script lang="ts">
+  import { enterKey } from '../../lib/keys';
   import Row from '../../components/Row.svelte';
   import Toggle from '../../components/Toggle.svelte';
   import type { PluginField } from '../../ipc/bindings/PluginField';
@@ -37,7 +38,7 @@
       value={String(value ?? '')}
       maxlength="500"
       onchange={saveText}
-      onkeydown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
+      onkeydown={(e) => enterKey(e) && e.currentTarget.blur()}
     />
   {:else if field.type === 'number'}
     <NumberField label={field.label} width="100px" value={Number(value ?? 0)} min={field.min ?? -1e9} max={field.max ?? 1e9} onchange={save} />

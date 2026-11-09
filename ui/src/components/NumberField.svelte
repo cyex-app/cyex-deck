@@ -3,6 +3,7 @@
      decimal mark). Up/Down step, Shift or Page keys by ten, Home/End jump; each step saves.
      Something that isn't a number goes back to the last value. -->
 <script lang="ts">
+  import { enterKey } from '../lib/keys';
   import { onDestroy } from 'svelte';
 
   import { formatNumber } from '../lib/format';
@@ -66,7 +67,7 @@
   }
 
   function onkeydown(e: KeyboardEvent) {
-    if (e.key === 'Enter') return commit();
+    if (enterKey(e)) return commit();
     if (e.key === 'Escape' && editing) {
       // Back to the saved number; a second Escape is the layer's.
       e.preventDefault();

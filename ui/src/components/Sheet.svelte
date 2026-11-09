@@ -8,7 +8,7 @@
   import { fade } from 'svelte/transition';
 
   import IconButton from './IconButton.svelte';
-  import { tabbables, tabTarget } from '../lib/focusScope';
+  import { focusFrom, tabbables, tabTarget } from '../lib/focusScope';
   import { keyHold } from '../lib/hotkeys.svelte';
 
   interface Props {
@@ -64,7 +64,7 @@
       const stops = tabbables(sheet);
       const next = tabTarget(stops, at, e.shiftKey);
       e.preventDefault();
-      (stops[next] ?? sheet).focus();
+      if (!focusFrom(stops, next, e.shiftKey)) sheet.focus();
     };
     // The title bar stays clickable (a tab click closes the sheet) but has no tab menus behind it.
     const onMenu = (e: MouseEvent) => {

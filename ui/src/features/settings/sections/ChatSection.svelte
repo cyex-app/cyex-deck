@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { enterKey } from '../../../lib/keys';
   import SectionHead from '../SectionHead.svelte';
   import DragList from '../../../components/DragList.svelte';
   import Icon from '../../../components/Icon.svelte';
@@ -231,7 +232,7 @@
     else saveEdit();
   }
   function editKey(e: KeyboardEvent) {
-    if (e.key === 'Enter') {
+    if (enterKey(e)) {
       e.preventDefault();
       saveEdit();
     } else if (e.key === 'Escape') {

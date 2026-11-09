@@ -31,3 +31,29 @@ test('V110-F70 Tab from a non-stop goes to the next or previous stop in document
   assert.equal(stopAround([true, true], true), 1);
   assert.equal(stopAround([], false), -1);
 });
+
+test('V110-F81 an inert or undrawn element is not a Tab stop', async () => {
+  const { isStop } = await import('./focusScope.ts');
+  assert.equal(isStop(null, true, false), true);
+  assert.equal(isStop(null, true, true), false);
+  assert.equal(isStop(null, false, false), false);
+  assert.equal(isStop('-1', true, false), false);
+});
+
+test('V110-F81 Tab skips a stop that refuses focus instead of swallowing the key', async () => {
+  const { focusFrom } = await import('./focusScope.ts');
+  const g = globalThis as unknown as { document?: { activeElement: unknown } };
+  const saved = g.document;
+  g.document = { activeElement: null };
+  const stop = (takes: boolean) => ({ focus() { if (takes) g.document!.activeElement = this; } });
+  try {
+    const stops = [stop(false), stop(false), stop(true)];
+    assert.equal(focusFrom(stops as never, 0, false), true);
+    assert.equal(g.document.activeElement, stops[2]);
+    g.document.activeElement = null;
+    assert.equal(focusFrom([stop(false), stop(false)] as never, 0, false), false);
+    assert.equal(focusFrom([], -1, false), false);
+  } finally {
+    g.document = saved;
+  }
+});

@@ -1,6 +1,7 @@
 <!-- Discover (1.7): live streams, categories and search. Tags, the remembered language
      filter and your followed categories are H4. -->
 <script lang="ts">
+  import { enterKey } from '../../lib/keys';
   import { onDestroy } from 'svelte';
 
   import Icon from '../../components/Icon.svelte';
@@ -104,7 +105,7 @@
       placeholder="Search channels and categories"
       bind:value={typed}
       oninput={() => search(typed)}
-      onkeydown={(e) => e.key === 'Enter' && search(typed, true)}
+      onkeydown={(e) => enterKey(e) && search(typed, true)}
       onclear={() => search('', true)}
     />
     <Segmented

@@ -13,3 +13,14 @@ export function uniqueKeys<T>(list: readonly T[], key: (t: T) => string): string
     return out;
   });
 }
+
+/** V110-F81 An IME is turning keystrokes into text (Japanese, Chinese, Korean): its Enter confirms the
+ *  candidate and must not send, search or save. Chromium reports keyCode 229 for it on keydown. */
+export function composing(e: { isComposing?: boolean; keyCode?: number }): boolean {
+  return !!e.isComposing || e.keyCode === 229;
+}
+
+/** V110-F81 A plain Enter press, i.e. not the one that confirms IME text. */
+export function enterKey(e: { key: string; isComposing?: boolean; keyCode?: number }): boolean {
+  return e.key === 'Enter' && !composing(e);
+}

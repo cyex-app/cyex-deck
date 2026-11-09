@@ -80,6 +80,7 @@ class Drag {
     const end = (drop: boolean) => {
       removeEventListener('pointermove', move);
       removeEventListener('pointerup', up);
+      removeEventListener('pointercancel', cancel);
       removeEventListener('keydown', key);
       removeEventListener('blur', cancel);
       document.body.classList.remove('dragging');
@@ -92,6 +93,8 @@ class Drag {
     const key = (ev: KeyboardEvent) => ev.key === 'Escape' && cancel();
     addEventListener('pointermove', move);
     addEventListener('pointerup', up);
+    // V110-F81 A cancelled pointer (touch taken by a scroll, pen out of range) ends the drag too.
+    addEventListener('pointercancel', cancel);
     addEventListener('keydown', key);
     addEventListener('blur', cancel);
   }

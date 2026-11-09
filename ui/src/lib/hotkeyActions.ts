@@ -63,3 +63,49 @@ const ALIASES: Readonly<Record<string, string>> = { 'Ctrl++': 'Ctrl+=', 'Ctrl+Sh
 export function comboAlias(combo: string): string | undefined {
   return ALIASES[combo];
 }
+
+/** V110-F81 Actions where holding the key should keep firing: seeking, volume, line picking,
+ *  tab stepping and zoom. Everything else is a toggle (play, mute, fullscreen, panels) and runs
+ *  once per press, so a held key doesn't flip it at the OS repeat rate. */
+const REPEATABLE: ReadonlySet<string> = new Set([
+  'player.back',
+  'player.forward',
+  'player.back2',
+  'player.forward2',
+  'player.volumeUp',
+  'player.volumeDown',
+  'chat.lineUp',
+  'chat.lineDown',
+  'tabs.next',
+  'tabs.prev',
+  'tabs.moveLeft',
+  'tabs.moveRight',
+  'zoom.in',
+  'zoom.out',
+]);
+
+/** Whether an auto-repeat keydown may run the action. A first press always may. */
+export function repeatAllowed(id: string, repeat: boolean): boolean {
+  return !repeat || REPEATABLE.has(id);
+}
+
+/** V110-F81 AltGr (Ctrl+Alt on Windows) means a character is being typed (@, €, { on German or
+ *  Polish layouts), not a Ctrl+Alt shortcut. */
+export function typesChar(e: { getModifierState?: (key: string) => boolean }): boolean {
+  return !!e.getModifierState?.('AltGraph');
+}
+
+const KEY_LABELS: Record<string, string> = {
+  ArrowLeft: '←',
+  ArrowRight: '→',
+  ArrowUp: '↑',
+  ArrowDown: '↓',
+  PageUp: 'Page up',
+  PageDown: 'Page down',
+  Escape: 'Esc',
+};
+
+/** V110-F81 One key of a combo as people read it. */
+export function keyLabel(key: string): string {
+  return KEY_LABELS[key] ?? key;
+}

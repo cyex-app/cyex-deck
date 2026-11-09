@@ -34,3 +34,38 @@ test('Ctrl++ from the numpad or a German "+" key zooms in like Ctrl+= (V107-N6a)
   assert.equal(comboAlias('Ctrl+Shift++'), 'Ctrl+=');
   assert.equal(comboAlias('Ctrl+-'), undefined);
 });
+
+test('V110-F81 held toggles run once; seek, volume and zoom repeat', async () => {
+  const { repeatAllowed } = await import('./hotkeyActions.ts');
+  for (const id of ['player.playPause', 'player.mute', 'player.fullscreen', 'tabs.new', 'tabs.close', 'settings.open', 'player.live']) {
+    assert.equal(repeatAllowed(id, true), false, id);
+    assert.equal(repeatAllowed(id, false), true, id);
+  }
+  for (const id of ['player.back', 'player.forward2', 'player.volumeUp', 'chat.lineDown', 'zoom.in']) {
+    assert.equal(repeatAllowed(id, true), true, id);
+  }
+});
+
+test('V110-F81 every repeatable id is a real action', async () => {
+  const { repeatAllowed, ACTIONS } = await import('./hotkeyActions.ts');
+  const repeating = Object.keys(ACTIONS).filter((id) => repeatAllowed(id, true));
+  assert.equal(repeating.length, 14);
+});
+
+test('V110-F81 AltGr is typing', async () => {
+  const { typesChar } = await import('./hotkeyActions.ts');
+  assert.equal(typesChar({ getModifierState: (k) => k === 'AltGraph' }), true);
+  assert.equal(typesChar({ getModifierState: () => false }), false);
+  assert.equal(typesChar({}), false);
+});
+
+test('V110-F81 key labels read as words and arrows', async () => {
+  const { keyLabel } = await import('./hotkeyActions.ts');
+  assert.deepEqual('Shift+ArrowRight'.split('+').map(keyLabel), ['Shift', '→']);
+  assert.equal(keyLabel('PageUp'), 'Page up');
+  assert.equal(keyLabel('PageDown'), 'Page down');
+  assert.equal(keyLabel('Escape'), 'Esc');
+  assert.equal(keyLabel('Space'), 'Space');
+  assert.equal(keyLabel('Backspace'), 'Backspace');
+  assert.equal(keyLabel('Ctrl'), 'Ctrl');
+});

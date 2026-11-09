@@ -1,6 +1,7 @@
 <!-- S5 A plugin's console: its log as it comes in, and a line that runs Lua inside the
      plugin (`1 + 1` shows 2). Route: `plugin/<folder name>`. -->
 <script lang="ts">
+  import { enterKey } from '../../lib/keys';
   import { orToast } from '../../lib/orToast';
   import { tick } from 'svelte';
 
@@ -74,7 +75,7 @@
   }
 
   function onkeydown(e: KeyboardEvent) {
-    if (e.key === 'Enter') {
+    if (enterKey(e)) {
       e.preventDefault();
       void run();
     } else if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') && history.length) {

@@ -1,5 +1,6 @@
 <!-- V106-31/32 The name field shared by the card, the picker bar and rename: checks 7TV's rule, then Rust's. -->
 <script lang="ts">
+  import { enterKey } from '../../../lib/keys';
   import { onMount } from 'svelte';
 
   import Button from '../../../components/Button.svelte';
@@ -86,7 +87,7 @@
   }
 
   function onkeydown(e: KeyboardEvent): void {
-    if (e.key === 'Enter') {
+    if (enterKey(e)) {
       e.preventDefault();
       void send();
     }

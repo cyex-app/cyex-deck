@@ -13,6 +13,7 @@
     recording,
     resetBinding,
   } from '../../../lib/hotkeys.svelte';
+  import { keyLabel } from '../../../lib/hotkeyActions';
   import { modesIpc } from '../../../ipc/modes';
   import { toast } from '../../../lib/toast.svelte';
   import ResetSection from '../ResetSection.svelte';
@@ -99,11 +100,11 @@
   >
     <button class="combo" class:listening={editing === id} class:clash={!!taken} onclick={() => start(id)}>
       {#if taken}
-        {#each taken.combo.split('+') as key, i (i)}<kbd>{key}</kbd>{/each}
+        {#each taken.combo.split('+') as key, i (i)}<kbd>{keyLabel(key)}</kbd>{/each}
       {:else if editing === id}
         Press keys…
       {:else if combo}
-        {#each combo.split('+') as key, i (i)}<kbd>{key}</kbd>{/each}
+        {#each combo.split('+') as key, i (i)}<kbd>{keyLabel(key)}</kbd>{/each}
       {:else}
         <span class="none">Not set</span>
       {/if}

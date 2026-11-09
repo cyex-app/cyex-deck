@@ -1,5 +1,6 @@
 <!-- U4 Streamer mode: when it turns on and what it keeps off your stream. -->
 <script lang="ts">
+  import { enterKey } from '../../../lib/keys';
   import SectionHead from '../SectionHead.svelte';
   import Row from '../../../components/Row.svelte';
   import Segmented from '../../../components/Segmented.svelte';
@@ -71,7 +72,7 @@
         placeholder="Add an app"
         aria-label="Add an app"
         bind:value={adding}
-        onkeydown={(e) => e.key === 'Enter' && addApp()}
+        onkeydown={(e) => enterKey(e) && addApp()}
         onblur={addApp}
       />
     </div>

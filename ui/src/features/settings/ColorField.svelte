@@ -2,6 +2,7 @@
      the hex field takes `#rrggbb` or `rrggbb` (Enter or leaving the field keeps it). `value` is
      what is painted: when a theme nudges the pick, the swatch and the field show the nudge (T1). -->
 <script lang="ts">
+  import { enterKey } from '../../lib/keys';
   import { parseHex } from './themes';
 
   interface Props {
@@ -64,7 +65,7 @@
     style:width
     value={shown}
     onchange={(e) => commit(e.currentTarget)}
-    onkeydown={(e) => e.key === 'Enter' && commit(e.currentTarget)}
+    onkeydown={(e) => enterKey(e) && commit(e.currentTarget)}
   />
 </span>
 

@@ -2,6 +2,7 @@
      Add. A link's preview has Report. Renders two flex items for ThemePicker's tools row:
      the field, and the preview on a line of its own. -->
 <script lang="ts">
+  import { enterKey } from '../../lib/keys';
   import Button from '../../components/Button.svelte';
   import type { ThemePreview } from '../../ipc/bindings/ThemePreview';
   import { themeIpc } from '../../ipc/theme';
@@ -78,7 +79,7 @@
     aria-label="Theme link or code"
     bind:value={text}
     onkeydown={(e) => {
-      if (e.key === 'Enter' && text.trim()) void show();
+      if (enterKey(e) && text.trim()) void show();
     }}
   />
   <Button small disabled={!text.trim() || busy} onclick={() => void show()}>Add</Button>

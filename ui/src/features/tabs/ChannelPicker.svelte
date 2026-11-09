@@ -2,6 +2,7 @@
      from Twitch's search plus the exact match (offline too), best match first (`matchChannels`).
      Nothing is picked until one result is left or you choose; Enter takes the first and adds it, arrows move. -->
 <script lang="ts">
+  import { enterKey } from '../../lib/keys';
   import { untrack } from 'svelte';
 
   import Avatar from '../../components/Avatar.svelte';
@@ -96,7 +97,7 @@
   }
 
   async function onkeydown(e: KeyboardEvent) {
-    if (e.key === 'Enter') {
+    if (enterKey(e)) {
       e.preventDefault();
       // V108-F12 (S3-01) Enter acts on what's typed now: an older list never counts, so flush the lookup first.
       let t = enterTarget(text, asked, status, results, picked);
