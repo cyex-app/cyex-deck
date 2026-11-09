@@ -10,6 +10,7 @@
   import { settings } from '../../lib/settings.svelte';
   import { ENTRIES, GROUPS, hotkeyEntries, PAGES, type PageId } from './registry/index';
   import { openFor as openEmoteGroupFor } from './emoteGroups';
+  import { openMenuFor, settingsJump } from './menus/place.svelte';
   import { reveal } from './reveal';
   import { buildIndex, search, type Hit } from './search';
   import { settingsPlace } from './place.svelte';
@@ -29,6 +30,7 @@
   import HighlightsSection from './sections/HighlightsSection.svelte';
   import HotkeysSection from './sections/HotkeysSection.svelte';
   import IgnoresSection from './sections/IgnoresSection.svelte';
+  import MenusSection from './sections/MenusSection.svelte';
   import MinerSection from './sections/MinerSection.svelte';
   import NotificationsSection from './sections/NotificationsSection.svelte';
   import PlayerSection from './sections/PlayerSection.svelte';
@@ -62,6 +64,7 @@
     windows: WindowsSection,
     sound: SoundSection,
     hotkeys: HotkeysSection,
+    menus: MenusSection,
     plugins: PluginsSection,
     data: DataSection,
     accounts: AccountsSection,
@@ -217,11 +220,19 @@
     section = id;
   }
 
+  $effect(() => {
+    const to = settingsJump.to;
+    if (!to) return;
+    settingsJump.to = '';
+    open(to);
+  });
+
   async function jump(hit: Hit) {
     count(query);
     // V108-F59h The box is empty again after a pick; the recent list stays away until you type.
     recentAway = true;
     openEmoteGroupFor(hit.entry.id);
+    openMenuFor(hit.entry.id);
     open(hit.entry.page);
     await tick();
     if (content) reveal(content, hit.entry.anchor ? [hit.entry.id, hit.entry.anchor] : [hit.entry.id]);

@@ -3,6 +3,7 @@
 <script lang="ts">
   import { tick } from 'svelte';
 
+  import Button from '../../../components/Button.svelte';
   import EmptyState from '../../../components/EmptyState.svelte';
   import IconButton from '../../../components/IconButton.svelte';
   import Row from '../../../components/Row.svelte';
@@ -13,6 +14,7 @@
   import { formatDate, formatTime } from '../../../lib/format';
   import { settings } from '../../../lib/settings.svelte';
   import { toast } from '../../../lib/toast.svelte';
+  import { settingsJump } from '../menus/place.svelte';
   import { GUIDE } from '../commands/guide';
   import GuideText from '../commands/GuideText.svelte';
   import {
@@ -120,7 +122,10 @@
 />
 {#if failed}<p class="problem">Couldn’t check these lines.</p>{/if}
 
-<SectionHead title={GUIDE.menus.title}><GuideText entry={GUIDE.menus} /></SectionHead>
+<SectionHead title={GUIDE.menus.title}
+  ><GuideText entry={GUIDE.menus} />
+  <Button variant="link" hit onclick={() => (settingsJump.to = 'menus')}>Arrange them in Menus</Button></SectionHead
+>
 {#each MENUS as m (m.key)}
   <div class="sub" data-setting="commands.{m.key}">
     <span class="sub-title">{m.label}</span><span class="sub-hint">{m.hint}</span>

@@ -12,6 +12,7 @@ export const GROUPS = [
       { id: 'windows', label: 'Windows', icon: 'layout' },
       { id: 'sound', label: 'Sound', icon: 'volume' },
       { id: 'hotkeys', label: 'Hotkeys', icon: 'keyboard' },
+      { id: 'menus', label: 'Menus', icon: 'list' },
       { id: 'plugins', label: 'Plugins', icon: 'puzzle' },
       { id: 'data', label: 'Backup and sharing', icon: 'archive' },
     ],

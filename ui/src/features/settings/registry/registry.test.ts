@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { readdirSync, readFileSync } from 'node:fs';
 import { test } from 'node:test';
 
+import { MENU_DEFS } from '../../../components/menus/defs/index.ts';
 import { ENTRIES, hotkeyEntries, PAGES } from './index.ts';
 import { UNLISTED } from './unlisted.ts';
 
@@ -148,4 +149,16 @@ test('V103-13 every entry has a place to jump to', () => {
   const lost = ENTRIES.filter((e) => !marked(e.id) && !(e.anchor && marked(e.anchor))).map((e) => e.id);
   assert.deepEqual(lost, [], 'Put setting="<id>" on the row (or data-setting on the element)');
   assert.ok(marked('hotkey:tabs.new'), 'hotkey rows');
+});
+
+test('V110-U67 every arrangeable menu is found in search, and the page lists them', () => {
+  const ids = ENTRIES.filter((e) => e.page === 'menus').map((e) => e.id);
+  assert.ok(ids.includes('menus.layouts'));
+  assert.deepEqual(
+    ids.filter((i) => i.startsWith('menus:')).sort(),
+    MENU_DEFS.map((d) => `menus:${d.id}`).sort(),
+    'one search entry per menu def',
+  );
+  for (const e of ENTRIES.filter((e) => e.id.startsWith('menus:'))) assert.equal(e.anchor, 'menus.layouts', e.id);
+  assert.ok(PAGES.some((p) => p.id === 'menus' && p.group === 'App'));
 });
