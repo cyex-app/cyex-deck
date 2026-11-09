@@ -317,7 +317,6 @@ where
 {
     match raw {
         Err(e) if refused(&e) => {
-            eprintln!("miner: raw query refused ({e}); asking the persisted twin");
             twin().await.map_err(|p| Error::Api {
                 status: 200,
                 message: format!("{BOTH} (raw: {e}; persisted: {p})"),

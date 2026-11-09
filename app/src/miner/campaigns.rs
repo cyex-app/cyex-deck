@@ -65,10 +65,20 @@ async fn load(app: &AppHandle, account: &str, s: &MinerSettings) -> bool {
     };
     let http = http(app);
     let auth = gql_auth(&token, &client_id);
-    let ids = match super::source::dashboard(app, &http, auth).await {
+    let mut ids = match super::source::dashboard(app, &http, auth).await {
         Ok(ids) => ids,
         Err(e) => return failed(app, &e),
     };
+    // Some accounts get no dashboard list: use the ids the channel reads already found,
+    // and the inventory's (one extra read, only here).
+    if ids.is_empty() {
+        let seen: Vec<Vec<String>> = lock(app).channels.iter().map(|c| c.campaigns.clone()).collect();
+        let inv: Vec<String> = match super::source::inventory(app, &http, auth).await {
+            Ok(i) => i.campaigns.into_iter().map(|c| c.id).collect(),
+            Err(_) => Vec::new(),
+        };
+        ids = merge_ids(&seen, &inv);
+    }
     let campaigns = if ids.is_empty() {
         Vec::new()
     } else {
@@ -77,7 +87,6 @@ async fn load(app: &AppHandle, account: &str, s: &MinerSettings) -> bool {
             Err(e) => return failed(app, &e),
         }
     };
-    eprintln!("miner: campaigns: {} active, {} read", ids.len(), campaigns.len());
     let now = now_ms() / 1000;
     let (before, after) = {
         let mut st = lock(app);
@@ -114,7 +123,7 @@ async fn load(app: &AppHandle, account: &str, s: &MinerSettings) -> bool {
             .state::<Settings>()
             .update::<MinerSettings>(app, Partition::Miner, |m| m.badges.retain_running(&running));
     }
-    eprintln!("miner: badges open: {}", after.len());
+    note_counts(app, running.len(), after.len());
     super::badges::prune(app, &super::settings(app));
     super::emit_status(app);
     super::channels::nudge(app);
@@ -122,7 +131,6 @@ async fn load(app: &AppHandle, account: &str, s: &MinerSettings) -> bool {
 }
 
 fn failed(app: &AppHandle, e: &cyex_twitch::Error) -> bool {
-    eprintln!("miner: badge campaigns: {e}");
     let text = if both_refused(e) {
         "Couldn’t read the badge campaigns: Twitch turned both ways of asking down."
     } else {
@@ -130,4 +138,47 @@ fn failed(app: &AppHandle, e: &cyex_twitch::Error) -> bool {
     };
     log::add(app, LogKind::Error, None, text);
     false
+}
+
+/// Campaign ids from the channels' reads, then the inventory's, each once, in first-seen order.
+fn merge_ids(channels: &[Vec<String>], inventory: &[String]) -> Vec<String> {
+    let mut seen = std::collections::HashSet::new();
+    channels
+        .iter()
+        .flatten()
+        .chain(inventory)
+        .filter(|id| seen.insert(id.as_str()))
+        .cloned()
+        .collect()
+}
+
+/// One neutral line per read, only when the numbers changed.
+fn note_counts(app: &AppHandle, running: usize, earnable: usize) {
+    static LAST: std::sync::Mutex<Option<(usize, usize)>> = std::sync::Mutex::new(None);
+    let mut last = LAST.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    if *last != Some((running, earnable)) {
+        *last = Some((running, earnable));
+        log::add(
+            app,
+            LogKind::Badge,
+            None,
+            format!("Badge campaigns: {running} running, {earnable} you can earn."),
+        );
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::merge_ids;
+
+    fn v(a: &[&str]) -> Vec<String> {
+        a.iter().map(|s| (*s).to_string()).collect()
+    }
+
+    #[test]
+    fn v110_u68_channel_and_inventory_ids_merge_once() {
+        let ch = vec![v(&["a", "b"]), v(&[]), v(&["b", "c"])];
+        assert_eq!(merge_ids(&ch, &v(&["c", "d"])), v(&["a", "b", "c", "d"]));
+        assert!(merge_ids(&[], &[]).is_empty());
+    }
 }
