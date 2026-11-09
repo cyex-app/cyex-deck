@@ -78,6 +78,11 @@ async fn load(app: &AppHandle, account: &str, s: &MinerSettings) -> bool {
             Err(_) => Vec::new(),
         };
         ids = merge_ids(&seen, &inv);
+        // The channel reads may not have run yet: look again after RETRY, not the full cadence.
+        if ids.is_empty() {
+            note_counts(app, 0, 0);
+            return false;
+        }
     }
     let campaigns = if ids.is_empty() {
         Vec::new()
