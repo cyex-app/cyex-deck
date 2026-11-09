@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -30,6 +30,9 @@ pub struct LoadReport {
     /// V107-N10a What couldn't be done on disk (today's backup, setting a broken file aside).
     /// Logged; the start goes on, like a failed backup at flush (V107-A3).
     pub io_errors: Vec<String>,
+    /// V110-F82 Partitions whose file couldn't be opened (held by a scanner, a folder in the
+    /// way): left untouched, defaults in memory, never written this session.
+    pub blocked: Vec<Partition>,
 }
 
 /// In-memory settings, written back to disk by [`Store::flush`].
@@ -41,7 +44,15 @@ pub struct Store {
     edits: u64,
     clock: Arc<dyn Clock>,
     old_mentions_unreadable: bool,
+    /// V110-F82 Never written this session (see [`LoadReport::blocked`]).
+    blocked: BTreeSet<Partition>,
 }
+
+/// V110-F82 How often a file that can't be opened is tried again at start, and the wait between.
+const OPEN_WAITS: u32 = 5;
+const OPEN_PAUSE: std::time::Duration = std::time::Duration::from_millis(200);
+
+type ReadFn<'a> = &'a dyn Fn(&Path) -> std::io::Result<Vec<u8>>;
 
 impl Store {
     /// V106-33 An old `mentions.json` (disk or restored snapshot) had the wrong shape and was skipped.
@@ -52,6 +63,16 @@ impl Store {
     /// Loads every partition from `dir`, creating it if needed. Takes today's backup
     /// before anything is changed.
     pub fn open(dir: impl Into<PathBuf>, clock: Arc<dyn Clock>) -> Result<(Self, LoadReport)> {
+        Self::open_with(dir, clock, &|p: &Path| fs::read(p), OPEN_PAUSE)
+    }
+
+    /// [`Store::open`] with the file read and the retry pause given (tests).
+    fn open_with(
+        dir: impl Into<PathBuf>,
+        clock: Arc<dyn Clock>,
+        read_file: ReadFn,
+        pause: std::time::Duration,
+    ) -> Result<(Self, LoadReport)> {
         let dir = dir.into();
         fs::create_dir_all(&dir)?;
         let mut report = LoadReport::default();
@@ -65,9 +86,31 @@ impl Store {
         let mut raw_highlights = None;
         // R19 Partitions that normalizing changed (a one-time move, a sanitize fix): written at flush.
         let mut changed = Vec::new();
+        let mut blocked = BTreeSet::new();
+        // V110-F82 One wait budget for the whole start, so a locked folder can't stall it.
+        let mut waits = OPEN_WAITS;
         for p in Partition::ALL {
             let path = dir.join(p.file_name());
-            let read = read_raw(&path).and_then(|raw| {
+            let first = loop {
+                let r = read_raw_with(&path, read_file);
+                // V110-F82 A file that can't be opened is not a broken file: wait and try again.
+                let retry = matches!(&r, Err(Error::Io(_))) && waits > 0 && !path.is_dir();
+                if !retry {
+                    break r;
+                }
+                waits -= 1;
+                std::thread::sleep(pause);
+            };
+            if matches!(&first, Err(Error::Io(_))) {
+                // V110-F82 Still shut: the file stays as it is, this partition runs on defaults
+                // and is not written (no quarantine, no backup restore, not dirty).
+                blocked.insert(p);
+                report.blocked.push(p);
+                let v = p.default_value();
+                values.insert(p, if p == Partition::Chat { presence_off(v) } else { v });
+                continue;
+            }
+            let read = first.and_then(|raw| {
                 if p == Partition::Highlights {
                     raw_highlights.clone_from(&raw);
                 }
@@ -135,11 +178,14 @@ impl Store {
             edits: 0,
             clock,
             old_mentions_unreadable: false,
+            blocked,
         };
         for p in changed {
             store.mark_dirty(p);
         }
-        if report.reset.contains(&Partition::Highlights) {
+        if store.blocked.contains(&Partition::Highlights) {
+            // V110-F82 Its file wasn't opened: no merge, nothing to write over it.
+        } else if report.reset.contains(&Partition::Highlights) {
             // V106-33 Quarantined: the flagged defaults are written. R7 The old mention words
             // are user data, so mentions.json is folded into them.
             store.mark_dirty(Partition::Highlights);
@@ -227,8 +273,17 @@ impl Store {
         !self.dirty.is_empty()
     }
 
+    /// V110-F82 The partitions still waiting to be written.
+    pub fn dirty_partitions(&self) -> Vec<Partition> {
+        self.dirty.keys().copied().collect()
+    }
+
     /// Writes `p` at the next flush even if unchanged: a one-time migration in `sanitize` ran on load.
     pub fn mark_dirty(&mut self, p: Partition) {
+        // V110-F82 A file that couldn't be opened at start is never overwritten.
+        if self.blocked.contains(&p) {
+            return;
+        }
         self.edits += 1;
         self.dirty.insert(p, self.edits);
     }
@@ -405,11 +460,39 @@ impl Store {
 
 /// A file as JSON, not normalized. `None` when it doesn't exist.
 fn read_raw(path: &Path) -> Result<Option<Value>> {
-    if !path.is_file() {
-        return Ok(None);
+    read_raw_with(path, &|p: &Path| fs::read(p))
+}
+
+/// V110-F82 A file that can't be opened (or a folder in its place) is an `Io` error, a file that
+/// opens but doesn't parse is a `Json` one; the caller treats them differently.
+fn read_raw_with(path: &Path, read_file: ReadFn) -> Result<Option<Value>> {
+    match fs::metadata(path) {
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(e) => return Err(e.into()),
+        Ok(m) if m.is_dir() => {
+            return Err(std::io::Error::other("a folder is where the file should be").into());
+        }
+        Ok(_) => {}
     }
-    let text = fs::read_to_string(path)?;
-    Ok(Some(serde_json::from_str(&text)?))
+    Ok(Some(parse_bytes(&read_file(path)?)?))
+}
+
+/// V110-F82 JSON from file bytes: a UTF-8 BOM is skipped (Windows PowerShell 5.1 writes one),
+/// UTF-16 is decoded by its BOM. Anything else must be UTF-8.
+fn parse_bytes(bytes: &[u8]) -> Result<Value> {
+    if let Some(rest) = bytes.strip_prefix(&[0xFF, 0xFE]).or_else(|| bytes.strip_prefix(&[0xFE, 0xFF])) {
+        let le = bytes[0] == 0xFF;
+        let units: Vec<u16> = rest
+            .as_chunks::<2>()
+            .0
+            .iter()
+            .map(|&c| if le { u16::from_le_bytes(c) } else { u16::from_be_bytes(c) })
+            .collect();
+        let text = String::from_utf16(&units).map_err(|_| Error::NotSettings)?;
+        return Ok(serde_json::from_str(&text)?);
+    }
+    let bytes = bytes.strip_prefix(&[0xEF, 0xBB, 0xBF]).unwrap_or(bytes);
+    Ok(serde_json::from_slice(bytes)?)
 }
 
 /// t5 The fields of a JSON object file that the schema still accepts, one top-level key at a

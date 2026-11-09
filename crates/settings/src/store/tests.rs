@@ -921,3 +921,88 @@ fn v108_02_old_joins_leaves_is_rewritten_once() {
     let chat = again.read::<Chat>(Partition::Chat);
     assert!(chat.joins && !chat.parts);
 }
+
+/// V110-F82 A file that can't be read at start is left alone: defaults in memory, nothing
+/// written over it, not even after edits.
+#[test]
+fn an_unreadable_file_is_never_written_over() {
+    let tmp = TempDir::new("store-locked");
+    let clock = Arc::new(FakeClock::at(day(9)));
+    let file = tmp.path().join(Partition::Chat.file_name());
+    fs::write(&file, r#"{"alternateLines": true}"#).unwrap();
+    let locked = |_: &Path| -> std::io::Result<Vec<u8>> {
+        Err(std::io::Error::from_raw_os_error(32))
+    };
+    let (mut store, report) =
+        Store::open_with(tmp.path(), clock.clone(), &locked, std::time::Duration::ZERO).unwrap();
+    assert_eq!(report.blocked, vec![Partition::Chat]);
+    assert!(report.reset.is_empty() && report.restored.is_empty());
+    assert!(!store.is_dirty());
+    store.patch(Partition::Chat, &json!({"alternateLines": false})).unwrap();
+    store.mark_dirty(Partition::Chat);
+    assert!(!store.is_dirty());
+    store.flush().unwrap();
+    assert_eq!(fs::read_to_string(&file).unwrap(), r#"{"alternateLines": true}"#);
+    assert!(!fs::read_dir(tmp.path()).unwrap().any(|e| e.unwrap().file_name().to_string_lossy().contains("broken")));
+}
+
+/// V110-F82 A read that fails once and then works is retried; nothing is blocked.
+#[test]
+fn a_briefly_locked_file_is_read_after_a_retry() {
+    let tmp = TempDir::new("store-retry");
+    let clock = Arc::new(FakeClock::at(day(9)));
+    fs::write(tmp.path().join(Partition::General.file_name()), r#"{"chatFontSize": 15}"#).unwrap();
+    let tries = std::cell::Cell::new(0);
+    let flaky = |p: &Path| -> std::io::Result<Vec<u8>> {
+        if p.ends_with(Partition::General.file_name()) && tries.replace(tries.get() + 1) == 0 {
+            return Err(std::io::Error::from_raw_os_error(32));
+        }
+        fs::read(p)
+    };
+    let (store, report) =
+        Store::open_with(tmp.path(), clock.clone(), &flaky, std::time::Duration::ZERO).unwrap();
+    assert!(report.blocked.is_empty());
+    assert_eq!(store.read::<General>(Partition::General).chat_font_size, 15);
+}
+
+/// V110-F82 A folder where `chat.json` should be is reported as blocked and left as it is.
+#[test]
+fn a_folder_in_place_of_a_file_is_blocked_not_absent() {
+    let tmp = TempDir::new("store-dir-in-way");
+    let clock = Arc::new(FakeClock::at(day(9)));
+    let blocked = tmp.path().join(Partition::Chat.file_name());
+    fs::create_dir(&blocked).unwrap();
+    let (mut store, report) = open(tmp.path(), &clock);
+    assert_eq!(report.blocked, vec![Partition::Chat]);
+    store.mark_dirty(Partition::Chat);
+    assert!(!store.is_dirty());
+    assert!(blocked.is_dir());
+}
+
+/// V110-F82 A UTF-8 BOM, UTF-16 with a BOM and a plain file all read.
+#[test]
+fn bom_and_utf16_files_read() {
+    let json = r#"{"chatFontSize": 17}"#;
+    let mut bom = vec![0xEF, 0xBB, 0xBF];
+    bom.extend_from_slice(json.as_bytes());
+    let le: Vec<u8> = [0xFF, 0xFE].into_iter().chain(json.encode_utf16().flat_map(u16::to_le_bytes)).collect();
+    let be: Vec<u8> = [0xFE, 0xFF].into_iter().chain(json.encode_utf16().flat_map(u16::to_be_bytes)).collect();
+    for bytes in [bom, le, be, json.as_bytes().to_vec()] {
+        assert_eq!(parse_bytes(&bytes).unwrap()["chatFontSize"], 17);
+    }
+    assert!(matches!(parse_bytes(&[0xFF, 0xFE, 0x00]), Err(Error::Json(_))));
+    assert!(parse_bytes(b"\xFF\xFFnot").is_err());
+}
+
+/// V110-F82 A BOM file keeps its values instead of resetting the partition.
+#[test]
+fn a_bom_file_is_not_reset() {
+    let tmp = TempDir::new("store-bom");
+    let clock = Arc::new(FakeClock::at(day(9)));
+    let mut bytes = vec![0xEF, 0xBB, 0xBF];
+    bytes.extend_from_slice(br#"{"chatFontSize": 17}"#);
+    fs::write(tmp.path().join(Partition::General.file_name()), bytes).unwrap();
+    let (store, report) = open(tmp.path(), &clock);
+    assert!(report.reset.is_empty());
+    assert_eq!(store.read::<General>(Partition::General).chat_font_size, 17);
+}

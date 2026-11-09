@@ -5,7 +5,7 @@
 use std::collections::BTreeMap;
 use std::fs::{self, OpenOptions};
 use std::io::Write;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use cyex_miner::stats::{self, Record, Stats};
 use serde::Serialize;
@@ -49,6 +49,14 @@ fn read_names(app: &AppHandle, account: &str) -> Names {
         .unwrap_or_default()
 }
 
+/// V110-F82 Temp file and rename: a crash mid-write used to cut `names.json` short, and then
+/// every channel showed as a raw id.
+fn write_names(dir: &Path, names: &Names) {
+    if let Ok(json) = serde_json::to_vec(names) {
+        let _ = cyex_settings::write_atomic(&dir.join("names.json"), &json);
+    }
+}
+
 /// Appends one event to a channel's log.
 pub fn record(app: &AppHandle, account: &str, channel_id: &str, rec: &Record) {
     let Some(path) = file(app, account, channel_id) else {
@@ -71,8 +79,8 @@ pub fn record(app: &AppHandle, account: &str, channel_id: &str, rec: &Record) {
         let entry = (login, name);
         if names.get(channel_id) != Some(&entry) {
             names.insert(channel_id.to_owned(), entry);
-            if let (Some(d), Ok(json)) = (dir(app, account), serde_json::to_vec(&names)) {
-                let _ = fs::write(d.join("names.json"), json);
+            if let Some(d) = dir(app, account) {
+                write_names(&d, &names);
             }
         }
     }
@@ -134,5 +142,28 @@ pub fn clear(app: &AppHandle, account: &str, channel_id: Option<&str>) -> Result
     match result {
         Err(e) if e.kind() != std::io::ErrorKind::NotFound => Err(format!("Couldn’t delete the stats: {e}")),
         _ => Ok(()),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// V110-F82 A write that fails halfway leaves the old names.json whole.
+    #[test]
+    fn names_are_written_through_a_temp_file() {
+        let dir = std::env::temp_dir().join(format!("cyex-stats-names-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        let mut names = Names::new();
+        names.insert("1".into(), ("a".into(), "A".into()));
+        write_names(&dir, &names);
+        let before = fs::read(dir.join("names.json")).unwrap();
+        // The temp file can't be made: a plain write would have replaced names.json anyway.
+        fs::create_dir(dir.join("names.tmp")).unwrap();
+        names.insert("2".into(), ("b".into(), "B".into()));
+        write_names(&dir, &names);
+        assert_eq!(fs::read(dir.join("names.json")).unwrap(), before);
+        let _ = fs::remove_dir_all(&dir);
     }
 }

@@ -98,6 +98,10 @@ fn inside(path: &Path, base: &Path) -> bool {
 pub fn init(app: &AppHandle) -> &'static Dirs {
     let dirs = DIRS.get_or_init(|| pick(app).unwrap_or_else(|e| fail(None, &e)));
     if let Some(webview) = &dirs.webview {
+        // V110-F82 A long data path starts the process but WebView2 never opens a window.
+        if webview_path_too_long(webview) {
+            fail(Some(&dirs.config), "That folder’s path is too long.");
+        }
         eprintln!(
             "paths: test data folder: settings {}, local {}, webview {}",
             dirs.config.display(),
@@ -111,6 +115,14 @@ pub fn init(app: &AppHandle) -> &'static Dirs {
         }
     }
     dirs
+}
+
+/// V110-F82 WebView2 puts its own folders (and long cache file names) below this one; a
+/// 218-character data path worked, 293 never showed a window.
+const WEBVIEW_PATH_MAX: usize = 240;
+
+fn webview_path_too_long(webview: &Path) -> bool {
+    webview.as_os_str().len() > WEBVIEW_PATH_MAX
 }
 
 /// The text of the start-up error box.
@@ -135,7 +147,10 @@ pub fn why(path: &Path, err: &std::io::Error) -> String {
         return format!("A file is in the way: {}", file.display());
     }
     match err.kind() {
-        std::io::ErrorKind::PermissionDenied => "No permission to write there.".into(),
+        // V110-F82 Windows answers a make-folder in a read-only one with "already exists".
+        std::io::ErrorKind::PermissionDenied
+        | std::io::ErrorKind::ReadOnlyFilesystem
+        | std::io::ErrorKind::AlreadyExists => "No permission to write there.".into(),
         _ => os_text(&err.to_string()),
     }
 }
@@ -342,5 +357,18 @@ mod tests {
             why(Path::new(r"Q:\nowhere\x"), &denied),
             "No permission to write there."
         );
+    }
+
+    /// V110-F82 Windows reports a make-folder in a read-only folder as "already exists".
+    #[test]
+    fn v110_f82_a_read_only_folder_gets_the_short_line() {
+        let err = std::io::Error::from_raw_os_error(183);
+        assert_eq!(why(Path::new(r"Q:\nowhere\x"), &err), "No permission to write there.");
+    }
+
+    #[test]
+    fn v110_f82_a_long_data_path_is_caught() {
+        assert!(!webview_path_too_long(Path::new(&format!(r"C:\{}\webview", "a".repeat(200)))));
+        assert!(webview_path_too_long(Path::new(&format!(r"C:\{}\webview", "a".repeat(250)))));
     }
 }

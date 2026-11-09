@@ -46,7 +46,13 @@ class SettingsStore {
       }
       this.put(partition, value);
     });
-    const { reset, restored, restoredFrom } = await settingsIpc.takeLoadReport();
+    // V110-F82 Rust sends it to the main window only, once per partition.
+    await settingsIpc.onSaveFailing(() => toast.error('Settings aren’t saving. Check that the folder can be written to.'));
+    const { reset, restored, restoredFrom, blocked } = await settingsIpc.takeLoadReport();
+    if (blocked.length) {
+      // V110-F82 A locked file or a folder in its place: the file is untouched, nothing is saved to it.
+      toast.error(`Some settings couldn’t be opened and were left untouched: ${partitionList(blocked)}. They won’t be saved until the app restarts.`);
+    }
     if (reset.length) {
       // t5 Names as in Backup and sharing; a file can also be only partly reset now.
       toast.error(`Some settings couldn’t be read and went back to default: ${partitionList(reset)}. The old files are kept in the settings folder.`);

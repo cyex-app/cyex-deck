@@ -219,8 +219,11 @@ pub(crate) fn snapshot_name(now: OffsetDateTime) -> String {
 }
 
 pub(crate) fn is_snapshot_name(name: &str) -> bool {
-    name.strip_prefix(SNAPSHOT_PREFIX)
-        .is_some_and(|stamp| PrimitiveDateTime::parse(stamp, STAMP_FORMAT).is_ok())
+    // V110-F82 A second snapshot within the same second carries `-2`, `-3`, ...
+    let Some(rest) = name.strip_prefix(SNAPSHOT_PREFIX) else { return false };
+    let (stamp, tail) = rest.split_at_checked(17).unwrap_or((rest, ""));
+    let tail_ok = tail.is_empty() || tail.strip_prefix('-').is_some_and(|n| !n.is_empty() && n.bytes().all(|b| b.is_ascii_digit()));
+    tail_ok && PrimitiveDateTime::parse(stamp, STAMP_FORMAT).is_ok()
 }
 
 pub(crate) fn named_dir(settings_dir: &Path, name: &str) -> PathBuf {
@@ -242,11 +245,16 @@ pub(crate) fn snapshot_now(settings_dir: &Path, now: OffsetDateTime) -> Result<O
     if files.is_empty() {
         return Ok(None);
     }
-    let name = snapshot_name(now);
-    let target = named_dir(settings_dir, &name);
-    if target.exists() {
-        return Ok(Some(name));
+    // V110-F82 A second restore within the same second used to get the first one's folder back,
+    // so the state before it was never saved. It gets its own name.
+    let base = snapshot_name(now);
+    let mut name = base.clone();
+    let mut n = 2;
+    while named_dir(settings_dir, &name).exists() {
+        name = format!("{base}-{n}");
+        n += 1;
     }
+    let target = named_dir(settings_dir, &name);
     let root = settings_dir.join(BACKUP_DIR);
     stage(&root, &format!(".partial-{name}"), &files, &target)?;
     for old in list_snapshots(settings_dir)?.into_iter().skip(SNAPSHOT_KEEP) {
@@ -439,6 +447,21 @@ mod tests {
             ["before-restore-2026-10-02-100005", "before-restore-2026-10-02-100004", "before-restore-2026-10-02-100003"]
         );
         assert_eq!(list(tmp.path()).unwrap(), vec![day(1)], "the daily slot is untouched");
+    }
+
+    /// V110-F82 Two snapshots in one second both exist and the second holds the newer state.
+    #[test]
+    fn a_second_snapshot_in_the_same_second_gets_its_own_folder() {
+        let tmp = TempDir::new("backup-snap-same-second");
+        write_settings(tmp.path(), "{\"v\":1}");
+        let a = snapshot_now(tmp.path(), at(2, 10, 0, 0)).unwrap().unwrap();
+        write_settings(tmp.path(), "{\"v\":2}");
+        let b = snapshot_now(tmp.path(), at(2, 10, 0, 0)).unwrap().unwrap();
+        assert_ne!(a, b);
+        assert!(is_snapshot_name(&b));
+        assert_eq!(fs::read_to_string(named_dir(tmp.path(), &a).join("general.json")).unwrap(), "{\"v\":1}");
+        assert_eq!(fs::read_to_string(named_dir(tmp.path(), &b).join("general.json")).unwrap(), "{\"v\":2}");
+        assert_eq!(list_snapshots(tmp.path()).unwrap(), vec![b, a]);
     }
 
     #[test]

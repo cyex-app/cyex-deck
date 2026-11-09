@@ -17,6 +17,10 @@ const SAVE_DELAY: Duration = Duration::from_millis(400);
 /// V107-A3 Wait before trying a failed save again (a file held by a scanner, say).
 const RETRY_DELAY: Duration = Duration::from_secs(5);
 const CHANGED_EVENT: &str = "settings:changed";
+/// V110-F82 Tells the UI that a partition keeps failing to save (payload: the partitions).
+const SAVE_FAILING_EVENT: &str = "settings:save-failing";
+/// V110-F82 Failed saves in a row (5 s apart) before the user hears of it.
+const FAILS_BEFORE_NOTICE: u32 = 3;
 
 pub struct Settings {
     store: Mutex<Store>,
@@ -24,6 +28,11 @@ pub struct Settings {
     /// Serializes flushes; the disk work runs without the store lock.
     flushing: Mutex<()>,
     reset_on_load: Mutex<LoadNotice>,
+    /// V110-F82 Appearance was reset, restored or not opened at this start: what no theme names
+    /// may still be the user's wallpapers.
+    appearance_untrusted: bool,
+    /// V110-F82 Which partitions keep failing to save, and which the user was told about.
+    save_watch: Mutex<SaveWatch>,
     /// V105-11 The uploader's headers live here, not in the settings files or their backups.
     secrets: Arc<dyn SecretStore>,
 }
@@ -36,6 +45,33 @@ pub struct LoadNotice {
     reset: Vec<Partition>,
     restored: Vec<Partition>,
     restored_from: Option<String>,
+    /// V110-F82 Files that couldn't be opened: left as they are, not saved this session.
+    blocked: Vec<Partition>,
+}
+
+/// V110-F82 Counts failed saves per partition; tells once per partition per session when
+/// a partition has failed [`FAILS_BEFORE_NOTICE`] times in a row.
+#[derive(Default)]
+struct SaveWatch {
+    streak: std::collections::BTreeMap<Partition, u32>,
+    told: std::collections::BTreeSet<Partition>,
+}
+
+impl SaveWatch {
+    /// A flush ended; `still_dirty` are the partitions that didn't reach disk. Returns the
+    /// partitions to tell the user about now.
+    fn after_flush(&mut self, still_dirty: &[Partition]) -> Vec<Partition> {
+        self.streak.retain(|p, _| still_dirty.contains(p));
+        let mut now = Vec::new();
+        for &p in still_dirty {
+            let n = self.streak.entry(p).or_insert(0);
+            *n += 1;
+            if *n >= FAILS_BEFORE_NOTICE && self.told.insert(p) {
+                now.push(p);
+            }
+        }
+        now
+    }
 }
 
 impl LoadNotice {
@@ -45,8 +81,14 @@ impl LoadNotice {
             reset: report.reset.clone(),
             restored: report.restored.iter().map(|(p, _)| *p).collect(),
             restored_from: one_day(report.restored.iter().map(|(_, d)| *d)).and_then(|d| d.format(day).ok()),
+            blocked: report.blocked.clone(),
         }
     }
+}
+
+/// V110-F82 `p` didn't load as the file had it (reset, brought back from a backup, or not opened).
+fn untrusted(report: &cyex_settings::LoadReport, p: Partition) -> bool {
+    report.reset.contains(&p) || report.restored.iter().any(|(r, _)| *r == p) || report.blocked.contains(&p)
 }
 
 /// The day all of them share, else `None` (the notice then just says "a backup").
@@ -106,6 +148,9 @@ pub fn init(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
     for e in &report.io_errors {
         eprintln!("settings: V107-N10a {e}");
     }
+    for p in &report.blocked {
+        eprintln!("settings: V110-F82 {} couldn't be opened, left untouched and not saved this session", p.file_name());
+    }
     if report.old_mentions_unreadable {
         eprintln!("settings: mentions.json unreadable, left as is");
     }
@@ -138,6 +183,8 @@ pub fn init(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
         save_queued: AtomicBool::new(false),
         flushing: Mutex::new(()),
         reset_on_load: Mutex::new(LoadNotice::of(&report)),
+        save_watch: Mutex::default(),
+        appearance_untrusted: untrusted(&report, Partition::Appearance),
         secrets,
     });
     Ok(())
@@ -153,7 +200,7 @@ fn presence_pending(file: &Path) -> Option<bool> {
 pub fn flush_now(app: &AppHandle) {
     crate::chat::run::save_counts(app);
     if let Some(settings) = app.try_state::<Settings>() {
-        settings.flush();
+        settings.flush(app);
     }
 }
 
@@ -261,6 +308,11 @@ impl Settings {
         self.secrets.load(UPLOADER_HEADERS).ok().flatten().unwrap_or_default()
     }
 
+    /// V110-F82 See `appearance_untrusted`.
+    pub fn appearance_untrusted(&self) -> bool {
+        self.appearance_untrusted
+    }
+
     pub fn take_load_report(&self) -> LoadNotice {
         std::mem::take(&mut *self.reset_on_load.lock().unwrap_or_else(|p| p.into_inner()))
     }
@@ -349,21 +401,29 @@ impl Settings {
             let settings = app.state::<Settings>();
             settings.save_queued.store(false, Ordering::Release);
             // V107-A3 Parts that didn't reach disk are tried again, at most every 5 s.
-            if settings.flush() {
+            if settings.flush(&app) {
                 settings.schedule_save_in(&app, RETRY_DELAY);
             }
         });
     }
 
     /// Writes what changed. True when it failed and something is still unsaved.
-    fn flush(&self) -> bool {
+    fn flush(&self, app: &AppHandle) -> bool {
         // The disk work runs outside the store lock, so reads and patches don't wait on it.
         // One flush at a time, so two never interleave writes.
         let _flushing = self.flushing.lock().unwrap_or_else(|p| p.into_inner());
         let Some(job) = self.lock().prepare_flush() else { return false };
         let done = job.run();
         let mut store = self.lock();
-        match store.commit_flush(done) {
+        let result = store.commit_flush(done);
+        // V110-F82 Retried silently every 5 s forever; the user hears of it once. Only a failed
+        // save counts: after a good one, what is dirty again is just a newer edit.
+        let failed = if result.is_err() { store.dirty_partitions() } else { Vec::new() };
+        let tell = self.save_watch.lock().unwrap_or_else(|p| p.into_inner()).after_flush(&failed);
+        if !tell.is_empty() {
+            let _ = app.emit_to("main", SAVE_FAILING_EVENT, tell);
+        }
+        match result {
             Ok(()) => false,
             Err(e) => {
                 eprintln!("settings: save failed: {e}");
@@ -387,6 +447,36 @@ mod tests {
                 std::fs::read_to_string(&p).is_ok_and(|t| t.contains(needle))
             }
         })
+    }
+
+    /// V110-F82 The user is told once per partition, after three failed saves in a row.
+    #[test]
+    fn save_watch_tells_once_after_three_failures() {
+        let mut w = SaveWatch::default();
+        let both = [Partition::Chat, Partition::Tabs];
+        assert!(w.after_flush(&both).is_empty());
+        assert!(w.after_flush(&both).is_empty());
+        assert_eq!(w.after_flush(&both), both);
+        assert!(w.after_flush(&both).is_empty(), "once");
+        // One recovers, its streak starts over; the other stays told.
+        assert!(w.after_flush(&[Partition::Tabs]).is_empty());
+        assert!(w.after_flush(&both).is_empty());
+        assert!(w.after_flush(&[]).is_empty());
+    }
+
+    #[test]
+    fn v110_f82_a_partition_that_did_not_load_whole_is_untrusted() {
+        let mut r = cyex_settings::LoadReport::default();
+        assert!(!untrusted(&r, Partition::Appearance));
+        r.reset.push(Partition::Appearance);
+        assert!(untrusted(&r, Partition::Appearance));
+        assert!(!untrusted(&r, Partition::Chat));
+        let mut r = cyex_settings::LoadReport::default();
+        r.blocked.push(Partition::Appearance);
+        assert!(untrusted(&r, Partition::Appearance));
+        let mut r = cyex_settings::LoadReport::default();
+        r.restored.push((Partition::Appearance, time::Date::MIN));
+        assert!(untrusted(&r, Partition::Appearance));
     }
 
     #[test]

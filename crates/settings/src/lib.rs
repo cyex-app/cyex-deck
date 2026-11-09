@@ -27,6 +27,8 @@ mod testutil;
 pub use backup::{BACKUP_DAYS, BackupStatus};
 pub use clock::{Clock, SystemClock};
 pub use error::{Error, Result};
+/// V110-F82 Temp file and rename, for stores outside this crate.
+pub use fsutil::write_atomic;
 pub use legacy::MergeReport;
 pub use partition::Partition;
 pub use schema::Schema;

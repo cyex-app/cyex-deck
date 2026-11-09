@@ -96,7 +96,12 @@ export const settingsIpc = {
   openFolder: () => invoke<void>('settings_open_folder'),
   /** V107-N10a Files that went back to default, and files that came back from a backup (day yyyy/mm/dd when all share one). */
   takeLoadReport: () =>
-    invoke<{ reset: Partition[]; restored: Partition[]; restoredFrom: string | null }>('settings_take_load_report'),
+    invoke<{ reset: Partition[]; restored: Partition[]; restoredFrom: string | null; blocked: Partition[] }>(
+      'settings_take_load_report',
+    ),
+  /** V110-F82 A partition has failed to save several times in a row. */
+  onSaveFailing: (handler: (partitions: Partition[]) => void) =>
+    listen<Partition[]>('settings:save-failing', (e) => handler(e.payload)),
   onChanged: (handler: (partition: Partition, value: unknown) => void) =>
     listen<{ partition: Partition; value: unknown }>('settings:changed', (e) =>
       handler(e.payload.partition, e.payload.value),

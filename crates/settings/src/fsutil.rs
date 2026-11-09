@@ -4,7 +4,7 @@ use std::path::Path;
 
 /// Writes via a temp file and rename, so a crash never leaves a half-written file.
 /// V107-N10a A failed write (a full disk) removes its temp file; the old file stays.
-pub(crate) fn write_atomic(path: &Path, contents: &[u8]) -> std::io::Result<()> {
+pub fn write_atomic(path: &Path, contents: &[u8]) -> std::io::Result<()> {
     let tmp = path.with_extension("tmp");
     let written = (|| {
         let mut file = File::create(&tmp)?;

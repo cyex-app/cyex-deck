@@ -160,11 +160,18 @@ pub struct Obs {
 /// V108-C38 The stats on the Stream card that can be hidden.
 const STAT_IDS: [&str; 5] = ["viewers", "uptime", "followers", "subs", "subPoints"];
 
+/// V110-F82 Longest OBS folder path kept.
+const OBS_FOLDER_MAX: usize = 1024;
+
 impl Schema for StreamManager {
     fn sanitize(&mut self) {
         let share = self.chat.share;
         self.chat.share = if share.is_finite() { share.clamp(0.15, 0.85) } else { ManagerChat::default().share };
         self.layout = sanitize_panels(self.layout.take());
+        // V110-F82 A path, not a document: 5 MB here was kept and rewritten on every save.
+        if self.obs.folder.chars().count() > OBS_FOLDER_MAX {
+            self.obs.folder = self.obs.folder.chars().take(OBS_FOLDER_MAX).collect();
+        }
         // V108-C38 Only the known stats, each once.
         let mut seen: Vec<String> = Vec::new();
         for id in std::mem::take(&mut self.hidden_stats) {
@@ -209,6 +216,14 @@ mod tests {
         assert_eq!(kept.chat_kept, Some(false));
         let f: ModActionFilters = serde_json::from_str(r#"{"bans":false}"#).unwrap();
         assert!(!f.bans && f.timeouts && f.automod && f.other);
+    }
+
+    #[test]
+    fn v110_f82_obs_folder_is_capped() {
+        let mut sm = StreamManager::default();
+        sm.obs.folder = "a".repeat(5_000_000);
+        sm.sanitize();
+        assert_eq!(sm.obs.folder.chars().count(), 1024);
     }
 
     #[test]

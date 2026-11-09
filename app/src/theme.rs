@@ -108,7 +108,9 @@ pub fn init(app: &AppHandle) {
     on_settings(app);
     // Pictures no theme uses any more (deleted themes, replaced wallpapers).
     let a: Appearance = app.state::<Settings>().read(Partition::Appearance);
-    if let Some(dir) = wallpapers_dir(app) {
+    // V110-F82 Not when Appearance just fell back to defaults: no theme names the pictures then.
+    let sweep = !app.state::<Settings>().appearance_untrusted();
+    if let Some(dir) = wallpapers_dir(app).filter(|_| sweep) {
         // V109-T01 Earlier versions kept for "Go back" count as in use.
         let used: Vec<&str> = a
             .themes
