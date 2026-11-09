@@ -271,8 +271,10 @@ fn call(f: Func, args: &[Items], p: &Params, h: &mut dyn Host) -> Option<String>
                 ),
             };
             let (lo, hi) = (from.min(to), from.max(to));
-            let span = (hi - lo) as u64 + 1;
-            (lo + h.random(span) as i64).to_string()
+            // V110-F80: the span of i64::MIN..=i64::MAX is 2^64, one past u64; saturate, never 0.
+            let span = u64::try_from(i128::from(hi) - i128::from(lo) + 1).unwrap_or(u64::MAX);
+            let pick = h.random(span).min(span - 1);
+            (i128::from(lo) + i128::from(pick)).to_string()
         }
         Func::DateTime => {
             let format = arg(0, h)?;
@@ -357,6 +359,16 @@ fn call(f: Func, args: &[Items], p: &Params, h: &mut dyn Host) -> Option<String>
             format!("{q}{}{q}", input.replace(&q, &format!("{q}{q}")))
         }
     })
+}
+
+impl Params {
+    pub(super) fn running(&self) -> &[String] {
+        &self.running
+    }
+
+    pub(super) fn push_running(&mut self, name: &str) {
+        self.running.push(name.to_owned());
+    }
 }
 
 pub(super) fn json_of(p: &Params) -> Option<&Arc<Value>> {
@@ -475,5 +487,19 @@ pub(super) mod tests {
         assert_eq!(run("$randnum(5,5)", "").unwrap(), "5");
         assert_eq!(run("$request(https://x,trim)", "").unwrap(), "body of https://x");
         assert_eq!(run("$cs(a|b)", "").unwrap(), "a||b");
+    }
+
+    #[test]
+    fn randnum_extreme_bounds() {
+        // V110-F80: the full i64 span overflowed u64 and could reach random(0).
+        let body = parse("$randnum(-9223372036854775808,9223372036854775807)").unwrap();
+        let mut h = TestHost { next_random: u64::MAX - 1, ..Default::default() };
+        let out = eval(&body, &Params::new(""), &mut h).unwrap();
+        assert_eq!(out, (i64::MAX - 1).to_string());
+        h.next_random = 0;
+        let out = eval(&body, &Params::new(""), &mut h).unwrap();
+        assert_eq!(out, i64::MIN.to_string());
+        assert_eq!(run("$randnum(9223372036854775807,-9223372036854775808)", "").unwrap(), i64::MIN.to_string());
+        assert_eq!(run("$randnum(-7,-7)", "").unwrap(), "-7");
     }
 }

@@ -154,9 +154,17 @@ fn custom(
             sub.set(&format!("g{i}"), c.get(i).map_or("", |m| m.as_str()));
         }
         let value = if by_name {
-            match h.custom(name) {
-                Some(body) => eval(&body, &sub, h)?,
-                None => String::new(),
+            // V110-F80: same guard as `$(_name)`, or a replacement naming itself overflows the stack.
+            if sub.running().iter().any(|r| r == name) {
+                "[recursion not allowed]".into()
+            } else {
+                match h.custom(name) {
+                    Some(body) => {
+                        sub.push_running(name);
+                        eval(&body, &sub, h)?
+                    }
+                    None => String::new(),
+                }
             }
         } else {
             eval(items, &sub, h)?
@@ -224,6 +232,19 @@ mod tests {
         assert_eq!(round("2.5", "0", "half-down", ""), "2");
         assert_eq!(round("-1.2", "0", "up", ""), "-2");
         assert_eq!(round("abc", "2", "", ""), "abc");
+    }
+
+    #[test]
+    fn reg_func_recursion_is_stopped() {
+        // V110-F80: a regFunc replacement that names itself must not overflow the stack.
+        use crate::commands::eval::{eval, tests::TestHost, Params};
+        use crate::commands::parse::parse;
+        use std::sync::Arc;
+        let mut h = TestHost::default();
+        h.customs
+            .insert("_f".into(), Arc::new(parse("<$replace(a,a,_f,regFunc)>").unwrap()));
+        let out = eval(&parse("$replace(a,a,_f,regFunc)").unwrap(), &Params::new(""), &mut h);
+        assert_eq!(out.unwrap(), "<[recursion not allowed]>");
     }
 
     #[test]

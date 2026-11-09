@@ -443,6 +443,17 @@ fn cooldowns_from_slow_mode_and_timeouts() {
 }
 
 #[test]
+fn huge_durations_hold_instead_of_wrapping() {
+    // V110-F80
+    let mut r = room();
+    feed(&mut r, "@ban-duration=18446744073709551615;target-user-id=42 :tmi.twitch.tv CLEARCHAT #chan :me");
+    assert!(r.state.wait_until.is_some_and(|w| w > 1_000_000_000_000), "{:?}", r.state.wait_until);
+    let mut r = room();
+    feed(&mut r, "@msg-id=msg_timedout :tmi.twitch.tv NOTICE #chan :You are timed out for 9223372036854775807 more seconds.");
+    assert!(r.state.wait_until.is_some_and(|w| w > 1_000_000_000_000), "{:?}", r.state.wait_until);
+}
+
+#[test]
 fn redemptions_get_their_title_and_replies_their_header() {
     let mut r = room();
     r.set_rewards(HashMap::from([("r1".to_owned(), ("Hydrate".to_owned(), 500))]));

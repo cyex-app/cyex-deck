@@ -34,7 +34,10 @@ pub fn format(pattern: &str, zone: &str, at_ms: i64, local_offset_secs: i32) -> 
     let Ok(t) = OffsetDateTime::from_unix_timestamp_nanos(i128::from(at_ms) * 1_000_000) else {
         return String::new();
     };
-    let t = t.to_offset(offset);
+    // V110-F80: to_offset panics at the edges of the supported range.
+    let Some(t) = t.checked_to_offset(offset) else {
+        return String::new();
+    };
     let pattern = match pattern.trim() {
         "" => "EEEE, MMMM d, yyyy HH:mm:ss z",
         "date" => "yyyy-MM-dd",
@@ -74,6 +77,10 @@ fn parse_zone(zone: &str) -> Option<UtcOffset> {
         b'-' => (-1, &rest[1..]),
         _ => return None,
     };
+    // V110-F80: ASCII only, or the byte slices below split a multibyte char and panic.
+    if !digits.bytes().all(|b| b.is_ascii_digit() || b == b':') {
+        return None;
+    }
     let (h, m) = match digits.split_once(':') {
         Some((h, m)) => (h.parse::<i32>().ok()?, m.parse::<i32>().ok()?),
         None if digits.len() == 4 => (digits[..2].parse().ok()?, digits[2..].parse().ok()?),
@@ -226,5 +233,28 @@ mod tests {
         );
         assert_eq!(format("yy/M/d", "Somewhere", AT, 3600), "19/3/13");
         assert_eq!(format("HH", "Somewhere", AT, 3600), "16");
+    }
+
+    #[test]
+    fn odd_zones_fall_back() {
+        // V110-F80: multibyte or non-digit zones used to slice mid-char.
+        for z in ["+aé1", "+é", "-éééé", "+1é:00", "+", "-", "+1:é", "+12345"] {
+            assert_eq!(format("HH", z, AT, 3600), "16", "{z}");
+        }
+        assert_eq!(format("HH", "+0230", AT, 0), "17");
+    }
+
+    #[test]
+    fn range_edges_do_not_panic() {
+        // V110-F80: shifting the last valid instant past the range must not panic.
+        let max = (time::PrimitiveDateTime::MAX.assume_utc().unix_timestamp()) * 1000;
+        let min = (time::PrimitiveDateTime::MIN.assume_utc().unix_timestamp()) * 1000;
+        for at in [max, min] {
+            for z in ["+14:00", "-12:00", "UTC"] {
+                let _ = format("datetime", z, at, 0);
+            }
+        }
+        assert_eq!(format("datetime", "+14:00", max, 0), "");
+        assert_eq!(format("datetime", "-12:00", min, 0), "");
     }
 }

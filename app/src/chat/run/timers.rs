@@ -38,10 +38,7 @@ pub fn restore(app: &AppHandle) {
         .read::<Commands>(Partition::Commands)
         .timers;
     let now = now_ms();
-    for t in saved {
-        if t.at_ms <= now {
-            continue;
-        }
+    for t in restorable(saved, now) {
         let identity = t.account.clone().map_or(Identity::Anon, Identity::Account);
         let place = Place {
             view: None,
@@ -53,6 +50,15 @@ pub fn restore(app: &AppHandle) {
         schedule(app, place, t.id, t.at_ms, t.command, true);
     }
     save(app);
+}
+
+/// V110-F85 The saved timers still ahead, at most [`MAX_TIMERS`] (the earliest ones): a settings
+/// file with thousands of them would start thousands of tasks.
+fn restorable(mut saved: Vec<SavedTimer>, now: i64) -> Vec<SavedTimer> {
+    saved.retain(|t| t.at_ms > now);
+    saved.sort_by_key(|t| t.at_ms);
+    saved.truncate(MAX_TIMERS);
+    saved
 }
 
 pub fn command(app: &AppHandle, place: &Place, args: &str) -> Result<(), String> {
@@ -233,7 +239,8 @@ fn at_ms(when: When) -> i64 {
     let offset = i64::from(time::UtcOffset::current_local_offset().map_or(0, |o| o.whole_seconds())) * 1000;
     let day = 86_400_000;
     match when {
-        When::In { secs } => now + secs as i64 * 1000,
+        // V110-F80 A huge delay saturates instead of wrapping to the past.
+        When::In { secs } => now.saturating_add(i64::try_from(secs).unwrap_or(i64::MAX).saturating_mul(1000)),
         When::At { day_secs } => {
             let local_now = now + offset;
             let midnight = local_now - local_now.rem_euclid(day);
@@ -243,7 +250,11 @@ fn at_ms(when: When) -> i64 {
             }
             at - offset
         }
-        When::On { days, day_secs } => days * day + i64::from(day_secs) * 1000 - offset,
+        // V110-F85 A date far out saturates instead of overflowing.
+        When::On { days, day_secs } => days
+            .saturating_mul(day)
+            .saturating_add(i64::from(day_secs) * 1000)
+            .saturating_sub(offset),
     }
 }
 
@@ -262,7 +273,9 @@ fn short(secs: i64) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::short;
+    use cyex_settings::schema::SavedTimer;
+
+    use super::{MAX_TIMERS, at_ms, restorable, short, When};
 
     #[test]
     fn short_drops_zero_parts() {
@@ -272,5 +285,31 @@ mod tests {
         assert_eq!(short(90), "1m 30s");
         assert_eq!(short(3600), "1h");
         assert_eq!(short(7505), "2h 5m");
+    }
+
+    #[test]
+    fn v110_f85_a_far_date_saturates() {
+        assert!(at_ms(When::On { days: i64::MAX, day_secs: 86_399 }) > super::now_ms());
+        assert!(at_ms(When::On { days: i64::MAX / 86_400_000 + 1, day_secs: 0 }) > super::now_ms());
+        assert!(at_ms(When::On { days: i64::MIN, day_secs: 0 }) < 0);
+    }
+
+    #[test]
+    fn v110_f85_restore_keeps_the_earliest_few_and_drops_the_past() {
+        let at = |n: usize, at_ms: i64| SavedTimer { id: format!("t{n}"), at_ms, ..SavedTimer::default() };
+        let mut saved: Vec<SavedTimer> = (0..(MAX_TIMERS + 20)).map(|n| at(n, 1_000 + (n as i64 * 7919) % 1000)).collect();
+        saved.push(at(999, 500));
+        let kept = restorable(saved, 1_000);
+        assert_eq!(kept.len(), MAX_TIMERS);
+        assert!(kept.iter().all(|t| t.at_ms > 1_000));
+        assert!(kept.windows(2).all(|w| w[0].at_ms <= w[1].at_ms));
+        assert_eq!(restorable(vec![at(1, 5)], 10).len(), 0);
+    }
+
+    #[test]
+    fn a_huge_delay_is_in_the_future() {
+        // V110-F80: u64::MAX seconds used to wrap into the past.
+        assert!(at_ms(When::In { secs: u64::MAX }) > super::now_ms());
+        assert!(at_ms(When::In { secs: i64::MAX as u64 }) > super::now_ms());
     }
 }

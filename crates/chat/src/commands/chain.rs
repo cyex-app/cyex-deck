@@ -173,7 +173,8 @@ fn clock(text: &str) -> Option<u32> {
         [h, m, s] => (h, m, s),
         _ => return None,
     };
-    (h < 24 && m < 60 && s < 60).then_some(h * 3600 + m * 60 + s)
+    // V110-F85 Lazy: `then_some` built the sum first, and a huge hour overflowed it.
+    (h < 24 && m < 60 && s < 60).then(|| h * 3600 + m * 60 + s)
 }
 
 /// `90`, `5m`, `1h30m`, `5h10` (= 5h10m), `500ms`.
@@ -207,18 +208,20 @@ fn duration(text: &str) -> Option<u64> {
                 _ => return None,
             }
         };
-        total_ms += n * unit_ms;
+        // V110-F80: overflow is an invalid duration.
+        total_ms = total_ms.checked_add(n.checked_mul(unit_ms)?)?;
         last_unit = unit;
         i += 1;
     }
     if !num.is_empty() {
         // A bare number after a unit is the next smaller unit (`5h10` = 5h10m).
         let n: u64 = num.parse().ok()?;
-        total_ms += n * match last_unit {
+        let unit_ms = match last_unit {
             'd' => 3_600_000,
             'h' => 60_000,
             _ => 1000,
         };
+        total_ms = total_ms.checked_add(n.checked_mul(unit_ms)?)?;
     }
     (total_ms > 0).then_some(total_ms.div_ceil(1000))
 }
@@ -288,4 +291,23 @@ mod tests {
         assert!(parse_timer("-z 5m x").is_err());
         assert!(parse_timer("25:00 x").is_err());
     }
+
+    #[test]
+    fn v110_f85_a_huge_clock_hour_is_rejected_not_overflowed() {
+        assert_eq!(clock("4294967295:00"), None);
+        assert_eq!(clock("99999999:59:59"), None);
+        assert_eq!(clock("23:59:59"), Some(86_399));
+        assert!(parse_timer("4294967295:30 /echo x").is_err());
+    }
+
+    #[test]
+    fn huge_durations_are_rejected() {
+        // V110-F80: unchecked u64 math wrapped (or panicked) here.
+        assert_eq!(duration("99999999999999999d"), None);
+        assert_eq!(duration("1h99999999999999999999"), None);
+        assert_eq!(duration("5999999999999999h10"), None);
+        assert_eq!(duration("1d1h"), Some(90_000));
+        assert!(parse_timer("99999999999999999d /echo x").is_err());
+    }
+
 }

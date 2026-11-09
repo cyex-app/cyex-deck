@@ -8,7 +8,7 @@
 use serde::Deserialize;
 use serde_json::{Value, json};
 
-use super::{Auth, BATCH_MAX, batch, batch_persisted, persisted, query};
+use super::{Auth, BATCH_MAX, batch, batch_persisted, nullable, persisted, query};
 use crate::clock::parse_rfc3339;
 use crate::{Error, Http, Result};
 
@@ -441,13 +441,14 @@ struct RawInventory {
 #[serde(rename_all = "camelCase")]
 struct RawCampaign {
     id: String,
-    #[serde(default)]
+    // V110-F80 A JSON null isn't covered by `default`: it would fail the whole decode.
+    #[serde(default, deserialize_with = "nullable")]
     name: String,
     start_at: Option<String>,
     end_at: Option<String>,
     game: Option<RawGame>,
     allow: Option<RawAllow>,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "nullable")]
     time_based_drops: Vec<RawDrop>,
 }
 
@@ -461,7 +462,7 @@ struct RawAllow {
 #[derive(Deserialize)]
 struct RawAllowed {
     id: String,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "nullable")]
     name: String,
 }
 
@@ -477,15 +478,15 @@ struct RawGame {
 #[serde(rename_all = "camelCase")]
 struct RawDrop {
     id: String,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "nullable")]
     name: String,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "nullable")]
     required_minutes_watched: u32,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "nullable")]
     required_subs: u32,
     start_at: Option<String>,
     end_at: Option<String>,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "nullable")]
     benefit_edges: Vec<RawEdge>,
     #[serde(rename = "self")]
     me: Option<RawDropSelf>,
@@ -652,6 +653,22 @@ mod tests {
         assert!(!c[0].drops[1].claimable());
         assert_eq!(c[0].drops[1].watched_minutes, 61);
         assert_eq!(inv.earned, ["b9", "b1"]);
+    }
+
+    #[test]
+    fn v110_f80_explicit_nulls_keep_the_other_rows() {
+        let inv = inventory_of(
+            r#"{"currentUser":{"inventory":{"dropCampaignsInProgress":[
+            {"id":"a","name":null,"timeBasedDrops":null},
+            {"id":"b","name":"Fall","allow":{"isEnabled":true,"channels":[{"id":"1","name":null}]},"timeBasedDrops":[
+              {"id":"d1","name":null,"requiredMinutesWatched":null,"requiredSubs":null,"benefitEdges":null},
+              {"id":"d2","name":"Two","requiredMinutesWatched":30,"benefitEdges":[]}]}]}}}"#,
+        );
+        assert_eq!(inv.campaigns.len(), 2);
+        assert!(inv.campaigns[0].drops.is_empty());
+        assert_eq!(inv.campaigns[1].name, "Fall");
+        assert_eq!(inv.campaigns[1].drops.len(), 2);
+        assert_eq!(inv.campaigns[1].drops[1].name, "Two");
     }
 
     #[test]

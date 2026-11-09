@@ -99,6 +99,11 @@ fn said_counts(s: &Said, read_at: i64) -> bool {
     s.at + READ_LAG_MS > read_at
 }
 
+/// Seconds from the wire as ms, saturating.
+fn secs_ms(secs: impl TryInto<i64>) -> i64 {
+    secs.try_into().unwrap_or(i64::MAX).saturating_mul(1_000)
+}
+
 /// A ban or timeout known at `now`: from the last read, or from IRC's word no read has
 /// answered yet.
 fn held(k: &Known, now: i64) -> bool {
@@ -107,7 +112,8 @@ fn held(k: &Known, now: i64) -> bool {
         said_counts(&s, k.read_at)
             && match s.how {
                 Restriction::Banned => true,
-                Restriction::TimedOut { secs } => s.at + secs as i64 * 1_000 > now,
+                // V110-F80 A huge duration saturates instead of wrapping to "over".
+                Restriction::TimedOut { secs } => s.at.saturating_add(secs_ms(secs)) > now,
                 Restriction::Warned => false,
             }
     });
@@ -241,6 +247,16 @@ mod tests {
         assert!(said_counts(&k.said.unwrap(), k.read_at), "IRC still counts");
         assert_eq!(take_read(&mut k, Standing::default(), NOW + 9_000), Took::Ended);
         assert!(!said_counts(&k.said.unwrap(), k.read_at));
+    }
+
+    #[test]
+    fn a_huge_timeout_stays_held() {
+        // V110-F80: u64::MAX seconds used to wrap to a negative expiry.
+        let mut k = Known::default();
+        take_said(&mut k, Restriction::TimedOut { secs: u64::MAX }, NOW);
+        assert!(held(&k, NOW + 1_000));
+        assert_eq!(secs_ms(u64::MAX), i64::MAX);
+        assert_eq!(secs_ms(3u64), 3_000);
     }
 
     #[test]

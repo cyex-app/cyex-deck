@@ -102,7 +102,13 @@ fn failure(e: &Error) -> Response<Vec<u8>> {
         Error::Decode(_) => (502, "unexpected answer".to_owned()),
         Error::Refused(code) => (403, code.clone()),
     };
-    response(status, "text/plain", text.into_bytes())
+    response(error_status(status), "text/plain", text.into_bytes())
+}
+
+/// V110-F80 A failure is never a 200 (GQL errors carry one) or outside 4xx/5xx, or hls.js
+/// would parse the reason as a playlist.
+fn error_status(status: u16) -> u16 {
+    if (400..=599).contains(&status) { status } else { 502 }
 }
 
 fn response(status: u16, content_type: &str, body: Vec<u8>) -> Response<Vec<u8>> {
@@ -111,7 +117,12 @@ fn response(status: u16, content_type: &str, body: Vec<u8>) -> Response<Vec<u8>>
         .header("Content-Type", content_type)
         .header("Cache-Control", "no-store")
         .body(body)
-        .unwrap_or_default()
+        .unwrap_or_else(|_| {
+            // V110-F80 Not an empty 200.
+            let mut bad = Response::new(Vec::new());
+            *bad.status_mut() = tauri::http::StatusCode::BAD_GATEWAY;
+            bad
+        })
 }
 
 fn missing() -> Error {
@@ -124,6 +135,16 @@ fn missing() -> Error {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn v110_f80_failures_are_4xx_or_5xx() {
+        for (given, out) in [(200, 502), (0, 502), (99, 502), (302, 502), (399, 502), (600, 502), (u16::MAX, 502), (400, 400), (404, 404), (599, 599)] {
+            assert_eq!(error_status(given), out, "{given}");
+        }
+        let gql = Error::Api { status: 200, message: "boom".into() };
+        assert_eq!(failure(&gql).status().as_u16(), 502);
+        assert_eq!(response(u16::MAX, "text/plain", b"x".to_vec()).status().as_u16(), 502);
+    }
 
     #[test]
     fn v110_f60_only_the_apps_own_page_may_read_replies() {

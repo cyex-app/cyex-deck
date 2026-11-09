@@ -474,7 +474,8 @@ impl Room {
                     Stacked::Dup => {}
                 }
                 if me && let Some(secs) = secs {
-                    events.extend(self.wait(now_ms + secs as i64 * 1000));
+                    // V110-F80 A huge duration saturates instead of wrapping to the past.
+                    events.extend(self.wait(now_ms.saturating_add(i64::try_from(secs).unwrap_or(i64::MAX).saturating_mul(1000))));
                 }
                 // V108-C40 Our own ban or timeout locks the chat box.
                 if me {
@@ -534,7 +535,7 @@ impl Room {
                 if matches!(msg_id.as_str(), "msg_slowmode" | "msg_timedout")
                     && let Some(secs) = seconds_in(said)
                 {
-                    events.extend(self.wait(now_ms + secs * 1000));
+                    events.extend(self.wait(now_ms.saturating_add(secs.saturating_mul(1000))));
                 }
                 if self.me.is_some()
                     && let Some(how) = restriction(&msg_id, said)

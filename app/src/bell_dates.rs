@@ -77,14 +77,20 @@ fn render(p: &Parts, raw: &str, offset: &dyn Fn(OffsetDateTime) -> UtcOffset) ->
     let mut at = PrimitiveDateTime::new(date, t).assume_utc();
     if let Some(z) = p.zone {
         let b = z.as_bytes();
-        if b[0] == b'+' || b[0] == b'-' {
+        if matches!(b.first(), Some(b'+' | b'-')) {
             let digits: String = z[1..].chars().filter(char::is_ascii_digit).collect();
             let mins = num(digits.get(..2)) * 60 + num(digits.get(2..));
             let sign = if b[0] == b'-' { -1 } else { 1 };
-            at -= time::Duration::minutes(sign * mins);
+            // V110-F80: dates near year 9999 overflow the shifts; leave the text then.
+            let Some(shifted) = at.checked_sub(time::Duration::minutes(sign * mins)) else {
+                return raw.into();
+            };
+            at = shifted;
         }
     }
-    let at = at.to_offset(offset(at));
+    let Some(at) = at.checked_to_offset(offset(at)) else {
+        return raw.into();
+    };
     format!("{:04}/{:02}/{:02} {:02}:{:02}", at.year(), u8::from(at.month()), at.day(), at.hour(), at.minute())
 }
 
@@ -175,5 +181,18 @@ mod tests {
         ] {
             assert_eq!(l(t), t);
         }
+    }
+
+    #[test]
+    fn range_edges_keep_the_text() {
+        // V110-F80: shifting past year 9999 used to panic.
+        for t in [
+            "at 9999-12-31T23:59:59Z",
+            "at 9999-12-31T23:59:59-14:00",
+            "until Dec 31, 9999 11:59 pm -1400",
+        ] {
+            assert_eq!(l(t), t);
+        }
+        let _ = l("at 0000-01-01T00:00:00+14:00");
     }
 }

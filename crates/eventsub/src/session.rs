@@ -92,7 +92,7 @@ async fn run(mut stop: watch::Receiver<()>, out: mpsc::UnboundedSender<Out>) {
             deadline = Instant::now() + keepalive + SLACK;
             match frame::parse(&text) {
                 Some(Frame::Welcome { session_id, keepalive_secs }) => {
-                    keepalive = Duration::from_secs(keepalive_secs.max(1));
+                    keepalive = keepalive_for(keepalive_secs);
                     deadline = Instant::now() + keepalive + SLACK;
                     let _ = out.send(Out::Welcome(session_id));
                 }
@@ -117,7 +117,7 @@ async fn run(mut stop: watch::Receiver<()>, out: mpsc::UnboundedSender<Out>) {
                 Some(Frame::Reconnect { url }) => match moved(&url, &mut stop).await {
                     Some((next_ws, secs)) => {
                         ws = next_ws;
-                        keepalive = Duration::from_secs(secs.max(1));
+                        keepalive = keepalive_for(secs);
                         deadline = Instant::now() + keepalive + SLACK;
                     }
                     None => break,
@@ -157,6 +157,11 @@ async fn moved(url: &str, stop: &mut watch::Receiver<()>) -> Option<(Socket, u64
     Some((ws, welcome))
 }
 
+/// V110-F80 Twitch allows 10-600 s; a huge value from the wire would overflow `Instant` math.
+fn keepalive_for(secs: u64) -> Duration {
+    Duration::from_secs(secs.clamp(10, 600))
+}
+
 /// 1-3 s at first (jittered), then doubling with up to a quarter on top.
 fn next(backoff: Duration) -> Duration {
     let ms = std::time::SystemTime::now()
@@ -173,6 +178,14 @@ fn next(backoff: Duration) -> Duration {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn keepalive_is_clamped() {
+        assert_eq!(keepalive_for(0), Duration::from_secs(10));
+        assert_eq!(keepalive_for(30), Duration::from_secs(30));
+        assert_eq!(keepalive_for(u64::MAX), Duration::from_secs(600));
+        assert!(Instant::now().checked_add(keepalive_for(u64::MAX) + SLACK).is_some());
+    }
 
     #[test]
     fn backoff_starts_jittered_and_grows_to_a_cap() {

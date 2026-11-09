@@ -126,6 +126,17 @@ fn next(stopped: bool, sent: u32, count: u32, elapsed: Duration) -> Next {
     }
 }
 
+/// The text of the send limit's error (`chat/send.rs` makes it: "Slow down: ...").
+fn is_slow_down(e: &str) -> bool {
+    e.starts_with("Slow down")
+}
+
+/// Whether a send held back by the limit may wait and try again: not past [`GIVE_UP` for this
+/// line, nor past the run's [`deadline`].
+fn may_retry(waited: Duration, elapsed: Duration, count: u32) -> bool {
+    waited < GIVE_UP && elapsed <= deadline(count)
+}
+
 /// Sends `text` `count` times; the number that went out.
 pub async fn run(
     app: &tauri::AppHandle,
@@ -153,7 +164,11 @@ pub async fn run(
                 Ok(()) => break,
                 // A line the pacer still held when stop came is dropped, not an error.
                 Err(_) if claim.is_stopped() => return Ok(sent),
-                Err(e) if e.starts_with("Slow down") && waited < GIVE_UP => {
+                // V110-F80 The run's own deadline cuts the retries short too.
+                Err(e) if is_slow_down(&e) && begun.elapsed() > deadline(count) => {
+                    return Err(format!("Stopped after {sent}: took too long."));
+                }
+                Err(e) if is_slow_down(&e) && may_retry(waited, begun.elapsed(), count) => {
                     tokio::time::sleep(RETRY).await;
                     waited += RETRY;
                 }
@@ -204,6 +219,19 @@ mod tests {
         // Stopping a chat with no run leaves no entry.
         assert!(!stop(&key("spamtest_nobody")));
         assert!(!runs().contains_key(&key("spamtest_nobody")));
+    }
+
+    #[test]
+    fn retries_stop_at_the_run_deadline() {
+        // V110-F80: a held send used to retry for GIVE_UP (60 s) however short the run's deadline.
+        let s = Duration::from_secs;
+        assert!(may_retry(s(0), s(0), 1));
+        assert!(may_retry(s(10), s(3), 1), "inside both");
+        assert!(!may_retry(s(0), s(4), 1), "past the run's 3 s");
+        assert!(!may_retry(GIVE_UP, s(1), 100), "past the line's limit");
+        assert!(is_slow_down("Slow down: wait 3s."));
+        assert!(is_slow_down("Slow down: too many waiting."));
+        assert!(!is_slow_down("You can talk again in 3s."));
     }
 
     #[test]
