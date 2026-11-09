@@ -12,6 +12,16 @@ import { raidTabsToClose } from '../chat/raidBanner';
 import { raidTabs } from './raidTabs';
 import { tabRoute, tabs, tiles } from './tabs.svelte';
 
+// V110-F72 Raids already opened (live event or catch-up), so none opens twice.
+const opened = new Set<string>();
+
+/** Opens a raid's pop-out once, however it arrives; Rust forgets it as soon as it is taken. */
+async function openOnce(go: RaidGo): Promise<void> {
+  if (opened.has(go.raid.id)) return;
+  opened.add(go.raid.id);
+  await openRaided(go);
+}
+
 export async function openRaided({ raid: r, account }: RaidGo): Promise<void> {
   if (!r.targetId) return;
   const mine = tabs.list.find((t) => {
@@ -44,8 +54,17 @@ export async function openRaided({ raid: r, account }: RaidGo): Promise<void> {
 /** Call once from the main window's setup. */
 export function useRaidPop(): void {
   $effect(() => {
-    const off = raidIpc.onGo((go) => void openRaided(go));
+    const off = raidIpc.onGo((go) => {
+      void raidIpc.ackGo(go.raid.id);
+      void openOnce(go);
+    });
     return () => void off.then((f) => f());
+  });
+  // V110-F72 A raid that went while this page was reloading: Rust kept it for a minute.
+  $effect(() => {
+    void raidIpc.pendingGo().then((list) => {
+      for (const go of list) void openOnce(go);
+    });
   });
   // V110-F18 Marks left by a crash or a closed app: once the windows are known, a mark only
   // stays for a tab that is still there and popped out. The rest lose the mark; no tab closes.

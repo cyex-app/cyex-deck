@@ -32,6 +32,8 @@ const JOINED_KEPT: usize = 20;
 const ENDED_KEPT: usize = 50;
 /// A raid past its time by this much is stale (its go message was missed).
 const STALE_SECS: i64 = 30;
+/// V110-F72 How long a go nobody acknowledged is kept for a page that was reloading.
+const PENDING_SECS: i64 = 60;
 
 #[derive(Clone, Debug, Serialize, TS)]
 #[serde(rename_all = "camelCase")]
@@ -87,6 +89,9 @@ pub struct Raids {
     ended: VecDeque<(String, Option<RaidStatus>)>,
     /// Raid id and the account that ticked Join, oldest first.
     joined: Vec<(String, String)>,
+    /// V110-F72 Ticked raids that went, not yet acknowledged by the main page: when, raid,
+    /// account. A page reloading while the go was emitted never heard it.
+    pending: Vec<(i64, RaidStatus, String)>,
 }
 
 impl Raids {
@@ -163,6 +168,23 @@ impl Raids {
     pub fn take_tick(&mut self, raid_id: &str) -> Option<String> {
         let i = self.joined.iter().position(|(id, _)| id == raid_id)?;
         Some(self.joined.remove(i).1)
+    }
+
+    /// V110-F72 A ticked raid went: kept until the page acknowledges it.
+    pub fn keep_go(&mut self, raid: RaidStatus, account: String, now: i64) {
+        self.pending.retain(|(_, r, _)| r.id != raid.id);
+        self.pending.push((now, raid, account));
+    }
+
+    /// V110-F72 The page opened (or means to open) the raid: it is not kept any more.
+    pub fn ack_go(&mut self, raid_id: &str) {
+        self.pending.retain(|(_, r, _)| r.id != raid_id);
+    }
+
+    /// V110-F72 What a page that just loaded has missed (acknowledged by reading); old ones drop.
+    pub fn take_pending(&mut self, now: i64) -> Vec<(RaidStatus, String)> {
+        let kept = std::mem::take(&mut self.pending);
+        kept.into_iter().filter(|(at, ..)| at + PENDING_SECS > now).map(|(_, r, a)| (r, a)).collect()
     }
 
     pub fn ticked(&self) -> Vec<String> {
@@ -248,12 +270,30 @@ pub fn on_event(app: &AppHandle, e: &Event) {
             let who = raids().take_tick(&r.id);
             if let Some(account) = who {
                 let _ = app.emit(JOIN_EVENT, RaidJoinChanged { raid_id: r.id.clone(), on: false });
-                let _ = app.emit_to(crate::windows::MAIN, GO_EVENT, RaidGo { raid: r, account });
+                go(app, RaidGo { raid: r, account });
             }
             (None, true)
         }
     };
     let _ = app.emit(EVENT, RaidChanged { channel_id: id.clone(), raid, went });
+}
+
+/// V110-F72 The pop-out is asked for: kept until the main page acknowledges it, in case it
+/// is reloading and misses the event.
+fn go(app: &AppHandle, g: RaidGo) {
+    raids().keep_go(g.raid.clone(), g.account.clone(), crate::auth::unix_now());
+    let _ = app.emit_to(crate::windows::MAIN, GO_EVENT, g);
+}
+
+/// V110-F72 Gone raids the main page has not opened yet; reading takes them.
+pub fn pending_go() -> Vec<RaidGo> {
+    let list = raids().take_pending(crate::auth::unix_now());
+    list.into_iter().map(|(raid, account)| RaidGo { raid, account }).collect()
+}
+
+/// V110-F72 The page opens this raid (from the live event): not kept any more.
+pub fn ack_go(raid_id: &str) {
+    raids().ack_go(raid_id);
 }
 
 /// Twitch, or in test builds the raid mock when it is set.
@@ -304,7 +344,7 @@ pub async fn join(app: &AppHandle, account: &str, raid_id: &str) -> Result<(), S
         // Twitch joined us and the raid went: the pop-out opens as if the tick had been there.
         Tick::Ended(Some(raid)) => {
             let account = account.to_owned();
-            let _ = app.emit_to(crate::windows::MAIN, GO_EVENT, RaidGo { raid, account });
+            go(app, RaidGo { raid, account });
             Ok(())
         }
         Tick::Ended(None) => Err("The raid already ended.".to_owned()),
@@ -411,6 +451,33 @@ mod tests {
         // The handler takes the tick on a Keep.
         assert_eq!(r.take_tick("x"), Some("900".to_owned()));
         assert_eq!(r.tick_live("x", "900"), Tick::Ended(None));
+    }
+
+    #[test]
+    fn v110_f72_a_missed_go_waits_to_be_read_once() {
+        let mut r = Raids::default();
+        r.keep_go(raid("a", 5), "900".into(), 1000);
+        r.keep_go(raid("b", 7), "901".into(), 1010);
+        // The same raid twice is kept once.
+        r.keep_go(raid("b", 8), "901".into(), 1011);
+        let got = r.take_pending(1020);
+        assert_eq!(got.iter().map(|(x, _)| x.id.as_str()).collect::<Vec<_>>(), ["a", "b"]);
+        assert_eq!(got[1].0.viewers, 8);
+        assert_eq!(got[0].1, "900");
+        assert!(r.take_pending(1021).is_empty(), "reading takes them");
+    }
+
+    #[test]
+    fn v110_f72_an_acknowledged_or_old_go_is_not_offered() {
+        let mut r = Raids::default();
+        r.keep_go(raid("a", 5), "900".into(), 1000);
+        r.keep_go(raid("b", 5), "900".into(), 1000);
+        r.ack_go("a");
+        let got = r.take_pending(1000 + PENDING_SECS - 1);
+        assert_eq!(got.len(), 1);
+        assert_eq!(got[0].0.id, "b");
+        r.keep_go(raid("c", 5), "900".into(), 1000);
+        assert!(r.take_pending(1000 + PENDING_SECS).is_empty(), "past 60 s it is dropped");
     }
 
     #[test]

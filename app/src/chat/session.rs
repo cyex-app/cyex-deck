@@ -291,6 +291,18 @@ fn line(app: &AppHandle, identity: &Identity, raw: &str) {
     room_line(app, identity, channel, &line, raw);
 }
 
+/// V110-T05 Test builds only: a raw incoming line from the chat injector, into every open
+/// room of the channel by the same path as a line off the wire.
+#[cfg(feature = "mocks")]
+pub(super) fn inject(app: &AppHandle, channel: &str, raw: &str) {
+    let Some(line) = Line::parse(raw) else { return };
+    let ids: Vec<Identity> =
+        app.state::<Chat>().lock().rooms.keys().filter(|(_, c)| c == channel).map(|(i, _)| i.clone()).collect();
+    for id in &ids {
+        room_line(app, id, channel, &line, raw);
+    }
+}
+
 /// V110-M28 What a room's anonymous mirror does after a status change.
 #[derive(Debug, PartialEq, Eq)]
 enum Mirror {

@@ -19,6 +19,10 @@ export const raidIpc = {
   leave: (raidId: string) => invoke<void>('chat_raid_leave', { raidId }),
   /** Raid ids with Join ticked, for a chat that opens mid-raid. */
   ticked: () => invoke<string[]>('chat_raid_ticked'),
+  /** Main window: ticked raids that went while the page was loading (taken by reading). */
+  pendingGo: () => invoke<RaidGo[]>('chat_raid_pending_go'),
+  /** Main window: this raid is being opened from the live event. */
+  ackGo: (raidId: string) => invoke<void>('chat_raid_ack_go', { raidId }),
   onTick: (handler: (e: RaidJoinChanged) => void) => listen<RaidJoinChanged>('chat:raid-join', (e) => handler(e.payload)),
   /** Main window: a ticked raid went. */
   onGo: (handler: (e: RaidGo) => void) => listen<RaidGo>('chat:raid-go', (e) => handler(e.payload)),

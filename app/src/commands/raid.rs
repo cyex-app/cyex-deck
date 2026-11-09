@@ -34,3 +34,15 @@ pub fn chat_raid_leave(app: AppHandle, raid_id: String) {
 pub fn chat_raid_ticked() -> Vec<String> {
     raid::ticked()
 }
+
+/// V110-F72 Ticked raids that went while the main page was loading (taken by reading).
+#[tauri::command]
+pub fn chat_raid_pending_go() -> Vec<raid::RaidGo> {
+    raid::pending_go()
+}
+
+/// V110-F72 The page opened this raid from the live event: not kept any more.
+#[tauri::command]
+pub fn chat_raid_ack_go(raid_id: String) {
+    raid::ack_go(&raid_id);
+}

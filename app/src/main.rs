@@ -122,6 +122,8 @@ fn main() {
             hotkeys::init(handle);
             #[cfg(feature = "mocks")]
             perf_probe::init(handle);
+            #[cfg(feature = "mocks")]
+            chat::chat_mock::start(handle);
             Ok(())
         })
         .on_window_event(windows::on_window_event)

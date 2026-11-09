@@ -8,6 +8,8 @@ pub mod badge_refresh;
 pub mod catalog;
 pub mod channels;
 pub mod cheer;
+#[cfg(feature = "mocks")]
+pub mod chat_mock;
 mod creds;
 pub mod feeds;
 mod flush;
