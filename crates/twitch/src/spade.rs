@@ -83,6 +83,52 @@ pub async fn touch(http: &Http, login: &str, token: &AccessToken, user_agent: &s
     }
 }
 
+/// V110-U68 Like [`touch`], but with `all` it HEADs every segment of the lowest quality's
+/// playlist (about 15), as a player pulling the stream does. That is what advances drop
+/// and badge progress; one segment is enough for channel points. Returns how many it
+/// touched.
+pub async fn touch_segments(
+    http: &Http,
+    login: &str,
+    token: &AccessToken,
+    user_agent: &str,
+    all: bool,
+) -> Result<usize> {
+    let master = usher::text(http, &usher::live_url(login, token, "h264")).await?;
+    let media_url = last_uri(&master).ok_or_else(|| broken("no variant"))?;
+    let media = usher::text(http, media_url).await?;
+    let segments = segment_uris(&media, all);
+    if segments.is_empty() {
+        return Err(broken("no segment"));
+    }
+    for segment in &segments {
+        match http.head(segment, user_agent).await? {
+            200..=299 => {}
+            status => {
+                return Err(Error::Api {
+                    status,
+                    message: "segment refused".into(),
+                });
+            }
+        }
+    }
+    Ok(segments.len())
+}
+
+/// The segments of a media playlist to touch: all of them, or the newest. Prefetch hints
+/// (`#EXT-X-TWITCH-PREFETCH`) are tags, so they are left out.
+pub fn segment_uris(playlist: &str, all: bool) -> Vec<&str> {
+    let mut uris = playlist
+        .lines()
+        .map(str::trim)
+        .filter(|l| !l.is_empty() && !l.starts_with('#') && l.starts_with("https://"));
+    if all {
+        uris.collect()
+    } else {
+        uris.next_back().into_iter().collect()
+    }
+}
+
 /// Sends one minute: spade answers 204 when it took it.
 pub async fn send(http: &Http, url: &str, payload: &str, user_agent: &str) -> Result<u16> {
     http.post_form(url, &[("data", payload)], user_agent).await
@@ -162,5 +208,15 @@ mod tests {
         let media = "#EXTM3U\n#EXTINF:2.0,live\nhttps://v/1.ts\n#EXTINF:2.0,live\nhttps://v/2.ts\n#EXT-X-TWITCH-PREFETCH:https://v/3.ts";
         assert_eq!(last_uri(media), Some("https://v/2.ts"));
         assert_eq!(last_uri("#EXTM3U\n"), None);
+    }
+
+    #[test]
+    fn touch_lists_all_segments_or_the_newest() {
+        let media = "#EXTM3U\n#EXTINF:2.0,live\nhttps://v/1.ts\n\n#EXTINF:2.0,live\nhttps://v/2.ts\n\
+                     #EXTINF:2.0,live\nnot-a-url\n#EXTINF:2.0,live\nhttps://v/3.ts\n#EXT-X-TWITCH-PREFETCH:https://v/4.ts";
+        assert_eq!(segment_uris(media, true), ["https://v/1.ts", "https://v/2.ts", "https://v/3.ts"]);
+        assert_eq!(segment_uris(media, false), ["https://v/3.ts"]);
+        assert!(segment_uris("#EXTM3U\n", true).is_empty());
+        assert!(segment_uris("#EXTM3U\n", false).is_empty());
     }
 }

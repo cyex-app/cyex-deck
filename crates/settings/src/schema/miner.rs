@@ -9,6 +9,8 @@ use super::{Schema, TabChannel};
 const MAX_CHANNELS: usize = 500;
 /// 1.44
 pub const MAX_FIRST: usize = 2;
+/// V110-U68 Campaign ids kept as picked badges.
+pub const MAX_PICKED: usize = 100;
 
 /// The points miner (08). Channels are kept by user id (1.15).
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
@@ -41,6 +43,8 @@ pub struct Miner {
     /// Join the chats of mined channels, e.g. for bots that reward chatters.
     pub chat: ChatPresence,
     pub bets: Bets,
+    /// V110-U68 Badge drops: campaigns that give a chat badge for watching.
+    pub badges: Badges,
 }
 
 impl Default for Miner {
@@ -61,6 +65,7 @@ impl Default for Miner {
             goals: false,
             chat: ChatPresence::Never,
             bets: Bets::default(),
+            badges: Badges::default(),
         }
     }
 }
@@ -81,6 +86,65 @@ impl Schema for Miner {
         self.order.retain(|r| seen.insert(*r));
         self.account = self.account.take().filter(|a| !a.is_empty());
         self.bets.sanitize();
+        self.badges.sanitize();
+    }
+}
+
+/// V110-U68 Badge drops. A running badge campaign beats "Mine first" for the watch slots:
+/// while a channel that can earn it is live, only that channel is watched.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
+#[serde(default, rename_all = "camelCase")]
+#[ts(export, rename = "MinerBadges")]
+pub struct Badges {
+    /// Earn every badge that can be earned by watching; `picked` is then ignored.
+    pub auto: bool,
+    /// Campaign ids to earn when `auto` is off.
+    pub picked: Vec<String>,
+    /// Look for live channels that can earn a badge when none in the list can. They are
+    /// shown while they are watched and never saved to the list.
+    pub find_channels: bool,
+}
+
+impl Default for Badges {
+    fn default() -> Self {
+        Self {
+            auto: true,
+            picked: Vec::new(),
+            find_channels: true,
+        }
+    }
+}
+
+impl Badges {
+    fn sanitize(&mut self) {
+        let mut seen = HashSet::new();
+        self.picked.retain(|id| !id.is_empty() && seen.insert(id.clone()));
+        self.picked.truncate(MAX_PICKED);
+    }
+
+    /// Whether a campaign's badge is wanted.
+    pub fn wants(&self, campaign_id: &str) -> bool {
+        self.auto || self.picked.iter().any(|p| p == campaign_id)
+    }
+
+    /// Forgets picks of campaigns that no longer run. True when any went.
+    pub fn retain_running(&mut self, running: &HashSet<String>) -> bool {
+        let before = self.picked.len();
+        self.picked.retain(|id| running.contains(id));
+        self.picked.len() != before
+    }
+
+    /// Picks or unpicks one campaign. Returns false when the list is full.
+    pub fn pick(&mut self, campaign_id: &str, on: bool) -> bool {
+        self.picked.retain(|p| p != campaign_id);
+        if !on {
+            return true;
+        }
+        if campaign_id.is_empty() || self.picked.len() >= MAX_PICKED {
+            return false;
+        }
+        self.picked.push(campaign_id.to_owned());
+        true
     }
 }
 
@@ -341,9 +405,52 @@ mod tests {
     }
 
     #[test]
+    fn badges_default_to_auto_and_sanitize() {
+        let m = Miner::default();
+        assert!(m.badges.auto && m.badges.find_channels && m.badges.picked.is_empty());
+        let mut b = Badges {
+            picked: vec!["a".into(), "".into(), "a".into(), "b".into()],
+            ..Badges::default()
+        };
+        b.sanitize();
+        assert_eq!(b.picked, ["a", "b"]);
+        b.picked = (0..150).map(|i| i.to_string()).collect();
+        b.sanitize();
+        assert_eq!(b.picked.len(), MAX_PICKED);
+    }
+
+    #[test]
+    fn badges_pick_and_want() {
+        let mut b = Badges {
+            auto: false,
+            ..Badges::default()
+        };
+        assert!(!b.wants("x"));
+        assert!(b.pick("x", true) && b.pick("x", true));
+        assert_eq!(b.picked, ["x"]);
+        assert!(b.wants("x") && !b.wants("y"));
+        assert!(b.pick("x", false) && b.picked.is_empty());
+        assert!(!b.pick("", true));
+        for i in 0..MAX_PICKED {
+            assert!(b.pick(&i.to_string(), true));
+        }
+        assert!(!b.pick("one more", true));
+        b.auto = true;
+        assert!(b.wants("anything"));
+        let running: HashSet<String> = ["3".to_owned()].into();
+        assert!(b.retain_running(&running));
+        assert_eq!(b.picked, ["3"]);
+        assert!(!b.retain_running(&running));
+    }
+
+    #[test]
     fn old_files_get_defaults() {
         let m: Miner = serde_json::from_str("{}").unwrap();
         assert!(m.enabled && m.watching_earns && !m.bets.enabled && !m.goals);
         assert_eq!(m.order, [Rule::Streak, Rule::Drops]);
+        // Files from before badges have none of it.
+        assert_eq!(m.badges, Badges::default());
+        let m: Miner = serde_json::from_str(r#"{"badges":{"picked":["a"]}}"#).unwrap();
+        assert!(m.badges.auto && m.badges.picked == ["a"]);
     }
 }

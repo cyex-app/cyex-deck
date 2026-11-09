@@ -2,8 +2,11 @@
 //! channels get the two watch slots, watch streaks, prediction bets, what Hermes says,
 //! community goals and the stats log. No I/O here; `app/src/miner` runs it.
 
+pub mod badges;
 pub mod bet;
+pub mod cadence;
 pub mod events;
+pub mod plan;
 pub mod slots;
 pub mod stats;
 

@@ -2,6 +2,7 @@
 import type { Bets } from "./Bets";
 import type { ChatPresence } from "./ChatPresence";
 import type { MineSource } from "./MineSource";
+import type { MinerBadges } from "./MinerBadges";
 import type { MinerRule } from "./MinerRule";
 import type { TabChannel } from "./TabChannel";
 
@@ -52,4 +53,8 @@ goals: boolean,
 /**
  * Join the chats of mined channels, e.g. for bots that reward chatters.
  */
-chat: ChatPresence, bets: Bets, };
+chat: ChatPresence, bets: Bets, 
+/**
+ * V110-U68 Badge drops: campaigns that give a chat badge for watching.
+ */
+badges: MinerBadges, };

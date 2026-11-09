@@ -6,8 +6,8 @@ use cyex_settings::schema::Rule;
 
 /// Twitch credits watch time for this many channels at once.
 pub const SLOTS: usize = 2;
-/// A stream counts once it's been up this long (the script waits 30 s).
-pub const SETTLE_MS: i64 = 30_000;
+/// A stream counts once it's been up this long (V110-U68: the reference waits 10 s).
+pub const SETTLE_MS: i64 = 10_000;
 /// A break shorter than this keeps the old stream's watch streak.
 const STREAK_BREAK_MS: i64 = 30 * 60_000;
 /// Twitch grants the streak within the first few minutes of watching.
