@@ -28,7 +28,12 @@
   import type { CardTarget } from '../emotes/emotes';
   import { emotesIpc } from '../../ipc/emotes';
   import { modSlots, type LineMod } from '../modview/lineMod';
-  import { messageItems, mods, pinItems, userItems } from '../modview/moderation.svelte';
+  import { mods, timeouts } from '../modview/moderation.svelte';
+  import { pinItems } from '../modview/modEntries';
+  import { MESSAGE_DEF, type MessageCtx } from '../../components/menus/defs/message';
+  import { menuEntries } from '../../components/menus/use';
+  import { logsMessageUrl } from './logsLink';
+  import { hideUser } from './undo';
   import { may, whose, type Act as ModAct } from '../modview/may';
   import { onModTarget } from '../modview/lineMod';
   import { standingOf } from '../modview/standing';
@@ -591,9 +596,6 @@
     };
   }
 
-  /** Warn asks for the reason in the message box (M10). */
-  const warn = (login: string) => () => onprefill?.(`/warn ${login} `);
-
   /** M12 Their badges: the line the name was on, else their latest line here. */
   function badgesOf(login: string, m: ChatMessage | undefined) {
     if (m?.sender?.login === login) return m.sender.badges;
@@ -623,11 +625,12 @@
     );
   }
 
-  /** Right-click a message: reply, copy, translate (C17), your own entries (S1), plugins' (S5). */
+  /** Right-click a message: reply, copy, translate (C17), your own entries (S1), plugins' (S5).
+   * V110-U66 What shows and where comes from the message menu's layout (Settings › Menus). */
   function messageMenu(e: MouseEvent, m: ChatMessage) {
-    const own = userMenus.current.message;
     const login = m.sender?.login ?? '';
     const ctx = context(m, login);
+    const own = userMenus.current.message;
     // V107-R14 Rust's answer for this line (may.rs): user actions on everyone but the
     // broadcaster, who can still be pinned (V101-34) and deleted when Twitch allows it.
     const w = caps && m.sender && !m.notice ? whose(m.sender, room.account, room.login) : null;
@@ -635,42 +638,72 @@
     const canMod = at('user');
     const canPin = !canMod && at('pin');
     const canDelete = canPin && at('delete');
-    openMenu(e, [
-      ...(canReply && m.sender && !m.notice ? [{ label: 'Reply', icon: 'reply' as const, hint: 'Shift+R-click', run: () => onreply(m.id) }] : []),
-      ...(m.sender && !m.notice
-        ? [
-            {
-              label: m.translation ? 'Translate again' : 'Translate',
-              icon: 'languages' as const,
-              run: () => chatxIpc.translate(room.view, m.id).catch((err) => toast.error(errorText(err))),
-            },
-            { label: 'Their messages', icon: 'search' as const, run: () => onaction?.({ type: 'search', query: `from:${login}` }) },
-            { label: 'Open their logs', icon: 'scroll' as const, run: () => openInLogs(room.login, login, m.source?.roomId) },
-            ...jumpInLogs(room.login, m),
-          ]
-        : []),
-      { label: 'Copy message', icon: 'copy', run: () => void copy(plainText(m.body), 'Message') },
-      { label: 'Copy full message', icon: 'copy', run: () => void copy(fullMessage(m, settings.v.chat.names, settings.v.chat.timestamps, m.sender ? settings.v.chat.users[m.sender.id] : undefined), 'Message') },
-      ...(canMod && caps
-        ? [
-            'separator' as const,
-            ...messageItems(m.id, command),
-            'separator' as const,
-            ...userItems(caps, login, command, warn(login), standings.of(room.login, login, standingOf(m.sender?.badges))),
-          ]
-        : []),
-      ...(canDelete
-        ? ['separator' as const, ...messageItems(m.id, command)]
-        : canPin
-          ? ['separator' as const, { label: 'Pin message', icon: 'pin' as const, items: pinItems(m.id, command) }]
-          : []),
-      ...(own.length ? ['separator' as const, ...toItems(own, (cmd) => runEntry(room.view, cmd, ctx, onaction))] : []),
+    const standing = standings.of(room.login, login, standingOf(m.sender?.badges));
+    const line = !!m.sender && !m.notice;
+    const logs = line ? jumpInLogs(room.login, m)[0] : undefined;
+    const logsUrl = line ? logsMessageUrl(room.login, m) : null;
+    const menu: MessageCtx = {
+      login,
+      msgId: m.id,
+      line,
+      reply: canReply,
+      translated: !!m.translation,
+      search: !!onaction,
+      mention: !!onmention,
+      logsLink: !!logs,
+      mod:
+        canMod && caps
+          ? {
+              login,
+              roles: caps.roles,
+              onMod: onModTarget(caps, standing?.mod),
+              standing,
+              presets: timeouts(),
+              run: command,
+              warn: () => onprefill?.(`/warn ${login} `),
+            }
+          : null,
+      pinLine: canPin,
+      del: canMod || canDelete,
+      run: command,
+      act: {
+        reply: () => onreply(m.id),
+        translate: () => chatxIpc.translate(room.view, m.id).catch((err) => toast.error(errorText(err))),
+        search: () => onaction?.({ type: 'search', query: `from:${login}` }),
+        logs: () => openInLogs(room.login, login, m.source?.roomId),
+        showInLogs: () => logs?.run(),
+        copyMessage: () => void copy(plainText(m.body), 'Message'),
+        copyFull: () =>
+          void copy(fullMessage(m, settings.v.chat.names, settings.v.chat.timestamps, m.sender ? settings.v.chat.users[m.sender.id] : undefined), 'Message'),
+        copyId: () => void copy(m.id, 'Message ID'),
+        copyLogsLink: () => logsUrl && void copy(logsUrl, 'Link'),
+        mention: () => onmention?.(login),
+        copyName: () => void copy(login, 'Name'),
+        hideUser: () => void hideUser(command, login),
+      },
+      entries: own.length ? toItems(own, (cmd) => runEntry(room.view, cmd, ctx, onaction)) : [],
       // S5, S9 Entries plugins added, for this kind of line.
-      'separator',
-      ...pluginItems(plugins.menus, 'message', lineKind(m), (p) =>
+      plugins: pluginItems(plugins.menus, 'message', lineKind(m), (p) =>
         pluginsIpc.runMenu(room.view, p.plugin, p.index, m.id).catch((err) => toast.error(errorText(err))),
       ),
-    ]);
+    };
+    openMenu(
+      e,
+      menuEntries(MESSAGE_DEF, menu, {
+        view: room.view,
+        context: ctx,
+        onaction,
+        prefill: onprefill,
+        values: {
+          nick: login,
+          'display-nick': m.sender?.display ?? login,
+          'user-id': m.sender?.id ?? '',
+          'msg-id': m.id,
+          msg: plainText(m.body),
+          chan: room.login,
+        },
+      }),
+    );
   }
 
   /** E4 Right-click an emote: card, copy, hide. Names and messages get their own menus. */

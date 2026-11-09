@@ -11,16 +11,23 @@ import { copy } from '../../lib/clipboard';
 import { errorText } from '../../lib/errors';
 import { toast } from '../../lib/toast.svelte';
 import { may, whose } from '../modview/may';
-import { mods, userItems } from '../modview/moderation.svelte';
+import { mods, timeouts } from '../modview/moderation.svelte';
+import { onModTarget } from '../modview/lineMod';
 import type { Standing } from '../modview/standing';
 import { standings } from '../modview/standings.svelte';
 import { pluginItems } from '../plugins/pluginMenus';
+import { openChannel } from '../browse/open.svelte';
+import { tabs } from '../tabs/tabs.svelte';
+import { popOut } from '../../app/panels';
+import { NAME_DEF, type NameCtx } from '../../components/menus/defs/name';
+import { menuEntries } from '../../components/menus/use';
+import { roomRoute } from './roomRoute';
 import { plugins } from '../plugins/plugins.svelte';
 import { whispers } from '../whispers/whispers.svelte';
 import { runEntry, toItems, userMenus } from './menus.svelte';
 import { openInLogs } from './inLogs';
 import { plainText } from './text';
-import { blockUser, hideUser, type Run } from './undo';
+import { blockUser, hideUser, type Run, withUndo } from './undo';
 
 export interface NameMenu {
   /** The chat's channel login. */
@@ -56,27 +63,53 @@ export function nameMenu(c: NameMenu): MenuEntry[] {
   const canMod = caps && may(caps, 'user', whose({ id: '', login }, c.account, channel)).offered;
   const open = () => chatIpc.openUsercard(channel, login).catch((e) => toast.error(errorText(e)));
   const warn = c.onprefill ? () => c.onprefill!(`/warn ${login} `) : open;
-  return [
-    { label: 'Usercard', icon: 'user', run: open },
-    ...(c.onmention ? [{ label: 'Mention', icon: 'reply' as const, run: () => c.onmention!(login) }] : []),
-    ...(accounts.can('whispers') ? [{ label: 'Whisper', icon: 'whisper' as const, run: () => whispers.show(login) }] : []),
-    ...(c.onaction
-      ? [{ label: 'Their messages', icon: 'search' as const, run: () => c.onaction!({ type: 'search', query: `from:${login}` }) }]
-      : []),
-    { label: 'Open their logs', icon: 'scroll', run: () => openInLogs(channel, login) },
-    { label: 'Copy name', icon: 'copy', run: () => void copy(login, 'Name') },
-    ...(canMod ? ['separator' as const, ...userItems(caps, login, c.run, warn, standings.of(c.channel, login, c.standing))] : []),
-    'separator',
-    { label: 'Hide', icon: 'eyeOff', note: 'Only for you, not on Twitch', run: () => void hideUser(c.run, login) },
-    ...(c.account
-      ? [{ label: 'Block', icon: 'ban' as const, note: 'Blocks them on Twitch', danger: true, run: () => void blockUser(c.run, login) }]
-      : []),
-    ...(own.length && c.view !== null
-      ? ['separator' as const, ...toItems(own, (cmd) => runEntry(c.view!, cmd, ctx, c.onaction))]
-      : []),
-    'separator',
-    ...pluginItems(plugins.menus, 'name', null, (p) =>
+  const standing = standings.of(c.channel, login, c.standing);
+  const userId = ctx.userId;
+  const run = (line: string) => void c.run(line);
+  const menu: NameCtx = {
+    login,
+    signedIn: !!c.account,
+    whispers: accounts.can('whispers'),
+    mention: !!c.onmention,
+    search: !!c.onaction,
+    userId: !!userId,
+    mod:
+      canMod && caps
+        ? { login, roles: caps.roles, onMod: onModTarget(caps, standing?.mod), standing, presets: timeouts(), run: c.run, warn }
+        : null,
+    act: {
+      usercard: open,
+      mention: () => c.onmention?.(login),
+      whisper: () => whispers.show(login),
+      search: () => c.onaction?.({ type: 'search', query: `from:${login}` }),
+      logs: () => openInLogs(channel, login),
+      copyName: () => void copy(login, 'Name'),
+      hide: () => void hideUser(c.run, login),
+      block: () => void blockUser(c.run, login),
+      unblock: () => run(`/unblock ${login}`),
+      openChat: () => void popOut(roomRoute(login, c.account), `${login} chat`),
+      watch: () =>
+        void openChannel({ show: (id) => tabs.activate(id), account: () => c.account }, { id: userId!, login, name: ctx.display ?? login }),
+      hideHere: () => void withUndo(`${login} is hidden in this chat.`, () => c.run(`/hideuser ${login} here`), () => c.run(`/unhideuser ${login}`)),
+      copyId: () => void copy(userId!, 'User ID'),
+    },
+    entries: own.length && c.view !== null ? toItems(own, (cmd) => runEntry(c.view!, cmd, ctx, c.onaction)) : [],
+    plugins: pluginItems(plugins.menus, 'name', null, (p) =>
       pluginsIpc.runName(p.plugin, p.index, channel, login, c.view, msg?.id ?? null).catch((err) => toast.error(errorText(err))),
     ),
-  ];
+  };
+  return menuEntries(NAME_DEF, menu, {
+    view: c.view,
+    context: ctx,
+    onaction: c.onaction,
+    prefill: c.onprefill,
+    values: {
+      nick: login,
+      'display-nick': ctx.display ?? login,
+      'user-id': userId ?? '',
+      'msg-id': ctx.msgId ?? '',
+      msg: ctx.msg ?? '',
+      chan: channel,
+    },
+  });
 }

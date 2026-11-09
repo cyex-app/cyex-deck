@@ -26,30 +26,28 @@ function base(kind: PlayerMenu['kind']): PlayerMenu {
   };
 }
 
-const labels = (list: MenuEntry[]) => list.map((e) => (e === 'separator' ? '—' : e.label));
+const labels = (list: MenuEntry[]): string[] =>
+  list.map((e) => (e === 'separator' ? '—' : e.items && e.label !== 'Quality' && e.label !== 'Speed' && e.label !== 'Moments' ? `${e.label}[${labels(e.items).join(', ')}]` : e.label));
 
-test('a stream: playback, then links and tools, then twitch.tv', () => {
+test('a stream: playback on top, then the rest in groups', () => {
   const m = { ...base('live'), pip: { on: false, toggle: noop }, stats: { on: true, toggle: noop }, reload: noop };
   const list = playerMenu(m);
   assert.deepEqual(labels(list), [
     'Pause',
     'Mute',
     'Quality',
-    'Picture in picture',
     'Fullscreen',
     '—',
-    'Copy stream link',
-    'Video stats',
-    'Reload player',
+    'Picture in picture',
     '—',
-    'Open on Twitch',
+    'Share[Copy stream link, Open on Twitch]',
+    '—',
+    'Tools[Video stats, Reload player]',
   ]);
   const quality = list[2];
   assert.ok(quality !== 'separator');
   assert.equal(quality.hint, 'Auto · 720p60');
   assert.deepEqual(quality.items?.map((e) => e !== 'separator' && e.checked), [true, false]);
-  const stats = list[7];
-  assert.ok(stats !== 'separator' && stats.checked);
 });
 
 test('a video adds speed and the link at the current time', () => {
@@ -69,18 +67,16 @@ test('a video adds speed and the link at the current time', () => {
     'Play',
     'Unmute',
     'Quality',
-    'Speed',
-    'Picture in picture',
     'Exit fullscreen',
     '—',
-    'Copy video link',
-    'Copy link at current time',
-    'Video stats',
-    'Reload player',
+    'Speed',
+    'Picture in picture',
     '—',
-    'Open on Twitch',
+    'Share[Copy video link, Copy link at current time, Open on Twitch]',
+    '—',
+    'Tools[Video stats, Reload player]',
   ]);
-  const speed = playerMenu(m)[3];
+  const speed = playerMenu(m)[5];
   assert.ok(speed !== 'separator');
   assert.equal(speed.hint, '1,5×');
   assert.deepEqual(speed.items?.map((e) => e !== 'separator' && e.label), ['0,5×', '0,75×', 'Normal', '1,25×', '1,5×', '2×']);
@@ -89,32 +85,36 @@ test('a video adds speed and the link at the current time', () => {
 test('a clip keeps it short', () => {
   let opened = '';
   const list = playerMenu({ ...base('clip'), link: 'https://clips.twitch.tv/A', open: (u) => (opened = u) });
-  assert.deepEqual(labels(list), ['Pause', 'Mute', 'Quality', 'Fullscreen', '—', 'Copy clip link', '—', 'Open on Twitch']);
-  const last = list.at(-1);
+  assert.deepEqual(labels(list), ['Pause', 'Mute', 'Quality', 'Fullscreen', '—', 'Share[Copy clip link, Open on Twitch]']);
+  const share = list.at(-1);
+  assert.ok(share && share !== 'separator');
+  const last = share.items?.at(-1);
   assert.ok(last && last !== 'separator');
   last.run?.();
   assert.equal(opened, 'https://clips.twitch.tv/A');
 });
 
-test('a video clips at the current time, before the links', () => {
+test('a video clips at the current time, on top', () => {
   let ran = 0;
   const list = playerMenu({ ...base('vod'), linkAt: 'https://www.twitch.tv/videos/1?t=5s', clipHere: { run: () => ran++ } });
   assert.deepEqual(labels(list), [
-    'Pause', 'Mute', 'Quality', 'Fullscreen', '—', 'Clip at current time', '—', 'Copy video link', 'Copy link at current time', '—', 'Open on Twitch',
+    'Pause', 'Mute', 'Quality', 'Fullscreen', 'Clip at current time', '—', 'Share[Copy video link, Copy link at current time, Open on Twitch]',
   ]);
-  const clip = list[5];
+  const clip = list[4];
   assert.ok(clip !== 'separator');
   clip.run?.();
   assert.equal(ran, 1);
-  const busy = playerMenu({ ...base('vod'), clipHere: { run: noop, busy: true } })[5];
+  const busy = playerMenu({ ...base('vod'), clipHere: { run: noop, busy: true } })[4];
   assert.ok(busy !== 'separator' && busy.disabled);
 });
 
-test('a clip saves as MP4 and a running save can be stopped', () => {
+test('a clip saves as MP4 (under Tools) and a running save can be stopped', () => {
   const idle = playerMenu({ ...base('clip'), save: { saving: null, start: noop, stop: noop } });
-  assert.deepEqual(labels(idle), ['Pause', 'Mute', 'Quality', 'Fullscreen', '—', 'Save as MP4', '—', 'Copy clip link', '—', 'Open on Twitch']);
-  const busy = playerMenu({ ...base('clip'), save: { saving: 'Saving 42 %', start: noop, stop: noop } })[5];
-  assert.ok(busy !== 'separator');
+  assert.deepEqual(labels(idle), ['Pause', 'Mute', 'Quality', 'Fullscreen', '—', 'Share[Copy clip link, Open on Twitch]', '—', 'Tools[Save as MP4]']);
+  const tools = playerMenu({ ...base('clip'), save: { saving: 'Saving 42 %', start: noop, stop: noop } }).at(-1);
+  assert.ok(tools && tools !== 'separator');
+  const busy = tools.items?.[0];
+  assert.ok(busy && busy !== 'separator');
   assert.equal(busy.label, 'Stop saving');
   assert.equal(busy.hint, 'Saving 42 %');
 });

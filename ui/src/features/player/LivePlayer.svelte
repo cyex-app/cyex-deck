@@ -28,7 +28,8 @@
   import { DVR_GAP } from './liveEdge';
   import { behindText } from './liveKeys';
   import { clipLiveAt, clipMaking, clipVideoAt } from './clipMake.svelte';
-  import { type MomentRow, playerMenu } from './menu';
+  import { playerEntries } from './entries';
+  import type { MomentRow } from './menu';
   import { canGoThere, hereClip, marks as momentMarks, momentClip, momentText, newest, playingOffset, secsOf } from './moments';
   import { MomentsFeed } from './momentsFeed.svelte';
   import { clock } from './time';
@@ -49,6 +50,7 @@
   import { recheckDelay } from './recheck';
   import { onShown, pageHidden } from '../../lib/awake';
   import { tabs } from '../tabs/tabs.svelte';
+  import { audioFocus } from '../tabs/audioFocus.svelte';
 
   interface Props {
     tile: Tile;
@@ -384,10 +386,16 @@
     media: () => ({ title: info?.stream?.title || tile.channel.name, artist: tile.channel.name, artwork: info?.avatar }),
   };
 
+  /** V110-U66 Theatre from the player's menu, for a stream in a tab. */
+  function theatreHere() {
+    const t = mini ? undefined : tabs.tabOf(tile.id);
+    return t ? { hint: bindingOf('view.theatre') || undefined, run: () => audioFocus.enterTheatre(t.id, tile.id) } : undefined;
+  }
+
   /** V101-17 */
   function menu() {
     const e = engine;
-    return playerMenu({
+    return playerEntries({
       kind: 'live',
       playing: Boolean(e?.playing),
       muted: sound.muted,
@@ -409,7 +417,8 @@
       link: `https://www.twitch.tv/${login}`,
       copy: copyText,
       open: openLink,
-    });
+      theatre: theatreHere(),
+    }, login);
   }
 
   // V101-25 The small stream follows the pointer and lands in the nearest corner, which

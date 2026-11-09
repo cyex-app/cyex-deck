@@ -7,7 +7,9 @@
   import Avatar from '../../components/Avatar.svelte';
   import Button from '../../components/Button.svelte';
   import IconButton from '../../components/IconButton.svelte';
-  import { openMenuAt, type MenuEntry } from '../../components/menu.svelte';
+  import { openMenuAt } from '../../components/menu.svelte';
+  import { WHISPER_DEF } from '../../components/menus/defs/whispers';
+  import { menuEntries } from '../../components/menus/use';
   import type { ChatMessage } from '../../ipc/bindings/ChatMessage';
   import type { WhisperConversation } from '../../ipc/bindings/WhisperConversation';
   import type { WhisperEdit } from '../../ipc/bindings/WhisperEdit';
@@ -197,33 +199,26 @@
 
   function options(e: MouseEvent) {
     if (!thread) return;
-    const items: MenuEntry[] = [];
-    if (history) {
-      items.push({
-        label: thread.archived ? 'Move back to the list' : 'Archive',
-        icon: 'archive',
-        run: () => void edit({ archived: !thread.archived }),
-      });
-      if (thread.temporary) {
-        items.push({
-          label: 'Take back their access',
-          icon: 'lock',
-          note: 'You whispered them, so they can whisper you for 48 hours.',
-          run: () => void edit({ revoke: true }, 'They can’t whisper you anymore.'),
-        });
-      }
-      // V108-F55 The switch after the actions (menuItems.ts order), its icon as on the tab menu.
-      items.push(
+    const t = thread;
+    openMenuAt(
+      e,
+      menuEntries(
+        WHISPER_DEF,
         {
-          label: thread.muted ? 'Unmute alerts' : 'Mute alerts',
-          icon: thread.muted ? 'bell' : 'bellOff',
-          run: () => void edit({ muted: !thread.muted }),
+          history,
+          archived: t.archived,
+          temporary: t.temporary,
+          muted: t.muted,
+          act: {
+            archive: () => void edit({ archived: !t.archived }),
+            revoke: () => void edit({ revoke: true }, 'They can’t whisper you anymore.'),
+            mute: () => void edit({ muted: !t.muted }),
+            block: () => void block(),
+          },
         },
-        'separator',
-      );
-    }
-    items.push({ label: 'Block', icon: 'ban', note: 'Blocks them on Twitch', danger: true, run: () => void block() });
-    openMenuAt(e, items);
+        { values: { nick: t.other.login, 'display-nick': t.other.name, 'user-id': t.other.id } },
+      ),
+    );
   }
 
   /** V5 Days run together: one date row covers messages up to a day apart, over 3 days at most. */

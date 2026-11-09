@@ -4,6 +4,8 @@
   import EmptyState from '../../components/EmptyState.svelte';
   import Icon from '../../components/Icon.svelte';
   import { openMenu } from '../../components/menu.svelte';
+  import { CLIP_DEF } from '../../components/menus/defs/clip';
+  import { menuEntries } from '../../components/menus/use';
   import { tooltip } from '../../components/tooltip.svelte';
   import Segmented from '../../components/Segmented.svelte';
   import type { Clip } from '../../ipc/bindings/Clip';
@@ -59,14 +61,28 @@
   function menu(e: MouseEvent, c: Clip) {
     e.preventDefault();
     const saving = clipSaves.has(c.slug);
-    openMenu(e, [
-      { label: 'Play', icon: 'play', run: () => onplay(c.slug) },
-      saving
-        ? { label: 'Stop saving', icon: 'x', hint: clipSaves.text(c.slug), run: () => clipSaves.cancel(c.slug) }
-        : { label: 'Save as MP4', icon: 'download', run: () => void clipSaves.save(c.slug) },
-      'separator',
-      { label: 'Copy clip link', icon: 'link', run: () => void copy(`https://clips.twitch.tv/${c.slug}`, 'Link') },
-    ]);
+    openMenu(
+      e,
+      menuEntries(
+        CLIP_DEF,
+        {
+          saving: saving ? clipSaves.text(c.slug) : null,
+          rename: false,
+          editOnTwitch: false,
+          remove: false,
+          act: {
+            play: () => onplay(c.slug),
+            save: () => void clipSaves.save(c.slug),
+            stop: () => clipSaves.cancel(c.slug),
+            copyLink: () => void copy(`https://clips.twitch.tv/${c.slug}`, 'Link'),
+            rename: () => {},
+            edit: () => {},
+            remove: () => {},
+          },
+        },
+        { values: { nick: c.clippedBy ?? '', chan: login } },
+      ),
+    );
   }
 </script>
 

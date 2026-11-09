@@ -13,7 +13,7 @@
   import { clipSaves } from './clipSave.svelte';
   import { afterAsk, type Answer, ASK_MS } from './clipWait';
   import { isFresh } from './freshClips';
-  import { playerMenu } from './menu';
+  import { playerEntries } from './entries';
   import { playerFullscreen } from './players.svelte';
   import SeekBar from './SeekBar.svelte';
   import Shell from './Shell.svelte';
@@ -206,7 +206,7 @@
   /** V101-17 */
   function menu() {
     const landscape = clip?.qualities.length ?? 0;
-    return playerMenu({
+    return playerEntries({
       kind: 'clip',
       playing,
       muted: sound.muted,

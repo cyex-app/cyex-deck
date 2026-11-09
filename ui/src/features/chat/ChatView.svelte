@@ -20,7 +20,12 @@
   import IconButton from '../../components/IconButton.svelte';
   import Popover from '../../components/Popover.svelte';
   import ViewerChart from '../channel/ViewerChart.svelte';
-  import { openMenu, type MenuEntry } from '../../components/menu.svelte';
+  import { openMenu } from '../../components/menu.svelte';
+  import { MORE_DEF, type MoreCtx } from '../../components/menus/defs/more';
+  import type { TileCtx } from '../../components/menus/defs/tile';
+  import { menuEntries } from '../../components/menus/use';
+  import { copy } from '../../lib/clipboard';
+  import { systemIpc } from '../../ipc/system';
   import { tooltip } from '../../components/tooltip.svelte';
   import type { ChatMessage } from '../../ipc/bindings/ChatMessage';
   import type { ConnStatus } from '../../ipc/bindings/ConnStatus';
@@ -94,7 +99,7 @@
     /** U7 Opens this chat as an overlay. */
     onoverlay?: () => void;
     /** V101-21 A tiled tab's entries for this tile, after the chat's in its one menu. */
-    tileMenu?: () => MenuEntry[];
+    tileMenu?: () => TileCtx;
     /** V102-26 The shield: in a tab it opens the mod view in the tab, open (`modviewOpen`)
      * it closes it. `null` leaves it out (the mod view's own chat). By default it opens the
      * mod view next to the tabs or in its own window (V102-16). */
@@ -279,56 +284,55 @@
     const own = userMenus.current.channel;
     const ctx = { login, userId: null, display: name ?? login, msgId: null, msg: null, msgTime: null };
     // V101-30 Actions first, then switches; the search key is the one bound in Hotkeys.
-    const items: MenuEntry[] = [
-      ...(tight ? [{ label: 'Viewers', icon: 'users' as const, checked: viewers, run: () => (viewers = !viewers) }] : []),
-      { label: 'Search', icon: 'search', hint: bindingOf('chat.search'), run: () => (search = { query: '', all: false }) },
-      { label: recording ? 'Stop recording' : 'Record chat', icon: 'record', run: record },
+    // V110-U66 What shows and where comes from the chat menu's layout (Settings › Menus).
+    const menu: MoreCtx = {
+      tight,
+      viewers,
+      recording,
+      searchHint: bindingOf('chat.search'),
       // V102-20 Greyed out with its flag until the account can.
-      ...(account
-        ? [
-            {
-              label: 'Subscribe',
-              icon: 'star' as const,
-              lock: lockFor(accounts.can('wallet', account), 'helix') ?? lockFor(accounts.can('subs', account), 'gql'),
-              unlock: () => unlock.ask('twitch', account),
-              run: () => (subscribing = true),
-            },
-          ]
-        : []),
-      ...(onoverlay ? [{ label: 'Overlay', icon: 'layers' as const, note: 'This chat over games, always on top', run: onoverlay }] : []),
-      'separator',
-      {
-        label: 'Translate messages',
-        icon: 'languages',
-        checked: translating,
-        run: () => void settings.patch('chat', { translateChats: toggled(settings.v.chat.translateChats, !translating) }),
-      },
-      {
-        label: 'Mute alerts',
-        icon: 'bellOff',
-        checked: muted,
-        run: () => void settings.patch('highlights', { muted: toggled(settings.v.highlights.muted, !muted) }),
-      },
-      ...(onfilters
-        ? [
-            {
-              label: 'Filters',
-              icon: 'filter' as const,
-              items: defs.length
-                ? defs.map((d) => ({ label: d.name, checked: filters.includes(d.id), run: () => flip(d.id) }))
-                : [{ label: 'Make filters in Settings → Filters', disabled: true }],
-            },
-          ]
-        : []),
-      ...(own.length ? ['separator' as const, ...toItems(own, (cmd) => runEntry(room.view, cmd, ctx, onaction))] : []),
+      subscribe: account
+        ? {
+            lock: lockFor(accounts.can('wallet', account), 'helix') ?? lockFor(accounts.can('subs', account), 'gql'),
+            unlock: () => unlock.ask('twitch', account),
+            run: () => (subscribing = true),
+          }
+        : null,
+      overlay: onoverlay ? { run: onoverlay } : null,
+      translating,
+      muted,
+      filters: onfilters
+        ? {
+            label: 'Filters',
+            icon: 'filter',
+            items: defs.length
+              ? defs.map((d) => ({ label: d.name, checked: filters.includes(d.id), run: () => flip(d.id) }))
+              : [{ label: 'Make filters in Settings → Filters', disabled: true }],
+          }
+        : null,
+      popOut: onpopout ? { run: onpopout } : null,
+      // S1 Your entries.
+      entries: own.length ? toItems(own, (cmd) => runEntry(room.view, cmd, ctx, onaction)) : [],
       // S9 Entries plugins put in a chat's menu.
-      'separator',
-      ...pluginItems(plugins.menus, 'chat', null, (p) =>
+      plugins: pluginItems(plugins.menus, 'chat', null, (p) =>
         pluginsIpc.runMenu(room.view, p.plugin, p.index, null).catch((err) => toast.error(errorText(err))),
       ),
-      ...(tileMenu ? ['separator' as const, ...tileMenu()] : []),
-    ];
-    openMenu(e.currentTarget as HTMLElement, items, 'end');
+      tile: tileMenu ? tileMenu() : null,
+      act: {
+        viewers: () => (viewers = !viewers),
+        search: () => (search = { query: '', all: false }),
+        record,
+        translate: () => void settings.patch('chat', { translateChats: toggled(settings.v.chat.translateChats, !translating) }),
+        mute: () => void settings.patch('highlights', { muted: toggled(settings.v.highlights.muted, !muted) }),
+        copyLink: () => void copy(`https://www.twitch.tv/${login}`, 'Link'),
+        logs: () => void systemIpc.openLink(`https://logs.cyex.app/?c=${encodeURIComponent(login)}`).catch((err) => toast.error(errorText(err))),
+      },
+    };
+    openMenu(
+      e.currentTarget as HTMLElement,
+      menuEntries(MORE_DEF, menu, { view: room.view, context: ctx, onaction, values: { chan: login } }),
+      'end',
+    );
   }
 
   const STATUS: Partial<Record<ConnStatus, string>> = {

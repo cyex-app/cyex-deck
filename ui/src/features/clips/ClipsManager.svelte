@@ -12,6 +12,8 @@
   import IconButton from '../../components/IconButton.svelte';
   import Loading from '../../components/Loading.svelte';
   import { openMenuAt } from '../../components/menu.svelte';
+  import { CLIP_DEF } from '../../components/menus/defs/clip';
+  import { menuEntries } from '../../components/menus/use';
   import SearchField from '../../components/SearchField.svelte';
   import Segmented from '../../components/Segmented.svelte';
   import type { Clip } from '../../ipc/bindings/Clip';
@@ -159,21 +161,28 @@
   function menu(e: MouseEvent, c: Clip) {
     e.preventDefault();
     const saving = clipSaves.has(c.slug);
-    openMenuAt(e, [
-      { label: 'Play', icon: 'play', run: () => (playing = { kind: 'clip', slug: c.slug }) },
-      saving
-        ? { label: 'Stop saving', icon: 'x', hint: clipSaves.text(c.slug), run: () => clipSaves.cancel(c.slug) }
-        : { label: 'Save as MP4', icon: 'download', run: () => void clipSaves.save(c.slug) },
-      { label: 'Copy link', icon: 'link', run: () => void copy(clipLink(c), 'Link') },
-      ...(canRename(c, of, me?.login)
-        ? [{ label: 'Rename', icon: 'pencil' as const, run: () => (editing = { slug: c.slug, text: c.title, error: '' }) }]
-        : []),
-      ...(madeBy(c, of, names)
-        ? [{ label: 'Edit on Twitch', icon: 'scissors' as const, note: 'Title, start and end, in Twitch’s editor', run: () => void edit(c) }]
-        : []),
-      'separator',
-      { label: 'Delete clip', icon: 'trash', danger: true, note: 'Gone for good.', confirm: 'Click to delete', run: () => void remove([c.slug]) },
-    ]);
+    openMenuAt(
+      e,
+      menuEntries(
+        CLIP_DEF,
+        {
+          saving: saving ? clipSaves.text(c.slug) : null,
+          rename: canRename(c, of, me?.login),
+          editOnTwitch: madeBy(c, of, names),
+          remove: true,
+          act: {
+            play: () => (playing = { kind: 'clip', slug: c.slug }),
+            save: () => void clipSaves.save(c.slug),
+            stop: () => clipSaves.cancel(c.slug),
+            copyLink: () => void copy(clipLink(c), 'Link'),
+            rename: () => (editing = { slug: c.slug, text: c.title, error: '' }),
+            edit: () => void edit(c),
+            remove: () => void remove([c.slug]),
+          },
+        },
+        { values: { nick: c.clippedBy ?? '', chan: c.channelLogin } },
+      ),
+    );
   }
 </script>
 

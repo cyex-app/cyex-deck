@@ -54,7 +54,7 @@
   import { drag } from './drag.svelte';
   import { aboveChat, BAR_SLOT, type BarSlots } from './aboveChat.svelte';
   import { chatSide, layout } from './layout.svelte';
-  import { layoutEntries, tileEntries } from './menus';
+  import { tileCtx } from './menus';
   import TileActions from './TileActions.svelte';
   import { chatRoute, DEFAULT_RATIO, tabs, tiles } from './tabs.svelte';
   import { chatSideOf, shareOf, TILE_PANELS, tileMin, tileTree, turnedShares } from './tileLayout';
@@ -430,7 +430,7 @@
         account={tile.account}
         readKey={tile.id}
         actions={chatActions}
-        tileMenu={tiled ? () => tileEntries(tab, tile) : () => layoutEntries(tab)}
+        tileMenu={() => tileCtx(tab, tiled ? tile : null)}
         {onheaderdown}
         {onsignin}
         onlink={(t) => openTarget(tile, t)}

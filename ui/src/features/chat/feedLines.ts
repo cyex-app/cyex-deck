@@ -12,6 +12,8 @@ import { copy } from '../../lib/clipboard';
 import { errorText } from '../../lib/errors';
 import { toast } from '../../lib/toast.svelte';
 import { whispers } from '../whispers/whispers.svelte';
+import { FEED_MESSAGE_DEF, FEED_NAME_DEF } from '../../components/menus/defs/feed';
+import { menuEntries } from '../../components/menus/use';
 import { jumpInLogs } from './inLogs';
 import { emoteMenu, notEmote, openPart, PARTS, type LineHost } from './lineEvents';
 import { fullMessage } from './fullMessage';
@@ -45,28 +47,48 @@ function lineHost(el: HTMLElement, h: FeedHost): LineHost | null {
 }
 
 export function nameEntries(channel: string, login: string, openRoom: (c: string) => void): MenuEntry[] {
-  return [
+  return menuEntries(
+    FEED_NAME_DEF,
     {
-      label: 'Usercard',
-      icon: 'user',
-      run: () => chatIpc.openUsercard(channel, login).catch((e) => toast.error(errorText(e))),
+      whispers: accounts.can('whispers'),
+      act: {
+        usercard: () => chatIpc.openUsercard(channel, login).catch((e) => toast.error(errorText(e))),
+        whisper: () => whispers.show(login),
+        openChat: () => openRoom(channel),
+        copyName: () => void copy(login, 'Name'),
+      },
     },
-    ...(accounts.can('whispers') ? [{ label: 'Whisper', icon: 'whisper' as const, run: () => whispers.show(login) }] : []),
-    // V108-F55 Going somewhere before copy (menuItems.ts order).
-    'separator',
-    { label: 'Open this chat', icon: 'list', run: () => openRoom(channel) },
-    { label: 'Copy name', icon: 'copy', run: () => void copy(login, 'Name') },
-  ];
+    { values: { nick: login, 'display-nick': login, chan: channel } },
+  );
 }
 
 export function messageEntries(channel: string, m: ChatMessage, openRoom: (c: string) => void): MenuEntry[] {
-  return [
-    { label: 'Open this chat', icon: 'list', run: () => openRoom(channel) },
-    // V108-N17 Global mentions are rarely in the chat's own scrollback.
-    ...(m.sender && !m.notice ? jumpInLogs(channel, m) : []),
-    { label: 'Copy message', icon: 'copy', run: () => void copy(plainText(m.body), 'Message') },
-    { label: 'Copy full message', icon: 'copy', run: () => void copy(fullMessage(m, settings.v.chat.names, settings.v.chat.timestamps, m.sender ? settings.v.chat.users[m.sender.id] : undefined), 'Message') },
-  ];
+  const login = m.sender?.login ?? '';
+  const logs = m.sender && !m.notice ? jumpInLogs(channel, m)[0] : undefined;
+  return menuEntries(
+    FEED_MESSAGE_DEF,
+    {
+      // V108-N17 Global mentions are rarely in the chat's own scrollback.
+      logsLink: !!logs,
+      act: {
+        openChat: () => openRoom(channel),
+        showInLogs: () => logs?.run(),
+        copyMessage: () => void copy(plainText(m.body), 'Message'),
+        copyFull: () =>
+          void copy(fullMessage(m, settings.v.chat.names, settings.v.chat.timestamps, m.sender ? settings.v.chat.users[m.sender.id] : undefined), 'Message'),
+      },
+    },
+    {
+      values: {
+        nick: login,
+        'display-nick': m.sender?.display ?? login,
+        'user-id': m.sender?.id ?? '',
+        'msg-id': m.id,
+        msg: plainText(m.body),
+        chan: channel,
+      },
+    },
+  );
 }
 
 export function feedEvents(h: FeedHost) {

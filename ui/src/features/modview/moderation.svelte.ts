@@ -3,16 +3,14 @@
 // commands, so Helix or GQL is picked in Rust (D25).
 
 import type { MenuEntry } from '../../components/menu.svelte';
-import { formatDuration, formatSecs } from '../../lib/format';
+import { formatDuration } from '../../lib/format';
 import { settings } from '../../lib/settings.svelte';
 import { toast } from '../../lib/toast.svelte';
 import type { Caps } from '../../ipc/bindings/Caps';
 import type { RoleEntry } from '../../ipc/bindings/RoleEntry';
 import { modIpc, type ModRole } from '../../ipc/moderation';
-import { pinCustomSecs } from './pinLength';
-import { timeoutSecs } from './timeoutLength';
-import { roleItems, type Standing } from './standing';
-import { onModTarget } from './lineMod';
+import { treatItems as treatEntries } from './modEntries';
+import type { Standing } from './standing';
 import { errorText } from '../../lib/errors';
 
 /** 2.11 The quick timeout lengths from Settings → Chat, shortest first. */
@@ -20,16 +18,7 @@ export function timeouts(): { label: string; secs: number }[] {
   return settings.v.chat.timeoutPresets.map((secs) => ({ label: formatDuration(secs), secs }));
 }
 
-/** V101-34 How long a pin stays: Twitch takes 30 s to 30 min, or no end. V108-C22 No end means
- * until a mod unpins it, live or offline, not until the stream ends. */
-export const PIN_LENGTHS: { label: string; secs: number | null }[] = [
-  { label: 'Until unpinned', secs: null },
-  { label: formatSecs(30), secs: 30 },
-  { label: formatSecs(60), secs: 60 },
-  { label: formatSecs(300), secs: 300 },
-  { label: formatSecs(600), secs: 600 },
-  { label: formatSecs(1800), secs: 1800 },
-];
+export { PIN_LENGTHS, pinItems } from './modEntries';
 
 class Mods {
   /** V102-21 Every open account's role per channel, as Rust keeps it; replaced on each
@@ -99,87 +88,11 @@ export const mods = new Mods();
 /** Runs a mod line through the chat command path; toasts an error. */
 type Run = (line: string) => void;
 
-/** Mod actions on a user, for the name menu (1.49) and the viewer list (C36). `warn` asks
- * for the reason: the chat box in a chat, the usercard elsewhere. */
-export function userItems(caps: Caps, login: string, run: Run, warn: () => void, is?: Standing): MenuEntry[] {
-  // V107-R44 Only the broadcaster times out or bans a mod, and that takes the mod role.
-  const onMod = onModTarget(caps, is?.mod);
-  const items: MenuEntry[] = [
-    ...(onMod.offered ? [{ label: 'Time out', icon: 'clock' as const, note: onMod.note, items: timeoutItems(login, run) }] : []),
-    { label: 'Warn', icon: 'alert', run: warn },
-    { label: 'Unban', icon: 'undo', run: () => run(`/unban ${login}`) },
-    // V101-30 What can't be undone comes last.
-    ...(onMod.offered
-      ? [{ label: 'Ban', icon: 'gavel' as const, danger: true, note: onMod.note, confirm: 'Click to ban', run: () => run(`/ban ${login}`) }]
-      : []),
-    'separator',
-    ...treatItems(caps, login, run, is),
-  ];
-  return items;
-}
-
-/** 2.11 The quick lengths, then V107-R22 any length Twitch takes, typed. */
-export function timeoutItems(login: string, run: Run): MenuEntry[] {
-  return [
-    ...timeouts().map((t) => ({ label: t.label, run: () => run(`/timeout ${login} ${t.secs}`) })),
-    'separator',
-    {
-      label: 'Custom length',
-      field: {
-        placeholder: 'Custom, e.g. 7m or 1d',
-        submit: (text: string) => {
-          const t = timeoutSecs(text);
-          if ('error' in t) return t.error;
-          run(`/timeout ${login} ${t.secs}`);
-          return null;
-        },
-      },
-    },
-  ];
-}
-
 /** Monitor, restrict, and mod/VIP for the broadcaster and lead mods (1.50): the less used user actions. M12,
  * V107-M8 Mod or Unmod and VIP or Unvip from what they hold (`roleItems`). `roles: false` where the
  * role buttons show anyway (the usercard). */
 export function treatItems(caps: Caps, login: string, run: Run, is?: Standing, roles = true): MenuEntry[] {
-  const items: MenuEntry[] = [
-    { label: 'Monitor', icon: 'eye', run: () => run(`/monitor ${login}`) },
-    { label: 'Restrict', icon: 'eyeOff', run: () => run(`/restrict ${login}`) },
-  ];
-  if (roles && caps.roles) items.push('separator', ...roleItems(login, run, is));
-  return items;
-}
-
-/** V101-34 The pin lengths, for the message menu and the pin button; V107 then any length
- * Twitch takes, typed. */
-export function pinItems(msgId: string, run: Run): MenuEntry[] {
-  return [
-    ...PIN_LENGTHS.map((p) => ({
-      label: p.label,
-      run: () => run(p.secs === null ? `/pin ${msgId}` : `/pin ${msgId} ${p.secs}s`),
-    })),
-    'separator',
-    {
-      label: 'Custom length',
-      field: {
-        placeholder: 'Custom, e.g. 12 or 2:30',
-        submit: (text: string) => {
-          const secs = pinCustomSecs(text);
-          if (secs === null) return 'Try minutes, like 12 or 2:30.';
-          run(`/pin ${msgId} ${secs}s`);
-          return null;
-        },
-      },
-    },
-  ];
-}
-
-/** Mod actions on a message: pin, delete (1.49, 1.9). */
-export function messageItems(msgId: string, run: Run): MenuEntry[] {
-  return [
-    { label: 'Pin message', icon: 'pin', items: pinItems(msgId, run) },
-    { label: 'Delete message', icon: 'trash', danger: true, confirm: 'Click to delete', run: () => run(`/delete ${msgId}`) },
-  ];
+  return treatEntries(caps.roles, login, run, is, roles);
 }
 
 /** A convenience for components that need the toast-on-error runner. */

@@ -20,7 +20,7 @@
   import { settings } from '../../lib/settings.svelte';
   import { clipMaking, clipVideoAt } from './clipMake.svelte';
   import { Engine } from './engine.svelte';
-  import { playerMenu } from './menu';
+  import { playerEntries } from './entries';
   import { playerFullscreen, type TileState } from './players.svelte';
   import { qualityOptions } from './quality';
   import SeekBar from './SeekBar.svelte';
@@ -231,7 +231,7 @@
   function menu() {
     const e = engine;
     const link = `https://www.twitch.tv/videos/${id}`;
-    return playerMenu({
+    return playerEntries({
       kind: 'vod',
       playing: Boolean(e?.playing),
       muted: sound.muted,

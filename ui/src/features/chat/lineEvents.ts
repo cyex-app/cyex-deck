@@ -23,6 +23,10 @@ import { PREVIEW_PX } from './cardBox';
 import { cardsShown, links } from './linkPreviews';
 import { flipUnlisted, unlistedBlurred } from '../emotes/unlisted';
 import { roomRoute } from './roomRoute';
+import { EMOTE_DEF } from '../../components/menus/defs/emote';
+import { menuEntries } from '../../components/menus/use';
+import { emoteKey } from '../emotes/emotes';
+import { emoteLarge } from './urls';
 
 /** The parts `openPart` handles. */
 export const PARTS = '[data-user],[data-channel],[data-link],[data-upload],[data-emote]';
@@ -94,22 +98,39 @@ export async function emoteMenu(e: MouseEvent, el: HTMLElement, host: LineHost):
   });
   // Null: the user moved on or a newer right-click came in.
   if (!edits) return;
-  host.openMenu(e, [
-    { label: 'Open emote card', icon: 'smile', run: () => host.openCard(t) },
-    { label: 'Copy name', icon: 'copy', run: () => void copy(emote.name, 'Emote name') },
-    'separator',
-    {
-      label: `Hide ${emote.name}`,
-      icon: 'eyeOff',
-      run: () => hidden.hide({ source: emote.provider, id: emote.id, name: emote.name }),
-    },
-    // V106-31/32 Add, rename, remove; none of it without a 7TV sign-in and an editable channel (Q2, Q6).
-    ...edits,
-    // V102-01 One switch for every unlisted 7TV emote, in every chat.
-    ...(unlisted
-      ? ['separator' as const, { label: 'Blur unlisted emotes', icon: 'eye' as const, checked: unlistedBlurred(), run: flipUnlisted }]
-      : []),
-  ]);
+  // V110-U66 What shows and where comes from the emote menu's layout (Settings › Menus).
+  const key = emoteKey(emote.provider, emote.id);
+  const saved = settings.v.emotes.favorites;
+  const favorite = saved.some((k) => emoteKey(k.source, k.id) === key);
+  host.openMenu(
+    e,
+    menuEntries(
+      EMOTE_DEF,
+      {
+        name: emote.name,
+        unlisted,
+        blurred: unlistedBlurred(),
+        favorite,
+        // V106-31/32 Add, rename, remove; none of it without a 7TV sign-in and an editable channel (Q2, Q6).
+        edits,
+        act: {
+          card: () => host.openCard(t),
+          copyName: () => void copy(emote.name, 'Emote name'),
+          hide: () => hidden.hide({ source: emote.provider, id: emote.id, name: emote.name }),
+          // V102-01 One switch for every unlisted 7TV emote, in every chat.
+          blur: flipUnlisted,
+          favorite: () =>
+            void settings.patch('emotes', {
+              favorites: favorite
+                ? saved.filter((k) => emoteKey(k.source, k.id) !== key)
+                : [...saved, { source: emote.provider, id: emote.id, name: emote.name }],
+            }),
+          copyLink: () => void copy(emoteLarge(emote.provider, emote.id, 'dark'), 'Link'),
+        },
+      },
+      { values: { chan: channel } },
+    ),
+  );
 }
 
 /** A right-click away from an emote drops a 7TV menu still being read. */

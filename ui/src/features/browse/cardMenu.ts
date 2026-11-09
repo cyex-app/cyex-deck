@@ -1,32 +1,31 @@
 // Right-click on a channel in home or discover.
 
 import type { MenuEntry } from '../../components/menu.svelte';
-import { type Channel, LAYOUT_LABELS, type Layout, type Nav, isFavorite, openChannel, picked, toggleFavorite } from './open.svelte';
-
-const ICONS = { stream: 'tv', both: 'panelRight', chat: 'chat' } as const;
+import { CARD_DEF } from '../../components/menus/defs/card';
+import { menuEntries } from '../../components/menus/use';
+import { copy } from '../../lib/clipboard';
+import { type Channel, type Layout, type Nav, isFavorite, openChannel, picked, toggleFavorite } from './open.svelte';
 
 export function cardMenu(nav: Nav, c: Channel): MenuEntry[] {
-  const layouts = (Object.keys(LAYOUT_LABELS) as Layout[]).map((layout) => ({
-    label: LAYOUT_LABELS[layout],
-    icon: ICONS[layout],
-    run: () => void openChannel(nav, c, { layout }),
-  }));
-  return [
-    { label: 'Open', icon: 'plus', run: () => void openChannel(nav, c) },
-    { label: 'Open in the background', icon: 'layers', hint: 'Middle click', run: () => void openChannel(nav, c, { background: true }) },
-    'separator',
-    ...layouts,
-    'separator',
-    isFavorite(c.id)
-      ? { label: 'Unfavorite', icon: 'star', run: () => toggleFavorite(c) }
-      : { label: 'Favorite', icon: 'star', note: 'Keeps it on top of home', run: () => toggleFavorite(c) },
+  const as = (layout: Layout) => () => void openChannel(nav, c, { layout });
+  return menuEntries(
+    CARD_DEF,
     {
-      label: picked.has(c.id) ? 'Unpick' : 'Pick to watch side by side',
-      icon: 'columns',
-      hint: 'Ctrl+click',
-      run: () => picked.toggle(c),
+      favorite: isFavorite(c.id),
+      picked: picked.has(c.id),
+      act: {
+        open: () => void openChannel(nav, c),
+        background: () => void openChannel(nav, c, { background: true }),
+        stream: as('stream'),
+        both: as('both'),
+        chat: as('chat'),
+        favorite: () => toggleFavorite(c),
+        pick: () => picked.toggle(c),
+        copyLink: () => void copy(`https://www.twitch.tv/${c.login}`, 'Link'),
+      },
     },
-  ];
+    { values: { chan: c.login } },
+  );
 }
 
 /** Click opens, Ctrl+click picks (H3), middle click opens in the background. */
