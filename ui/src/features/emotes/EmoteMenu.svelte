@@ -264,6 +264,11 @@
     const from = (e.target as HTMLElement).closest('[data-tip]');
     if (from && !from.contains(e.relatedTarget as Node)) hideTip();
   }
+
+  /** V110-U61 A picture already in the cache is done before `onload` is wired. */
+  function loaded(img: HTMLImageElement) {
+    if (img.complete && img.naturalWidth > 0) img.parentElement?.removeAttribute('data-loading');
+  }
 </script>
 
 {#snippet more(id: string, total: number)}
@@ -280,6 +285,7 @@
     class:locked={!!m.locked}
     aria-label={m.locked ? `${m.name}, ${m.locked}` : undefined}
     data-tip={m.name}
+    data-loading=""
     data-hint={cellHint(m)}
     data-tip-img={emoteLarge(m.provider, m.id, theme, { animated: m.animated })}
     onclick={(e) => pickCell(m, e.currentTarget)}
@@ -291,6 +297,8 @@
       style:aspect-ratio={emoteRatio(m.size)}
       loading="lazy"
       decoding="async"
+      use:loaded
+      onload={(e) => (e.currentTarget as HTMLImageElement).parentElement?.removeAttribute('data-loading')}
       onerror={(e) => ((e.currentTarget as HTMLImageElement).parentElement!.dataset.broken = '')}
     />
     {#if mark}<span class="tier">{mark}</span>{/if}
@@ -567,6 +575,23 @@
     font-size: 0.65rem;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+  /* V110-U61 While the picture loads, the name sits in its place; the cell keeps its size. */
+  .cell:global([data-loading]:not([data-broken])) img {
+    visibility: hidden;
+  }
+  .cell:global([data-loading]:not([data-broken]))::after {
+    content: attr(data-tip);
+    position: absolute;
+    inset: 2px;
+    display: grid;
+    place-items: center;
+    overflow: hidden;
+    color: var(--dim);
+    font-size: 0.65rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    pointer-events: none;
   }
   /* fc-2 Press feedback, instant. */
   .cell:active {
