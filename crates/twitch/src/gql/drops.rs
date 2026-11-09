@@ -316,10 +316,13 @@ where
     F: std::future::Future<Output = Result<T>>,
 {
     match raw {
-        Err(e) if refused(&e) => twin().await.map_err(|p| Error::Api {
-            status: 200,
-            message: format!("{BOTH} (raw: {e}; persisted: {p})"),
-        }),
+        Err(e) if refused(&e) => {
+            eprintln!("miner: raw query refused ({e}); asking the persisted twin");
+            twin().await.map_err(|p| Error::Api {
+                status: 200,
+                message: format!("{BOTH} (raw: {e}; persisted: {p})"),
+            })
+        }
         other => other,
     }
 }
@@ -386,16 +389,17 @@ struct RawDashboardCampaign {
 }
 
 impl DashboardData {
-    /// A missing list is a failed read, not "nothing is running".
+    /// No user is a failed read, not "nothing is running". A user whose list is `null`
+    /// (checked 2026/11/09 against real Twitch, raw and persisted alike, no `errors`) has
+    /// none to show: cyexbot gets this, while its inventory still lists a badge.
     fn active(self) -> std::result::Result<Vec<String>, Error> {
-        let list = self
-            .current_user
-            .and_then(|u| u.drop_campaigns)
-            .ok_or_else(|| Error::Api {
-                status: 200,
-                message: "no campaign list".into(),
-            })?;
-        Ok(list
+        let user = self.current_user.ok_or_else(|| Error::Api {
+            status: 200,
+            message: "no campaign list".into(),
+        })?;
+        Ok(user
+            .drop_campaigns
+            .unwrap_or_default()
             .into_iter()
             .filter(|c| c.status.as_deref() == Some("ACTIVE"))
             .map(|c| c.id)
@@ -670,6 +674,10 @@ mod tests {
         assert!(none.active().is_err());
         let empty: DashboardData = serde_json::from_str(r#"{"currentUser":{"dropCampaigns":[]}}"#).unwrap();
         assert!(empty.active().unwrap().is_empty());
+        // V110-U68 What real Twitch sent for cyexbot, raw and persisted: a user, a null list.
+        let null: DashboardData =
+            serde_json::from_str(r#"{"currentUser":{"__typename":"User","dropCampaigns":null,"id":"1","login":"x"}}"#).unwrap();
+        assert!(null.active().unwrap().is_empty());
     }
 
     const DETAILS_FIXTURE: &str = r#"{"currentUser":{"dropCampaign":{"id":"c1","name":"Event","status":"ACTIVE",

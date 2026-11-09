@@ -77,6 +77,7 @@ async fn load(app: &AppHandle, account: &str, s: &MinerSettings) -> bool {
             Err(e) => return failed(app, &e),
         }
     };
+    eprintln!("miner: campaigns: {} active, {} read", ids.len(), campaigns.len());
     let now = now_ms() / 1000;
     let (before, after) = {
         let mut st = lock(app);
@@ -113,6 +114,7 @@ async fn load(app: &AppHandle, account: &str, s: &MinerSettings) -> bool {
             .state::<Settings>()
             .update::<MinerSettings>(app, Partition::Miner, |m| m.badges.retain_running(&running));
     }
+    eprintln!("miner: badges open: {}", after.len());
     super::badges::prune(app, &super::settings(app));
     super::emit_status(app);
     super::channels::nudge(app);
