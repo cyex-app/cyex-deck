@@ -90,6 +90,7 @@
 
   // Keep the shown tab in view when the bar scrolls.
   $effect(() => {
+    void oneRow; // V110-F80 a bar that turns one row (Above chat, narrow window) keeps the shown tab in view
     if (!current || !bar) return;
     const tab = bar.querySelector<HTMLElement>(`[data-tab-id="${CSS.escape(current)}"]`);
     if (!tab) return;

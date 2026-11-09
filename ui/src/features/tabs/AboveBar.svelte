@@ -7,6 +7,7 @@
   import { untrack } from 'svelte';
 
   import type { Tab } from '../../ipc/bindings/Tab';
+  import { scrollWithin } from '../../lib/scrollWithin';
   import { settings } from '../../lib/settings.svelte';
   import { aboveChat, type BarSlots } from './aboveChat.svelte';
   import { type AboveHold, type AboveSpot, aboveOneRow, aboveSpot, holdAt, inHold, linesUp, type Rect, startsHold } from './barLayout';
@@ -64,6 +65,12 @@
       parent.appendChild(el);
     }
     if (focused && document.activeElement !== focused) focused.focus({ preventScroll: true });
+    // V110-F80 A moved bar starts at the top of its rows (and a one-row bar is shorter): the next
+    // frame, after the page has updated, the shown tab is brought back into view.
+    requestAnimationFrame(() => {
+      const shown = el.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]');
+      if (shown) scrollWithin(shown, 'nearest');
+    });
   }
 
   // Before the page updates (this sits before the tab views in the window): a tab change with
@@ -104,6 +111,9 @@
     void slotSized;
     const h = held;
     const slot = slotEl;
+    // V110-F80 The places it goes to are watched too: one that mounts after this ran (the narrow
+    // window's row after "Reopen your tabs?") left the bar parked, hidden, until a tab with a slot.
+    void [host, chromeSlot, rowSlot, park];
     // A new tile lays its panels out a frame after it mounts (PanelLayout measures first).
     const drawn = !!slot && slot.isConnected && slot.checkVisibility() && box(slot).w > 0;
     const lined = !!(h?.at === 'chat' && drawn && linesUp(box(slot!), h.rect));
@@ -124,6 +134,9 @@
       }
       const parent = next === 'slot' ? slot : next === 'chrome' ? chromeSlot : next === 'row' ? rowSlot : park;
       if (parent) put(parent);
+      // V110-F80 Its width is known now, so the first frame in a narrow slot is already one row
+      // (it drew all its rows for a frame before the resize came in).
+      if (parent && (next === 'slot' || next === 'float')) hostW = next === 'float' && at ? at.w : parent.clientWidth;
       floatAt = next === 'float' ? at : null;
       spot = parent ? next : 'none';
     });
