@@ -3,7 +3,7 @@ import { test } from 'node:test';
 
 import type { Node } from '../../../components/menus/types.ts';
 import { group, item, type MenuDef, SEP } from '../../../components/menus/types.ts';
-import { addPlace, applyDrop, applyMove, type Box, dropAt, type PanelBox, treeKey } from './menuDrag.ts';
+import { addGroupOf, addPlace, applyDrop, applyMove, type Box, dropAt, type PanelBox, treeKey } from './menuDrag.ts';
 
 const def: MenuDef<null> = {
   id: 'chat.name',
@@ -106,4 +106,17 @@ test('applyMove turns the move keys into tree edits', () => {
   assert.equal(applyMove(nodes, [0], { t: 'nudge', dir: -1 }), nodes);
   assert.equal(show(applyMove(nodes, [4], { t: 'indent' })), 'a b - g[c d e] - mine plug');
   assert.equal(show(applyMove(nodes, [3, 0], { t: 'outdent' })), 'a b - g[d] c e - mine plug');
+});
+
+test('V110-F76 Add goes into the open group only while a row of it is selected', () => {
+  const nodes = structuredClone(def.defaults);
+  assert.equal(addGroupOf(nodes, 'g', 'a'), null);
+  assert.equal(addGroupOf(nodes, 'g', ''), null);
+  assert.equal(addGroupOf(nodes, 'g', 'g'), 'g');
+  assert.equal(addGroupOf(nodes, 'g', 'c'), 'g');
+  assert.equal(addGroupOf(nodes, null, 'c'), null);
+  assert.equal(addGroupOf(nodes, 'gone', 'c'), null);
+  const withLine: Node[] = [item('a'), group('g', 'More', [item('c'), SEP, item('d')])];
+  assert.equal(addGroupOf(withLine, 'g', 'sep:1.1'), 'g');
+  assert.equal(addGroupOf(withLine, 'g', 'sep:0'), null);
 });

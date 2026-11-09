@@ -146,3 +146,9 @@ test('two-state labels can not be renamed', () => {
     assert.equal(MENU_DEFS.find((d) => d.id === id)!.items.find((i) => i.id === item)!.renamable, false, `${id}.${item}`);
   }
 });
+
+test('V110-F79 a group of one tab closes "1 tab"', async () => {
+  const { closeTabs } = await import('./tabbar.ts');
+  assert.equal(closeTabs(1), 'Close 1 tab');
+  assert.equal(closeTabs(3), 'Close 3 tabs');
+});

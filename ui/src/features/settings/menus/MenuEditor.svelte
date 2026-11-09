@@ -35,7 +35,7 @@
   import { toast } from '../../../lib/toast.svelte';
   import SectionHead from '../SectionHead.svelte';
   import CustomForm from './CustomForm.svelte';
-  import { addPlace } from './menuDrag.ts';
+  import { addGroupOf, addPlace } from './menuDrag.ts';
   import MenuMock from './MenuMock.svelte';
   import { moveNote, type RowView, type SampleOf, WHO, type Who } from './model.ts';
 
@@ -189,7 +189,8 @@
 
   // Toolbar
 
-  const place = () => addPlace(def, nodes, open);
+  // V110-F76 Into the open group only while a row of it is selected.
+  const place = () => addPlace(def, nodes, addGroupOf(nodes, open, focusKey));
 
   function addRows(el: Element) {
     const items: MenuEntry[] = unusedItems.map((it) => ({

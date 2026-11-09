@@ -79,6 +79,20 @@ export function applyDrop(nodes: Node[], from: Path, drop: Drop): Node[] {
   return move(nodes, from, place);
 }
 
+/**
+ * V110-F76 The group Add goes into: the open one only while the selected row is that group or
+ * one of its rows. The first group's flyout is drawn open from the start, so "open" alone put
+ * every new entry into it (into Moderate, which then showed up for viewers too).
+ */
+export function addGroupOf(nodes: Node[], openGroup: string | null, selected: string): string | null {
+  if (!openGroup || !selected) return null;
+  const at = nodes.findIndex((n) => n.t === 'group' && n.id === openGroup);
+  const g = nodes[at];
+  if (g?.t !== 'group') return null;
+  if (selected === g.id || selected.startsWith(`sep:${at}.`)) return openGroup;
+  return g.children.some((c) => c.t !== 'sep' && c.id === selected) ? openGroup : null;
+}
+
 /** Where Add puts a row: the end of the open group, else the top just before the first slot (your entries, plugins). */
 export function addPlace<C>(def: MenuDef<C>, nodes: Node[], openGroup: string | null): Place {
   if (openGroup) {

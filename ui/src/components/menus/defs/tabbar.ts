@@ -39,6 +39,11 @@ export function barSample(who: Who): BarCtx {
   };
 }
 
+/** V110-F79 A group's Close row: one tab is not "1 tabs". */
+export function closeTabs(n: number): string {
+  return n === 1 ? 'Close 1 tab' : `Close ${n} tabs`;
+}
+
 export interface GroupCtx {
   rename: Act;
   /** The "Color" submenu (swatches). */

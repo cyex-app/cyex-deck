@@ -7,7 +7,7 @@
 import type { MenuEntry } from '../../components/menu.svelte';
 import type { LayoutPart, ShowRow, Switch } from '../../components/menus/defs/parts';
 import { TAB_DEF, type TabCtx } from '../../components/menus/defs/tab';
-import { BAR_DEF, type BarCtx, GROUP_DEF, type GroupCtx } from '../../components/menus/defs/tabbar';
+import { BAR_DEF, type BarCtx, closeTabs, GROUP_DEF, type GroupCtx } from '../../components/menus/defs/tabbar';
 import { TILE_DEF, type TileCtx } from '../../components/menus/defs/tile';
 import { menuEntries } from '../../components/menus/use';
 import type { Tab } from '../../ipc/bindings/Tab';
@@ -283,7 +283,7 @@ export function groupMenu(group: TabGroup): MenuEntry[] {
     },
     ungroup: { run: () => void tabs.apply({ op: 'ungroup', group: group.id }) },
     // V101-30 Not red: closed tabs come back with Reopen closed tab.
-    closeLabel: `Close ${members.length} tabs`,
+    closeLabel: closeTabs(members.length),
     close: { run: () => tabs.close(members) },
   };
   return menuEntries(GROUP_DEF, ctx);
