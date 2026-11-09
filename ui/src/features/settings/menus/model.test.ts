@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import { group, item, type MenuDef, SEP } from '../../../components/menus/types.ts';
+import { effectiveNodes } from '../../../components/menus/resolve.ts';
 import { childRows, isChanged, moveNote, rootRows, type SampleOf, treeOrder } from './model.ts';
 
 type Ctx = { mod: boolean };
@@ -77,4 +78,10 @@ test('moveNote says where a row went', () => {
   const swapped = structuredClone(before);
   swapped.reverse();
   assert.equal(moveNote(before, swapped, 'fix', 'Pause'), 'Moved Pause to 2 of 5');
+});
+
+test('a layout read from the settings store (a proxy) is read, not refused', () => {
+  const stored = new Proxy({ nodes: structuredClone(def.defaults), known: def.items.map((i) => i.id) }, {});
+  assert.equal(effectiveNodes(def, stored).length, def.defaults.length);
+  assert.equal(isChanged(def, stored), false);
 });

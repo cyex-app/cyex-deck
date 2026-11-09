@@ -10,7 +10,8 @@ export interface ResolveOptions<C> {
   custom?: (node: CustomNode, ctx: C) => MenuEntry | null;
 }
 
-const clone = <T>(v: T): T => structuredClone(v);
+// V110-U67 JSON, not structuredClone: a stored layout arrives as a settings-store proxy, which structuredClone refuses.
+const clone = <T>(v: T): T => JSON.parse(JSON.stringify(v));
 
 export function idsOf(nodes: Node[]): string[] {
   const out: string[] = [];

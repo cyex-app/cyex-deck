@@ -51,7 +51,8 @@
 
   let nodes = $state.raw<Node[]>(untrack(() => startEditing(def, stored)));
   let who = $state<Who>('viewer');
-  let open = $state<string | null>(null);
+  /** The group whose flyout is drawn: the first one to begin with. */
+  let open = $state<string | null>(untrack(() => nodes.find((n) => n.t === 'group')?.id ?? null));
   let focusKey = $state('');
   let renaming = $state<string | null>(null);
   /** The add/edit form: new, or the path of the custom entry being edited. */
@@ -203,7 +204,11 @@
   function newGroup() {
     const id = freshId(nodes, 'group');
     const next = addGroup(nodes, 'New group', addPlace(def, nodes, null));
-    commit(next, 'Added a group', id);
+    // No focus move here: the name box takes it.
+    nodes = next;
+    said = 'Added a group';
+    save(next);
+    focusKey = id;
     open = id;
     renaming = id;
   }
@@ -367,8 +372,9 @@
     gap: 16px 28px;
     margin-top: 10px;
   }
-  .stage > :global(.mock) {
-    flex: 0 1 620px;
+  .stage > :global(.wrap) {
+    flex: 1 1 600px;
+    max-width: 640px;
   }
   .help {
     flex: 1 1 220px;

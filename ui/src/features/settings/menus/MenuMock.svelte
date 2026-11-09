@@ -218,6 +218,7 @@
   const intoOf = (row: RowView): boolean => drag?.drop?.t === 'into' && drag.drop.key === row.key;
 </script>
 
+<div class="wrap">
 <!-- svelte-ignore a11y_no_noninteractive_element_to_interactive_role (a tree of rows) -->
 <div
   class="mock"
@@ -280,6 +281,7 @@
     </div>
   {/if}
 </div>
+</div>
 
 {#if drag}
   <div class="ghost cx-menu still" style:left="{drag.x + 14}px" style:top="{drag.y + 10}px" aria-hidden="true">
@@ -288,8 +290,12 @@
 {/if}
 
 <style>
-  .mock {
+  /* The container: its own width decides whether the flyout sits beside the menu or under it. */
+  .wrap {
     container-type: inline-size;
+    min-width: 0;
+  }
+  .mock {
     display: flex;
     align-items: flex-start;
     gap: 6px;
