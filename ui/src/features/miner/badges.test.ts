@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import type { BadgeView } from '../../ipc/bindings/BadgeView';
-import { endDate, minutesLeft, percent, progress, statusLine, wanted } from './badges.ts';
+import { endDate, minutesLeft, percent, phrase, progress, statusLine, wanted } from './badges.ts';
 
 const badge = (over: Partial<BadgeView> = {}): BadgeView => ({
   campaignId: 'c1',
@@ -62,4 +62,13 @@ test('no line without a wanted badge', () => {
   assert.equal(statusLine({ badges: undefined, focus: null, channels: [] }), '');
   assert.equal(statusLine({ badges: [badge({ picked: false })], focus: null, channels: [] }), '');
   assert.deepEqual(wanted([badge({ minutesWatched: 60 })]), []);
+});
+
+test('V110-F77 the badge word comes once', () => {
+  assert.equal(phrase('Mock badge'), 'Mock badge');
+  assert.equal(phrase('Recap Badge'), 'Recap Badge');
+  assert.equal(phrase('Foo'), 'Foo badge');
+  assert.equal(phrase(' '), 'badge');
+  const line = statusLine({ badges: [{ ...badge(), name: 'Mock badge' }], focus: 'c1', channels: [ch('X', { mining: true })] });
+  assert.equal(line, 'Earning Mock badge on X · 34/60 min');
 });

@@ -184,6 +184,11 @@ fn pick(app: &AppHandle) -> Vec<String> {
     if changed || focus_changed {
         super::emit_status(app);
     }
+    // V110-F78 A badge focus that starts wakes the drops loop: it read the inventory before the
+    // focus (busy false) and would otherwise wait 15 minutes, not 1, for the badge's progress.
+    if focus_changed && let Some(m) = app.try_state::<super::Miner>() {
+        m.idle_wake.notify_waiters();
+    }
     picked
 }
 
@@ -204,9 +209,9 @@ fn focus_news(st: &mut super::State, focus: Option<(String, String)>) -> Vec<(Op
                 .map_or_else(|| ch.clone(), |c| c.name.clone());
             let badge = super::badges::name_of(st, &camp);
             if st.watching.contains(&ch) {
-                out.push((Some(name), format!("Earning the {badge} badge with the stream playing here.")));
+                out.push((Some(name), format!("Earning the {} with the stream playing here.", cyex_miner::badges::phrase(&badge))));
             } else {
-                out.push((Some(name.clone()), format!("Watching only {name} for the {badge} badge.")));
+                out.push((Some(name.clone()), format!("Watching only {name} for the {}.", cyex_miner::badges::phrase(&badge))));
                 if !st.watching.is_empty() && !st.focus_warned {
                     st.focus_warned = true;
                     out.push((None, "A stream plays here too: the badge gets the other slot.".to_owned()));
@@ -218,7 +223,7 @@ fn focus_news(st: &mut super::State, focus: Option<(String, String)>) -> Vec<(Op
                 let badge = super::badges::name_of(st, &camp);
                 let open = cyex_miner::badges::open_campaigns(&st.badges, now_ms() / 1000).contains(&camp);
                 if open {
-                    out.push((None, format!("The {badge} badge waits: nothing live can earn it now.")));
+                    out.push((None, format!("The {} waits: nothing live can earn it now.", cyex_miner::badges::phrase(&badge))));
                 }
             }
         }

@@ -52,6 +52,18 @@ impl Badge {
     }
 }
 
+/// V110-F77 A badge as text: "Mock badge" stays, "Arcane" becomes "Arcane badge" (no "Mock badge badge").
+pub fn phrase(name: &str) -> String {
+    let n = name.trim();
+    if n.is_empty() {
+        "badge".to_owned()
+    } else if n.to_lowercase().ends_with("badge") {
+        n.to_owned()
+    } else {
+        format!("{n} badge")
+    }
+}
+
 /// Every badge of a campaign that is earned by watching alone (no subs needed), fewest
 /// minutes first. Campaigns can have several tiers, e.g. for 30, 60 and 90 minutes.
 pub fn watch_badges(c: &Campaign) -> Vec<Badge> {
@@ -345,6 +357,14 @@ mod tests {
     use cyex_twitch::gql::drops::{Drop, Inventory};
 
     const NOW: i64 = 1_000_000;
+
+    #[test]
+    fn v110_f77_badge_phrase_says_badge_once() {
+        assert_eq!(phrase("Mock badge"), "Mock badge");
+        assert_eq!(phrase("Recap Badge"), "Recap Badge");
+        assert_eq!(phrase("Arcane"), "Arcane badge");
+        assert_eq!(phrase("  "), "badge");
+    }
 
     fn drop(id: &str, minutes: u32, badge: bool, subs: u32) -> Drop {
         Drop {

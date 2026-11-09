@@ -43,6 +43,13 @@ export interface LineInput {
   retry?: string;
 }
 
+/** V110-F77 A badge as text, with "badge" said once: "Mock badge" stays, "Arcane" becomes "Arcane badge". */
+export function phrase(name: string): string {
+  const n = name.trim();
+  if (!n) return 'badge';
+  return n.toLowerCase().endsWith('badge') ? n : `${n} badge`;
+}
+
 /** The header line for badges, or '' when none is wanted. */
 export function statusLine({ badges, focus, channels, retry }: LineInput): string {
   const list = badges ?? [];
@@ -50,7 +57,7 @@ export function statusLine({ badges, focus, channels, retry }: LineInput): strin
     const b = list.find((x) => x.campaignId === focus);
     if (b) {
       const on = channels.find((c) => c.mining)?.name;
-      return `Earning ${b.name} badge${on ? ` on ${on}` : ''} · ${progress(b)}`;
+      return `Earning ${phrase(b.name)}${on ? ` on ${on}` : ''} · ${progress(b)}`;
     }
   }
   if (!wanted(list).length) return '';

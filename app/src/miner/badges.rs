@@ -88,7 +88,7 @@ pub(super) fn campaign_of(st: &State, s: &MinerSettings, channel_id: &str) -> Op
 
 /// The badge by campaign, for log lines.
 pub(super) fn name_of(st: &State, campaign_id: &str) -> String {
-    core::current(&st.badges, campaign_id).map_or_else(|| "a".to_owned(), |b| b.name.clone())
+    core::current(&st.badges, campaign_id).map_or_else(String::new, |b| b.name.clone())
 }
 
 /// When a badge that waits is looked for again: the earliest retry of a wanted campaign no
@@ -255,7 +255,7 @@ pub(super) async fn find(app: &AppHandle, account: &str, s: &MinerSettings) {
                 app,
                 LogKind::Badge,
                 Some(login),
-                format!("Found for the {} badge.", b.name),
+                format!("Found for the {}.", core::phrase(&b.name)),
             );
             added = true;
         }
@@ -353,8 +353,8 @@ pub(super) fn apply_inventory(app: &AppHandle, inv: &Inventory) {
     };
     for e in &newly {
         let text = match &e.channel {
-            Some(ch) => format!("Earned the {} badge watching {ch}.", e.name),
-            None => format!("Earned the {} badge.", e.name),
+            Some(ch) => format!("Earned the {} watching {ch}.", core::phrase(&e.name)),
+            None => format!("Earned the {}.", core::phrase(&e.name)),
         };
         log::add(app, LogKind::Badge, e.channel.as_deref(), text);
         let body = if e.game.is_empty() {
