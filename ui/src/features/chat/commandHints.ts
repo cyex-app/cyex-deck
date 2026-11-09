@@ -26,7 +26,7 @@ export const COMMAND_HINTS: Readonly<Record<string, string>> = {
   popout: 'Pops the chat next to the stream out into its own window.',
   mods: 'Lists the channel’s mods, and since when.',
   vips: 'Lists the channel’s VIPs, and since when.',
-  roles: 'Lists everyone with a role in the channel, and since when. /roles channel for another.',
+  roles: 'Lists everyone with a role, and since when: /roles, or /roles channel for another one.',
   spam: 'Sends one message up to 100 times: /spam count message. /spam stop ends it.',
   color: 'Changes your name color on Twitch.',
   cosmetics: 'Opens the 7TV paint and badge pop-up for this chat’s account.',

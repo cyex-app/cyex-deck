@@ -191,7 +191,7 @@ pub(super) const BEFORE: &[Cmd] = &[
         .changes(Window, "Opens the roles pop-up.")
         .ex(&[ex("/vips", "A list opens with each VIP and the date they were made one."), ex("/vips forsen", "Another channel’s VIPs.")])
         .notes("In a chain or timer it’s a line instead."),
-    Cmd::new("roles", "/roles [channel]", "Lists everyone with a role in the channel, and since when. /roles channel for another.", "V108-C27")
+    Cmd::new("roles", "/roles [channel]", "Lists everyone with a role, and since when: /roles, or /roles channel for another one.", "V108-C27")
         .help("/roles")
         .changes(Window, "Opens the roles pop-up.")
         .ex(&[
