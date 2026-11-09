@@ -24,7 +24,7 @@ mod docs;
 #[cfg(test)]
 mod testutil;
 
-pub use backup::BACKUP_DAYS;
+pub use backup::{BACKUP_DAYS, BackupStatus};
 pub use clock::{Clock, SystemClock};
 pub use error::{Error, Result};
 pub use legacy::MergeReport;

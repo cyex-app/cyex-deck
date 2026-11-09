@@ -355,6 +355,18 @@ impl Store {
         backup::snapshot_now(&self.dir, self.clock.now())
     }
 
+    /// V110-U55 When the last daily copy was made and why the latest try failed.
+    pub fn backup_status(&self) -> backup::BackupStatus {
+        backup::status(&self.dir)
+    }
+
+    /// V110-U55 Tries today's copy now (the hourly wait after a failure is skipped).
+    pub fn backup_now(&mut self) -> Result<backup::BackupStatus> {
+        self.flush()?;
+        backup::retry_now(&self.dir, self.clock.today())?;
+        Ok(backup::status(&self.dir))
+    }
+
     /// Names of the "before restore" snapshots, newest first.
     pub fn snapshots(&self) -> Result<Vec<String>> {
         backup::list_snapshots(&self.dir)

@@ -5,7 +5,7 @@ use std::fs;
 
 use cyex_settings::chatterino::ImportReport;
 use cyex_settings::schema::{Commands, Highlights};
-use cyex_settings::{Bundle, Clock, Partition, SystemClock, suggested_file_name};
+use cyex_settings::{BackupStatus, Bundle, Clock, Partition, SystemClock, suggested_file_name};
 use serde_json::Value;
 use tauri::{AppHandle, State};
 use tauri_plugin_dialog::DialogExt;
@@ -202,6 +202,31 @@ pub fn settings_backups(settings: State<Settings>) -> CmdResult<Vec<String>> {
 #[tauri::command]
 pub fn settings_snapshot_now(settings: State<Settings>) -> CmdResult<Option<String>> {
     settings.snapshot_now()
+}
+
+/// V110-U55 The Backups line: the last daily copy (seconds since 1970) and the open failure.
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BackupLine {
+    last_ok: Option<i64>,
+    error: Option<String>,
+}
+
+impl From<BackupStatus> for BackupLine {
+    fn from(s: BackupStatus) -> Self {
+        Self { last_ok: s.last_ok, error: s.error }
+    }
+}
+
+#[tauri::command]
+pub fn settings_backup_status(settings: State<Settings>) -> BackupLine {
+    settings.backup_status().into()
+}
+
+/// V110-U55 "Back up now": today's copy without the hour's wait.
+#[tauri::command]
+pub fn settings_backup_now(settings: State<Settings>) -> CmdResult<BackupLine> {
+    settings.backup_now().map(Into::into)
 }
 
 #[tauri::command]

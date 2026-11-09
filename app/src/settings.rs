@@ -7,7 +7,7 @@ use std::thread;
 use std::time::Duration;
 
 use cyex_auth::secrets::{KeyringStore, MemoryStore, SecretStore};
-use cyex_settings::{Bundle, Partition, Schema, Store, SystemClock};
+use cyex_settings::{BackupStatus, Bundle, Partition, Schema, Store, SystemClock};
 use serde::Serialize;
 use serde_json::Value;
 use tauri::{AppHandle, Emitter, Manager};
@@ -238,6 +238,16 @@ impl Settings {
     /// V1052-03 Saves the current settings on disk before a restore; returns the folder name.
     pub fn snapshot_now(&self) -> Result<Option<String>, String> {
         self.lock().snapshot_now().map_err(|e| e.to_string())
+    }
+
+    /// V110-U55 When the last daily copy was made and why the latest try failed.
+    pub fn backup_status(&self) -> BackupStatus {
+        self.lock().backup_status()
+    }
+
+    /// V110-U55 Tries today's copy now; the status after.
+    pub fn backup_now(&self) -> Result<BackupStatus, String> {
+        self.lock().backup_now().map_err(|e| e.to_string())
     }
 
     pub fn restore_snapshot(&self, app: &AppHandle, name: &str) -> Result<Vec<Partition>, String> {

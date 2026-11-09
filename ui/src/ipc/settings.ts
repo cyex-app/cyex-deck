@@ -57,6 +57,12 @@ export type DeepPartial<T> = {
       : T[K] | null;
 };
 
+/** V110-U55 `lastOk` in seconds since 1970. */
+export interface BackupLine {
+  lastOk: number | null;
+  error: string | null;
+}
+
 export const settingsIpc = {
   all: () => invoke<SettingsValues>('settings_all'),
   patch: <P extends Partition>(partition: P, patch: DeepPartial<SettingsValues[P]>) =>
@@ -80,6 +86,10 @@ export const settingsIpc = {
   backups: () => invoke<string[]>('settings_backups'),
   /** Saves the current settings on disk (no sign-ins); returns the folder name. */
   snapshotNow: () => invoke<string | null>('settings_snapshot_now'),
+  /** V110-U55 When the last daily copy was made (seconds since 1970) and why the latest try failed. */
+  backupStatus: () => invoke<BackupLine>('settings_backup_status'),
+  /** V110-U55 Tries today's copy now. */
+  backupNow: () => invoke<BackupLine>('settings_backup_now'),
   restoreBackup: (date: string) => invoke<Partition[]>('settings_restore_backup', { date }),
   openFolder: () => invoke<void>('settings_open_folder'),
   /** V107-N10a Files that went back to default, and files that came back from a backup (day yyyy/mm/dd when all share one). */

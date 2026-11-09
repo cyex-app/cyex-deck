@@ -4,12 +4,13 @@ use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::{LazyLock, Mutex};
-use std::time::{Duration, Instant};
+use std::io::ErrorKind;
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use time::{Date, OffsetDateTime, PrimitiveDateTime};
 use time::macros::format_description;
 
-use crate::error::Result;
+use crate::error::{Error, Result};
 use crate::{Partition, legacy};
 
 /// How many daily snapshots to keep.
@@ -36,26 +37,95 @@ pub(crate) fn snapshot_dir(settings_dir: &Path, date: Date) -> PathBuf {
 pub(crate) fn snapshot_if_due(settings_dir: &Path, today: Date) -> Result<bool> {
     // V110-F56 After a failure (a full disk, a locked folder) it waits an hour instead of
     // copying everything again on every flush.
-    let mut failed = FAILED.lock().unwrap_or_else(|p| p.into_inner());
-    if failed.get(settings_dir).is_some_and(|t| t.elapsed() < RETRY) {
+    let mut tracks = TRACK.lock().unwrap_or_else(|p| p.into_inner());
+    let track = tracks.entry(settings_dir.to_owned()).or_default();
+    if track.failed_at.is_some_and(|t| t.elapsed() < RETRY) {
         return Ok(false);
     }
     let res = snapshot_due(settings_dir, today);
-    match &res {
-        Ok(_) => {
-            failed.remove(settings_dir);
-        }
-        Err(_) => {
-            failed.insert(settings_dir.to_owned(), Instant::now());
+    track.record(&res);
+    res
+}
+
+/// V110-U55 Tries today's backup now, ignoring the hour's wait. For "Back up now" after a failure.
+pub(crate) fn retry_now(settings_dir: &Path, today: Date) -> Result<bool> {
+    let mut tracks = TRACK.lock().unwrap_or_else(|p| p.into_inner());
+    let track = tracks.entry(settings_dir.to_owned()).or_default();
+    let res = snapshot_due(settings_dir, today);
+    track.record(&res);
+    res
+}
+
+/// V110-U55 What the Backups line says: when the last daily copy was made (seconds since 1970),
+/// and why the latest try failed, if it did.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct BackupStatus {
+    pub last_ok: Option<i64>,
+    pub error: Option<String>,
+}
+
+#[derive(Default)]
+struct Track {
+    failed_at: Option<Instant>,
+    error: Option<String>,
+    last_ok: Option<i64>,
+}
+
+impl Track {
+    fn record(&mut self, res: &Result<bool>) {
+        match res {
+            Ok(wrote) => {
+                self.failed_at = None;
+                self.error = None;
+                if *wrote {
+                    self.last_ok = unix_now();
+                }
+            }
+            Err(e) => {
+                self.failed_at = Some(Instant::now());
+                self.error = Some(short_reason(e));
+            }
         }
     }
-    res
+}
+
+fn unix_now() -> Option<i64> {
+    SystemTime::now().duration_since(UNIX_EPOCH).ok().map(|d| d.as_secs() as i64)
+}
+
+/// V110-U55 A few plain words for why a copy failed.
+pub(crate) fn short_reason(e: &Error) -> String {
+    match e {
+        Error::Io(io) => match io.kind() {
+            ErrorKind::PermissionDenied => "the folder is locked or read-only",
+            ErrorKind::StorageFull | ErrorKind::QuotaExceeded => "the disk is full",
+            ErrorKind::NotFound => "a settings file went missing",
+            _ => "the copy couldn’t be written",
+        },
+        _ => "the copy couldn’t be made",
+    }
+    .to_owned()
+}
+
+/// V110-U55 The latest success (this run's, else when the newest daily copy's folder was made)
+/// and the open failure.
+pub(crate) fn status(settings_dir: &Path) -> BackupStatus {
+    let tracks = TRACK.lock().unwrap_or_else(|p| p.into_inner());
+    let track = tracks.get(settings_dir);
+    let last_ok = track.and_then(|t| t.last_ok).or_else(|| newest_copy_time(settings_dir));
+    BackupStatus { last_ok, error: track.and_then(|t| t.error.clone()) }
+}
+
+fn newest_copy_time(settings_dir: &Path) -> Option<i64> {
+    let newest = *list(settings_dir).ok()?.first()?;
+    let modified = fs::metadata(snapshot_dir(settings_dir, newest)).ok()?.modified().ok()?;
+    modified.duration_since(UNIX_EPOCH).ok().map(|d| d.as_secs() as i64)
 }
 
 /// V110-F56 How long a failed daily backup waits before trying again.
 const RETRY: Duration = Duration::from_secs(60 * 60);
 
-static FAILED: LazyLock<Mutex<HashMap<PathBuf, Instant>>> = LazyLock::new(Mutex::default);
+static TRACK: LazyLock<Mutex<HashMap<PathBuf, Track>>> = LazyLock::new(Mutex::default);
 
 fn snapshot_due(settings_dir: &Path, today: Date) -> Result<bool> {
     let target = snapshot_dir(settings_dir, today);
@@ -237,6 +307,45 @@ mod tests {
         fs::remove_file(root.join(".partial-2026-10-01")).unwrap();
         assert!(!snapshot_if_due(tmp.path(), day(1)).unwrap(), "waits an hour");
         assert!(list(tmp.path()).unwrap().is_empty());
+    }
+
+    #[test]
+    fn v110_u55_status_reports_the_failure_and_a_retry_clears_it() {
+        let tmp = TempDir::new("backup-status");
+        let root = tmp.path().join(BACKUP_DIR);
+        fs::create_dir_all(&root).unwrap();
+        write_settings(tmp.path(), "{\"v\":1}");
+        assert_eq!(status(tmp.path()), BackupStatus::default(), "nothing yet");
+        fs::write(root.join(".partial-2026-10-01"), "x").unwrap();
+        assert!(snapshot_if_due(tmp.path(), day(1)).is_err());
+        let failed = status(tmp.path());
+        assert_eq!(failed.last_ok, None);
+        assert!(failed.error.is_some());
+        // The wait is an hour, but "Back up now" goes through at once and clears the error.
+        fs::remove_file(root.join(".partial-2026-10-01")).unwrap();
+        assert!(retry_now(tmp.path(), day(1)).unwrap());
+        let ok = status(tmp.path());
+        assert_eq!(ok.error, None);
+        assert!(ok.last_ok.is_some_and(|t| t > 1_700_000_000));
+    }
+
+    #[test]
+    fn v110_u55_last_success_comes_from_the_newest_copy_after_a_restart() {
+        let tmp = TempDir::new("backup-status-disk");
+        write_settings(tmp.path(), "{}");
+        fs::create_dir_all(snapshot_dir(tmp.path(), day(1))).unwrap();
+        let status = status(tmp.path());
+        assert!(status.last_ok.is_some(), "the folder's own time");
+        assert_eq!(status.error, None);
+    }
+
+    #[test]
+    fn v110_u55_reasons_are_short_and_plain() {
+        let io = |k| Error::Io(std::io::Error::from(k));
+        assert_eq!(short_reason(&io(ErrorKind::PermissionDenied)), "the folder is locked or read-only");
+        assert_eq!(short_reason(&io(ErrorKind::StorageFull)), "the disk is full");
+        assert_eq!(short_reason(&io(ErrorKind::Other)), "the copy couldn’t be written");
+        assert_eq!(short_reason(&Error::NotSettings), "the copy couldn’t be made");
     }
 
     #[test]

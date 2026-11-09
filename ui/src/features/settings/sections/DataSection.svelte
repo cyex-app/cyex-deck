@@ -10,10 +10,12 @@
   import { toast } from '../../../lib/toast.svelte';
   import { errorText } from '../../../lib/errors';
   import { copy } from '../../../lib/clipboard';
-  import { formatBytes, formatDate } from '../../../lib/format';
+  import { formatBytes, formatDate, formatTime } from '../../../lib/format';
   import SectionHead from '../SectionHead.svelte';
   import ConfirmButton from '../../../components/ConfirmButton.svelte';
   import Checkbox from '../../../components/Checkbox.svelte';
+  import { backupText } from '../backupLine';
+  import type { BackupLine } from '../../../ipc/settings';
 
   let picked = $state<Partition[]>(['general', 'appearance', 'chat', 'highlights', 'commands', 'hotkeys']);
   let code = $state('');
@@ -25,7 +27,30 @@
 
   const allPicked = $derived(picked.length === PORTABLE_PARTITIONS.length);
 
+  /** V110-U55 When the last copy was made, or why they fail. */
+  let line = $state<BackupLine | null>(null);
+  const status = $derived(backupText(line, (d) => `${formatDate(d)} ${formatTime(d)}`));
+  let busy = $state(false);
+
+  async function refreshStatus() {
+    line = await settingsIpc.backupStatus().catch(() => line);
+  }
+
+  async function backUpNow() {
+    busy = true;
+    try {
+      line = await settingsIpc.backupNow();
+    } catch (e) {
+      toast.error(errorText(e));
+      await refreshStatus();
+    } finally {
+      busy = false;
+    }
+    void refreshBackups();
+  }
+
   $effect(() => {
+    void refreshStatus();
     void refreshBackups();
     void refreshCache();
   });
@@ -178,6 +203,12 @@
 <SectionHead title="Backups" setting="data:backups">
   A copy of your settings is kept for each of the last 3 days. Restoring keeps your current settings first, so you can undo it. Accounts, plugins and uploader stay as they are.
 </SectionHead>
+{#if status}
+  <div class="status" data-setting="data:backup-status" class:failing={status.failing} role={status.failing ? 'alert' : undefined}>
+    <p>{status.text}</p>
+    {#if status.failing}<Button small disabled={busy} onclick={backUpNow}>Back up now</Button>{/if}
+  </div>
+{/if}
 {#each backups as date, i (date)}
   <Row label={labels[i]}>
     <ConfirmButton label="Restore" confirm="Click to restore" onconfirm={() => restore(date)} />
@@ -213,6 +244,20 @@
     display: flex;
     gap: 8px;
     margin-top: 10px;
+  }
+  .status {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 8px 0;
+    font-size: var(--text-hint);
+    color: var(--dim);
+  }
+  .status p {
+    margin: 0;
+  }
+  .status.failing {
+    color: var(--red);
   }
   .code {
     display: flex;

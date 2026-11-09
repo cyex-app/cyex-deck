@@ -282,6 +282,13 @@ export const APP: Entry[] = [
     keywords: ['restore', 'undo', 'yesterday'],
   },
   {
+    id: 'data:backup-status',
+    page: 'data',
+    label: 'Last backup',
+    description: 'When the last daily copy was made. If copies fail, why, and a button to try now.',
+    keywords: ['backup failing', 'back up now', 'backups failing', 'disk full'],
+  },
+  {
     id: 'data:cache',
     page: 'data',
     label: 'Picture cache',
