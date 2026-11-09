@@ -128,17 +128,19 @@
   });
 
   // Empty title-bar space beside the tabs (the drag area) opens the bar menu too.
+  // V110-U54 The header is looked up on the click: the "Above chat" bar moves in and out of it.
   $effect(() => {
-    const head = chrome ? bar?.closest('header') : null;
-    if (!head) return;
+    if (!chrome || !bar) return;
+    const el = bar;
     const on = (e: MouseEvent) => {
+      const head = el.closest('header');
       const t = e.target as HTMLElement;
-      if (e.defaultPrevented || !(t === head || t.classList.contains('fill'))) return;
+      if (!head || e.defaultPrevented || !(t === head || (t.classList.contains('fill') && t.parentElement === head))) return;
       e.preventDefault();
       openMenu(e, barMenu());
     };
-    head.addEventListener('contextmenu', on);
-    return () => head.removeEventListener('contextmenu', on);
+    document.addEventListener('contextmenu', on);
+    return () => document.removeEventListener('contextmenu', on);
   });
 
   // V108-F57h Tabs that are gone (closed elsewhere, from the menu) leave the selection.

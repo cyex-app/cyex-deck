@@ -9,15 +9,14 @@ import type { TabRows } from '../../ipc/bindings/TabRows';
 /** F03 Below this window width (CSS px) top tabs get their own row under the title bar. */
 export const NARROW = 900;
 
-/** `chrome`: in the title bar; `row`: a full-width row under it; `above`: over the chat
- * column inside the tab (V110-U52); else the side bar. */
+/** `chrome`: in the title bar; `row`: a full-width row under it; `above`: the one "Above chat"
+ * bar (V110-U54 `AboveBar`, placed by `aboveSpot`); else the side bar. */
 export type BarPlace = 'chrome' | 'row' | 'above' | Exclude<TabBarSide, 'top' | 'aboveChat'>;
 
-/** F03 Where the bar goes. A width of 0 (not measured yet) counts as wide. V110-U52 "Above
- * chat" is `above` while `aboveChat` says it applies, else the normal top place. */
-export function barPlace(side: TabBarSide, width: number, aboveChat = false): BarPlace {
-  if (side === 'aboveChat' && aboveChat) return 'above';
-  if (side !== 'top' && side !== 'aboveChat') return side;
+/** F03 Where the bar goes. A width of 0 (not measured yet) counts as wide. */
+export function barPlace(side: TabBarSide, width: number): BarPlace {
+  if (side === 'aboveChat') return 'above';
+  if (side !== 'top') return side;
   return width > 0 && width < NARROW ? 'row' : 'chrome';
 }
 
@@ -50,31 +49,51 @@ export interface Rect {
   h: number;
 }
 
-/** V110-F11 The bar as it was when the tab on screen changed under the pointer: over a chat
- * column (`above`) or at the top, and its box. Kept until the pointer leaves that box. */
-export interface BarHold {
-  above: boolean;
+/** V110-U54 Where the one "Above chat" bar is: in the title bar or the narrow-window row
+ * (where Top puts it), in the slot at the top of the shown tile's chat column, fixed at a held
+ * box (`float`), or hidden (theatre). */
+export type AboveSpot = 'chrome' | 'row' | 'slot' | 'float' | 'none';
+
+/** V110-F11 The bar as it was when the tab on screen changed under the pointer: at the top or
+ * over a chat column, and its box. Kept until the pointer leaves that box. */
+export interface AboveHold {
+  at: 'top' | 'chat';
   rect: Rect;
 }
 
-/** V110-F11 How "Above chat" draws the bar now. `above`: the window leaves the top free (no
- * title-bar or row bar). `own`: the tile on screen draws the bar over its chat. `float`: the
- * window draws it fixed at this box instead. `spacer`: the tile's chat keeps this many px free
- * at its top, so it doesn't move once the hold ends and the tile draws its own bar there. */
-export interface AboveBar {
-  above: boolean;
-  own: boolean;
-  float: Rect | null;
-  spacer: number;
+export interface SpotFor {
+  /** V110-F38 Theatre mode is on for the tab on screen. */
+  theatre: boolean;
+  /** The window's width (F03 row below `NARROW`). */
+  width: number;
+  /** The tab on screen qualifies (`AboveChat.applies`) and its tile has drawn its slot. */
+  slot: boolean;
+  held: AboveHold['at'] | null;
+  /** While held over a chat: the new tab's slot is where the held box is. */
+  lined: boolean;
 }
 
-/** V110-F11 Where "Above chat" puts the bar for the tab on screen. `applies`: the tab qualifies
- * (`AboveChat.applies`). While held, the bar stays where it was and the tab under it already
- * switches: held at the top it stays there; held over a chat it floats at the same box. */
-export function aboveBar(applies: boolean, hold: BarHold | null): AboveBar {
-  if (!hold) return { above: applies, own: applies, float: null, spacer: 0 };
-  if (!hold.above) return { above: false, own: false, float: null, spacer: 0 };
-  return { above: true, own: false, float: hold.rect, spacer: applies ? hold.rect.h : 0 };
+/** V110-U54 (V110-F11) The bar never moves under the pointer: held at the top it stays there;
+ * held over a chat it stays at that box, in the new tab's slot when that lines up, else fixed
+ * there. Not held, it goes to the slot when there is one, else to the top. */
+export function aboveSpot(i: SpotFor): AboveSpot {
+  if (i.theatre) return 'none';
+  const top = i.width > 0 && i.width < NARROW ? 'row' : 'chrome';
+  if (i.held === 'top') return top;
+  if (i.held === 'chat') return i.slot && i.lined ? 'slot' : 'float';
+  return i.slot ? 'slot' : top;
+}
+
+/** V110-U54 What a hold at `spot` keeps: the top, or a box over a chat. */
+export function holdAt(spot: AboveSpot): AboveHold['at'] | null {
+  if (spot === 'chrome' || spot === 'row') return 'top';
+  return spot === 'none' ? null : 'chat';
+}
+
+/** V110-U54 Two boxes are the same place on screen, give or take `tol` px (a slot drawn by
+ * another tile, rounding). */
+export function linesUp(a: Rect, b: Rect, tol = 2): boolean {
+  return Math.abs(a.x - b.x) <= tol && Math.abs(a.y - b.y) <= tol && Math.abs(a.w - b.w) <= tol;
 }
 
 /** V110-F42 Above chat leaves the chat this much: a column narrower than `ABOVE_NARROW` px or a

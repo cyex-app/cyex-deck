@@ -47,8 +47,9 @@
   import { openTarget, playerHotkeys } from '../features/player/players.svelte';
   import { type OpenHow, openChannel } from '../features/browse/open.svelte';
   import { tabHolding } from '../components/noticeActions';
-  import { aboveChat, BAR_HOST } from '../features/tabs/aboveChat.svelte';
-  import { aboveOneRow, barPlace, sideBarWidth } from '../features/tabs/barLayout';
+  import AboveBar from '../features/tabs/AboveBar.svelte';
+  import { BAR_SLOT, BarSlots } from '../features/tabs/aboveChat.svelte';
+  import { barPlace, sideBarWidth } from '../features/tabs/barLayout';
   import { moveSlot, stepTab } from '../features/tabs/cycle';
   import { heldAfterStart, nextHeld, playingNow } from '../features/tabs/hold';
   import { audioFocus } from '../features/tabs/audioFocus.svelte';
@@ -116,66 +117,16 @@
   const tab = $derived(tabs.tab(current));
   /** The tab drawn here now, not in its own window. */
   const shownTab = $derived(tab && !tabs.popped.has(tab.id) ? tab.id : null);
-  /** V110-U52 "Above chat" holds for the tab on screen (its tile draws the bar); else the bar goes to the top. */
-  // V110-F11 Held while the pointer stays on the bar after it changed the tab (`aboveChat.hold`).
-  const aboveNow = $derived(aboveChat.bar(shownTab && !resumeDialog.open ? tab : undefined));
-  const barAbove = $derived(aboveNow.above);
-  // V110-F11 The tab on screen changes: a bar under the pointer stays where it is. Runs before
-  // the page updates, so it still measures the old bar.
-  let barTab: string | null = untrack(() => current);
-  $effect.pre(() => {
-    const now = current;
-    if (now === barTab) return;
-    barTab = now;
-    untrack(() => {
-      // V110-F19 "Above chat" draws the bar anew for the new tab: keyboard focus that sat in
-      // the bar goes to the shown tab's item (a focus that moved on, to the chat, stays).
-      const inBar = !!document.activeElement?.closest('[data-tab-bar]');
-      aboveChat.hold();
-      void tick().then(() =>
-        requestAnimationFrame(() => {
-          const lost = !document.activeElement || document.activeElement === document.body;
-          if (inBar && lost && settings.v.appearance.tabBarSide === 'aboveChat') {
-            document.querySelector<HTMLElement>('[data-tab-bar] [role="tab"][aria-selected="true"]')?.focus({ preventScroll: true });
-          }
-          // V110-F19 Not held if the new tab's bar belongs elsewhere.
-          aboveChat.settle(shownTab ? tab : undefined);
-        }),
-      );
-    });
-  });
-  // V110-F11 It goes where the tab on screen wants it once the pointer leaves it.
-  $effect(() => {
-    if (!aboveChat.held) return;
-    const move = (e: PointerEvent) => aboveChat.release(e.clientX, e.clientY);
-    const off = () => aboveChat.release();
-    const root = document.documentElement;
-    addEventListener('pointermove', move);
-    root.addEventListener('pointerleave', off);
-    addEventListener('blur', off);
-    addEventListener('resize', off);
-    return () => {
-      removeEventListener('pointermove', move);
-      root.removeEventListener('pointerleave', off);
-      removeEventListener('blur', off);
-      removeEventListener('resize', off);
-    };
-  });
-  /** F03 Where the tab bar goes now. */
-  const place = $derived(barPlace(side, width, barAbove));
-  // V110-U52 The tab views draw the bar over their chat; they need the shown tab and a way to open one.
-  setContext(BAR_HOST, {
-    get current() {
-      return current;
-    },
-    open: (id: string) => open(id),
-  });
+  /** F03 Where the tab bar goes now. V110-U54 "Above chat" is `AboveBar`'s. */
+  const place = $derived(barPlace(side, width));
+  // V110-U54 The tab views keep a slot for the one "Above chat" bar at the top of their chat.
+  const barSlots = new BarSlots();
+  setContext(BAR_SLOT, barSlots);
+  let chromeSlot = $state<HTMLElement>();
+  let rowSlot = $state<HTMLElement>();
+  let barPark = $state<HTMLElement>();
   /** V108-N14 A stream of the tab on screen fills the window: no tab bars, no side chrome. */
   const theatreOn = $derived(!!shownTab && !!tab && stillHere(theatre.tile, tiles(tab).map((t) => t.id)) !== null);
-  // V110-F19 A stored hold ends with the setting or with theatre mode.
-  $effect(() => {
-    if (aboveChat.held && (side !== 'aboveChat' || theatreOn)) untrack(() => aboveChat.clearHeld());
-  });
   $effect(() => {
     if (theatre.tile && !theatreOn) untrack(() => theatre.leave());
   });
@@ -580,6 +531,23 @@
   }
 </script>
 
+{#if place === 'above'}
+  <!-- V110-U54 First in the page, so it steps out of a tab view before that view changes. -->
+  <AboveBar
+    {current}
+    onopen={open}
+    tab={shownTab && !resumeDialog.open ? tab : undefined}
+    slots={barSlots}
+    {chromeSlot}
+    {rowSlot}
+    park={barPark}
+    theatre={theatreOn}
+    {width}
+    {height}
+    inert={settingsOpen}
+  />
+{/if}
+
 <WindowChrome>
   {#snippet start()}
     {#if !theatreOn}
@@ -618,6 +586,7 @@
       {/if}
     </nav>
     {#if place === 'chrome'}<TabBar chrome {current} onopen={open} />{/if}
+    {#if place === 'above'}<div class="bar-slot" bind:this={chromeSlot}></div>{/if}
     {/if}
   {/snippet}
   {#snippet end()}
@@ -679,7 +648,11 @@
   <div class="tab-row" inert={settingsOpen}>
     <TabBar {current} onopen={open} />
   </div>
+{:else if place === 'above' && !theatreOn}
+  <!-- V110-U54 Empty unless the "Above chat" bar is here (narrow window). -->
+  <div class="tab-row above-row" inert={settingsOpen} bind:this={rowSlot}></div>
 {/if}
+<div class="bar-slot" bind:this={barPark}></div>
 
 <div class="body {side}" inert={settingsOpen}>
   {#if (place === 'bottom' || place === 'left' || place === 'right') && !theatreOn}
@@ -732,22 +705,6 @@
     {/if}
   </main>
 </div>
-
-{#if aboveNow.float && !theatreOn}
-  <!-- V110-F11 Held over a chat: the bar stays at its box while the tab under it changes. -->
-  {@const f = aboveNow.float}
-  <div
-    class="bar-float"
-    data-bar-box
-    data-bar-above
-    inert={settingsOpen}
-    style:left="{f.x}px"
-    style:top="{f.y}px"
-    style:width="{f.w}px"
-  >
-    <TabBar {current} onopen={open} oneRow={aboveOneRow(f.w, height)} />
-  </div>
-{/if}
 
 {#if settingsOpen}
   {#await settingsSheet() then { default: SettingsSheet }}
@@ -871,19 +828,12 @@
     background: var(--page);
     border-bottom: 1px solid var(--border);
   }
-  /* V110-F11 The held bar over a chat: the tile's own `.above-bar` look, fixed in place. */
-  .bar-float {
-    position: fixed;
-    z-index: calc(var(--z-popover) - 1);
-    display: flex;
-    flex-direction: column;
-    box-sizing: border-box;
-    min-width: 0;
-    padding: 0 6px;
-    background: var(--page);
-    /* V110-F41 Over the video it needs an edge and a lift (floating surface). */
-    border: 1px solid var(--border-strong);
-    box-shadow: var(--shadow-pop);
+  /* V110-U54 Where the "Above chat" bar goes at the top, and where it waits floating or hidden. */
+  .bar-slot {
+    display: contents;
+  }
+  .above-row:empty {
+    display: none;
   }
   main {
     flex: 1;

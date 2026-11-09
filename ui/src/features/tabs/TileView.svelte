@@ -52,13 +52,11 @@
   import { claimsOnClick, isControl } from './audioFocus';
   import { takeSound } from './takeSound';
   import { drag } from './drag.svelte';
-  import { aboveChat, BAR_HOST, type BarHost } from './aboveChat.svelte';
+  import { aboveChat, BAR_SLOT, type BarSlots } from './aboveChat.svelte';
   import { chatSide, layout } from './layout.svelte';
   import { layoutEntries, tileEntries } from './menus';
-  import TabBar from './TabBar.svelte';
   import TileActions from './TileActions.svelte';
   import { chatRoute, DEFAULT_RATIO, tabs, tiles } from './tabs.svelte';
-  import { aboveOneRow } from './barLayout';
   import { chatSideOf, shareOf, TILE_PANELS, tileMin, tileTree, turnedShares } from './tileLayout';
 
   interface Props {
@@ -123,23 +121,19 @@
 
   const shownSide = $derived(fit?.side ?? chatSide(tile));
 
-  // V110-U52 "Above chat": the tab bar over this tile's chat. Only for the one tile of the tab
-  // on screen, with the chat beside the stream as the user set it: the chat turned under the
-  // stream to fit, a mod view, or a hand-made arrangement send the bar back to the top (the
-  // window asks `aboveChat` too, so exactly one of the two draws it).
-  const host = getContext<BarHost | undefined>(BAR_HOST);
+  // V110-U52 "Above chat": the tab bar over this tile's chat. Only for the one tile of a tab
+  // with the chat beside the stream as the user set it: the chat turned under the stream to
+  // fit, a mod view, or a hand-made arrangement send the bar back to the top.
+  // V110-U54 The tile only keeps a slot at the top of its chat column; the window's one bar
+  // (`AboveBar`) moves into it. Pop-outs have no `BAR_SLOT`.
+  const barSlots = getContext<BarSlots | undefined>(BAR_SLOT);
   const barAway = $derived(!!fit?.moved || modWanted || custom !== null);
   $effect(() => {
     if (background || popout) return;
     const away = barAway;
     untrack(() => aboveChat.mark(tab.id, away));
   });
-  // V110-F11 While the window holds the bar elsewhere, the chat keeps its room free (`spacer`).
-  const barHere = $derived(!!host && !background && !popout && host.current === tab.id ? aboveChat.bar(tab) : null);
-  const barOver = $derived(!!barHere?.own);
-  // V110-F42 Measured: the chat column's width (the bar's own box) and the window's height.
-  let barW = $state(0);
-  let winH = $state(innerHeight);
+  const barSlot = $derived(!!barSlots && !popout && aboveChat.applies(tab));
   const ratio = $derived(fit?.moved ? (movedRatio ?? fit.ratio) : (fit?.ratio ?? tile.ratio));
 
   // V102-26 Where the mod view goes in the stream's area, next to the chat as fitted above.
@@ -386,8 +380,6 @@
   const names: Record<string, string> = { stream: 'stream', chat: 'chat', modview: 'mod view' };
 </script>
 
-<svelte:window bind:innerHeight={winH} />
-
 {#snippet actions()}
   {#if canMod && !showChat}
     <!-- V102-26 Where no chat carries the shield. -->
@@ -482,10 +474,8 @@
   {:else if id === 'chat'}
     <!-- V110-U52 Always the same wrapper, so the chat isn't rebuilt when the bar comes or goes. -->
     <div class="chat-col" data-chat-col>
-      {#if barOver && host}
-        <div class="above-bar" data-bar-box data-bar-above bind:clientWidth={barW}><TabBar current={host.current} onopen={host.open} oneRow={aboveOneRow(barW, winH)} /></div>
-      {:else if barHere?.spacer}
-        <div class="above-bar" style:height="{barHere.spacer}px"></div>
+      {#if barSlot && barSlots}
+        <div class="above-slot" style:min-height="{barSlots.height}px" {@attach barSlots.slot(tab.id)}></div>
       {/if}
       <div class="chat-body">{@render chat(grabOf(ctl))}</div>
     </div>
@@ -550,15 +540,12 @@
     min-height: 0;
     display: flex;
   }
-  /* V110-U52 A normal row of the chat column: not a drag area, as wide as the chat. */
-  .above-bar {
+  /* V110-U54 Room for the bar at the top of the chat column (`AboveBar` moves in here). */
+  .above-slot {
     display: flex;
     flex-direction: column;
     flex: none;
     min-width: 0;
-    padding: 0 6px;
-    background: var(--page);
-    border-bottom: 1px solid var(--border);
   }
   .beside {
     position: relative;

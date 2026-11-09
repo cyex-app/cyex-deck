@@ -5,10 +5,12 @@ import type { Tab } from '../../ipc/bindings/Tab';
 import type { Tile } from '../../ipc/bindings/Tile';
 import {
   ALL_KEEP,
-  aboveBar,
+  aboveSpot,
   barMaxHeight,
   barPlace,
-  type BarHold,
+  holdAt,
+  linesUp,
+  type SpotFor,
   type ChatBeside,
   aboveOneRow,
   chatBeside,
@@ -102,12 +104,8 @@ test('V108-F59d plusFits: the tab and the plus share the view or not', () => {
 });
 
 test('V110-U52 above chat: only where the chat is beside the stream', () => {
-  assert.equal(barPlace('aboveChat', 1280, true), 'above');
-  assert.equal(barPlace('aboveChat', 1280, false), 'chrome', 'falls back to the top');
-  assert.equal(barPlace('aboveChat', 720, false), 'row', 'and the narrow-window row');
-  assert.equal(barPlace('aboveChat', 720, true), 'above');
-  assert.equal(barPlace('top', 1280, true), 'chrome', 'other sides ignore it');
-  assert.equal(barPlace('left', 1280, true), 'left');
+  assert.equal(barPlace('aboveChat', 1280), 'above', 'V110-U54 the one bar places itself');
+  assert.equal(barPlace('aboveChat', 720), 'above');
   const ok: ChatBeside = { tiles: 1, feed: false, stream: true, chat: true, chatPopped: false, theatre: false, side: 'right' };
   assert.equal(chatBeside(ok), true);
   assert.equal(chatBeside({ ...ok, side: 'left' }), true);
@@ -121,26 +119,43 @@ test('V110-U52 above chat: only where the chat is beside the stream', () => {
   assert.equal(chatBeside({ ...ok, theatre: true }), false, 'V110-F38 theatre mode hides the bar');
 });
 
-test('V110-F11 no hold: the bar follows the tab on screen', () => {
-  assert.deepEqual(aboveBar(true, null), { above: true, own: true, float: null, spacer: 0 });
-  assert.deepEqual(aboveBar(false, null), { above: false, own: false, float: null, spacer: 0 });
+const spot = (o: Partial<SpotFor>): ReturnType<typeof aboveSpot> =>
+  aboveSpot({ theatre: false, width: 1920, slot: false, held: null, lined: false, ...o });
+
+test('V110-U54 no hold: the bar follows the tab on screen', () => {
+  assert.equal(spot({ slot: true }), 'slot');
+  assert.equal(spot({}), 'chrome', 'no slot: where Top puts it');
+  assert.equal(spot({ width: 720 }), 'row', 'or the narrow-window row');
+  assert.equal(spot({ width: 0 }), 'chrome', 'not measured yet');
+  assert.equal(spot({ slot: true, theatre: true }), 'none', 'V110-F38 theatre hides it');
 });
 
 test('V110-F11 held at the top: stays at the top, whatever tab is under it', () => {
-  const hold: BarHold = { above: false, rect: { x: 230, y: 0, w: 1100, h: 56 } };
-  for (const applies of [true, false]) {
-    assert.deepEqual(aboveBar(applies, hold), { above: false, own: false, float: null, spacer: 0 });
-    assert.equal(barPlace('aboveChat', 1920, aboveBar(applies, hold).above), 'chrome');
-    assert.equal(barPlace('aboveChat', 720, aboveBar(applies, hold).above), 'row', 'or the narrow row');
+  for (const slot of [true, false]) {
+    assert.equal(spot({ slot, held: 'top' }), 'chrome');
+    assert.equal(spot({ slot, held: 'top', width: 720 }), 'row', 'or the narrow row');
   }
 });
 
-test('V110-F11 held over a chat: floats at the same box; a qualifying tab keeps its room free', () => {
-  const rect = { x: 1385, y: 109, w: 538, h: 50 };
-  const hold: BarHold = { above: true, rect };
-  assert.deepEqual(aboveBar(true, hold), { above: true, own: false, float: rect, spacer: 50 });
-  assert.deepEqual(aboveBar(false, hold), { above: true, own: false, float: rect, spacer: 0 }, 'several tiles, chat only, chat under');
-  assert.equal(barPlace('aboveChat', 1920, aboveBar(false, hold).above), 'above', 'no second bar in the title bar');
+test('V110-F11 held over a chat: stays at that box, in the new slot only where it lines up', () => {
+  assert.equal(spot({ held: 'chat', slot: true, lined: true }), 'slot', 'same chat column: straight in');
+  assert.equal(spot({ held: 'chat', slot: true, lined: false }), 'float', 'chat on the other side');
+  assert.equal(spot({ held: 'chat', slot: false }), 'float', 'several tiles, chat only, chat under');
+  assert.equal(spot({ held: 'chat', theatre: true }), 'none');
+  assert.equal(holdAt('chrome'), 'top');
+  assert.equal(holdAt('row'), 'top');
+  assert.equal(holdAt('slot'), 'chat');
+  assert.equal(holdAt('float'), 'chat', 'a later notch keeps the box');
+  assert.equal(holdAt('none'), null);
+});
+
+test('V110-U54 lines up: same place within 2 px', () => {
+  const r = { x: 1158, y: 38, w: 436, h: 34 };
+  assert.equal(linesUp(r, { ...r, h: 60 }), true, 'height is the bar’s own');
+  assert.equal(linesUp(r, { ...r, x: 1160, w: 434 }), true);
+  assert.equal(linesUp(r, { ...r, x: 6 }), false, 'chat on the left');
+  assert.equal(linesUp(r, { ...r, w: 500 }), false, 'wider chat');
+  assert.equal(linesUp(r, { ...r, y: 72 }), false);
 });
 
 test('V110-F11 a hold starts only on a hovered bar with Above chat set', () => {
