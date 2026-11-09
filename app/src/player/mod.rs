@@ -62,6 +62,8 @@ struct Session {
     window: String,
     used: Instant,
     ad: AdState,
+    /// V110-U57 When the cut-out break ends as last told (the countdown runs in the window).
+    ad_ends: Option<Instant>,
     /// W1 A live stream's channel and the account watching it.
     live: Option<(String, Option<String>)>,
     /// V108-N24 The player's replay key.
@@ -84,6 +86,8 @@ pub struct PlayerSession {
 struct AdChanged<'a> {
     id: &'a str,
     state: AdState,
+    /// V110-U57 Ms left of a cut-out break, when the playlist says.
+    left_ms: Option<u64>,
 }
 
 pub fn init(app: &AppHandle) {
@@ -227,6 +231,7 @@ fn open(
             window: window.to_owned(),
             used: Instant::now(),
             ad: AdState::None,
+            ad_ends: None,
             live,
             replay,
         },
@@ -264,13 +269,45 @@ pub(crate) fn peek(app: &AppHandle, id: &str) -> Option<Kind> {
     lock(app).get(id).map(|s| s.kind.clone())
 }
 
-/// Tells the player's window when a break starts or ends.
-pub(crate) fn set_ad(app: &AppHandle, id: &str, state: AdState) {
+/// Tells the player's window when a break starts or ends, and (V110-U57) how long a cut-out
+/// one still runs once that moves by more than a few seconds.
+pub(crate) fn set_ad(app: &AppHandle, id: &str, state: AdState, left_ms: Option<u64>) {
+    let now = Instant::now();
+    let ends = left_ms.map(|ms| now + Duration::from_millis(ms));
     let window = {
         let mut sessions = lock(app);
-        let Some(s) = sessions.get_mut(id).filter(|s| s.ad != state) else { return };
+        let Some(s) = sessions.get_mut(id) else { return };
+        if s.ad == state && !ad_end_moved(s.ad_ends, ends) {
+            return;
+        }
         s.ad = state;
+        s.ad_ends = ends;
         s.window.clone()
     };
-    let _ = app.emit_to(window.as_str(), AD_EVENT, AdChanged { id, state });
+    let _ = app.emit_to(window.as_str(), AD_EVENT, AdChanged { id, state, left_ms });
+}
+
+/// V110-U57 The announced end moved: appeared, went, or shifted by over 3 s (a pod's next ad).
+fn ad_end_moved(old: Option<Instant>, new: Option<Instant>) -> bool {
+    match (old, new) {
+        (None, None) => false,
+        (Some(a), Some(b)) => a.max(b) - a.min(b) > Duration::from_secs(3),
+        _ => true,
+    }
+}
+
+#[cfg(test)]
+mod ad_tests {
+    use super::*;
+
+    #[test]
+    fn ad_end_moves_past_three_seconds() {
+        let t = Instant::now();
+        let at = |s| Some(t + Duration::from_secs(s));
+        assert!(!ad_end_moved(None, None));
+        assert!(ad_end_moved(None, at(30)));
+        assert!(ad_end_moved(at(30), None));
+        assert!(!ad_end_moved(at(30), at(32)));
+        assert!(ad_end_moved(at(30), at(45)));
+    }
 }

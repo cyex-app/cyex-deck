@@ -59,6 +59,8 @@ struct State {
     out: HashMap<usize, Stitcher>,
     backups: Backups,
     ad: AdState,
+    /// V110-U57 Ms left of a cut-out break at the last poll, when the playlist says.
+    ad_left: Option<u64>,
     /// V108-N24 The variant last played, video and audio only: a replay keeps it read.
     last: [Option<usize>; 2],
 }
@@ -75,6 +77,7 @@ impl<F: Fetch> Live<F> {
                 out: HashMap::new(),
                 backups,
                 ad: AdState::None,
+                ad_left: None,
                 last: [None; 2],
             }),
             replay: None,
@@ -130,6 +133,11 @@ impl<F: Fetch> Live<F> {
         Ok(master::render(std::slice::from_ref(v), |_| format!("{i}.m3u8")))
     }
 
+    /// V110-U57 Ms left of the cut-out break as of the last `media` call (only with no backup).
+    pub async fn ad_left(&self) -> Option<u64> {
+        self.state.lock().await.ad_left
+    }
+
     /// The media playlist of variant `index`, and whether an ad break is on.
     pub async fn media(&self, index: usize) -> Result<(String, AdState)> {
         let mut st = self.state.lock().await;
@@ -165,6 +173,7 @@ impl<F: Fetch> Live<F> {
             }
         };
         st.ad = ad;
+        st.ad_left = if ad == AdState::Waiting { ads::left_ms(&from) } else { None };
         let audio = variant.is_audio_only();
         st.last[usize::from(audio)] = Some(index);
         let out = st.out.entry(index).or_default();
@@ -398,12 +407,14 @@ mod tests {
         let live = Live::new(&s, "xqc", OPTIONS);
         set(&s, "https://popout/1080.m3u8", playlist("main", 0, 4, 0));
         live.media(0).await.unwrap();
-        set(&s, "https://popout/1080.m3u8", playlist("main", 1, 7, 3));
+        set(&s, "https://popout/1080.m3u8", announce(&playlist("main", 1, 7, 3), 4));
         for kind in ["site", "embed", "mobile_web", "autoplay"] {
             set(&s, &format!("https://{kind}/1080.m3u8"), playlist(kind, 1, 7, 3));
         }
         let (text, ad) = live.media(0).await.unwrap();
         assert_eq!(ad, AdState::Waiting);
+        // V110-U57 The ad runs 8 s to 38 s; the newest segment ends at 14 s.
+        assert_eq!(live.ad_left().await, Some(24_000));
         assert!(!text.contains("Amazon") && !text.contains("main/6.ts"));
         assert!(!text.contains("/7.ts"), "no prefetch during a break");
 

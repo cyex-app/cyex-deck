@@ -66,7 +66,7 @@ async fn route(app: &AppHandle, path: &str) -> Result<Response<Vec<u8>>, Error> 
         (Kind::Live(live), "live", [file]) => {
             let index = file.strip_suffix(".m3u8").and_then(|n| n.parse().ok()).ok_or_else(missing)?;
             let (text, ad) = live.media(index).await?;
-            super::set_ad(app, id, ad);
+            super::set_ad(app, id, ad, live.ad_left().await);
             Ok(playlist(text))
         }
         (Kind::Vod(vod), "vod", ["master.m3u8"]) => Ok(playlist(vod.master().await?)),

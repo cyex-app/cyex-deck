@@ -31,6 +31,17 @@ pub fn ahead(media: &Media) -> bool {
     }
 }
 
+/// V110-U57 Milliseconds left of the break at the live edge: the last announced stitched ad's
+/// end minus the end of the newest segment. `None` without times, with an ad that has no
+/// duration, or when no announced ad reaches past the edge.
+pub fn left_ms(media: &Media) -> Option<u64> {
+    let ranges: Vec<(i64, i64)> = media.dateranges.iter().filter_map(ad_range).collect();
+    let edge = media.segments.last().and_then(|s| s.time.map(|t| t + (s.duration * 1000.0) as i64))?;
+    let end = ranges.iter().map(|r| r.1).max()?;
+    // An open-ended ad can't be counted.
+    (end != i64::MAX && end > edge).then(|| (end - edge) as u64)
+}
+
 /// The stream's own segments, ads left out.
 pub fn live_segments(media: &Media) -> impl Iterator<Item = &Segment> {
     media.segments.iter().zip(marks(media)).filter(|(_, ad)| !ad).map(|(s, _)| s)
@@ -81,6 +92,25 @@ https://edge.example/ad-0.ts
 https://edge.example/ad-1.ts
 #EXT-X-TWITCH-PREFETCH:https://edge.example/ad-2.ts
 "#;
+
+    #[test]
+    fn left_counts_from_the_edge() {
+        // The ad runs 12:00:04 to :34; the playlist's newest segment ends at :08.004.
+        let m = parse(MIDROLL);
+        let edge = m.segments.last().and_then(|s| s.time.map(|t| t + (s.duration * 1000.0) as i64)).unwrap();
+        assert_eq!(left_ms(&m), Some((1_791_547_234_000 - edge) as u64));
+        // No duration: no countdown.
+        let open = MIDROLL.replace(",DURATION=30.0", "");
+        assert_eq!(left_ms(&parse(&open)), None);
+        // PLANNED-DURATION counts as well.
+        let planned = MIDROLL.replace("DURATION=30.0", "PLANNED-DURATION=30.0");
+        assert_eq!(left_ms(&parse(&planned)), left_ms(&m));
+        // Over: nothing left. Markers other than ads don't count.
+        let over = MIDROLL.replace("DURATION=30.0", "DURATION=1.0");
+        assert_eq!(left_ms(&parse(&over)), None);
+        let quartile = MIDROLL.replace("twitch-stitched-ad", "twitch-ad-quartile").replace("stitched-ad-", "x-");
+        assert_eq!(left_ms(&parse(&quartile)), None);
+    }
 
     #[test]
     fn stitched_ads_by_title_and_range() {

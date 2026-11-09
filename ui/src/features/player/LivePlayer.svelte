@@ -10,6 +10,7 @@
   import { tooltip } from '../../components/tooltip.svelte';
   import { useClipArm } from './clipArm.svelte';
   import type { AdState } from '../../ipc/bindings/AdState';
+  import { AD_NOTE, adClock, endsAt, msLeft } from './adCountdown';
   import type { ChannelInfo } from '../../ipc/bindings/ChannelInfo';
   import type { Corner } from '../../ipc/bindings/Corner';
   import type { PlayerSession } from '../../ipc/bindings/PlayerSession';
@@ -88,8 +89,21 @@
   // svelte-ignore state_referenced_locally
   const sound = useSound(() => tile, () => hushed, true);
 
-  const stopAds = playerIpc.onAds((id, state) => {
-    if (id === session?.id) ad = state;
+  // V110-U57 When a cut-out break ends on this clock, and the clock the note reads.
+  let adEnd = $state<number | null>(null);
+  let adNow = $state(Date.now());
+  const adLeft = $derived(msLeft(adEnd, adNow));
+  const stopAds = playerIpc.onAds((id, state, leftMs) => {
+    if (id !== session?.id) return;
+    ad = state;
+    adEnd = state === 'waiting' ? endsAt(leftMs, Date.now()) : null;
+    adNow = Date.now();
+  });
+  // Once a second while there's a countdown; the text just changes, nothing moves.
+  $effect(() => {
+    if (adEnd === null) return;
+    const t = setInterval(() => (adNow = Date.now()), 1000);
+    return () => clearInterval(t);
   });
 
   // Rust hands out a new tile object on every tab edit (volume, sizes): only these
@@ -503,7 +517,11 @@
       </div>
     {:else if ad === 'waiting'}
       <div class="center">
-        <span>Ad break. The stream comes back right after.</span>
+        {#if adLeft !== null}
+          <span>Ad break · <span class="adleft">{adClock(adLeft)}</span> left. The stream comes back right after.</span>
+        {:else}
+          <span>{AD_NOTE}</span>
+        {/if}
       </div>
     {:else if engine?.holding}
       <!-- V103-07 A click anywhere plays it (Shell). -->
@@ -665,6 +683,10 @@
     text-align: center;
     color: var(--on-video-dim);
     background: var(--scrim);
+  }
+  .adleft {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
   }
   .center.held {
     font-size: 0.85rem;

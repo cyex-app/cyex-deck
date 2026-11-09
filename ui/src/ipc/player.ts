@@ -60,8 +60,11 @@ export const playerIpc = {
     listen<ClipSaveProgress>('player:clip-save', (e) => handler(e.payload)),
   proxy: () => invoke<string | null>('player_proxy'),
   setProxy: (url: string | null) => invoke<void>('player_set_proxy', { url }),
-  onAds: (handler: (id: string, state: AdState) => void) =>
-    listen<{ id: string; state: AdState }>('player:ads', (e) => handler(e.payload.id, e.payload.state)),
+  /** `leftMs` (V110-U57): ms a cut-out break still runs, when the playlist says. */
+  onAds: (handler: (id: string, state: AdState, leftMs: number | null) => void) =>
+    listen<{ id: string; state: AdState; leftMs?: number | null }>('player:ads', (e) =>
+      handler(e.payload.id, e.payload.state, e.payload.leftMs ?? null),
+    ),
 };
 
 export const channelIpc = {
