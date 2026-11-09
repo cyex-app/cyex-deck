@@ -295,8 +295,34 @@ pub fn set_moderator_in(app: &AppHandle, account: &str, channel_id: &str, on: bo
     }
 }
 
+/// V110-T06 Mocks builds: the rooms of the channels `CYEX_GQL_MODS_MOCK` names are ours to moderate.
+#[cfg(feature = "mocks")]
+fn mock_mods(app: &AppHandle) {
+    let named = super::mods_mock::channels(app);
+    if named.is_empty() {
+        return;
+    }
+    let Some(chat) = app.try_state::<Chat>() else {
+        return;
+    };
+    let rooms: Vec<(String, String)> = chat
+        .lock()
+        .rooms
+        .keys()
+        .filter_map(|(identity, login)| match identity {
+            Identity::Account(a) if named.contains(login) => Some((a.clone(), login.clone())),
+            _ => None,
+        })
+        .collect();
+    for (account, login) in rooms {
+        set_moderator(app, &account, &login, true);
+    }
+}
+
 /// One round of Twitch's moderated-channel answer for every room an account reads.
 async fn check(app: &AppHandle) {
+    #[cfg(feature = "mocks")]
+    mock_mods(app);
     // Account → (login, channel id, Twitch has told us about ourselves yet).
     let mut asks: HashMap<String, Vec<(String, String, bool)>> = HashMap::new();
     {
@@ -340,6 +366,8 @@ async fn check(app: &AppHandle) {
             }
         }
     }
+    #[cfg(feature = "mocks")]
+    mock_mods(app);
     let roles = app.state::<Roles>();
     roles
         .answers

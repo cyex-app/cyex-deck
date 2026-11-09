@@ -10,6 +10,8 @@ pub mod channels;
 pub mod cheer;
 #[cfg(feature = "mocks")]
 pub mod chat_mock;
+#[cfg(feature = "mocks")]
+mod mods_mock;
 mod creds;
 pub mod feeds;
 mod flush;
