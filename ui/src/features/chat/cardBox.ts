@@ -21,14 +21,38 @@ export const CARD_HEIGHT = `max(${CARD_PIC.h}px, ${(CARD_LINES * LINE_EM).toFixe
 export const PREVIEW_PX: Record<LinkThumbs, number> = { off: 0, small: 100, medium: 200, large: 300 };
 
 /** The card's text: the title, then the next line (subtitle, facts or the resolver's first line).
- *  V110-U70 A web page's second line joins its subtitle and facts ("Channel · 1.200 views · 41 likes"),
- *  and the description is the next line when those are empty. The box stays the same size. */
+ *  V110-U70 A web page's second line is its subtitle, else its text (an X post's words); its facts
+ *  go on the site line (`cardSite`). The box stays the same size. */
 export function cardLines(info: LinkPreview | null): string[] {
   if (!info) return [];
-  const facts = info.facts.map(factText).filter(Boolean).join(' · ');
   const rest = info.lines.filter((l) => l.length).map((l) => l.map((p) => p.text).join(''));
-  const head = info.kind === 'web' ? [info.title, [info.subtitle, facts].filter(Boolean).join(' · ')] : [info.title, info.subtitle, facts];
+  const head = info.kind === 'web' ? [info.title, info.subtitle] : [info.title, info.subtitle, factsText(info)];
   return [...head, ...rest].filter((t): t is string => !!t).slice(0, CARD_LINES - 1);
+}
+
+function factsText(info: LinkPreview): string {
+  return info.facts.map(factText).filter(Boolean).join(' · ');
+}
+
+/** V110-U70 The card's last line: a web page's host and its facts ("x.com · 325.006 likes · 2006/03/21"),
+ *  else what kind of Twitch link it is (`kind`). */
+export function cardSite(info: LinkPreview, host: string, kind: string): string {
+  return info.kind === 'web' ? [host, factsText(info)].filter(Boolean).join(' · ') : kind;
+}
+
+/** V110-U70 The card's picture: the preview, else the poster's avatar (drawn round). */
+export function cardPic(info: LinkPreview | null): { src: string; round: boolean } | null {
+  const pic = previewPic(info?.thumbnail);
+  if (pic) return { src: pic, round: false };
+  const face = previewPic(info?.avatar);
+  return face ? { src: face, round: true } : null;
+}
+
+/** V110-U70 A loaded picture's width in the card: its own shape at the card's height, never cropped,
+ *  40 to 168 px (past that it is letterboxed, still whole). */
+export function cardPicWidth(w: number, h: number): number {
+  if (!(w > 0 && h > 0)) return CARD_PIC.w;
+  return Math.round(Math.min(168, Math.max(40, (CARD_PIC.h * w) / h)));
 }
 
 /** wait: asking. ready: the card. plain: nothing to show, but it was on screen, so the box stays
@@ -37,6 +61,6 @@ export function cardLines(info: LinkPreview | null): string[] {
 export type CardState = 'wait' | 'ready' | 'plain' | 'gone';
 
 export function cardAfter(info: LinkPreview | null, onScreen: boolean): CardState {
-  if (info && (cardLines(info).length || previewPic(info.thumbnail))) return 'ready';
+  if (info && (cardLines(info).length || cardPic(info))) return 'ready';
   return onScreen ? 'plain' : 'gone';
 }

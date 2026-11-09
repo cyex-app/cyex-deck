@@ -8,10 +8,9 @@
 <script lang="ts">
   import type { LinkPreview } from '../../ipc/bindings/LinkPreview';
   import { hostOf } from '../../lib/host';
-  import { CARD_HEIGHT, CARD_PIC, cardAfter, cardLines, type CardState } from './cardBox';
+  import { CARD_HEIGHT, CARD_PIC, cardAfter, cardLines, cardPic, cardPicWidth, cardSite, type CardState } from './cardBox';
   import { kindText } from './linkFacts';
-  import { previewPic } from './previewPic';
-  import { embeds } from './linkPreviews';
+    import { embeds } from './linkPreviews';
   import { leaveScreen, nearScreen } from './nearScreen';
 
   let { url }: { url: string } = $props();
@@ -23,7 +22,9 @@
   const host = $derived(hostOf(url));
   const lines = $derived(cardLines(info));
   // V110-F75 Only our resolver's pictures and the proxy's are loaded; any other picture is not shown.
-  const pic = $derived(previewPic(info?.thumbnail));
+  // V110-U70 The preview, else the poster's avatar; shown whole at its own shape once loaded.
+  const pic = $derived(cardPic(info));
+  let picW = $state<number>(CARD_PIC.w);
 
   /** The nearest scrolling ancestor, or none for the window. Found once per card. */
   let scroller: HTMLElement | null | undefined;
@@ -71,15 +72,22 @@
   {#if phase === 'ready'}
     <a class="inner" href={url} data-link={url} data-host={host}>
       {#if pic}
-        <span class="pic" style:width="{CARD_PIC.w}px" style:height="{CARD_PIC.h}px">
+        <span
+          class="pic"
+          class:round={pic.round}
+          style:width="{pic.round ? CARD_PIC.h : picW}px"
+          style:height="{CARD_PIC.h}px"
+        >
           {#if !broken}<img
               class:blur={info?.nsfw}
-              src={pic}
-              width={CARD_PIC.w}
-              height={CARD_PIC.h}
+              src={pic.src}
               alt=""
               loading="lazy"
               referrerpolicy="no-referrer"
+              onload={(e) => {
+                const i = e.currentTarget as HTMLImageElement;
+                picW = cardPicWidth(i.naturalWidth, i.naturalHeight);
+              }}
               onerror={() => (broken = true)}
             />{/if}
         </span>
@@ -88,7 +96,7 @@
         {#each lines as line, i (i)}
           <span class:first={i === 0}>{line}</span>
         {/each}
-        <span class="host">{info?.kind === 'web' ? host : info ? kindText(info) : host}</span>
+        <span class="host">{info ? cardSite(info, host, kindText(info)) : host}</span>
       </span>
     </a>
   {:else if phase === 'plain'}
@@ -136,10 +144,18 @@
     background: var(--surface-hover);
     border-radius: var(--radius);
   }
+  /* V110-U70 Never cropped: the box takes the picture's shape (cardPicWidth), very wide or tall
+     ones are letterboxed. */
   img {
     display: block;
     width: 100%;
     height: 100%;
+    object-fit: contain;
+  }
+  .pic.round {
+    border-radius: 50%;
+  }
+  .pic.round img {
     object-fit: cover;
   }
   .blur {

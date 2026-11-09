@@ -23,11 +23,15 @@
   {@const pic = previewPic(p.thumbnail)}
   {@const face = previewPic(p.avatar)}
   {@const facts = p.facts.map((f) => ({ text: factText(f), num: numeric(f) })).filter((f) => f.text)}
-  <!-- V110-C66 With a picture the card is as wide as the picture size asked for. -->
+  <!-- V110-C66 With a picture the card is as wide as the picture size asked for.
+       V110-U70 The size is the picture's height; it may be up to 1.6 times as wide, so wide
+       pictures (screenshots) aren't drawn tiny. Never cropped. -->
+  {@const picW = Math.round(c.thumbWidth * 1.6)}
   <div
     class="card tip-card"
     class:live={p.live}
     style:min-width={pic && c.thumbWidth ? `${Math.max(200, c.thumbWidth)}px` : undefined}
+    style:max-width={pic && c.thumbWidth ? `${Math.max(302, picW)}px` : '302px'}
   >
     <!-- V110-F46 A web page's site is its host, which the tip's "Opens x.com" already says. -->
     {#if p.kind !== 'web'}
@@ -48,7 +52,7 @@
       </div>
     {/if}
     {#if pic && c.thumbWidth}
-      <div class="pic" class:blur={c.blur} style:max-width="{c.thumbWidth}px">
+      <div class="pic" class:blur={c.blur} style:max-width="{picW}px" style:--pic-h="{c.thumbWidth}px">
         <img src={pic} alt="" referrerpolicy="no-referrer" />
         {#if c.blur}<span class="flag">NSFW</span>{/if}
       </div>
@@ -150,11 +154,15 @@
     overflow: hidden;
     border-radius: var(--radius);
   }
+  .pic {
+    align-self: flex-start;
+  }
   .pic img {
     display: block;
-    width: 100%;
-    max-height: 200px;
-    object-fit: contain;
+    width: auto;
+    height: auto;
+    max-width: 100%;
+    max-height: var(--pic-h);
   }
   .blur img {
     filter: blur(14px);
