@@ -69,7 +69,8 @@ pub struct Chat {
     /// V106-30 The user picked show or blur for unlisted emotes. Until then the emote card offers
     /// a quick "Show unlisted emotes".
     pub unlisted_chosen: bool,
-    /// C11 Which provider wins when several have an emote by the same name.
+    /// C11 Which provider wins when several have an emote by the same name. V110-U71 Twitch is in
+    /// the list too (files from before have it added first), and Tab completion uses it as well.
     pub emote_priority: Vec<EmoteSource>,
     /// E3 Percent of the normal size.
     pub emote_size: u16,
@@ -196,7 +197,7 @@ impl Default for Chat {
             old_third_party_emotes: None,
             unlisted_emotes: UnlistedEmotes::Blur,
             unlisted_chosen: false,
-            emote_priority: EmoteSource::THIRD_PARTY.to_vec(),
+            emote_priority: EmoteSource::RANKED.to_vec(),
             emote_size: 100,
             animate_only_focused: false,
             hidden_emotes: Vec::new(),
@@ -301,10 +302,15 @@ impl Schema for Chat {
         if !self.ad_presets.contains(&self.ad_length) {
             self.ad_length = if self.ad_presets.contains(&60) { 60 } else { self.ad_presets[0] };
         }
-        // C11 Each third-party provider once; missing ones go last in the default order.
+        // C11 Each provider once; V110-U71 an old list without Twitch gets it first (as it
+        // always ranked), other missing ones go last in the default order.
         let mut order: Vec<EmoteSource> = Vec::new();
-        for s in self.emote_priority.iter().chain(EmoteSource::THIRD_PARTY.iter()) {
-            if EmoteSource::THIRD_PARTY.contains(s) && !order.contains(s) {
+        let had_twitch = self.emote_priority.contains(&EmoteSource::Twitch);
+        if !had_twitch {
+            order.push(EmoteSource::Twitch);
+        }
+        for s in self.emote_priority.iter().chain(EmoteSource::RANKED.iter()) {
+            if EmoteSource::RANKED.contains(s) && !order.contains(s) {
                 order.push(*s);
             }
         }
@@ -783,8 +789,25 @@ mod tests {
             ..Chat::default()
         };
         c.sanitize();
-        assert_eq!(c.emote_priority, [EmoteSource::Ffz, EmoteSource::Seventv, EmoteSource::Bttv]);
+        assert_eq!(
+            c.emote_priority,
+            [EmoteSource::Ffz, EmoteSource::Twitch, EmoteSource::Seventv, EmoteSource::Bttv]
+        );
         assert_eq!(c.emote_size, 50);
+    }
+
+    #[test]
+    fn v110_u71_an_old_priority_without_twitch_keeps_it_first() {
+        let mut c = Chat {
+            emote_priority: vec![EmoteSource::Bttv, EmoteSource::Seventv, EmoteSource::Ffz],
+            ..Chat::default()
+        };
+        c.sanitize();
+        assert_eq!(
+            c.emote_priority,
+            [EmoteSource::Twitch, EmoteSource::Bttv, EmoteSource::Seventv, EmoteSource::Ffz]
+        );
+        assert_eq!(Chat::default().emote_priority, EmoteSource::RANKED);
     }
 
     #[test]

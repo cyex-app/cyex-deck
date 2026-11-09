@@ -51,7 +51,8 @@ unlistedEmotes: UnlistedEmotes,
  */
 unlistedChosen: boolean, 
 /**
- * C11 Which provider wins when several have an emote by the same name.
+ * C11 Which provider wins when several have an emote by the same name. V110-U71 Twitch is in
+ * the list too (files from before have it added first), and Tab completion uses it as well.
  */
 emotePriority: Array<EmoteSource>, 
 /**

@@ -31,7 +31,7 @@
 
   const name = (s: EmoteSource) => (s === 'emoji' ? 'Emoji' : PROVIDER_NAMES[s]);
 
-  /** V110-E13 Providers switched off aren't ranked; the rest keep their order. */
+  /** V110-E13 Providers switched off aren't ranked; the rest keep their order. V110-U71 Twitch is ranked too. */
   const ON: Record<string, boolean> = $derived({
     seventv: c.seventvEmotes,
     bttv: c.bttvEmotes,
@@ -75,7 +75,7 @@
     onchange={(v) => settings.patch('chat', { animateOnlyFocused: v })}
   />
 </Row>
-<Row setting="chat.emotePriority" label="Which wins" hint="When two have an emote with the same name. The channel’s emotes still beat global ones.">
+<Row setting="chat.emotePriority" label="Which wins" hint="First wins when two have an emote with the same name, in chat and in suggestions. The channel’s emotes still beat global ones.">
   <ol class="order">
     {#each ranked as s, i (s)}
       <li>

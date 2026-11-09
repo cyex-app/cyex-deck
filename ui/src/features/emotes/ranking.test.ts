@@ -5,7 +5,7 @@ import type { EmoteMenu } from '../../ipc/bindings/EmoteMenu';
 import type { MenuEmote } from '../../ipc/bindings/MenuEmote';
 import { RANK } from '../chat/completion.ts';
 import { search } from './menu.ts';
-import { rankEmotes, rankNames, usageRank } from './ranking.ts';
+import { orderHits, rankEmotes, rankNames, usageRank } from './ranking.ts';
 
 function e(provider: MenuEmote['provider'], id: string, name: string, locked: string | null = null): MenuEmote {
   return {
@@ -46,24 +46,36 @@ test('V107-R7 menu search: exact, then prefix by use, then menu order; a used co
   assert.deepEqual(search(kapps, 'kappa', 200, pride).map((x) => x.name), ['Kappa', 'KappaPride']);
 });
 
-test('V107-R7 Tab completion ranks the same way', () => {
-  const used = (n: string) => ({ KEKWait: 0, KEKL: 1, xKEKx: 0 })[n] ?? Infinity;
-  const names = ['KEKW', 'xKEKx', 'KEKL', 'KEKWait'];
-  assert.deepEqual(rankNames('kek', names, 8, used), ['KEKWait', 'KEKL', 'KEKW', 'xKEKx']);
-  // Unused: the order given (menu order), not the shortest.
-  assert.deepEqual(rankNames('kek', names), ['KEKW', 'KEKL', 'KEKWait', 'xKEKx']);
-  // Exact case leads; what's typed exactly is left out; each name once.
-  assert.deepEqual(rankNames('KEKW', ['KEKWait', 'KEKW', 'kekw', 'kekw'], 8, used), ['kekw', 'KEKWait']);
+test('V110-U71 Tab: the closest match first, the rest A-Z', () => {
+  const names = ['MercyWing2', 'MercyWing1', 'merp', 'ME?', 'meow', 'menheraLost', 'melon', 'mewhenflang', 'xMe'];
+  assert.deepEqual(rankNames('me', names, 30), [
+    'ME?',
+    'melon',
+    'menheraLost',
+    'meow',
+    'MercyWing1',
+    'MercyWing2',
+    'merp',
+    'mewhenflang',
+    'xMe',
+  ]);
+  // The exact name in another case leads; what's typed exactly is left out; each name once.
+  assert.deepEqual(rankNames('KEKW', ['KEKWait', 'KEKW', 'kekw', 'kekw', 'KEK'], 8), ['kekw', 'KEKWait']);
+  // No exact name: the shortest prefix match leads (ties A-Z), the others follow A-Z.
+  assert.deepEqual(rankNames('kek', ['KEKW', 'xKEKx', 'KEKL', 'KEKWait', 'kekB'], 8), ['kekB', 'KEKL', 'KEKW', 'KEKWait', 'xKEKx']);
+  // Contains and acronym matches stay behind prefix ones.
+  assert.deepEqual(rankNames('sob', ['SmallOrangeBird', 'xsobx', 'SoBayed']), ['SoBayed', 'xsobx', 'SmallOrangeBird']);
 });
 
-test('V107-R7 one order for both: menu and Tab agree', () => {
-  const used = usageRank([
-    { emote: { source: 'seventv', id: 'x', name: 'xKappx' } },
-    { emote: { source: 'twitch', id: 'p', name: 'KappaPride' } },
-  ]);
-  const byName = new Map([['xKappx', 0], ['KappaPride', 1]]);
-  const tab = rankNames('kapp', ['Kappu', 'Kappa', 'KappaPride', 'xKappx'], 8, (n) => byName.get(n) ?? Infinity);
-  assert.deepEqual(search(kapps, 'kapp', 200, used).map((x) => x.name), tab);
+test('V110-U71 orderHits: the tie value decides between the same name', () => {
+  const c = [
+    { item: 'bttv', name: 'Same', tie: 2 },
+    { item: 'seventv', name: 'Same', tie: 0 },
+    { item: 'twitch', name: 'Same', tie: 1 },
+    { item: 'other', name: 'Samey' },
+  ];
+  assert.deepEqual(orderHits('sam', c), ['seventv', 'twitch', 'bttv', 'other']);
+  assert.deepEqual(orderHits('same', c), ['seventv', 'twitch', 'bttv', 'other']);
 });
 
 test('V107-R7 locked emotes come last, and the weakest match kept is the caller’s', () => {

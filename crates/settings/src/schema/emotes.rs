@@ -49,8 +49,9 @@ pub enum EmoteSource {
 }
 
 impl EmoteSource {
-    /// C11 The providers the priority order ranks.
-    pub const THIRD_PARTY: [EmoteSource; 3] = [EmoteSource::Seventv, EmoteSource::Bttv, EmoteSource::Ffz];
+    /// C11 The providers the priority order ranks, in the default order. V110-U71 Twitch is one
+    /// of them now (it was always first before).
+    pub const RANKED: [EmoteSource; 4] = [EmoteSource::Twitch, EmoteSource::Seventv, EmoteSource::Bttv, EmoteSource::Ffz];
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize, TS)]

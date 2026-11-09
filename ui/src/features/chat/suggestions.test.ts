@@ -16,11 +16,24 @@ test('emotes before emoji', () => {
   assert.equal(items[1].value, '🍢');
 });
 
-test('an exact emote name comes first, even against emotes you use more', () => {
-  const emotes = ['Kappu', 'KappaWealth', 'Kappa'].map((name, i) => ({ name, provider: 'twitch' as const, id: String(i) }));
-  const used = (n: string) => (n === 'Kappu' ? 0 : n === 'KappaWealth' ? 1 : Infinity);
-  assert.equal(emoteItems('Kappa', emotes, [], 8, used)[0].label, 'Kappa');
-  assert.equal(emoteItems('kappa', emotes, [], 8, used)[0].label, 'Kappa');
+test('an exact emote name comes first, then the rest A-Z (V110-U71)', () => {
+  const emotes = ['Kappu', 'KappaWealth', 'Kappa', 'KappaPride'].map((name, i) => ({ name, provider: 'twitch' as const, id: String(i) }));
+  assert.deepEqual(emoteItems('Kappa', emotes, []).map((i) => i.label), ['Kappa', 'KappaPride', 'KappaWealth']);
+  assert.equal(emoteItems('kappa', emotes, [])[0].label, 'Kappa');
+  assert.deepEqual(emoteItems('kapp', emotes, []).map((i) => i.label), ['Kappa', 'KappaPride', 'KappaWealth', 'Kappu']);
+});
+
+test('one name from two providers: the preferred provider is offered (V110-U71)', () => {
+  const emotes = [
+    { name: 'OMEGALUL', provider: 'twitch' as const, id: '1' },
+    { name: 'OMEGALUL', provider: 'seventv' as const, id: '2' },
+    { name: 'OMEGALUL', provider: 'bttv' as const, id: '3' },
+  ];
+  const order = (p: string) => ['seventv', 'twitch', 'bttv', 'ffz'].indexOf(p);
+  const items = emoteItems('omega', emotes, [], 8, order);
+  assert.equal(items.length, 1);
+  assert.equal(items[0].emote?.provider, 'seventv');
+  assert.equal(emoteItems('omega', emotes, [], 8, (p) => ['twitch', 'seventv', 'bttv', 'ffz'].indexOf(p))[0].emote?.provider, 'twitch');
 });
 
 test('bot commands by level', () => {

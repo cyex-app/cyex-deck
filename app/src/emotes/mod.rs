@@ -192,21 +192,25 @@ fn change_line(app: &AppHandle, login: &str, text: &str) {
     crate::chat::system_line(app, login, text);
 }
 
-/// C11 The order, Twitch first. V110-E13 Providers switched off aren't in it.
+/// C11 The order from the settings. V110-U71 Twitch is ranked there too (first by default).
+/// V110-E13 Providers switched off aren't in it.
 fn priority(c: &ChatSettings) -> Vec<Provider> {
     let off = providers::plan(c).sets_off;
-    let mut out = vec![Provider::Twitch];
-    out.extend(
-        c.emote_priority
-            .iter()
-            .filter_map(|s| match s {
-                EmoteSource::Seventv => Some(Provider::Seventv),
-                EmoteSource::Bttv => Some(Provider::Bttv),
-                EmoteSource::Ffz => Some(Provider::Ffz),
-                _ => None,
-            })
-            .filter(|p| !off.has(*p)),
-    );
+    let mut out: Vec<Provider> = c
+        .emote_priority
+        .iter()
+        .filter_map(|s| match s {
+            EmoteSource::Twitch => Some(Provider::Twitch),
+            EmoteSource::Seventv => Some(Provider::Seventv),
+            EmoteSource::Bttv => Some(Provider::Bttv),
+            EmoteSource::Ffz => Some(Provider::Ffz),
+            EmoteSource::Emoji => None,
+        })
+        .filter(|p| *p == Provider::Twitch || !off.has(*p))
+        .collect();
+    if !out.contains(&Provider::Twitch) {
+        out.insert(0, Provider::Twitch);
+    }
     out
 }
 

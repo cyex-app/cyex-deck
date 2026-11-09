@@ -401,8 +401,8 @@
       }
       if (!bare) return [];
       const people = sources.chatters().map((n) => (word.text.startsWith('@') ? `@${n}` : n));
-      // V107-R7 The emote menu's order: exact, match, most used, then menu order.
-      return rankNames(bare, [...sources.emotes().map((e) => e.name), ...people], 30, sources.used());
+      // V110-U71 Closest match first, the rest A-Z.
+      return rankNames(bare, [...sources.emotes().map((e) => e.name), ...people], 30);
     };
     const all = async () => {
       if (arg) {

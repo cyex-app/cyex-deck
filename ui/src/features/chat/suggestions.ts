@@ -4,7 +4,7 @@
 import type { BotCommand } from '../../ipc/bindings/BotCommand';
 import type { ModRole } from '../../ipc/bindings/ModRole';
 import type { Provider } from '../../ipc/bindings/Provider';
-import { rankEmotes } from '../emotes/ranking.ts';
+import { orderHits } from '../emotes/ranking.ts';
 import { RANK } from './completion.ts';
 
 export interface Item {
@@ -30,23 +30,27 @@ export interface EmojiName {
   name: string;
 }
 
-/** Emotes and emoji in one order (V107-R7): how well the name matches first, so `:sob`
- *  shows 😭 before SoBayed and CoolStoryBob (V110-F10); on a tie emotes go first. Emoji found
- *  only by a search word come after. V110-F49 Like Tab (V110-F09), letters that merely come in
- *  order ("cdprSonbird" for `:sob`) aren't a match; acronyms are. */
+/** Emotes and emoji in one order (V110-U71): the closest match first (the exact name, else the
+ *  shortest that starts with what's typed, so `:sob` shows 😭 before SoBayed), the rest A-Z by how
+ *  they match; on a tie emotes go first. Letters that merely come in order ("cdprSonbird" for
+ *  `:sob`) aren't a match; acronyms are (V110-F49). Two emotes with one name: only the provider
+ *  `provider` puts first (lower) is offered. Emoji found only by a search word come after. */
 export function emoteItems(
   prefix: string,
   emotes: EmoteName[],
   emoji: EmojiName[],
   limit = 8,
-  used?: (name: string) => number,
+  provider: (p: Provider) => number = () => 0,
 ): Item[] {
-  const byName = new Map(emotes.map((e) => [e.name, e]));
+  const byName = new Map<string, EmoteName>();
+  for (const e of emotes) {
+    const have = byName.get(e.name);
+    if (!have || provider(e.provider) < provider(have.provider)) byName.set(e.name, e);
+  }
   type Hit = { emote: EmoteName } | { emoji: EmojiName };
-  // Unlike Tab, `:` keeps the exact name: it ranks first (an exact match beats every prefix match).
-  const ranked = rankEmotes<Hit>(prefix, [
-    ...[...byName.values()].map((e) => ({ item: { emote: e }, name: e.name, used: used?.(e.name) })),
-    ...emoji.map((e) => ({ item: { emoji: e }, name: e.name })),
+  const ranked = orderHits<Hit>(prefix, [
+    ...[...byName.values()].map((e) => ({ item: { emote: e }, name: e.name, tie: provider(e.provider) })),
+    ...emoji.map((e) => ({ item: { emoji: e }, name: e.name, tie: Infinity })),
   ], RANK.acronym).slice(0, limit);
   const items: Item[] = ranked.map((h) =>
     'emote' in h
