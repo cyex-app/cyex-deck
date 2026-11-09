@@ -14,6 +14,7 @@ import type { HighlightPreview } from './bindings/HighlightPreview';
 import type { Highlights } from './bindings/Highlights';
 import type { Hotkeys } from './bindings/Hotkeys';
 import type { ImportReport } from './bindings/ImportReport';
+import type { MenuLayouts } from './bindings/MenuLayouts';
 import type { Miner } from './bindings/Miner';
 import type { Modview } from './bindings/Modview';
 import type { Notifications } from './bindings/Notifications';
@@ -46,6 +47,7 @@ export interface SettingsValues {
   plugins: Plugins;
   uploader: Uploader;
   combos: Combos;
+  menus: MenuLayouts;
 }
 
 /** JSON merge patch shape: nested objects merge, arrays replace, `null` resets to default. */

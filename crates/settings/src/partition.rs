@@ -33,10 +33,12 @@ pub enum Partition {
     Uploader,
     /// V1051-04
     Combos,
+    /// V110-U67 How the menus are arranged.
+    Menus,
 }
 
 impl Partition {
-    pub const ALL: [Partition; 19] = [
+    pub const ALL: [Partition; 20] = [
         Partition::General,
         Partition::Appearance,
         Partition::Chat,
@@ -56,6 +58,7 @@ impl Partition {
         Partition::Plugins,
         Partition::Uploader,
         Partition::Combos,
+        Partition::Menus,
     ];
 
     pub fn key(self) -> &'static str {
@@ -79,6 +82,7 @@ impl Partition {
             Partition::Plugins => "plugins",
             Partition::Uploader => "uploader",
             Partition::Combos => "combos",
+            Partition::Menus => "menus",
         }
     }
 
@@ -120,6 +124,7 @@ impl Partition {
             Partition::Plugins => roundtrip::<schema::Plugins>(value),
             Partition::Uploader => roundtrip::<schema::Uploader>(value),
             Partition::Combos => roundtrip::<schema::Combos>(value),
+            Partition::Menus => roundtrip::<schema::MenuLayouts>(value),
         }
     }
 
@@ -148,7 +153,7 @@ mod tests {
         assert_eq!(Partition::from_key("nope"), None);
         // V106-33 Folded into highlights by `legacy`, never a partition again.
         assert_eq!(Partition::from_key("mentions"), None);
-        assert_eq!(Partition::ALL.len(), 19);
+        assert_eq!(Partition::ALL.len(), 20);
     }
 
     #[test]
@@ -159,6 +164,8 @@ mod tests {
         assert!(Partition::Chat.is_portable());
         // V1051-04 Combos are names and ids only.
         assert!(Partition::Combos.is_portable());
+        // V110-U67 Menu layouts hold labels and links only.
+        assert!(Partition::Menus.is_portable());
     }
 
     #[test]

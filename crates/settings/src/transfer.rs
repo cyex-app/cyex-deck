@@ -130,6 +130,16 @@ mod tests {
     }
 
     #[test]
+    fn menu_layouts_travel_in_a_bundle() {
+        // V110-U67
+        assert!(Partition::ALL.contains(&Partition::Menus));
+        let menus = json!({"layouts": {"chat.name": {"nodes": [{"t": "sep"}], "known": ["usercard"]}}});
+        let bundle = Bundle::new(BTreeMap::from([("menus".into(), menus.clone())]), day(9).with_time(Time::MIDNIGHT).assume_utc());
+        let back = Bundle::from_json(&bundle.to_json()).unwrap();
+        assert_eq!(back.partitions["menus"], menus);
+    }
+
+    #[test]
     fn share_code_round_trip_ignores_whitespace() {
         let bundle = sample();
         let code = bundle.to_share_code();

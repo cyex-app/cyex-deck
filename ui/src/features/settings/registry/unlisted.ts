@@ -9,6 +9,7 @@ export const UNLISTED: Record<string, string> = {
   'browse.favorites': 'Home and Discover remember their own sort and favorites.',
   'browse.languages': 'Home and Discover remember their own sort and favorites.',
   combos: 'Saved in the 7TV paint and badge menu or with /combo.',
+  menus: 'How each menu is arranged (a Settings page for it comes later).',
   'emotes.favorites': 'The emote menu’s favorites.',
   'emotes.usage': 'The emote menu’s most used.',
   modview: 'The mod view’s own layout and mod actions filter.',
