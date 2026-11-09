@@ -96,6 +96,20 @@ export const WATCHING: Entry[] = [
     keywords: ['priority', 'order', 'channel points'],
   },
   {
+    id: 'miner.badges.auto',
+    page: 'miner',
+    label: 'Earn badges on their own',
+    description: 'Picks every open watch-time badge. Off: tick the ones you want in the Miner view.',
+    keywords: ['badges', 'campaign', 'watch time'],
+  },
+  {
+    id: 'miner.badges.findChannels',
+    page: 'miner',
+    label: 'Find channels for badges',
+    description: 'Watches up to 5 channels outside your list, never saved.',
+    keywords: ['badges', 'helper', 'channels'],
+  },
+  {
     id: 'miner.claimInTabs',
     page: 'miner',
     label: 'Bonus chests in open tabs',

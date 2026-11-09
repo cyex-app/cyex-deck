@@ -1,12 +1,17 @@
 // The miner as the main window sees it (08): its status and log (W4), kept current by
 // Rust's events from the first call of `start` on.
 
+import type { BadgeView } from '../../ipc/bindings/BadgeView';
+import type { EarnedBadge } from '../../ipc/bindings/EarnedBadge';
 import type { LogLine } from '../../ipc/bindings/LogLine';
 import type { MinedChannel } from '../../ipc/bindings/MinedChannel';
 import type { MinerStatus } from '../../ipc/bindings/MinerStatus';
 import { minerIpc } from '../../ipc/miner';
 
 const LOG_MAX = 1000;
+
+/** V110-U68 The status fields for badges, optional so an older Rust side still fits. */
+type WithBadges = { badges?: BadgeView[]; focus?: string | null; earned?: EarnedBadge[] };
 
 class MinerStore {
   status = $state.raw<MinerStatus | null>(null);
@@ -18,6 +23,21 @@ class MinerStore {
   /** 1.33 Channels getting watch time from the miner now. */
   get mining(): string[] {
     return (this.status?.channels ?? []).filter((c) => c.mining).map((c) => c.name);
+  }
+
+  /** V110-U68 Open badge campaigns, with progress. */
+  get badges(): BadgeView[] {
+    return (this.status as WithBadges | null)?.badges ?? [];
+  }
+
+  /** V110-U68 The campaign being earned right now. */
+  get focus(): string | null {
+    return (this.status as WithBadges | null)?.focus ?? null;
+  }
+
+  /** V110-U68 Badges earned since the app started. */
+  get earned(): EarnedBadge[] {
+    return (this.status as WithBadges | null)?.earned ?? [];
   }
 
   /** V107-R8 The view opened: avatars and who's live, if the miner is off. */

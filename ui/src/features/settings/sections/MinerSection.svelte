@@ -24,6 +24,9 @@
   const b = $derived(m.bets);
   const save = (patch: Partial<Miner>) => void settings.patch('miner', patch);
   const bet = (patch: Partial<Bets>) => save({ bets: { ...b, ...patch } });
+  // V110-U68 Badges: the miner's own picks live in the Miner view; these are the two switches.
+  const badges = $derived(m.badges);
+  const badge = (patch: Partial<typeof badges>) => save({ badges: { ...badges, ...patch } });
 
   const RULES: { value: MinerRule; label: string; hint: string }[] = [
     { value: 'streak', label: 'Watch streaks', hint: 'Streams where the streak isn’t earned yet.' },
@@ -105,6 +108,14 @@
     </span>
   </div>
 {/each}
+
+<SectionHead title="Badges">Watch-time badges that Twitch hands out in campaigns. The Miner view shows each one.</SectionHead>
+<Row setting="miner.badges.auto" label="Earn badges on their own" hint="Picks every badge that is open. Off: tick the ones you want in the Miner view. A badge goes before Mine first.">
+  <Toggle label="Earn badges on their own" checked={badges.auto} onchange={(auto) => badge({ auto })} />
+</Row>
+<Row setting="miner.badges.findChannels" label="Find channels for badges" hint="Watches up to 5 channels outside your list, never saved.">
+  <Toggle label="Find channels for badges" checked={badges.findChannels} onchange={(findChannels) => badge({ findChannels })} />
+</Row>
 
 <SectionHead title="Claims">Bonus chests the miner picks up for you.</SectionHead>
 <Row setting="miner.claimInTabs" label="Bonus chests in open tabs" hint="With each tab’s account, not only in mined channels.">

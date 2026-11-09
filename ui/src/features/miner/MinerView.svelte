@@ -11,6 +11,7 @@
   import { tooltip } from '../../components/tooltip.svelte';
   import { accounts } from '../../lib/accounts.svelte';
   import { settings } from '../../lib/settings.svelte';
+  import { statusLine } from './badges';
   import { miner } from './miner.svelte';
   import MinerChannels from './MinerChannels.svelte';
   import MinerLog from './MinerLog.svelte';
@@ -41,6 +42,8 @@
     if (!s.enabled) return ''; // the Mining switch already says so
     if (!st) return '';
     if (st.problem) return st.problem;
+    const badge = statusLine({ badges: miner.badges, focus: miner.focus, channels: st.channels });
+    if (badge) return badge;
     const mining = miner.mining;
     const watching = st.channels.filter((c) => c.watching).map((c) => c.name);
     const parts = [];

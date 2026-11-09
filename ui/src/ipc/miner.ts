@@ -27,6 +27,10 @@ export const minerIpc = {
   add: (channel: TabChannel) => invoke<boolean>('miner_add', { channel }),
   /** 1.44 The name of the channel that made room, if one did. */
   first: (channel: TabChannel, on: boolean) => invoke<string | null>('miner_first', { channel, on }),
+  /** V110-U68 Picks or unpicks one badge campaign to earn. */
+  badgePick: (campaign: string, on: boolean) => invoke<void>('miner_badge_pick', { campaign, on }),
+  /** V110-U68 "All": earn every open badge on its own. */
+  badgesAuto: (on: boolean) => invoke<void>('miner_badges_auto', { on }),
   onStatus: (handler: (s: MinerStatus) => void) => listen<MinerStatus>('miner:status', (e) => handler(e.payload)),
   onLog: (handler: (l: LogLine) => void) => listen<LogLine>('miner:log', (e) => handler(e.payload)),
   onLogCleared: (handler: () => void) => listen('miner:log:cleared', () => handler()),

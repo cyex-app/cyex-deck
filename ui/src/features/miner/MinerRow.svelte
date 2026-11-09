@@ -24,11 +24,13 @@
     onfirst?: (on: boolean) => void;
     onremove?: () => void;
     onskip?: (skip: boolean) => void;
+    /** V110-U68 Found only for a badge: outside your list, never saved, no buttons. */
+    helper?: boolean;
     /** A drag handle, for the list. */
     handle?: Snippet;
   }
 
-  let { channel, info, first, skipped = false, idle = false, onfirst, onremove, onskip, handle }: Props = $props();
+  let { channel, info, first, skipped = false, idle = false, onfirst, onremove, onskip, helper = false, handle }: Props = $props();
 
   const avatar = $derived(info?.avatar ?? null);
 </script>
@@ -51,12 +53,13 @@
       {#if info?.live && info.game}<span class="game">{info.game}</span>{/if}
     </span>
   </div>
+  {#if helper}<span class="chip" use:tooltip={'Watched only to earn a badge. Not on your list.'}>For a badge</span>{/if}
   {#if info?.streak}<span class="chip" use:tooltip={'A watch streak is still to be had this stream.'}>Streak</span>{/if}
   {#if info?.drops}<span class="chip" use:tooltip={'Drops run here.'}>Drops</span>{/if}
   {#if info?.balance != null}
     <span class="balance" use:tooltip={'Channel points'}><Icon name="points" size={13} />{formatNumber(info.balance)}</span>
   {/if}
-  {#if onfirst}
+  {#if onfirst && !helper}
     <IconButton
       icon={first ? 'starFilled' : 'star'}
       label={first ? 'Not first anymore' : 'Mine first'}
@@ -66,7 +69,7 @@
       onclick={() => onfirst(!first)}
     />
   {/if}
-  {#if onskip}
+  {#if onskip && !helper}
     <IconButton
       icon={skipped ? 'eye' : 'eyeOff'}
       label={skipped ? 'Mine again' : 'Skip'}
@@ -75,9 +78,9 @@
       onclick={() => onskip(!skipped)}
     />
   {/if}
-  {#if onremove}<IconButton icon="x" label="Take off the list" size={14} onclick={onremove} />{/if}
+  {#if onremove && !helper}<IconButton icon="x" label="Take off the list" size={14} onclick={onremove} />{/if}
   <!-- v1.07 T4: a first channel in follows mode has no last button; keep its star in line. -->
-  {#if onfirst && !onremove && !onskip}<span class="slot"></span>{/if}
+  {#if onfirst && !onremove && !onskip && !helper}<span class="slot"></span>{/if}
 </div>
 
 <style>

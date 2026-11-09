@@ -9,6 +9,7 @@
   import Icon from '../../components/Icon.svelte';
   import Segmented from '../../components/Segmented.svelte';
   import type { ChannelInfo } from '../../ipc/bindings/ChannelInfo';
+  import type { MinedChannel } from '../../ipc/bindings/MinedChannel';
   import type { MineSource } from '../../ipc/bindings/MineSource';
   import type { TabChannel } from '../../ipc/bindings/TabChannel';
   import { minerIpc } from '../../ipc/miner';
@@ -16,6 +17,7 @@
   import { settings } from '../../lib/settings.svelte';
   import { toast } from '../../lib/toast.svelte';
   import ChannelPicker from '../tabs/ChannelPicker.svelte';
+  import MinerBadges from './MinerBadges.svelte';
   import { miner } from './miner.svelte';
   import MinerRow from './MinerRow.svelte';
   import { errorText } from '../../lib/errors';
@@ -27,6 +29,9 @@
 
   const s = $derived(settings.v.miner);
   const idle = $derived(!miner.status?.running);
+  // V110-U68 Channels watched only for a badge (outside the list), if Rust sends them.
+  type Helper = MinedChannel & { helperFor?: string | null };
+  const helpers = $derived(((miner.status?.channels ?? []) as Helper[]).filter((c) => c.helperFor));
   const dropKeys = $derived(uniqueKeys(miner.status?.drops ?? [], (d) => d.name + d.game));
   // V107-R8 While off, what the view's own lookup found.
   const info = $derived(
@@ -42,8 +47,8 @@
   const list = $derived(s.channels.filter((c) => !firstIds.has(c.id)));
   const skipIds = $derived(new Set(s.skip.map((c) => c.id)));
   const follows = $derived(
-    (miner.status?.channels ?? [])
-      .filter((c) => !firstIds.has(c.id) && !skipIds.has(c.id))
+    ((miner.status?.channels ?? []) as Helper[])
+      .filter((c) => !c.helperFor && !firstIds.has(c.id) && !skipIds.has(c.id))
       .map((c): TabChannel => ({ id: c.id, login: c.login, name: c.name })),
   );
 
@@ -98,6 +103,8 @@
 {#snippet noGrip()}<span class="no-grip"></span>{/snippet}
 
 <div class="channels">
+  <MinerBadges />
+
   <div class="top">
     <Segmented
       label="What to mine"
@@ -176,6 +183,13 @@
         />
       {/each}
     {/if}
+  {/if}
+
+  {#if helpers.length}
+    <h2>For badges <span class="count">{helpers.length}</span></h2>
+    {#each helpers as c (c.id)}
+      <MinerRow channel={strip(c)} info={c} first={false} helper />
+    {/each}
   {/if}
 
   {#if miner.status?.drops.length}
