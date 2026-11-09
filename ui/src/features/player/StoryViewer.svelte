@@ -15,6 +15,7 @@
   import { errorText } from '../../lib/errors';
   import Loading from '../../components/Loading.svelte';
   import { releaseMedia } from '../../lib/releaseMedia';
+  import { typingTarget } from '../../lib/typingTarget';
   import { pictureBar, videoBar } from './storyBar';
 
   interface Props {
@@ -97,7 +98,8 @@
   });
 
   function onkeydown(e: KeyboardEvent) {
-    if (e.defaultPrevented) return;
+    // V110-F83 Not while typing elsewhere (chat), and a held arrow moves one story.
+    if (e.defaultPrevented || e.repeat || typingTarget(e.target)) return;
     if (e.key === 'ArrowRight') next();
     else if (e.key === 'ArrowLeft') prev();
   }

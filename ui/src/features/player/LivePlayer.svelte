@@ -47,7 +47,7 @@
   import { Rewind } from './rewind.svelte';
   import SeekBar from './SeekBar.svelte';
   import { BUFFER_TEXT, STALL_TEXT } from './stall';
-  import { recheckDelay } from './recheck';
+  import { offlineDelay, recheckDelay } from './recheck';
   import { onShown, pageHidden } from '../../lib/awake';
   import { tabs } from '../tabs/tabs.svelte';
   import { audioFocus } from '../tabs/audioFocus.svelte';
@@ -94,7 +94,8 @@
     stats = statsWanted(tile.id);
   });
   let tries = 0;
-  const OFFLINE_RECHECK_MS = 15_000;
+  // V110-F83 Offline rechecks that found it still offline (15, 30, 60 s apart).
+  let offlineMisses = 0;
   let retry: ReturnType<typeof setTimeout> | undefined;
 
   // svelte-ignore state_referenced_locally
@@ -162,6 +163,7 @@
   $effect(() => {
     if (engine?.playing) {
       tries = 0;
+      offlineMisses = 0;
       checking = false;
       quiet = false;
     }
@@ -189,10 +191,14 @@
     const e = engine;
     if (e?.failure && e.failure !== 'offline') checking = false;
     if (!e || e.failure !== 'offline' || !info?.stream) return;
+    // V110-F83 A hidden window waits; it looks again when shown.
+    const wait = offlineDelay(offlineMisses, hiddenNow);
+    if (wait === null) return;
     const t = setTimeout(() => {
       checking = true;
+      offlineMisses += 1;
       void start(e, e.choice, login, account);
-    }, OFFLINE_RECHECK_MS);
+    }, wait);
     return () => clearTimeout(t);
   });
 
@@ -365,6 +371,7 @@
 
   function reload() {
     tries = 0;
+    offlineMisses = 0;
     if (engine) void start(engine, engine.choice, login, account);
   }
 

@@ -38,6 +38,7 @@ import {
   userPause,
 } from './liveMachine';
 import { type Choice, levelFor, levelName, lowestLevel } from './quality';
+import { recoverMedia } from './mediaRecover';
 import { Steer } from './steer';
 import { exposeLive, ll7Old, streamFmp4 } from './fmp4Stream';
 import { dateAt, goneDue, isGone, nextAfter, type Piece, posAt, replayStart } from './replayClock';
@@ -146,7 +147,8 @@ export class Engine {
    *  and where play goes on after it. Skipped when the play head gets there. */
   private goneAhead: { start: number; next: number | null } | null = null;
   private playerPx = 720;
-  private recovered = 0;
+  // V110-F83 When the last media-error recoveries ran (see mediaRecover.ts).
+  private recovered: number[] = [];
   /** rd-2 Counts loads: only the newest makes an hls instance. */
   private loads = 0;
   /** V103-03 */
@@ -439,7 +441,7 @@ export class Engine {
     this.dropHls();
     this.failure = null;
     this.waiting = true;
-    this.recovered = 0;
+    this.recovered = [];
     this.erred = false;
     this.playCc = null;
     this.planned.clear();
@@ -659,6 +661,15 @@ export class Engine {
     hls.loadLevel = i;
   }
 
+  /** V110-F83 One more media-error recovery, if the budget allows. */
+  private recoverMedia(): boolean {
+    const next = recoverMedia(this.recovered, Date.now());
+    if (!next) return false;
+    this.recovered = next;
+    this.hls?.recoverMediaError();
+    return true;
+  }
+
   private onError(Hls: typeof HlsType, d: ErrorData): void {
     if (this.skipGone(Hls, d)) return;
     if (!d.fatal) return;
@@ -679,10 +690,7 @@ export class Engine {
       else if (/geoblocked(?!_or_offline)/.test(body)) this.fail('geo');
       else if (code === 403 && !this.live) this.fail('subs');
       else this.fail('network');
-    } else if (d.type === Hls.ErrorTypes.MEDIA_ERROR && this.recovered < 2) {
-      this.recovered += 1;
-      this.hls?.recoverMediaError();
-    } else {
+    } else if (d.type !== Hls.ErrorTypes.MEDIA_ERROR || !this.recoverMedia()) {
       this.fail('media');
     }
   }

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { QUICK_TRIES, RECHECK_MS, recheckDelay } from './recheck.ts';
+import { QUICK_TRIES, RECHECK_MS, offlineDelay, recheckDelay } from './recheck.ts';
 
 const base = { failure: 'network', tries: QUICK_TRIES, listed: true, hidden: false };
 
@@ -21,4 +21,12 @@ test('only rechecks network failures', () => {
   for (const failure of [null, 'offline', 'geo', 'subs', 'media', 'gone']) {
     assert.equal(recheckDelay({ ...base, failure }), null);
   }
+});
+
+test('V110-F83 offline rechecks back off 15, 30, 60 s and rest while hidden', () => {
+  assert.equal(offlineDelay(0, false), 15_000);
+  assert.equal(offlineDelay(1, false), 30_000);
+  assert.equal(offlineDelay(2, false), 60_000);
+  assert.equal(offlineDelay(9, false), 60_000);
+  assert.equal(offlineDelay(0, true), null);
 });

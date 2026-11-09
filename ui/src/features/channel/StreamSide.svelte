@@ -177,7 +177,10 @@
       <Offline {tile} {info} onpage={go} onstories={() => (shared.stories = true)} />
     {/if}
     {#if shared.overlay}
-      <ClipOverlay slug={shared.overlay} {tile} {made} onclose={closeOverlay} />
+      <!-- V110-F83 A second clip link loads its own player. -->
+      {#key shared.overlay}
+        <ClipOverlay slug={shared.overlay} {tile} {made} onclose={closeOverlay} />
+      {/key}
     {/if}
     {#if shared.stories && account}
       <StoryViewer

@@ -19,3 +19,9 @@ export interface RecheckInput {
 export function recheckDelay(i: RecheckInput): number | null {
   return i.failure === 'network' && i.tries >= QUICK_TRIES && i.listed && !i.hidden ? RECHECK_MS : null;
 }
+
+/** V110-F83 Wait before the next offline recheck: 15, 30, then 60 s while it keeps failing;
+ *  null while the page is hidden (it looks again when shown). */
+export function offlineDelay(misses: number, hidden: boolean): number | null {
+  return hidden ? null : Math.min(RECHECK_MS * 2 ** Math.max(0, misses), 4 * RECHECK_MS);
+}

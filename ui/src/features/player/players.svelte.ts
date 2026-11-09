@@ -10,6 +10,7 @@ import type { TileShow } from '../../ipc/bindings/TileShow';
 import { CappedMap, useCapped } from '../../lib/capped';
 import { keyTaken } from '../../lib/escape';
 import { settings } from '../../lib/settings.svelte';
+import { pickShown } from './pickPlayer';
 import { barKeepsKey, liveKeyAction, ownsKey, type SeekResult, seekText, stepChoice, Steps } from './liveKeys';
 
 /** V101-29 What Windows' media controls show for a player. */
@@ -31,7 +32,7 @@ export interface PlayerControls {
   seekBy?(seconds: number): unknown;
   /** V1061-02 Live streams: back to the live point, playing. */
   toLive?(): void;
-  /** Q25 Â±1 = Â±5 %. */
+  /** Q25 ±1 = ±5 %. */
   volumeStep?(direction: number): void;
   /** Whether the player is on screen (not hidden, not the corner player). */
   visible?(): boolean;
@@ -75,9 +76,7 @@ class Players {
   /** Q27 a The player the arrow keys act on: the one used last if it is on screen, else the first that is. */
   get shown(): PlayerControls | null {
     void this.version;
-    const l = this.last;
-    if (l?.visible?.()) return l;
-    return this.list.find((p) => p.visible?.()) ?? null;
+    return pickShown(this.last, this.list);
   }
 }
 
@@ -116,7 +115,7 @@ function keySeek(sign: number, e: KeyboardEvent): void | false {
   p.say?.(t);
 }
 
-/** Q25 Up/Down: volume Â±5 %. */
+/** Q25 Up/Down: volume ±5 %. */
 function keyVolume(d: number, e: KeyboardEvent): void | false {
   const p = players.shown;
   if (!p?.volumeStep || ownsKey(document.activeElement, e)) return false;
@@ -140,7 +139,9 @@ const CONTROLS =
 
 // V108-F43 A button in the player bar presses with Space and Enter only; M, F and the rest reach the player.
 function withPlayer(f: (p: PlayerControls) => void, e: KeyboardEvent): void | false {
-  const p = players.active;
+  // V110-F83 Space, M and F act on a player you can see; only when none is on screen do they reach
+  // the one playing in a background tab (as the media keys do, see `active`).
+  const p = players.shown ?? players.active;
   const focus = document.activeElement;
   if (!p || (focus instanceof HTMLElement && focus.closest(CONTROLS) && (!focus.closest('[data-bar]') || barKeepsKey(focus, e)))) {
     return false;
@@ -196,8 +197,9 @@ export function openTarget(tile: { id: string; show: TileShow }, target: LinkTar
  *  player inside a `[data-fullscreen]` surface takes the surface along, so a clip over the
  *  stream still shows (V101-26). */
 export async function toggleFullscreen(el: HTMLElement): Promise<void> {
-  if (document.fullscreenElement) await document.exitFullscreen();
-  else await el.requestFullscreen();
+  // V110-F83 A refused fullscreen isn't worth a message.
+  if (document.fullscreenElement) await document.exitFullscreen().catch(() => {});
+  else await el.requestFullscreen().catch(() => {});
 }
 
 /** rd-5 Whether a player is fullscreen, for the buttons' labels. */
@@ -206,7 +208,7 @@ export const playerFullscreen = $state({ on: false });
 document.addEventListener('fullscreenchange', () => {
   playerFullscreen.on = Boolean(document.fullscreenElement);
   // V107-R46 Pop-outs maximize instead of going fullscreen, so only the player decides here.
-  void getCurrentWindow().setFullscreen(Boolean(document.fullscreenElement));
+  getCurrentWindow().setFullscreen(Boolean(document.fullscreenElement)).catch(() => {});
 });
 
 // rd-5 Escape leaves a player's fullscreen when WebView2 doesn't. Layers (menus, popovers)

@@ -66,6 +66,8 @@
   let downX = 0;
 
   function ondown(e: PointerEvent) {
+    // V110-F83 Only the primary button drags; a right or middle click never seeks.
+    if (e.button !== 0) return;
     dragging = true;
     downX = e.clientX;
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
@@ -80,6 +82,11 @@
     dragging = false;
     const t = at(e);
     onseek(Math.max(min, (isClick(downX, e.clientX) ? near(t)?.t : undefined) ?? t));
+  }
+
+  /** V110-F83 A cancelled pointer (touch taken over, capture lost) ends the drag without a seek. */
+  function oncancel() {
+    dragging = false;
   }
 
   const hit = $derived(hover === null || dragging ? null : near(hover));
@@ -100,6 +107,8 @@
   onpointerleave={() => !dragging && (hover = null)}
   onpointerdown={ondown}
   onpointerup={onup}
+  onpointercancel={oncancel}
+  onlostpointercapture={oncancel}
 >
   <div class="rail">
     <!-- s1-13 Scaled, not sized: no layout on every time update. -->

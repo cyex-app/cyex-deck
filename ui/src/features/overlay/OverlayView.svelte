@@ -14,6 +14,7 @@
   import { streamer } from '../../lib/streamer.svelte';
   import { toast } from '../../lib/toast.svelte';
   import { catalogs } from '../chat/catalog.svelte';
+  import { lineClick } from '../chat/clicks';
   import Line from '../chat/Line.svelte';
   import { ChatRoom } from '../chat/room.svelte';
   import { lookVars } from '../tabs/look';
@@ -121,9 +122,15 @@
     <IconButton icon="x" label="Close" size={14} onclick={() => void getCurrentWindow().close()} />
   </div>
   <!-- Newest at the bottom; older lines run off the top. -->
-  <div class="list">
+  <!-- V110-F83 Names open the usercard, links go through the app. -->
+  <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
+  <div class="list" onclick={lineClick}>
     {#each shown as m (m.id)}
-      <div class="row" style:animation-delay={o.fadeAfter > 0 ? fadeDelay(m.ts) : undefined}>
+      <div
+        class="row"
+        data-channel={tile?.channel.login ?? ''}
+        style:animation-delay={o.fadeAfter > 0 ? fadeDelay(m.ts) : undefined}
+      >
         <Line {m} channel={tile?.channel.login ?? ''} />
       </div>
     {/each}

@@ -7,6 +7,7 @@
   import { playerIpc } from '../../ipc/player';
   import { stopScroll } from '../../lib/smoothScroll';
   import { catalogs } from './catalog.svelte';
+  import { lineClick } from './clicks';
   import Line from './Line.svelte';
   import Loading from '../../components/Loading.svelte';
 
@@ -114,9 +115,11 @@
     <button class="switch" onclick={onlive}>Live chat</button>
     {@render actions?.()}
   </header>
-  <div class="list" bind:this={list} {onscroll} {onwheel}>
+  <!-- V110-F83 Names open the usercard, links go through the app. -->
+  <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
+  <div class="list" bind:this={list} {onscroll} {onwheel} onclick={lineClick}>
     {#each shown as i (i.m.id)}
-      <Line m={i.m} channel={login} />
+      <div data-channel={login}><Line m={i.m} channel={login} /></div>
     {:else}
       {#if loading || !loaded}<Loading label="Loading chat…" />{:else}<p class="empty">No chat here yet.</p>{/if}
     {/each}
