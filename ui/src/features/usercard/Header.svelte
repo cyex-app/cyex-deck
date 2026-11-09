@@ -198,7 +198,11 @@
       {#if profile.affiliate}<span class="role affiliate">Affiliate</span>{/if}
     </div>
     <EarnedBadges login={profile.login} userId={profile.id} {channel} fallback={badges} />
-    <button class="id" onclick={copyId} use:tooltip={'Copy user ID'}>ID {profile.id}</button>
+    <!-- V110-U58 The chip copies too; the icon beside it says so. -->
+    <div class="idrow">
+      <button class="id" onclick={copyId} use:tooltip={'Copy user ID'}>ID {profile.id}</button>
+      <button class="cp" aria-label="Copy ID" use:tooltip={'Copy ID'} onclick={copyId}><Icon name="copy" size={11} /></button>
+    </div>
   </div>
 </header>
 
@@ -454,8 +458,13 @@
     background: var(--surface-hover);
     color: var(--muted);
   }
-  .id {
+  .idrow {
+    display: flex;
+    align-items: center;
     align-self: flex-start;
+    gap: 4px;
+  }
+  .id {
     padding: 0;
     background: none;
     border: 0;
