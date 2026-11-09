@@ -443,7 +443,7 @@
     box-shadow:
       inset 0 0 0 100vmax transparent,
       0 0 0 4px transparent;
-    transition: box-shadow calc(var(--slow) * 2) var(--ease);
+    transition: box-shadow var(--found-fade, 1000ms) var(--ease);
   }
   /* Narrow windows: icons only (3.10), search above the page. */
   @container (max-width: 600px) {
