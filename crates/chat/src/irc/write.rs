@@ -41,7 +41,13 @@ pub fn privmsg(channel: &str, msg: &Outgoing) -> String {
     let text: String = msg
         .text
         .chars()
-        .map(|c| if c == '\r' || c == '\n' { ' ' } else { c })
+        .filter_map(|c| match c {
+            // V110-F86 Line breaks and tabs read as spaces; other control characters never go
+            // out (a pasted U+0001 would pose as a CTCP line). /me's own wrapper is added below.
+            '\r' | '\n' | '\t' => Some(' '),
+            c if c.is_control() => None,
+            c => Some(c),
+        })
         .collect();
     let body = if msg.action {
         format!("\u{1}ACTION {text}\u{1}")
@@ -89,5 +95,20 @@ mod tests {
             ..Default::default()
         };
         assert_eq!(privmsg("c", &o), "@reply-parent-msg-id=d PRIVMSG #c :yo");
+    }
+    /// V110-F86 Control characters in the text are dropped; /me keeps its own wrapper.
+    #[test]
+    fn control_characters_never_go_out() {
+        let o = Outgoing {
+            text: "a\u{1}b\u{7}c\u{7f}d\te\r\nf\u{1b}".into(),
+            ..Default::default()
+        };
+        assert_eq!(privmsg("c", &o), "PRIVMSG #c :abcd e  f");
+        let me = Outgoing {
+            text: "\u{1}ACTION x\u{1}".into(),
+            action: true,
+            ..Default::default()
+        };
+        assert_eq!(privmsg("c", &me), "PRIVMSG #c :\u{1}ACTION ACTION x\u{1}");
     }
 }

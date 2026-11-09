@@ -81,6 +81,8 @@
     bind:this={box}
     bind:value={text}
     rows="1"
+    dir="auto"
+    aria-label={`Whisper ${to}`}
     placeholder={disabled ? 'You can’t whisper them.' : `Whisper ${to}`}
     {disabled}
     onkeydown={keydown}

@@ -6,6 +6,8 @@
 <script lang="ts">
   import { tick, untrack } from 'svelte';
 
+  import { composing } from '../../lib/keys';
+
   import Icon from '../../components/Icon.svelte';
   import IconButton from '../../components/IconButton.svelte';
   import { openMenuAt } from '../../components/menu.svelte';
@@ -15,7 +17,6 @@
   import type { UiAction } from '../../ipc/bindings/UiAction';
   import { accounts } from '../../lib/accounts.svelte';
   import { settings } from '../../lib/settings.svelte';
-  import { rankNames } from '../emotes/ranking';
   import { commaStart, commaStep, commaValue, insert, keepExact, startsMessage, wordAt, type CommaPlan, type Word } from './completion';
   import { formatNumber } from '../../lib/format';
   import { commandAt, commandHint, commandMatches, tabTakes } from './commandTab';
@@ -47,6 +48,8 @@
   import UploadConfirm from './UploadConfirm.svelte';
   import { useUploads } from './upload.svelte';
   import type { Item } from './suggestions';
+  import { draftKey, dropLoneHigh, loadDraft, saveDraft, syncRecall, upRecalls } from './inputState';
+  import { tabNames } from './people';
   import { pinText } from './pinSend';
   import { plainText } from './text';
   import { errorText } from '../../lib/errors';
@@ -78,10 +81,20 @@
     () => settings.v.chat.sendButton,
   );
   $effect(() => (canChat ? side.watch() : undefined));
-  let text = $state('');
+  // V110-F86 The draft and the Up lines stay with the chat while its tab is away (not across restarts).
+  // svelte-ignore state_referenced_locally
+  const key = draftKey(room.account, room.login);
+  const kept = loadDraft(key);
+  let text = $state(kept.text);
   let error = $state('');
-  let sent: string[] = [];
+  let sent: string[] = kept.sent;
   let recall = -1;
+  const uid = $props.id();
+  const listId = `${uid}-suggest`;
+  $effect(() => {
+    const t = text;
+    untrack(() => saveDraft(key, t, sent));
+  });
   let now = $state(Date.now());
 
   interface Suggest {
@@ -105,7 +118,7 @@
     login: () => room.login,
     row: () => row,
     insert: (link) => void insertAtCaret(link),
-    fail: (m) => (error = m),
+    fail: (m) => flash(m),
   });
   /** V107-Bn A pasted cheer word asks first: a copied chat line never spends on Enter. */
   let pastedCheer = false;
@@ -275,7 +288,8 @@
       }));
     const names = await asked;
     if (seq !== argSeq) return;
-    const found = typed ? commandMatches(typed, names, 12) : names.slice(0, 12).map((n) => `/${n}`);
+    // V110-F86 Nothing typed yet: every command, the list scrolls.
+    const found = typed ? commandMatches(typed, names, 12) : names.map((n) => `/${n}`);
     // V107 A command typed in full stays in the list, first, with its hint.
     const items = found.map((v): Item => ({ value: v, label: v, hint: commandHint(v.slice(1)) }));
     suggest = items.length ? { word, items, index: 0, arg: true } : null;
@@ -410,9 +424,8 @@
         return commandMatches(command, await chatIpc.commands(view).catch(() => []));
       }
       if (!bare) return [];
-      const people = sources.chatters().map((n) => (word.text.startsWith('@') ? `@${n}` : n));
-      // V110-U71 Closest match first, the rest A-Z.
-      return rankNames(bare, [...sources.emotes().map((e) => e.name), ...people], 30);
+      // V110-U71 Closest match first, the rest A-Z. V110-F86 After `@` only people.
+      return tabNames(word.text, sources.emotes().map((e) => e.name), sources.people(), 30);
     };
     const all = async () => {
       if (arg) {
@@ -490,6 +503,7 @@
    *  keeps it too, so every repeat goes out as the same reply. */
   function wentOut(raw: string, value: string, keep: boolean) {
     sent = [value, ...sent.filter((s) => s !== value)].slice(0, HISTORY);
+    saveDraft(key, text, sent);
     recall = -1;
     if (!keep) replyTo = null;
     // V108-F04 A command that ran leaves no suggestion over the chat (and drops a lookup still out).
@@ -520,6 +534,7 @@
     try {
       await modIpc.pinSend(account, room.login, pinned, secs);
       sent = [line, ...sent.filter((s) => s !== line)].slice(0, HISTORY);
+      saveDraft(key, text, sent);
       recall = -1;
       text = '';
     } catch (e) {
@@ -527,9 +542,30 @@
     }
   }
 
+  /** V110-F86 Typing stands in for the box's own events: the text first, then the list. */
+  function oninput(e: Event) {
+    const el = e.currentTarget as HTMLTextAreaElement;
+    // A paste cut at maxlength can end in half an emoji.
+    const fixed = dropLoneHigh(el.value);
+    if (fixed !== el.value) el.value = fixed;
+    if (fixed !== text) text = fixed;
+    recall = syncRecall(recall, fixed, sent);
+    updateSuggest();
+  }
+
+  /** V110-F86 The caret moved (arrows, Home, End, a selection): an open list is about another word now. */
+  function moved() {
+    if (suggest) updateSuggest();
+  }
+  function onkeyup(e: KeyboardEvent) {
+    if (['ArrowLeft', 'ArrowRight', 'Home', 'End', 'PageUp', 'PageDown'].includes(e.key)) moved();
+  }
+
   function onkeydown(e: KeyboardEvent) {
-    // V108-F57 An Enter that confirms an IME candidate is not a send.
-    if (e.key === 'Enter' && (e.isComposing || e.keyCode === 229)) return;
+    // V108-F57 An Enter that confirms an IME candidate is not a send; V110-F86 neither is any
+    // other key the IME is using (Tab, Escape, arrows).
+    if (composing(e)) return;
+    recall = syncRecall(recall, text, sent);
     if (e.key !== 'Tab' && e.key !== 'Shift') cycle = null;
     if (suggest) {
       // V108-N09 One rule set for the list and the row (suggestKeys.ts).
@@ -562,7 +598,7 @@
       replyTo = null;
     } else if (e.key === 'Escape' && !askCheer) {
       box?.blur();
-    } else if (e.key === 'ArrowUp' && (!text || recall >= 0) && sent.length) {
+    } else if (e.key === 'ArrowUp' && upRecalls(text, recall, sent)) {
       e.preventDefault();
       recall = Math.min(recall + 1, sent.length - 1);
       text = sent[recall];
@@ -578,14 +614,14 @@
   {#if replyTo && !lock}
     <div class="reply-bar">
       <Icon name="reply" size={13} />
-      <span>{#if replyTo.sender?.display}Replying to <b>@{shownName(replyTo.sender, settings.v.chat.names).name}</b>{:else}Replying to a message{/if}: {plainText(replyTo.body)}</span>
+      <span>{#if replyTo.sender?.display}Replying to <b><bdi>@{shownName(replyTo.sender, settings.v.chat.names).name}</bdi></b>{:else}Replying to a message{/if}: {plainText(replyTo.body)}</span>
       <button aria-label="Cancel reply" onclick={() => (replyTo = null)}><Icon name="x" size={13} /></button>
     </div>
   {/if}
   <!-- V108-N23 -->
   {#if canChat}<StreakShare account={room.account} login={room.login} channelId={room.state.channelId} />{/if}
   {#if suggest}
-    <SuggestList items={suggest.items} index={suggest.index} onpick={accept} anchor={row} style={styleNow} />
+    <SuggestList id={listId} items={suggest.items} index={suggest.index} onpick={accept} anchor={row} style={styleNow} />
   {/if}
   <span class="sr-only" role="status">{unlockNote}</span>
   <div class="row" class:locked={!!lock} bind:this={row}>
@@ -630,7 +666,15 @@
         disabled={out}
         spellcheck={settings.v.chat.spellCheck}
         data-native-menu={settings.v.chat.spellCheck ? '' : undefined}
-        oninput={updateSuggest}
+        dir="auto"
+        role="combobox"
+        aria-autocomplete="list"
+        aria-expanded={!!suggest}
+        aria-controls={suggest ? listId : undefined}
+        aria-activedescendant={suggest ? `${listId}-${suggest.index}` : undefined}
+        {oninput}
+        {onkeyup}
+        onselect={moved}
         onclick={updateSuggest}
         onfocus={focused}
         {onpaste}

@@ -11,6 +11,8 @@
   import { scrollWithin } from '../../lib/scrollWithin';
 
   interface Props {
+    /** V110-F86 The list's id; its rows are `<id>-<n>` (the box points at the active one). */
+    id: string;
     items: Item[];
     index: number;
     onpick: (i: number) => void;
@@ -20,7 +22,7 @@
     style?: SuggestStyle;
   }
 
-  let { items, index, onpick, anchor, style = 'list' }: Props = $props();
+  let { id, items, index, onpick, anchor, style = 'list' }: Props = $props();
   const row = $derived(style === 'row');
 
   const theme = $derived(settings.v.appearance.theme);
@@ -66,6 +68,7 @@
 {#snippet chips()}
   {#each items as item, i (item.value)}
     <button
+      id={`${id}-${i}`}
       class="item"
       class:on={i === index}
       role="option"
@@ -84,7 +87,7 @@
   {/each}
 {/snippet}
 
-<div class="suggest" class:row bind:this={box} role="listbox" aria-orientation={row ? 'horizontal' : 'vertical'} use:floating={{ anchor, side: 'above', gap: 4, matchWidth: true }}>
+<div {id} class="suggest" class:row bind:this={box} role="listbox" aria-orientation={row ? 'horizontal' : 'vertical'} use:floating={{ anchor, side: 'above', gap: 4, matchWidth: true }}>
   {#if row}
     <div class="strip" class:fade-l={more.left} class:fade-r={more.right} bind:this={strip} onscroll={measure} use:wheelSideways>
       {@render chips()}
@@ -149,11 +152,16 @@
     border-radius: var(--radius);
     text-align: left;
   }
+  /* V110-F86 One cell width for every picture, so labels line up. */
   .item img {
+    flex: none;
+    width: 28px;
     height: 22px;
+    object-fit: contain;
   }
   .glyph {
-    width: 22px;
+    flex: none;
+    width: 28px;
     font-size: 18px;
     text-align: center;
   }
