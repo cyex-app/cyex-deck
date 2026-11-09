@@ -191,7 +191,7 @@ pub(super) const BEFORE: &[Cmd] = &[
         .changes(Window, "Opens the roles pop-up.")
         .ex(&[ex("/vips", "A list opens with each VIP and the date they were made one."), ex("/vips forsen", "Another channel’s VIPs.")])
         .notes("In a chain or timer it’s a line instead."),
-    Cmd::new("roles", "/roles [channel]", "Lists everyone with a role in the channel, and since when.", "V108-C27")
+    Cmd::new("roles", "/roles [channel]", "Lists everyone with a role in the channel, and since when. /roles channel for another.", "V108-C27")
         .help("/roles")
         .changes(Window, "Opens the roles pop-up.")
         .ex(&[
@@ -200,7 +200,7 @@ pub(super) const BEFORE: &[Cmd] = &[
         ])
         .notes("In your own channel you can add and remove people there too."),
     // V110-C69
-    Cmd::new("spam", "/spam count message", "Sends one message up to 100 times, as fast as Twitch takes it.", "V110-C69")
+    Cmd::new("spam", "/spam count message", "Sends one message up to 100 times: /spam count message. /spam stop ends it.", "V110-C69")
         .help("/spam")
         .ex(&[
             ex("/spam 10 hello", "hello goes out 10 times; repeats change invisibly so Twitch takes them."),
