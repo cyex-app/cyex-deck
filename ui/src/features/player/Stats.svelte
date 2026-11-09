@@ -5,6 +5,7 @@
   import { formatDecimal, formatNumber } from '../../lib/format';
   import type { Stats } from './engine.svelte';
   import { containRect } from './videoRect';
+  import { dropText } from './statsPref';
 
   let { read, video, onclose }: { read: () => Stats; video: HTMLVideoElement | undefined; onclose: () => void } = $props();
 
@@ -57,7 +58,7 @@
     <span>Bandwidth</span><b>{kbps(s.bandwidth)}</b>
     {#if s.latency !== null}<span>Latency</span><b>{formatDecimal(s.latency)} s</b>{/if}
     <span>Buffer</span><b>{formatDecimal(s.buffer)} s</b>
-    <span>Dropped frames</span><b>{s.dropped}</b>
+    <span>Dropped</span><b class="num">{dropText(s.dropped)}</b>
   </div>
 </div>
 
@@ -95,6 +96,9 @@
     display: grid;
     grid-template-columns: auto auto;
     gap: 2px 14px;
+  }
+  .num {
+    font-variant-numeric: tabular-nums;
   }
   b {
     font-weight: 600;

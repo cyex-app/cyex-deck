@@ -9,7 +9,6 @@ import type { PlayerSession } from '../../ipc/bindings/PlayerSession';
 import type { Quality } from '../../ipc/bindings/Quality';
 import { delayVideo } from './avsync';
 import { onShown, pageHidden } from '../../lib/awake';
-import { formatNumber } from '../../lib/format';
 import { settings } from '../../lib/settings.svelte';
 import { Away, awayMs, outOfSight } from './away';
 import { GRAPH_EVENT, graphDelay } from './gain';
@@ -68,7 +67,7 @@ export interface Stats {
   bandwidth: number;
   latency: number | null;
   buffer: number;
-  dropped: string;
+  dropped: { dropped: number; total: number } | null;
 }
 
 export class Engine {
@@ -411,7 +410,7 @@ export class Engine {
       // V108-LL4 From the playing frame's date, as twitch.tv counts it (not hls.latency).
       latency: this.liveSrc && hls ? broadcastLatency(Date.now(), hls.playingDate?.getTime()) : null,
       buffer,
-      dropped: q ? `${formatNumber(q.droppedVideoFrames)} / ${formatNumber(q.totalVideoFrames)}` : '',
+      dropped: q ? { dropped: q.droppedVideoFrames, total: q.totalVideoFrames } : null,
     };
   }
 

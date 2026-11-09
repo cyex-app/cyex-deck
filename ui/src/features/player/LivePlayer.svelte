@@ -37,6 +37,7 @@
   import GearButton from './GearButton.svelte';
   import Shell from './Shell.svelte';
   import Stats from './Stats.svelte';
+  import { rememberStats, statsWanted } from './statsPref';
   import { useSound } from './sound.svelte';
   import { watchPip, copyText, openLink, pipFor, playerKeys } from './tools';
   import Volume from './Volume.svelte';
@@ -81,7 +82,15 @@
   /** V108-N24 This player's replay: kept across its sessions while the channel stays. */
   const replayKey = crypto.randomUUID();
   let ad = $state<AdState>('none');
+  // V110-U64 Remembered per tile.
   let stats = $state(false);
+  const setStats = (on: boolean) => {
+    stats = on;
+    rememberStats(tile.id, on);
+  };
+  $effect(() => {
+    stats = statsWanted(tile.id);
+  });
   let tries = 0;
   const OFFLINE_RECHECK_MS = 15_000;
   let retry: ReturnType<typeof setTimeout> | undefined;
@@ -394,7 +403,7 @@
         shell?.fullscreen();
       },
       pip: pipFor(video),
-      stats: { on: stats, toggle: () => (stats = !stats) },
+      stats: { on: stats, toggle: () => setStats(!stats) },
       reload,
       moments: mini ? undefined : momentRows(),
       link: `https://www.twitch.tv/${login}`,
@@ -540,7 +549,7 @@
     {/if}
     {#if !mini}<Celebration login={tile.channel.login} />{/if}
     {#if stats && engine && !pip}
-      <Stats read={() => engine!.stats()} {video} onclose={() => (stats = false)} />
+      <Stats read={() => engine!.stats()} {video} onclose={() => setStats(false)} />
     {/if}
     {#if mini}
       <!-- Small, a press drags it; play and pause sit in the middle on hover. -->

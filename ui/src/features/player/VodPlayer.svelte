@@ -28,6 +28,7 @@
   import Shell from './Shell.svelte';
   import { useSound } from './sound.svelte';
   import Stats from './Stats.svelte';
+  import { rememberStats, statsWanted } from './statsPref';
   import { clock, linkTime } from './time';
   import { ownVideo, vodClipOffset } from './vodClip';
   import { watchPip, copyText, openLink, pipFor, playerKeys } from './tools';
@@ -79,7 +80,15 @@
   let duration = $state(0);
   let buffered = $state(0);
   let speed = $state(1);
+  // V110-U64 Remembered per tile.
   let stats = $state(false);
+  const setStats = (on: boolean) => {
+    stats = on;
+    if (tile) rememberStats(tile.id, on);
+  };
+  $effect(() => {
+    stats = tile ? statsWanted(tile.id) : false;
+  });
   let saved = 0;
   /** V107-Mv The engine is going: its reset to 0 must not overwrite the saved spot. */
   let gone = false;
@@ -239,7 +248,7 @@
       },
       speed: { now: speed, set: (s) => (speed = s) },
       pip: pipFor(video),
-      stats: { on: stats, toggle: () => (stats = !stats) },
+      stats: { on: stats, toggle: () => setStats(!stats) },
       reload: () => void reload(),
       clipHere: clipper ? { run: clipHere, busy: clipMaking.busy } : undefined,
       link,
@@ -283,7 +292,7 @@
     {:else if engine?.waiting}
       <div class="busy"><Loading video size="large" /></div>
     {/if}
-    {#if stats && engine}<Stats read={() => engine!.stats()} {video} onclose={() => (stats = false)} />{/if}
+    {#if stats && engine}<Stats read={() => engine!.stats()} {video} onclose={() => setStats(false)} />{/if}
     {#if mini}
       {#if engine && !failure}
         <div class="mini-play">
