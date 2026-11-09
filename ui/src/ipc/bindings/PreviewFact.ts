@@ -3,4 +3,4 @@
 /**
  * One fact on a card, formatted by the UI.
  */
-export type PreviewFact = { "t": "views", n: number, } | { "t": "viewers", n: number, } | { "t": "length", secs: number, } | { "t": "date", at: string, } | { "t": "game", name: string, } | { "t": "clippedBy", name: string, };
+export type PreviewFact = { "t": "views", n: number, } | { "t": "viewers", n: number, } | { "t": "length", secs: number, } | { "t": "date", at: string, } | { "t": "likes", n: number, } | { "t": "game", name: string, } | { "t": "clippedBy", name: string, };

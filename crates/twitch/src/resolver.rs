@@ -53,7 +53,7 @@ fn base() -> String {
 
 /// The test hook may only point at this machine: http, host 127.0.0.1, no sign-in part.
 #[cfg(any(test, feature = "mocks"))]
-fn mock_ok(u: &str) -> bool {
+pub(crate) fn mock_ok(u: &str) -> bool {
     url::Url::parse(u).is_ok_and(|u| {
         u.scheme() == "http" && u.host_str() == Some("127.0.0.1") && u.username().is_empty() && u.password().is_none()
     })

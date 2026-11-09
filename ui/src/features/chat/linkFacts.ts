@@ -11,6 +11,8 @@ export function factText(f: PreviewFact): string {
   switch (f.t) {
     case 'views':
       return count(f.n, 'view', 'views');
+    case 'likes':
+      return count(f.n, 'like', 'likes');
     case 'viewers':
       return count(f.n, 'viewer', 'viewers');
     case 'length':

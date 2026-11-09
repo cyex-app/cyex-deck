@@ -20,12 +20,15 @@ export const CARD_HEIGHT = `max(${CARD_PIC.h}px, ${(CARD_LINES * LINE_EM).toFixe
 /** Hover preview picture width in px by the "Preview size" setting (Chatterino's sizes). */
 export const PREVIEW_PX: Record<LinkThumbs, number> = { off: 0, small: 100, medium: 200, large: 300 };
 
-/** The card's text: the title, then the next line (subtitle, facts or the resolver's first line). */
+/** The card's text: the title, then the next line (subtitle, facts or the resolver's first line).
+ *  V110-U70 A web page's second line joins its subtitle and facts ("Channel · 1.200 views · 41 likes"),
+ *  and the description is the next line when those are empty. The box stays the same size. */
 export function cardLines(info: LinkPreview | null): string[] {
   if (!info) return [];
   const facts = info.facts.map(factText).filter(Boolean).join(' · ');
   const rest = info.lines.filter((l) => l.length).map((l) => l.map((p) => p.text).join(''));
-  return [info.title, info.subtitle, facts, ...rest].filter((t): t is string => !!t).slice(0, CARD_LINES - 1);
+  const head = info.kind === 'web' ? [info.title, [info.subtitle, facts].filter(Boolean).join(' · ')] : [info.title, info.subtitle, facts];
+  return [...head, ...rest].filter((t): t is string => !!t).slice(0, CARD_LINES - 1);
 }
 
 /** wait: asking. ready: the card. plain: nothing to show, but it was on screen, so the box stays

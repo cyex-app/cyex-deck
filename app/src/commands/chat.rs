@@ -206,7 +206,11 @@ pub async fn chat_embed_link(app: AppHandle, url: String) -> Option<LinkPreview>
     let mut card = chat::link_preview::get(&http, url).await?;
     card.thumbnail = card
         .thumbnail
-        .filter(|t| cyex_twitch::resolver::is_proxied(t) || cyex_chat::tokenize::trusted_media(t));
+        .filter(|t| {
+            cyex_twitch::resolver::is_proxied(t)
+                || cyex_twitch::embed::is_img(t)
+                || cyex_chat::tokenize::trusted_media(t)
+        });
     // V110-F75 ...and then it is loaded through the proxy, never from that host.
     Some(card.through_proxy())
 }

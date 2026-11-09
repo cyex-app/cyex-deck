@@ -38,6 +38,10 @@ pub enum PreviewFact {
     Date {
         at: String,
     },
+    /// V110-U70 Only from our own resolver.
+    Likes {
+        n: u32,
+    },
     Game {
         name: String,
     },
@@ -73,13 +77,22 @@ pub struct LinkPreview {
 const TWITCH: &str = "Twitch";
 
 impl LinkPreview {
-    /// V110-F75 Every picture of the card (preview and avatar) through the resolver's proxy;
-    /// one that can't be proxied is dropped, never loaded direct.
+    /// V110-F75 Every picture of the card (preview and avatar) through a proxy; one that can't
+    /// be proxied is dropped, never loaded direct. V110-U70 A picture from our own resolver
+    /// stays as it is; any other goes through Chatterino's.
     pub fn through_proxy(mut self) -> Self {
-        self.thumbnail = self.thumbnail.as_deref().and_then(crate::resolver::proxied);
-        self.avatar = self.avatar.as_deref().and_then(crate::resolver::proxied);
+        self.thumbnail = self.thumbnail.as_deref().and_then(safe_pic);
+        self.avatar = self.avatar.as_deref().and_then(safe_pic);
         self
     }
+}
+
+/// V110-U70 The URL the UI may load: our resolver's picture, or the Chatterino proxy's.
+fn safe_pic(url: &str) -> Option<String> {
+    if crate::embed::is_img(url.trim()) {
+        return Some(url.trim().to_owned());
+    }
+    crate::resolver::proxied(url)
 }
 
 fn https(url: Option<String>) -> Option<String> {
@@ -370,6 +383,19 @@ mod tests {
         }
         .through_proxy();
         assert!(p.thumbnail.is_none() && p.avatar.is_none());
+    }
+
+    #[test]
+    fn v110_u70_own_pictures_stay_others_go_through_the_proxy() {
+        let own = "https://embed.cyex.app/v1/img?u=https%3A%2F%2Fi.ytimg.com%2Fa.jpg";
+        let p = LinkPreview {
+            thumbnail: Some(own.into()),
+            avatar: Some("https://avatar".into()),
+            ..from_channel(channel(None))
+        }
+        .through_proxy();
+        assert_eq!(p.thumbnail.as_deref(), Some(own));
+        assert!(p.avatar.unwrap().starts_with("https://braize.pajlada.com/chatterino/thumbnail/"));
     }
 
     #[test]

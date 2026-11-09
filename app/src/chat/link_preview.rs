@@ -1,5 +1,6 @@
-//! V108-C25 Link cards (1.52): Twitch clips, VODs and channels from our own lookups, then
-//! Chatterino's resolver (D8) for the rest or when those fail. One answer per link is shared
+//! V108-C25 Link cards (1.52): Twitch clips, VODs and channels from our own lookups; trusted
+//! sites from our own resolver (V110-U70); then Chatterino's resolver (D8) for the rest or
+//! when those fail. One answer per link is shared
 //! by everyone asking at once; good answers last 30 minutes (a channel's 2, it goes live),
 //! misses 2, so a hiccup doesn't stick for the whole run.
 
@@ -12,6 +13,7 @@ use cyex_chat::model::LinkTarget;
 use cyex_chat::tokenize::detect_link;
 use cyex_twitch::channel_input::{ChannelQuery, parse};
 use cyex_twitch::preview::{self, LinkPreview, PreviewKind};
+use cyex_twitch::embed::{self, Next};
 use cyex_twitch::{Http, gql, resolver};
 use tokio::sync::OnceCell;
 
@@ -69,12 +71,29 @@ async fn twitch(http: &Http, link: &TwitchLink) -> Option<LinkPreview> {
     }
 }
 
-/// Twitch first, the resolver after. `None` when neither has anything.
+/// V110-U70 Whether our own resolver is asked: only trusted links, and never twitch.tv (those
+/// have their own lookups above; the Worker doesn't handle them). Untrusted links (hover only)
+/// go to Chatterino's resolver, the Worker refuses them by design.
+fn asks_worker(url: &str) -> bool {
+    cyex_chat::tokenize::trusted_link(url)
+        && !preview::host(url).is_some_and(|h| h == "twitch.tv" || h.ends_with(".twitch.tv"))
+}
+
+/// Twitch first, then our own resolver for trusted sites, Chatterino's after. `None` when
+/// none has anything.
 async fn load(http: &Http, url: &str) -> Option<LinkPreview> {
     if let Some(link) = twitch_link(url)
         && let Some(p) = twitch(http, &link).await
     {
         return Some(p);
+    }
+    if asks_worker(url) {
+        match embed::lookup(http, url).await {
+            Next::Use(p) => return Some(*p),
+            // "Nothing to show" is an answer, not a failure.
+            Next::Nothing => return None,
+            Next::Fallback => {}
+        }
     }
     match resolver::resolve(http, url).await {
         Ok(Some(info)) => preview::from_resolver(url, info),
@@ -187,6 +206,29 @@ mod tests {
         assert_eq!(twitch_link("https://twitch.tv/directory"), None);
         assert_eq!(twitch_link("https://youtube.com/lirik"), None);
         assert_eq!(twitch_link("https://example.com"), None);
+    }
+
+    #[test]
+    fn v110_u70_who_asks_our_resolver() {
+        for u in [
+            "https://www.youtube.com/watch?v=a",
+            "https://youtu.be/a",
+            "https://x.com/a/status/1",
+            "https://i.imgur.com/a.png",
+        ] {
+            assert!(asks_worker(u), "{u}");
+        }
+        for u in [
+            "https://clips.twitch.tv/Funny-AbC",
+            "https://www.twitch.tv/lirik",
+            "https://twitch.tv/directory",
+            "http://youtube.com/watch?v=a",
+            "https://youtube.com.evil.io/a",
+            "https://user@youtube.com/a",
+            "https://example.com/",
+        ] {
+            assert!(!asks_worker(u), "{u}");
+        }
     }
 
     fn short(v: &u32) -> Duration {

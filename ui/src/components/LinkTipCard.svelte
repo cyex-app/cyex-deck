@@ -19,7 +19,7 @@
   <p class="none tip-card">No preview</p>
 {:else}
   {@const p = c.card}
-  <!-- V110-F75 Pictures load only from the resolver's proxy. -->
+  <!-- V110-F75 Pictures load only from our resolver or its proxy. -->
   {@const pic = previewPic(p.thumbnail)}
   {@const face = previewPic(p.avatar)}
   {@const facts = p.facts.map((f) => ({ text: factText(f), num: numeric(f) })).filter((f) => f.text)}
@@ -173,6 +173,14 @@
   .line {
     margin: 0;
     overflow-wrap: anywhere;
+  }
+  /* V110-U70 A description can be 400 characters: five lines at most. */
+  .line {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 5;
+    line-clamp: 5;
+    overflow: hidden;
   }
   .facts {
     color: var(--dim);

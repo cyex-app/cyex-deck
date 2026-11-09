@@ -37,6 +37,14 @@ test('a card shows at most the lines it has room for', () => {
   assert.deepEqual(cardLines(null), []);
 });
 
+test('V110-U70 a web card puts its facts and likes on the second line, then the description', () => {
+  const facts = [{ t: 'views', n: 1200 }, { t: 'likes', n: 41 }] as LinkPreview['facts'];
+  const text = [[{ text: 'About things', bold: false }]];
+  assert.deepEqual(cardLines(info({ subtitle: 'Chan', facts, lines: text })), ['Title', 'Chan · 1.200 views · 41 likes']);
+  assert.deepEqual(cardLines(info({ facts, lines: text })), ['Title', '1.200 views · 41 likes']);
+  assert.deepEqual(cardLines(info({ lines: text })), ['Title', 'About things']);
+});
+
 test('an answer with something to show is ready', () => {
   assert.equal(cardAfter(info(), false), 'ready');
   assert.equal(cardAfter(info({ title: null, thumbnail: 'https://braize.pajlada.com/chatterino/thumbnail/x' }), true), 'ready');

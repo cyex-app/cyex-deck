@@ -22,7 +22,7 @@
   let broken = $state(false);
   const host = $derived(hostOf(url));
   const lines = $derived(cardLines(info));
-  // V110-F75 Only the resolver's proxy is loaded; any other picture is not shown.
+  // V110-F75 Only our resolver's pictures and the proxy's are loaded; any other picture is not shown.
   const pic = $derived(previewPic(info?.thumbnail));
 
   /** The nearest scrolling ancestor, or none for the window. Found once per card. */
