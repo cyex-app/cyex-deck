@@ -24,6 +24,8 @@ pub enum LogKind {
     Raid,
     Bet,
     Drop,
+    /// V110-U68 Badge campaigns: watching for one, helpers found or let go, earned.
+    Badge,
     Channel,
     Error,
 }

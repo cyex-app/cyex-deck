@@ -3,7 +3,7 @@
 
 use cyex_miner::stats::Stats;
 use cyex_settings::Partition;
-use cyex_settings::schema::{Miner, TabChannel};
+use cyex_settings::schema::{MAX_PICKED, Miner, TabChannel};
 use tauri::{AppHandle, Manager};
 
 use crate::miner::log::LogLine;
@@ -76,6 +76,34 @@ pub fn miner_add(app: AppHandle, channel: TabChannel) -> CmdResult<bool> {
             added
         })?;
     Ok(added)
+}
+
+/// V110-U68 Picks or unpicks one badge campaign to earn.
+#[tauri::command]
+pub fn miner_badge_pick(app: AppHandle, campaign: String, on: bool) -> CmdResult<()> {
+    let mut full = false;
+    app.state::<Settings>()
+        .update::<Miner>(&app, Partition::Miner, |s| {
+            let before = s.badges.picked.clone();
+            full = !s.badges.pick(&campaign, on);
+            s.badges.picked != before
+        })?;
+    if full {
+        return Err(format!("You can pick up to {MAX_PICKED} badges."));
+    }
+    Ok(())
+}
+
+/// V110-U68 "All": earn every badge that can be earned by watching.
+#[tauri::command]
+pub fn miner_badges_auto(app: AppHandle, on: bool) -> CmdResult<()> {
+    app.state::<Settings>()
+        .update::<Miner>(&app, Partition::Miner, |s| {
+            let changed = s.badges.auto != on;
+            s.badges.auto = on;
+            changed
+        })?;
+    Ok(())
 }
 
 /// 1.44 Puts a channel among the two mined first, or takes it off with `on` false.

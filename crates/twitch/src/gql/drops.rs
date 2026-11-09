@@ -8,7 +8,7 @@
 use serde::Deserialize;
 use serde_json::{Value, json};
 
-use super::{Auth, BATCH_MAX, batch, query};
+use super::{Auth, BATCH_MAX, batch, batch_persisted, persisted, query};
 use crate::clock::parse_rfc3339;
 use crate::{Error, Http, Result};
 
@@ -48,6 +48,12 @@ const INVENTORY: &str = concat!(
     " self { hasPreconditionsMet currentMinutesWatched dropInstanceID isClaimed } } } \
      gameEventDrops { id } } } }"
 );
+/// The inventory query checked 2026/10/10, before badges: the last resort when the one
+/// above and its persisted twin are both turned down.
+const INVENTORY_BASIC: &str = "query { currentUser { inventory { dropCampaignsInProgress { id name \
+    game { id displayName } timeBasedDrops { id name requiredMinutesWatched \
+    benefitEdges { benefit { name imageAssetURL } } \
+    self { hasPreconditionsMet currentMinutesWatched dropInstanceID isClaimed } } } } } }";
 const CLAIM: &str = "mutation($input: ClaimDropRewardsInput!) { claimDropRewards(input: $input) { status } }";
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -117,49 +123,102 @@ pub async fn channel_campaigns(http: &Http, auth: Auth<'_>, channel_id: &str) ->
 
 /// For each channel id, the campaign ids running on it for this account, 30 channels per
 /// request. A channel Twitch didn't answer for is left out; if it answered for none, the
-/// first error comes back.
+/// first error comes back. V110-U68 Refused as raw text, the persisted twin is asked.
 pub async fn channels_campaigns(
     http: &Http,
     auth: Auth<'_>,
     ids: &[String],
 ) -> Result<Vec<(String, Vec<String>)>> {
     let mut out = Vec::new();
-    let mut first_err = None;
     for chunk in ids.chunks(CHANNELS_BATCH.min(BATCH_MAX)) {
-        let ops: Vec<(&str, Value)> = chunk.iter().map(|id| (CHANNEL, json!({ "id": id }))).collect();
-        for (id, answer) in chunk.iter().zip(batch(http, auth, &ops).await?) {
-            match answer.and_then(|v| serde_json::from_value::<ChannelData>(v).map_err(Error::Decode)) {
-                Ok(d) => out.push((id.clone(), d.campaign_ids())),
-                Err(e) => {
-                    first_err.get_or_insert(e);
-                }
+        let raw = async {
+            let ops: Vec<(&str, Value)> = chunk.iter().map(|id| (CHANNEL, json!({ "id": id }))).collect();
+            channel_answers(chunk, batch(http, auth, &ops).await?)
+        };
+        let twin = || async {
+            let ops: Vec<(&str, &str, Value)> = chunk
+                .iter()
+                .map(|id| (P_CHANNEL.0, P_CHANNEL.1, json!({ "channelID": id })))
+                .collect();
+            channel_answers(chunk, batch_persisted(http, auth, &ops).await?)
+        };
+        out.extend(raw_or_persisted(raw.await, twin).await?);
+    }
+    Ok(out)
+}
+
+fn channel_answers(ids: &[String], answers: Vec<Result<Value>>) -> Result<Vec<(String, Vec<String>)>> {
+    let mut out = Vec::new();
+    let mut first_err = None;
+    for (id, answer) in ids.iter().zip(answers) {
+        match answer.and_then(parse_channel) {
+            Ok(c) => out.push((id.clone(), c)),
+            Err(e) => {
+                first_err.get_or_insert(e);
             }
         }
     }
     all_failed(out, first_err)
 }
 
+/// V110-U68 Campaign ids in one channel answer (`data`), raw or persisted.
+pub fn parse_channel(data: Value) -> Result<Vec<String>> {
+    Ok(serde_json::from_value::<ChannelData>(data).map_err(Error::Decode)?.campaign_ids())
+}
+
 /// Ids of the campaigns running now (the dashboard's ACTIVE ones).
 pub async fn dashboard(http: &Http, auth: Auth<'_>) -> Result<Vec<String>> {
-    let data: DashboardData = query(http, auth, DASHBOARD, json!({})).await?;
-    data.active()
+    let raw = async { parse_dashboard(query(http, auth, DASHBOARD, json!({})).await?) };
+    let twin = || async {
+        let vars = json!({ "fetchRewardCampaigns": false });
+        parse_dashboard(persisted(http, auth, P_DASHBOARD.0, P_DASHBOARD.1, vars).await?)
+    };
+    raw_or_persisted(raw.await, twin).await
+}
+
+/// V110-U68 The ACTIVE ids of a dashboard answer (`data`); no list is an error.
+pub fn parse_dashboard(data: Value) -> Result<Vec<String>> {
+    serde_json::from_value::<DashboardData>(data).map_err(Error::Decode)?.active()
 }
 
 /// Details of campaigns by id, 20 per request. A campaign Twitch didn't answer for is left
-/// out; if it answered for none, the first error comes back.
-pub async fn details(http: &Http, auth: Auth<'_>, ids: &[String]) -> Result<Vec<Campaign>> {
+/// out; if it answered for none, the first error comes back. `user_id` is the account's,
+/// which the persisted twin wants.
+pub async fn details(http: &Http, auth: Auth<'_>, user_id: &str, ids: &[String]) -> Result<Vec<Campaign>> {
+    let mut out = Vec::new();
+    for chunk in ids.chunks(DETAILS_BATCH.min(BATCH_MAX)) {
+        let raw = async {
+            let ops: Vec<(&str, Value)> = chunk.iter().map(|id| (DETAILS, json!({ "id": id }))).collect();
+            details_answers(batch(http, auth, &ops).await?)
+        };
+        let twin = || async {
+            let ops: Vec<(&str, &str, Value)> = chunk
+                .iter()
+                .map(|id| (P_DETAILS.0, P_DETAILS.1, json!({ "dropID": id, "channelLogin": user_id })))
+                .collect();
+            details_answers(batch_persisted(http, auth, &ops).await?)
+        };
+        out.extend(raw_or_persisted(raw.await, twin).await?);
+    }
+    Ok(out)
+}
+
+/// Answers that all came back without one campaign in them are a refusal too: the shape
+/// didn't match.
+fn details_answers(answers: Vec<Result<Value>>) -> Result<Vec<Campaign>> {
+    let asked = answers.len();
     let mut out = Vec::new();
     let mut first_err = None;
-    for chunk in ids.chunks(DETAILS_BATCH.min(BATCH_MAX)) {
-        let ops: Vec<(&str, Value)> = chunk.iter().map(|id| (DETAILS, json!({ "id": id }))).collect();
-        for answer in batch(http, auth, &ops).await? {
-            match answer {
-                Ok(v) => out.extend(campaign_from_details(v)),
-                Err(e) => {
-                    first_err.get_or_insert(e);
-                }
+    for answer in answers {
+        match answer {
+            Ok(v) => out.extend(campaign_from_details(v)),
+            Err(e) => {
+                first_err.get_or_insert(e);
             }
         }
+    }
+    if out.is_empty() && first_err.is_none() && asked > 0 {
+        return Err(no_shape("no campaign in the details"));
     }
     all_failed(out, first_err)
 }
@@ -171,7 +230,8 @@ fn all_failed<T>(out: Vec<T>, first_err: Option<Error>) -> Result<Vec<T>> {
     }
 }
 
-fn campaign_from_details(data: Value) -> Option<Campaign> {
+/// V110-U68 One campaign of a details answer (`data`, under `currentUser` or `user`).
+pub fn campaign_from_details(data: Value) -> Option<Campaign> {
     let d: DetailsData = serde_json::from_value(data).ok()?;
     d.current_user?.drop_campaign.map(Campaign::from)
 }
@@ -181,10 +241,87 @@ pub async fn inventory(http: &Http, auth: Auth<'_>) -> Result<Vec<Campaign>> {
     Ok(inventory_full(http, auth).await?.campaigns)
 }
 
-/// The inventory with the earned rewards too.
+/// The inventory with the earned rewards too. V110-U68 Refused as raw text, the persisted
+/// twin is asked; refused both ways, the older checked query (no earned list, no badges)
+/// keeps drop claims going.
 pub async fn inventory_full(http: &Http, auth: Auth<'_>) -> Result<Inventory> {
-    let data: InventoryData = query(http, auth, INVENTORY, json!({})).await?;
-    Ok(data.into())
+    let raw = async { parse_inventory(query(http, auth, INVENTORY, json!({})).await?) };
+    let twin = || async {
+        let vars = json!({ "fetchRewardCampaigns": false });
+        parse_inventory(persisted(http, auth, P_INVENTORY.0, P_INVENTORY.1, vars).await?)
+    };
+    match raw_or_persisted(raw.await, twin).await {
+        Err(e) if both_refused(&e) => match query::<Value>(http, auth, INVENTORY_BASIC, json!({})).await {
+            Ok(v) => parse_inventory(v).map_err(|_| e),
+            Err(_) => Err(e),
+        },
+        other => other,
+    }
+}
+
+/// V110-U68 An inventory answer (`data`), raw or persisted. A missing inventory reads as
+/// empty (a new account has none).
+pub fn parse_inventory(data: Value) -> Result<Inventory> {
+    Ok(serde_json::from_value::<InventoryData>(data).map_err(Error::Decode)?.into())
+}
+
+/// V110-U68 The persisted twins (name, sha256) of the raw queries, from the cyex-miner
+/// reference (src/constants.rs). Used only when Twitch turns the raw text down.
+const P_DASHBOARD: (&str, &str) = (
+    "ViewerDropsDashboard",
+    "c16bb890cc8ce7647a96ee69cd313d423a378a3dedadf630a1017cde18975feb",
+);
+const P_DETAILS: (&str, &str) = (
+    "DropCampaignDetails",
+    "039277bf98f3130929262cc7c6efd9c141ca3749cb6dca442fc8ead9a53f77c1",
+);
+const P_INVENTORY: (&str, &str) = (
+    "Inventory",
+    "8337eb8541b314040b0edde0c09c5c7a2783ba1960aa9edfbf3bac16d0fec404",
+);
+const P_CHANNEL: (&str, &str) = (
+    "DropsHighlightService_AvailableDrops",
+    "782dad0f032942260171d2d80a654f88bdd0c5a9dddc392e9bc92218a0f42d20",
+);
+
+/// The start of the message when both ways were turned down.
+const BOTH: &str = "raw and persisted queries both refused";
+
+fn no_shape(what: &str) -> Error {
+    Error::Api {
+        status: 200,
+        message: what.into(),
+    }
+}
+
+/// Twitch answered but the query didn't work as sent (an unknown field, a missing list,
+/// an answer of another shape): worth asking the other way. Network trouble, 401, 429 and
+/// 5xx are not.
+fn refused(e: &Error) -> bool {
+    match e {
+        Error::Decode(_) => true,
+        Error::Api { status, .. } => matches!(status, 200 | 400 | 422),
+        _ => false,
+    }
+}
+
+/// V110-U68 True when the raw query and its persisted twin were both turned down, so a
+/// read that came back empty-handed isn't mistaken for "nothing to earn".
+pub fn both_refused(e: &Error) -> bool {
+    e.api_message().is_some_and(|m| m.starts_with(BOTH))
+}
+
+async fn raw_or_persisted<T, F>(raw: Result<T>, twin: impl FnOnce() -> F) -> Result<T>
+where
+    F: std::future::Future<Output = Result<T>>,
+{
+    match raw {
+        Err(e) if refused(&e) => twin().await.map_err(|p| Error::Api {
+            status: 200,
+            message: format!("{BOTH} (raw: {e}; persisted: {p})"),
+        }),
+        other => other,
+    }
 }
 
 /// Claims an earned drop. True when it's (now) claimed.
@@ -602,8 +739,45 @@ mod tests {
         assert!(none.campaign_ids().is_empty());
     }
 
+    #[tokio::test]
+    async fn v110_u68_a_refused_raw_query_asks_the_persisted_twin() {
+        let refused = || Err::<u32, _>(no_shape("Cannot query field \"dropCampaigns\""));
+        assert_eq!(raw_or_persisted(refused(), || async { Ok(7) }).await.unwrap(), 7);
+        let both = raw_or_persisted(refused(), || async { Err::<u32, _>(no_shape("PersistedQueryNotFound")) })
+            .await
+            .unwrap_err();
+        assert!(both_refused(&both), "{both}");
+        // Rate limits and outages are not refusals: the twin isn't asked.
+        let slow = Err::<u32, _>(Error::Api { status: 429, message: "slow".into() });
+        let e = raw_or_persisted(slow, || async { Ok(1) }).await.unwrap_err();
+        assert!(e.is_rate_limited() && !both_refused(&e));
+        assert_eq!(raw_or_persisted(Ok(3), || async { Ok(1) }).await.unwrap(), 3);
+    }
+
+    #[test]
+    fn v110_u68_answers_without_a_campaign_are_a_refusal() {
+        assert!(details_answers(vec![Ok(json!({ "currentUser": null }))]).is_err());
+        assert!(details_answers(Vec::new()).unwrap().is_empty());
+        let one = details_answers(vec![Ok(serde_json::from_str(DETAILS_FIXTURE).unwrap()), Ok(json!({}))]).unwrap();
+        assert_eq!(one.len(), 1);
+    }
+
+    #[test]
+    fn v110_u68_persisted_shapes_parse_too() {
+        let dash = json!({ "currentUser": { "dropCampaigns": [{ "id": "a", "status": "ACTIVE" }] } });
+        assert_eq!(parse_dashboard(dash).unwrap(), ["a"]);
+        assert!(parse_dashboard(json!({ "currentUser": null })).is_err());
+        let ch = json!({ "channel": { "viewerDropCampaigns": [{ "id": "x" }] } });
+        assert_eq!(parse_channel(ch).unwrap(), ["x"]);
+        let inv = parse_inventory(json!({ "currentUser": { "inventory": { "gameEventDrops": [{ "id": "b" }] } } })).unwrap();
+        assert_eq!(inv.earned, ["b"]);
+        let user: Value = serde_json::from_str(&DETAILS_FIXTURE.replace("currentUser", "user")).unwrap();
+        assert!(details_answers(vec![Ok(user)]).is_ok());
+    }
+
     #[test]
     fn the_query_texts_are_whole() {
+        assert_eq!(INVENTORY_BASIC.matches('{').count(), INVENTORY_BASIC.matches('}').count());
         for q in [DETAILS, INVENTORY] {
             assert_eq!(q.matches('{').count(), q.matches('}').count(), "{q}");
             assert!(q.contains("distributionType") && q.contains("requiredSubs"));

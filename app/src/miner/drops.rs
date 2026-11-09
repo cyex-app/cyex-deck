@@ -1,15 +1,19 @@
 //! Drops (1.30, 1.32): the account's inventory every minute while a watched channel has
 //! drops (every 15 minutes otherwise); earned drops are claimed 5-10 s apart. Twitch
-//! wants the game account linked before it hands a drop out.
+//! wants the game account linked before it hands a drop out. V110-U68: the same read feeds
+//! badge progress (`badges.rs`); while a badge is being earned it runs every minute, while
+//! hidden and idle every 30 minutes. Badge drops of wanted campaigns are claimed even with
+//! drop claims off.
 
 use std::collections::HashSet;
 use std::sync::{LazyLock, Mutex};
 use std::time::Duration;
 
+use cyex_miner::cadence;
 use cyex_miner::stats::{Kind, Record};
-use cyex_twitch::gql::drops;
+use cyex_twitch::gql::drops::both_refused;
 use serde::Serialize;
-use tauri::AppHandle;
+use tauri::{AppHandle, Manager};
 use ts_rs::TS;
 
 use super::log::LogKind;
@@ -17,8 +21,6 @@ use crate::cards::{self, Card, Kind as CardKind};
 use crate::toasts::Open;
 use super::{gql_auth, http, lock, log, now_ms};
 
-const BUSY: Duration = Duration::from_secs(60);
-const IDLE: Duration = Duration::from_secs(15 * 60);
 
 /// A drop still being earned, for the miner view.
 #[derive(Clone, Debug, PartialEq, Serialize, TS)]
@@ -64,19 +66,41 @@ pub fn spawn(app: &AppHandle) {
     tauri::async_runtime::spawn(async move {
         // Let the first live check run first.
         tokio::time::sleep(Duration::from_secs(20)).await;
+        let idle_wake = app.state::<super::Miner>().idle_wake.clone();
         loop {
-            let wait = tick(&app).await;
-            tokio::time::sleep(wait).await;
+            let started = tokio::time::Instant::now();
+            let mut busy = tick(&app).await;
+            // A window showing or a badge starting can make the wait shorter.
+            loop {
+                let wait = if busy {
+                    cadence::INVENTORY_BUSY
+                } else if super::idle::idle(&app) {
+                    cadence::INVENTORY_HIDDEN
+                } else {
+                    cadence::INVENTORY_IDLE
+                };
+                tokio::select! {
+                    () = tokio::time::sleep_until(started + wait) => break,
+                    () = idle_wake.notified() => busy = focused(&app),
+                }
+            }
         }
     });
 }
 
-async fn tick(app: &AppHandle) -> Duration {
-    if !super::settings(app).claim_drops {
-        return IDLE;
+fn focused(app: &AppHandle) -> bool {
+    lock(app).focus.is_some()
+}
+
+/// One read of the inventory. True when it should run again within the minute.
+async fn tick(app: &AppHandle) -> bool {
+    let s = super::settings(app);
+    let badges_wanted = s.badges.auto || !s.badges.picked.is_empty();
+    if !s.claim_drops && !badges_wanted {
+        return false;
     }
     let Some((account, token, client_id)) = super::signed_in(app) else {
-        return IDLE;
+        return false;
     };
     let (busy, credit_to) = {
         let st = lock(app);
@@ -87,19 +111,39 @@ async fn tick(app: &AppHandle) -> Duration {
             .collect();
         let with_drops = watched.iter().find(|c| c.drops);
         (
-            with_drops.is_some(),
+            (s.claim_drops && with_drops.is_some()) || st.focus.is_some(),
             with_drops.or(watched.first()).map(|c| c.id.clone()),
         )
     };
     let http = http(app);
     let auth = gql_auth(&token, &client_id);
-    let campaigns = match drops::inventory(&http, auth).await {
-        Ok(c) => c,
+    let inv = match super::source::inventory(app, &http, auth).await {
+        Ok(i) => i,
         Err(e) => {
             eprintln!("miner: drops: {e}");
-            log::add(app, LogKind::Error, None, "Couldn’t read the drops.");
-            return IDLE;
+            let text = if both_refused(&e) {
+                "Couldn’t read the drops: Twitch turned both ways of asking down."
+            } else {
+                "Couldn’t read the drops."
+            };
+            log::add(app, LogKind::Error, None, text);
+            return busy;
         }
+    };
+    super::badges::apply_inventory(app, &inv);
+    let campaigns = inv.campaigns;
+    let done: HashSet<String> = campaigns
+        .iter()
+        .filter(|c| !c.drops.is_empty() && c.drops.iter().all(|d| d.claimed))
+        .map(|c| c.id.clone())
+        .collect();
+    // Badge drops of these are claimed even with drop claims off.
+    let badge_campaigns: HashSet<String> = {
+        let st = lock(app);
+        cyex_miner::badges::wanted(&st.badges, &s, now_ms() / 1000)
+            .iter()
+            .map(|b| b.campaign_id.clone())
+            .collect()
     };
     let progress: Vec<DropProgress> = campaigns
         .iter()
@@ -117,6 +161,7 @@ async fn tick(app: &AppHandle) -> Duration {
         let mut st = lock(app);
         let changed = st.drop_progress != progress;
         st.drop_progress = progress;
+        st.done_campaigns = done;
         changed
     };
     if changed {
@@ -124,7 +169,9 @@ async fn tick(app: &AppHandle) -> Duration {
     }
     let mut first = true;
     for c in &campaigns {
-        for d in c.drops.iter().filter(|d| d.claimable()) {
+        let claim_all = s.claim_drops;
+        let badge_campaign = badge_campaigns.contains(&c.id);
+        for d in c.drops.iter().filter(|d| d.claimable() && (claim_all || (badge_campaign && d.badge))) {
             if !first {
                 let pause = 5_000 + (now_ms() % 5_000) as u64;
                 tokio::time::sleep(Duration::from_millis(pause)).await;
@@ -133,7 +180,7 @@ async fn tick(app: &AppHandle) -> Duration {
             let Some(instance) = d.instance_id.as_deref() else {
                 continue;
             };
-            match drops::claim(&http, auth, instance).await {
+            match super::source::claim(app, &http, auth, instance).await {
                 Ok(true) => {
                     let game = c.game.as_deref().map(|g| format!(" ({g})")).unwrap_or_default();
                     log::add(app, LogKind::Drop, None, format!("Claimed the drop “{}”{game}.", d.name));
@@ -168,7 +215,7 @@ async fn tick(app: &AppHandle) -> Duration {
             }
         }
     }
-    if busy { BUSY } else { IDLE }
+    busy
 }
 
 #[cfg(test)]

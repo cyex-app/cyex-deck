@@ -3,16 +3,25 @@
 //! the two slots, `realtime.rs` reads Hermes, `claims.rs` takes chests, moments and
 //! raids, `bets.rs` bets, `drops.rs` claims drops, `goals.rs` feeds community goals,
 //! `tabs.rs` covers watching in the app (W1) and chests in open tabs (C22), `stats.rs`
-//! keeps the log per channel (1.32) and `log.rs` the miner log (W4).
+//! keeps the log per channel (1.32) and `log.rs` the miner log (W4). V110-U68: `campaigns.rs`
+//! loads the badge campaigns, `badges.rs` finds who can earn them (and helper channels),
+//! `idle.rs` slows everything down while the app is hidden with nothing to earn, and
+//! `source.rs` asks Twitch (or, in mocks builds, `drops_mock.rs`) about drops.
 
+mod badges;
 mod bets;
+mod campaigns;
 mod channels;
 mod claims;
 pub mod drops;
+#[cfg(feature = "mocks")]
+mod drops_mock;
 mod goals;
+pub mod idle;
 pub mod peek;
 pub mod log;
 mod realtime;
+mod source;
 pub mod stats;
 mod tabs;
 mod watch;
@@ -21,9 +30,10 @@ pub use realtime::{on_channel_event, on_user_event};
 pub use tabs::chat_rooms;
 
 use crate::auth::gql_auth; // V107-R18: miner submodules reach it via super::
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex, MutexGuard};
 
+use cyex_miner::badges::{Badge, BadgeView, EarnedBadge, Helper};
 use cyex_miner::slots::Streak;
 use cyex_settings::Partition;
 use cyex_settings::schema::Miner as MinerSettings;
@@ -42,6 +52,9 @@ pub struct Miner {
     state: Mutex<State>,
     /// Wakes the channel loop: settings changed, a stream went up.
     wake: Arc<Notify>,
+    /// V110-U68 Wakes the watch, drops and campaign loops (`notify_waiters`): a window
+    /// showed, a stream went up, settings changed.
+    idle_wake: Arc<Notify>,
     /// When this run started (ms), for "this session" in the stats.
     pub session_start: i64,
     log: log::Log,
@@ -69,6 +82,29 @@ struct State {
     spade: Option<String>,
     /// V110-F55 When the last read of it failed: the fallback address serves until it is due again.
     spade_failed: Option<std::time::Instant>,
+    /// V110-U68 When it was last read, so refused minutes read it again at most once a minute.
+    spade_read_at: Option<std::time::Instant>,
+    /// V110-U68 Badges that can be earned by watching (`campaigns.rs`, `drops.rs`).
+    badges: Vec<Badge>,
+    /// Channels found for a badge, kept in memory only; they also sit in `channels`.
+    helpers: Vec<Helper>,
+    /// Helpers added per campaign this session, and when each was last looked for (secs).
+    helper_adds: HashMap<String, u32>,
+    helper_tried: HashMap<String, i64>,
+    /// Helpers whose stream couldn't be reached; not tried again this session.
+    helper_skip: HashSet<String>,
+    /// Badges earned while the app ran, newest last.
+    earned: Vec<EarnedBadge>,
+    /// The badge being earned now: (channel id, campaign id).
+    focus: Option<(String, String)>,
+    /// Told once per focus that a stream playing here takes the other slot.
+    focus_warned: bool,
+    /// Campaigns whose drops are all claimed: a channel with only these has no drops left.
+    done_campaigns: HashSet<String>,
+    /// Offline channels whose stream topic is followed while hidden and idle.
+    idle_topics: HashSet<String>,
+    /// Followed channels that were followed as helpers (fewer topics, `watch::topics`).
+    helper_topics: HashSet<String>,
 }
 
 struct Chan {
@@ -82,8 +118,18 @@ struct Chan {
     streak: Streak,
     balance: Option<u64>,
     multiplier: f64,
-    /// Drop campaigns running here.
+    /// Drop campaigns running here that still have something to earn.
     drops: bool,
+    /// V110-U68 Ids of the drop campaigns running here.
+    campaigns: Vec<String>,
+    /// V110-U68 Found for this badge campaign, not on the list.
+    helper_for: Option<String>,
+    /// V110-U68 The watch streak count when this stream began, and when it was last read
+    /// (ms): a higher count means this stream's streak is in.
+    streak_start: Option<u32>,
+    streak_checked_at: i64,
+    /// Minutes in a row that couldn't reach the stream.
+    fails: u32,
     /// When the points context and the drops were last read (ms).
     context_at: i64,
     drops_at: i64,
@@ -108,6 +154,11 @@ impl Chan {
             balance: None,
             multiplier: 0.0,
             drops: false,
+            campaigns: Vec::new(),
+            helper_for: None,
+            streak_start: None,
+            streak_checked_at: 0,
+            fails: 0,
             context_at: 0,
             drops_at: 0,
             token: None,
@@ -130,6 +181,16 @@ pub struct MinerStatus {
     pub channels: Vec<MinedChannel>,
     /// Drops still being earned.
     pub drops: Vec<drops::DropProgress>,
+    /// V110-U68 Badges that can be earned by watching, one per campaign.
+    pub badges: Vec<BadgeView>,
+    /// V110-U68 The campaign whose badge is being earned now.
+    pub focus: Option<String>,
+    /// V110-U68 Badges earned while the app ran.
+    pub earned: Vec<EarnedBadge>,
+    /// V110-U68 When a waiting badge is looked for again (unix seconds): nothing live
+    /// can earn it now.
+    #[ts(type = "number | null")]
+    pub retry_at: Option<i64>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, TS)]
@@ -153,12 +214,16 @@ pub struct MinedChannel {
     pub streak: bool,
     pub drops: bool,
     pub game: Option<String>,
+    /// V110-U68 Watched only for this badge campaign; not on the list.
+    #[ts(optional = nullable)]
+    pub helper_for: Option<String>,
 }
 
 pub fn init(app: &AppHandle) {
     app.manage(Miner {
         state: Mutex::default(),
         wake: Arc::new(Notify::new()),
+        idle_wake: Arc::new(Notify::new()),
         session_start: now_ms(),
         log: log::Log::default(),
         last: Mutex::default(),
@@ -166,6 +231,7 @@ pub fn init(app: &AppHandle) {
     channels::spawn(app);
     watch::spawn(app);
     drops::spawn(app);
+    campaigns::spawn(app);
     tabs::spawn(app);
 }
 
@@ -173,6 +239,7 @@ pub fn init(app: &AppHandle) {
 pub fn on_settings(app: &AppHandle) {
     if let Some(m) = app.try_state::<Miner>() {
         m.wake.notify_one();
+        m.idle_wake.notify_waiters();
     }
     tabs::on_changed(app);
 }
@@ -213,7 +280,9 @@ async fn spade_url(app: &AppHandle) -> String {
     }
     match cyex_twitch::spade::find_url(&http(app)).await {
         Some(url) => {
-            lock(app).spade = Some(url.clone());
+            let mut st = lock(app);
+            st.spade = Some(url.clone());
+            st.spade_read_at = Some(std::time::Instant::now());
             url
         }
         None => {
@@ -221,6 +290,24 @@ async fn spade_url(app: &AppHandle) -> String {
             fallback()
         }
     }
+}
+
+/// V110-U68 spade turned a minute down: its address is read again for the next minute (at
+/// most once a minute), as the cyex-miner reference does.
+fn forget_spade(app: &AppHandle) {
+    let mut st = lock(app);
+    if reread_due(st.spade_read_at.map(|t| t.elapsed())) {
+        st.spade = None;
+        st.spade_failed = None;
+        st.spade_read_at = None;
+    }
+}
+
+/// V110-U68 The least time between two reads of spade's address after refused minutes.
+const SPADE_REREAD: std::time::Duration = std::time::Duration::from_secs(60);
+
+fn reread_due(since_read: Option<std::time::Duration>) -> bool {
+    since_read.is_none_or(|d| d >= SPADE_REREAD)
 }
 
 /// V110-F58 Most ids the raids and bets sets remember.
@@ -250,6 +337,7 @@ fn http(app: &AppHandle) -> cyex_twitch::Http {
 pub fn status(app: &AppHandle) -> MinerStatus {
     let s = settings(app);
     let first: HashSet<&str> = s.first.iter().map(|c| c.id.as_str()).collect();
+    let now_secs = now_ms() / 1000;
     let st = lock(app);
     MinerStatus {
         running: st.account.is_some(),
@@ -274,9 +362,14 @@ pub fn status(app: &AppHandle) -> MinerStatus {
                     .stream
                     .as_ref()
                     .and_then(|s| s.game.as_ref().map(|g| g.1.clone())),
+                helper_for: c.helper_for.clone(),
             })
             .collect(),
         drops: st.drop_progress.clone(),
+        badges: cyex_miner::badges::views(&st.badges, &st.helpers, &s, now_secs),
+        focus: st.focus.as_ref().map(|f| f.1.clone()),
+        earned: st.earned.clone(),
+        retry_at: badges::retry_at(&st, &s, now_secs),
     }
 }
 
@@ -320,6 +413,13 @@ mod tests {
             first_time(&mut set, &i.to_string());
         }
         assert!(set.len() <= ONCE_CAP);
+    }
+
+    #[test]
+    fn v110_u68_refused_minutes_read_spade_again_at_most_once_a_minute() {
+        assert!(reread_due(None));
+        assert!(!reread_due(Some(Duration::from_secs(5))));
+        assert!(reread_due(Some(SPADE_REREAD)));
     }
 
     #[test]

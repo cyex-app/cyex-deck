@@ -206,6 +206,8 @@ pub fn chat_rooms(app: &AppHandle) -> Vec<(Option<String>, String)> {
     };
     st.channels
         .iter()
+        // V110-U68 Helper channels are watched for a badge only: no chat.
+        .filter(|c| c.helper_for.is_none())
         .filter(|c| presence == ChatPresence::Always || c.stream.is_some())
         .map(|c| (Some(account.clone()), c.login.clone()))
         .collect()

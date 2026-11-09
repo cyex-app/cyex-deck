@@ -14,7 +14,6 @@ use tauri::{AppHandle, Manager};
 use super::log::{self, LogKind};
 use super::{Chan, Miner, gql_auth, http, lock, now_ms};
 
-const POLL: Duration = Duration::from_secs(60);
 const CONTEXT_AGE: i64 = 30 * 60_000;
 const DROPS_AGE: i64 = 15 * 60_000;
 /// Drops are looked up for the first few live channels only.
@@ -48,8 +47,10 @@ pub fn spawn(app: &AppHandle) {
         loop {
             let started = Instant::now();
             refresh(&app, &mut follows).await;
+            // V110-U68 Hidden with nothing to earn: every 5 minutes (Hermes wakes it sooner).
+            let poll = super::idle::cadence(&app).poll;
             tokio::select! {
-                () = tokio::time::sleep(POLL) => {}
+                () = tokio::time::sleep(poll) => {}
                 () = wake.notified() => {
                     // V110-F54 Settings and tab changes come in bursts: wakes inside the gap run once, after it.
                     tokio::time::sleep(gap_left(started.elapsed())).await;
@@ -75,7 +76,13 @@ async fn refresh(app: &AppHandle, follows: &mut Follows) {
             None => follows.list.clear(),
         }
     }
-    let wanted = wanted(&s, &follows.list);
+    let mut wanted = wanted(&s, &follows.list);
+    // V110-U68 Helper channels for badges come after the list.
+    for h in super::badges::helper_channels(&lock(app)) {
+        if !wanted.iter().any(|w| w.0 == h.0) {
+            wanted.push(h);
+        }
+    }
     let Some(account) = account else {
         set_channels(app, &wanted, None);
         super::emit_status(app);
@@ -92,8 +99,14 @@ async fn refresh(app: &AppHandle, follows: &mut Follows) {
     };
     set_channels(app, &wanted, found.as_deref());
     contexts(app, &account, &s).await;
+    super::badges::prune(app, &s);
+    // V110-U68 Hidden and idle, only picked badges are looked for (as with the campaigns).
+    if !super::idle::idle(app) || !s.badges.picked.is_empty() {
+        super::badges::find(app, &account, &s).await;
+    }
     super::emit_status(app);
     super::tabs::sync_presence(app);
+    super::idle::topics(app);
 }
 
 /// The account set in the miner if it has a GQL sign-in, else the default account, else
@@ -132,6 +145,12 @@ fn set_account(app: &AppHandle, account: Option<String>, problem: Option<String>
         let old = std::mem::replace(&mut st.account, account.clone());
         if old != account {
             st.slots.clear();
+            // V110-U68 Badge progress and helpers belong to the account.
+            st.badges.clear();
+            st.helpers.clear();
+            st.helper_adds.clear();
+            st.helper_tried.clear();
+            st.focus = None;
             for c in &mut st.channels {
                 c.balance = None;
                 c.context_at = 0;
@@ -213,6 +232,11 @@ fn wanted(s: &MinerSettings, follows: &[Named]) -> Vec<Named> {
 fn set_channels(app: &AppHandle, wanted: &[Named], found: Option<&[MinerChannel]>) {
     let now = now_ms();
     let mut st = lock(app);
+    let helper_of: std::collections::HashMap<String, String> = st
+        .helpers
+        .iter()
+        .map(|h| (h.channel_id.clone(), h.campaign_id.clone()))
+        .collect();
     let mut events: Vec<(String, &str)> = Vec::new();
     let mut old: Vec<Chan> = std::mem::take(&mut st.channels);
     let mut list = Vec::with_capacity(wanted.len());
@@ -225,6 +249,7 @@ fn set_channels(app: &AppHandle, wanted: &[Named], found: Option<&[MinerChannel]
                 Chan::new(id, login, name)
             }
         };
+        c.helper_for = helper_of.get(id).cloned();
         let Some(found) = found else {
             if st.account.is_none() {
                 c.stream = None;
@@ -244,8 +269,11 @@ fn set_channels(app: &AppHandle, wanted: &[Named], found: Option<&[MinerChannel]
                             events.push((c.name.clone(), "Went live."));
                         }
                         c.streak.went_live();
+                        c.streak_start = None;
                         c.live_since = live_since(&s.started_at, now);
                         c.context_at = 0;
+                        // V110-U68 Its campaigns are read soon: it may earn a badge.
+                        c.drops_at = 0;
                     }
                     (Some(_), None) => {
                         events.push((c.name.clone(), "Went offline."));
@@ -253,6 +281,7 @@ fn set_channels(app: &AppHandle, wanted: &[Named], found: Option<&[MinerChannel]
                     }
                     (Some(a), Some(b)) if a.id != b.id => {
                         c.streak.went_live();
+                        c.streak_start = None;
                         c.live_since = now;
                     }
                     _ => {}
@@ -312,17 +341,21 @@ fn live_since(started_at: &str, now: i64) -> i64 {
 /// 30 minutes old, and drops of the first few.
 async fn contexts(app: &AppHandle, account: &str, s: &MinerSettings) {
     let now = now_ms();
-    let (due, drops_due): (Vec<(String, String)>, Vec<String>) = {
+    // V110-U68 Campaigns are read for drops and for badges.
+    let badges = super::badges::wanted_any(app, s);
+    let (due, drops_due): (Vec<(String, String, bool)>, Vec<String>) = {
         let st = lock(app);
         let live = st.channels.iter().filter(|c| c.stream.is_some());
         let due = live
             .clone()
             .filter(|c| now - c.context_at >= CONTEXT_AGE)
-            .map(|c| (c.id.clone(), c.login.clone()))
+            .map(|c| (c.id.clone(), c.login.clone(), c.helper_for.is_some()))
             .collect();
-        let drops = live
-            .take(DROPS_CHECKED)
-            .filter(|c| s.claim_drops && now - c.drops_at >= DROPS_AGE)
+        let listed = live.clone().filter(|c| c.helper_for.is_none()).take(DROPS_CHECKED);
+        let helpers = live.filter(|c| c.helper_for.is_some());
+        let drops = listed
+            .chain(helpers)
+            .filter(|c| (s.claim_drops || badges) && now - c.drops_at >= DROPS_AGE)
             .map(|c| c.id.clone())
             .collect();
         (due, drops)
@@ -334,7 +367,7 @@ async fn contexts(app: &AppHandle, account: &str, s: &MinerSettings) {
         return;
     };
     let http = http(app);
-    for (id, login) in due {
+    for (id, login, helper) in due {
         match gm::points_context(&http, gql_auth(&token, &client_id), &login).await {
             Ok(Some(ctx)) => {
                 {
@@ -348,7 +381,8 @@ async fn contexts(app: &AppHandle, account: &str, s: &MinerSettings) {
                 if let Some(claim) = &ctx.claim {
                     super::claims::bonus(app, account, &id, claim).await;
                 }
-                if s.goals {
+                // V110-U68 No points toward a stranger's goals.
+                if s.goals && !helper {
                     super::goals::contribute(app, account, &ctx).await;
                 }
             }
@@ -357,25 +391,41 @@ async fn contexts(app: &AppHandle, account: &str, s: &MinerSettings) {
         }
         tokio::time::sleep(Duration::from_millis(400)).await;
     }
-    for id in drops_due {
-        let has = cyex_twitch::gql::drops::channel_campaigns(&http, gql_auth(&token, &client_id), &id)
-            .await
-            .map(|c| !c.is_empty());
-        let mut st = lock(app);
-        if let Some(c) = st.channels.iter_mut().find(|c| c.id == id) {
-            c.drops_at = now;
-            if let Ok(has) = has {
-                c.drops = has;
+    if drops_due.is_empty() {
+        return;
+    }
+    // V110-U68 30 channels a request (`channels_campaigns`), the requests 400 ms apart.
+    for chunk in drops_due.chunks(cyex_twitch::gql::drops::CHANNELS_BATCH) {
+        let found = super::source::channels(app, &http, gql_auth(&token, &client_id), chunk).await;
+        if let Err(e) = &found {
+            eprintln!("miner: drop campaigns: {e}");
+        }
+        let found = found.unwrap_or_default();
+        {
+            let mut st = lock(app);
+            let done = st.done_campaigns.clone();
+            for c in st.channels.iter_mut().filter(|c| chunk.contains(&c.id)) {
+                c.drops_at = now;
+                if let Some((_, camps)) = found.iter().find(|f| f.0 == c.id) {
+                    c.drops = has_drops_left(camps, &done);
+                    c.campaigns = camps.clone();
+                }
             }
         }
+        tokio::time::sleep(Duration::from_millis(400)).await;
     }
+}
+
+/// V110-U68 A campaign running here that isn't fully claimed yet: the Drops rule means
+/// drops still to earn.
+fn has_drops_left(campaigns: &[String], done: &HashSet<String>) -> bool {
+    campaigns.iter().any(|c| !done.contains(c))
 }
 
 /// Hermes said a mined stream went up: look now instead of within the minute.
 pub fn nudge(app: &AppHandle) {
-    if let Some(m) = app.try_state::<Miner>() {
-        m.wake.notify_one();
-    }
+    // V110-U68 Wakes the parked loops too.
+    super::idle::wake_all(app);
 }
 
 #[cfg(test)]
@@ -416,6 +466,14 @@ mod tests {
             ..s
         };
         assert_eq!(ids(wanted(&f, &follows)), ["3", "4"]);
+    }
+
+    #[test]
+    fn v110_u68_fully_claimed_campaigns_leave_no_drops() {
+        let done: HashSet<String> = ["a".to_owned()].into();
+        assert!(!has_drops_left(&["a".into()], &done));
+        assert!(has_drops_left(&["a".into(), "b".into()], &done));
+        assert!(!has_drops_left(&[], &done));
     }
 
     #[test]

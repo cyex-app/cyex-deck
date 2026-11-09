@@ -136,7 +136,9 @@ pub fn on_channel_event(app: &AppHandle, e: &Event) {
     let id = e.topic.channel_id.clone();
     let Some(account) = ({
         let st = lock(app);
-        st.account.clone().filter(|_| st.followed.contains(&id))
+        // V110-U68 Idle channels follow only their stream topic, to wake the miner.
+        let idle = e.topic.kind == Kind::Playback && st.idle_topics.contains(&id);
+        st.account.clone().filter(|_| st.followed.contains(&id) || idle)
     }) else {
         return;
     };

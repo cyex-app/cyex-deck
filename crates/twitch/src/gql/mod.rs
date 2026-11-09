@@ -223,6 +223,31 @@ pub(crate) async fn batch(
     Ok(responses.into_iter().map(unwrap).collect())
 }
 
+/// V110-U68 Several persisted operations in one request: (name, sha256, variables) each,
+/// answered like [`batch`].
+pub(crate) async fn batch_persisted(
+    http: &Http,
+    auth: Auth<'_>,
+    ops: &[(&str, &str, Value)],
+) -> Result<Vec<Result<Value>>> {
+    if ops.is_empty() {
+        return Ok(Vec::new());
+    }
+    let body: Vec<Value> = ops
+        .iter()
+        .map(|(name, hash, v)| {
+            json!({
+                "operationName": name,
+                "variables": v,
+                "extensions": { "persistedQuery": { "version": 1, "sha256Hash": hash } },
+            })
+        })
+        .collect();
+    let req = request(http, auth).json(&body);
+    let responses: Vec<Response<Value>> = send_json(req).await?;
+    Ok(responses.into_iter().map(unwrap).collect())
+}
+
 /// V107-R41 GQL's address: Twitch's, or a local mock's `{base}/gql` (tests, mocks builds).
 pub(crate) fn url_at(base: Option<&str>) -> String {
     base.map_or_else(|| URL.to_owned(), |b| format!("{b}/gql"))

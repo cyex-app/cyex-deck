@@ -122,6 +122,8 @@ pub fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static 
         miner::miner_stats_clear,
         miner::miner_add,
         miner::miner_first,
+        miner::miner_badge_pick,
+        miner::miner_badges_auto,
         browse::home_channels,
         browse::discover_streams,
         browse::discover_categories,

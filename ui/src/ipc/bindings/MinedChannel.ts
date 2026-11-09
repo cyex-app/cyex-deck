@@ -16,4 +16,8 @@ first: boolean, balance: number | null,
 /**
  * A watch streak is still to be had this stream.
  */
-streak: boolean, drops: boolean, game: string | null, };
+streak: boolean, drops: boolean, game: string | null, 
+/**
+ * V110-U68 Watched only for this badge campaign; not on the list.
+ */
+helperFor?: string | null, };

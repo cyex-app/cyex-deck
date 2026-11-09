@@ -9,7 +9,7 @@ use std::collections::HashMap;
 use serde::Deserialize;
 use serde_json::json;
 
-use super::{Auth, query};
+use super::{Auth, persisted, query};
 use crate::random::hex;
 use crate::{Http, Result};
 
@@ -146,6 +146,30 @@ pub async fn contribute(
         .contribute_community_points_community_goal
         .and_then(|c| c.error)
         .map(|e| e.code))
+}
+
+/// V110-U68 RewardList as twitch.tv sends it (cyex-miner reference, src/constants.rs).
+const REWARD_LIST: (&str, &str) = (
+    "RewardList",
+    "0b1471876d7647993731b9e3c6a13bf304c67fb31d07f06a945d42286ee377c4",
+);
+
+/// V110-U68 The account's watch streak on a channel (how many streams in a row), `None`
+/// when Twitch shows none. Persisted only: when the hash is gone this fails and the miner
+/// keeps guessing from minutes watched.
+pub async fn watch_streak(http: &Http, auth: Auth<'_>, channel_id: &str) -> Result<Option<u32>> {
+    let vars = json!({ "channelID": channel_id, "shouldIncludeAllSuspendedStreaks": false });
+    let data: serde_json::Value = persisted(http, auth, REWARD_LIST.0, REWARD_LIST.1, vars).await?;
+    Ok(streak_of(&data))
+}
+
+/// The streak count in a RewardList answer (`data`); Twitch sends it as text or a number.
+pub fn streak_of(data: &serde_json::Value) -> Option<u32> {
+    let v = &data["channel"]["self"]["watchStreakMilestone"]["watchStreakMilestone"]["value"];
+    match v {
+        serde_json::Value::String(s) => s.parse().ok(),
+        other => other.as_u64().and_then(|n| u32::try_from(n).ok()),
+    }
 }
 
 #[derive(Deserialize)]
@@ -358,6 +382,17 @@ struct ContributePayload {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn v110_u68_streak_counts_read_as_text_or_number() {
+        let at = |v: serde_json::Value| {
+            json!({ "channel": { "self": { "watchStreakMilestone": { "watchStreakMilestone": { "value": v } } } } })
+        };
+        assert_eq!(streak_of(&at(json!("4"))), Some(4));
+        assert_eq!(streak_of(&at(json!(9))), Some(9));
+        assert_eq!(streak_of(&at(serde_json::Value::Null)), None);
+        assert_eq!(streak_of(&json!({ "channel": null })), None);
+    }
 
     #[test]
     fn context_reads_claims_multipliers_and_goals() {

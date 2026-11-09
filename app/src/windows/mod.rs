@@ -101,6 +101,7 @@ pub fn show_main(app: &AppHandle) {
         // V110-U50 Back from the tray after a close: the page is awake again.
         set_low_memory(app, MAIN, false);
         let _ = w.set_focus();
+        crate::miner::idle::on_visibility(app); // V110-U68 (tray, hotkey)
     }
 }
 
@@ -198,6 +199,10 @@ pub fn on_window_event(window: &tauri::Window, event: &WindowEvent) {
             paint::forget(app, window.label());
         }
         _ => {}
+    }
+    // V110-U68 The miner slows down while every window is hidden, and wakes when one shows.
+    if !matches!(event, WindowEvent::Moved(_) | WindowEvent::DragDrop(_) | WindowEvent::ThemeChanged(_)) {
+        crate::miner::idle::on_visibility(app);
     }
 }
 

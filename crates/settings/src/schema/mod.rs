@@ -53,7 +53,7 @@ pub use highlights::{LiveWhen, RoleWhen, When};
 pub use hotkeys::Hotkeys;
 // V110-U67
 pub use menus::{CustomAction, MenuLayout, MenuLayouts, MenuNode};
-pub use miner::{BetFilter, Bets, ChatPresence, DelayMode, FilterBy, FilterCmp, MAX_FIRST, MineSource, Miner, Rule, Strategy};
+pub use miner::{Badges, BetFilter, Bets, ChatPresence, DelayMode, FilterBy, FilterCmp, MAX_FIRST, MAX_PICKED, MineSource, Miner, Rule, Strategy};
 pub use modview::Modview;
 // V110-M20
 pub use name_clicks::{NameClick, NameClicks};

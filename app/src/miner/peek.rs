@@ -47,6 +47,7 @@ fn mined(c: MinerChannel) -> MinedChannel {
         balance: None,
         streak: false,
         drops: false,
+        helper_for: None,
     }
 }
 
