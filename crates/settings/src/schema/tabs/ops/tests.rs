@@ -56,6 +56,26 @@ fn adding_opens_a_new_tab_and_remembers_the_choice() {
 }
 
 #[test]
+fn adding_quietly_keeps_the_active_tab_and_last_show() {
+    let mut t = tabs(&["a"]);
+    let before = t.last_show;
+    let op = TabOp::AddQuiet {
+        channel: channel("xqc"),
+        show: TileShow {
+            player: !before.player,
+            chat: true,
+        },
+        account: Some("me".into()),
+    };
+    let id = apply(&mut t, op).unwrap();
+    assert_eq!(order(&t), ["a", id.as_str()]);
+    assert_eq!(t.active.as_deref(), Some("a"));
+    assert_eq!(t.last_show, before);
+    assert_eq!(t.tabs[1].columns[0].tiles[0].channel.login, "xqc");
+    assert_eq!(t.tabs[1].columns[0].tiles[0].account.as_deref(), Some("me"));
+}
+
+#[test]
 fn adding_many_makes_a_grid() {
     let mut t = tabs(&["a"]);
     let many = |logins: &[&str]| TabOp::AddMany {

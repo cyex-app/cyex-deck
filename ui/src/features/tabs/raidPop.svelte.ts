@@ -32,19 +32,15 @@ export async function openRaided({ raid: r, account }: RaidGo): Promise<void> {
     await popOut(tabRoute(mine.id), r.targetName);
     return;
   }
-  // Adding makes the new tab active; the main window goes back to what it showed.
-  const before = tabs.active;
+  // V110-F74 Added without being shown: the main window's active tab stays, its chat unjoined.
   const id = await tabs.apply({
-    op: 'add',
+    op: 'addQuiet',
     channel: { id: r.targetId, login: r.targetLogin, name: r.targetName },
     show: { player: true, chat: true },
     account,
-    alias: null,
-    into: null,
   });
   if (!id) return;
   raidTabs.add(id);
-  tabs.activate(before);
   if (!(await popOut(tabRoute(id), r.targetName))) {
     raidTabs.drop(id);
     tabs.close([id]);

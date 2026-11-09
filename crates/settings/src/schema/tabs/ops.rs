@@ -21,6 +21,13 @@ pub enum TabOp {
         alias: Option<String>,
         into: Option<String>,
     },
+    /// V110-F74 A new tab that is not shown: the active tab and `last_show` stay as they are
+    /// (a raid's pop-out tab, which a pop-out window takes right away).
+    AddQuiet {
+        channel: TabChannel,
+        show: TileShow,
+        account: Option<String>,
+    },
     /// H3 Several channels side by side in one new tab, as a grid. Only the first plays
     /// sound. Shows it. New single tabs keep starting from `last_show`.
     AddMany {
@@ -204,6 +211,22 @@ impl Tabs {
                 self.last_show = show;
                 self.active = Some(tab_id.clone());
                 Ok(Some(tab_id))
+            }
+            TabOp::AddQuiet { channel, show, account } => {
+                let (active, last_show) = (self.active.clone(), self.last_show);
+                let made = self.run(
+                    TabOp::Add {
+                        channel,
+                        show,
+                        account,
+                        alias: None,
+                        into: None,
+                    },
+                    new_id,
+                );
+                self.active = active;
+                self.last_show = last_show;
+                made
             }
             TabOp::AddMany {
                 channels,
