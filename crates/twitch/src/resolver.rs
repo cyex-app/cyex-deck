@@ -9,6 +9,8 @@ use crate::http::json;
 use crate::{Http, Result};
 
 const URL: &str = "https://braize.pajlada.com/chatterino/link_resolver";
+/// V110-F75 The resolver's picture proxy: the only place a preview picture is ever loaded from.
+const THUMB: &str = "https://braize.pajlada.com/chatterino/thumbnail";
 
 #[derive(Deserialize)]
 struct Response {
@@ -55,6 +57,46 @@ fn mock_ok(u: &str) -> bool {
     url::Url::parse(u).is_ok_and(|u| {
         u.scheme() == "http" && u.host_str() == Some("127.0.0.1") && u.username().is_empty() && u.password().is_none()
     })
+}
+
+/// V110-F75 Where the picture proxy lives (the mock stands in for it in mocks builds too).
+fn thumb_base() -> String {
+    #[cfg(any(test, feature = "mocks"))]
+    if let Ok(u) = std::env::var("CYEX_LINK_RESOLVER_MOCK")
+        && mock_ok(&u)
+    {
+        return format!("{}/thumbnail", u.trim_end_matches('/'));
+    }
+    THUMB.to_owned()
+}
+
+/// V110-F75 `encodeURIComponent`.
+fn component(s: &str) -> String {
+    let mut out = String::with_capacity(s.len() * 2);
+    for b in s.bytes() {
+        if b.is_ascii_alphanumeric() || b"-_.!~*'()".contains(&b) {
+            out.push(b as char);
+        } else {
+            out.push_str(&format!("%{b:02X}"));
+        }
+    }
+    out
+}
+
+/// V110-F75 Already a picture from the proxy.
+pub fn is_proxied(url: &str) -> bool {
+    url.strip_prefix(&thumb_base()).is_some_and(|r| r.starts_with('/'))
+}
+
+/// V110-F75 A preview picture as the UI may load it: through the resolver's proxy, so the
+/// picture's host never sees this machine. Already proxied stays; anything that is not https
+/// is dropped.
+pub fn proxied(url: &str) -> Option<String> {
+    let url = url.trim();
+    if is_proxied(url) {
+        return Some(url.to_owned());
+    }
+    (url.starts_with("https://") && !url.contains(char::is_whitespace)).then(|| format!("{}/{}", thumb_base(), component(url)))
 }
 
 /// `None` if the resolver has nothing on it.
@@ -211,6 +253,26 @@ mod tests {
         ] {
             assert!(!mock_ok(u), "{u}");
         }
+    }
+
+    #[test]
+    fn v110_f75_pictures_go_through_the_proxy() {
+        let direct = "https://i.ytimg.com/vi/a/mqdefault.jpg?x=1&y=2";
+        let p = proxied(direct).unwrap();
+        assert_eq!(
+            p,
+            "https://braize.pajlada.com/chatterino/thumbnail/https%3A%2F%2Fi.ytimg.com%2Fvi%2Fa%2Fmqdefault.jpg%3Fx%3D1%26y%3D2"
+        );
+        assert_eq!(proxied(&p).as_deref(), Some(p.as_str()));
+        assert!(is_proxied(&p));
+        for bad in ["http://i.ytimg.com/a.jpg", "//x/a.jpg", "data:image/png;base64,AA", "javascript:1", "ftp://x/a", ""] {
+            assert!(proxied(bad).is_none(), "{bad}");
+        }
+        assert!(proxied("https://x/a b.jpg").is_none());
+        // Looks like the proxy but is not: wrapped like any other.
+        let fake = "https://braize.pajlada.com.evil.io/chatterino/thumbnail/x";
+        assert!(!is_proxied(fake));
+        assert!(proxied(fake).unwrap().starts_with("https://braize.pajlada.com/chatterino/thumbnail/https%3A"));
     }
 
     #[test]

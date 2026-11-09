@@ -4,6 +4,7 @@
 
 import type { LinkThumbs } from '../../ipc/bindings/LinkThumbs';
 import type { LinkPreview } from '../../ipc/bindings/LinkPreview';
+import { previewPic } from './previewPic.ts';
 import { factText } from './linkFacts.ts';
 
 /** The card's picture box, px: always drawn at this size, loaded or not. */
@@ -33,6 +34,6 @@ export function cardLines(info: LinkPreview | null): string[] {
 export type CardState = 'wait' | 'ready' | 'plain' | 'gone';
 
 export function cardAfter(info: LinkPreview | null, onScreen: boolean): CardState {
-  if (info && (cardLines(info).length || info.thumbnail)) return 'ready';
+  if (info && (cardLines(info).length || previewPic(info.thumbnail))) return 'ready';
   return onScreen ? 'plain' : 'gone';
 }

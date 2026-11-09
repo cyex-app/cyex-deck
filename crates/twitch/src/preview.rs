@@ -72,6 +72,16 @@ pub struct LinkPreview {
 
 const TWITCH: &str = "Twitch";
 
+impl LinkPreview {
+    /// V110-F75 Every picture of the card (preview and avatar) through the resolver's proxy;
+    /// one that can't be proxied is dropped, never loaded direct.
+    pub fn through_proxy(mut self) -> Self {
+        self.thumbnail = self.thumbnail.as_deref().and_then(crate::resolver::proxied);
+        self.avatar = self.avatar.as_deref().and_then(crate::resolver::proxied);
+        self
+    }
+}
+
 fn https(url: Option<String>) -> Option<String> {
     url.filter(|u| u.starts_with("https://") && !u.contains(char::is_whitespace))
 }
@@ -345,6 +355,21 @@ mod tests {
             on.thumbnail.as_deref(),
             Some("https://static-cdn.jtvnw.net/previews-ttv/live_user_lirik-440x248.jpg")
         );
+    }
+
+    #[test]
+    fn v110_f75_card_pictures_are_proxied() {
+        let p = from_channel(channel(None)).through_proxy();
+        let t = p.thumbnail.unwrap();
+        assert!(t.starts_with("https://braize.pajlada.com/chatterino/thumbnail/https%3A%2F%2Foffline"), "{t}");
+        assert!(p.avatar.unwrap().contains("/thumbnail/https%3A%2F%2Favatar"));
+        let p = LinkPreview {
+            thumbnail: Some("http://plain/a.png".into()),
+            avatar: None,
+            ..from_channel(channel(None))
+        }
+        .through_proxy();
+        assert!(p.thumbnail.is_none() && p.avatar.is_none());
     }
 
     #[test]

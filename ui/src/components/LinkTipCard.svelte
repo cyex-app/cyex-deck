@@ -3,6 +3,7 @@
      A skeleton while it loads, a short line when there's nothing. -->
 <script lang="ts">
   import { factText, kindText, numeric } from '../features/chat/linkFacts';
+  import { previewPic } from '../features/chat/previewPic';
   import type { TipCard } from './tooltip.svelte';
 
   let { c }: { c: TipCard } = $props();
@@ -18,12 +19,15 @@
   <p class="none tip-card">No preview</p>
 {:else}
   {@const p = c.card}
+  <!-- V110-F75 Pictures load only from the resolver's proxy. -->
+  {@const pic = previewPic(p.thumbnail)}
+  {@const face = previewPic(p.avatar)}
   {@const facts = p.facts.map((f) => ({ text: factText(f), num: numeric(f) })).filter((f) => f.text)}
   <!-- V110-C66 With a picture the card is as wide as the picture size asked for. -->
   <div
     class="card tip-card"
     class:live={p.live}
-    style:min-width={p.thumbnail && c.thumbWidth ? `${Math.max(200, c.thumbWidth)}px` : undefined}
+    style:min-width={pic && c.thumbWidth ? `${Math.max(200, c.thumbWidth)}px` : undefined}
   >
     <!-- V110-F46 A web page's site is its host, which the tip's "Opens x.com" already says. -->
     {#if p.kind !== 'web'}
@@ -34,18 +38,18 @@
         {/if}
       </span>
     {/if}
-    {#if p.title || p.subtitle || p.avatar}
+    {#if p.title || p.subtitle || face}
       <div class="head">
-        {#if p.avatar}<img class="avatar" src={p.avatar} alt="" referrerpolicy="no-referrer" />{/if}
+        {#if face}<img class="avatar" src={face} alt="" referrerpolicy="no-referrer" />{/if}
         <div class="names">
           {#if p.title}<b class="title">{p.title}</b>{/if}
           {#if p.subtitle}<span class="sub">{p.subtitle}</span>{/if}
         </div>
       </div>
     {/if}
-    {#if p.thumbnail && c.thumbWidth}
+    {#if pic && c.thumbWidth}
       <div class="pic" class:blur={c.blur} style:max-width="{c.thumbWidth}px">
-        <img src={p.thumbnail} alt="" referrerpolicy="no-referrer" />
+        <img src={pic} alt="" referrerpolicy="no-referrer" />
         {#if c.blur}<span class="flag">NSFW</span>{/if}
       </div>
     {/if}

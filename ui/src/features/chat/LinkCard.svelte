@@ -10,6 +10,7 @@
   import { hostOf } from '../../lib/host';
   import { CARD_HEIGHT, CARD_PIC, cardAfter, cardLines, type CardState } from './cardBox';
   import { kindText } from './linkFacts';
+  import { previewPic } from './previewPic';
   import { embeds } from './linkPreviews';
   import { leaveScreen, nearScreen } from './nearScreen';
 
@@ -21,6 +22,8 @@
   let broken = $state(false);
   const host = $derived(hostOf(url));
   const lines = $derived(cardLines(info));
+  // V110-F75 Only the resolver's proxy is loaded; any other picture is not shown.
+  const pic = $derived(previewPic(info?.thumbnail));
 
   /** The nearest scrolling ancestor, or none for the window. Found once per card. */
   let scroller: HTMLElement | null | undefined;
@@ -67,11 +70,11 @@
 <div class="slot" bind:this={el} class:gone={phase === 'gone'} style:--card-h={CARD_HEIGHT}>
   {#if phase === 'ready'}
     <a class="inner" href={url} data-link={url} data-host={host}>
-      {#if info?.thumbnail}
+      {#if pic}
         <span class="pic" style:width="{CARD_PIC.w}px" style:height="{CARD_PIC.h}px">
           {#if !broken}<img
-              class:blur={info.nsfw}
-              src={info.thumbnail}
+              class:blur={info?.nsfw}
+              src={pic}
               width={CARD_PIC.w}
               height={CARD_PIC.h}
               alt=""

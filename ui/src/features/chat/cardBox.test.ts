@@ -39,7 +39,8 @@ test('a card shows at most the lines it has room for', () => {
 
 test('an answer with something to show is ready', () => {
   assert.equal(cardAfter(info(), false), 'ready');
-  assert.equal(cardAfter(info({ title: null, thumbnail: 'https://a/b.png' }), true), 'ready');
+  assert.equal(cardAfter(info({ title: null, thumbnail: 'https://braize.pajlada.com/chatterino/thumbnail/x' }), true), 'ready');
+  assert.equal(cardAfter(info({ title: null, thumbnail: 'https://a/b.png' }), true), 'plain');
 });
 
 test('no answer: the box stays on screen, goes off screen', () => {
