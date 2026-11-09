@@ -23,6 +23,14 @@ test('an exact emote name comes first, then the rest A-Z (V110-U71)', () => {
   assert.deepEqual(emoteItems('kapp', emotes, []).map((i) => i.label), ['Kappa', 'KappaPride', 'KappaWealth', 'Kappu']);
 });
 
+test('emotes come before emoji; an emoji leads only on an exact name (V110-U71)', () => {
+  const emotes = ['melon', 'ME?', 'menheraLost'].map((name, i) => ({ name, provider: 'seventv' as const, id: String(i) }));
+  const emoji = [{ name: 'mechanic', char: '🧑‍🔧' }, { name: 'melting_face', char: '🫠' }];
+  assert.deepEqual(emoteItems('me', emotes, emoji).map((i) => i.label), ['ME?', 'melon', 'menheraLost', ':mechanic:', ':melting_face:']);
+  const sob = emoteItems('sob', [{ name: 'SoBayed', provider: 'bttv' as const, id: 's' }], [{ name: 'sob', char: '😭' }]);
+  assert.deepEqual(sob.map((i) => i.label), [':sob:', 'SoBayed']);
+});
+
 test('one name from two providers: the preferred provider is offered (V110-U71)', () => {
   const emotes = [
     { name: 'OMEGALUL', provider: 'twitch' as const, id: '1' },

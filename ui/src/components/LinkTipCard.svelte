@@ -26,9 +26,9 @@
   <!-- V110-C66 With a picture the card is as wide as the picture size asked for.
        V110-U70 The size is the picture's height; it may be up to 1.6 times as wide, so wide
        pictures (screenshots) aren't drawn tiny. Never cropped. -->
-  <!-- A picture with nothing else (an image host such as kappa.lol) is the whole point: twice as big. -->
+  <!-- A picture with nothing else (an image host such as kappa.lol) is the whole point: 1.5 times as big. -->
   {@const only = !p.title && !p.subtitle && !p.lines.some((l) => l.length)}
-  {@const picH = only ? c.thumbWidth * 2 : c.thumbWidth}
+  {@const picH = only ? Math.round(c.thumbWidth * 1.5) : c.thumbWidth}
   {@const picW = Math.round(picH * 1.6)}
   <div
     class="card tip-card"

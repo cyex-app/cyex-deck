@@ -32,7 +32,7 @@ export interface EmojiName {
 
 /** Emotes and emoji in one order (V110-U71): the closest match first (the exact name, else the
  *  shortest that starts with what's typed, so `:sob` shows 😭 before SoBayed), the rest A-Z by how
- *  they match; on a tie emotes go first. Letters that merely come in order ("cdprSonbird" for
+ *  they match; emotes before emoji, an emoji first only when its name is exactly what's typed. Letters that merely come in order ("cdprSonbird" for
  *  `:sob`) aren't a match; acronyms are (V110-F49). Two emotes with one name: only the provider
  *  `provider` puts first (lower) is offered. Emoji found only by a search word come after. */
 export function emoteItems(
@@ -48,10 +48,11 @@ export function emoteItems(
     if (!have || provider(e.provider) < provider(have.provider)) byName.set(e.name, e);
   }
   type Hit = { emote: EmoteName } | { emoji: EmojiName };
-  const ranked = orderHits<Hit>(prefix, [
-    ...[...byName.values()].map((e) => ({ item: { emote: e }, name: e.name, tie: provider(e.provider) })),
-    ...emoji.map((e) => ({ item: { emoji: e }, name: e.name, tie: Infinity })),
-  ], RANK.acronym).slice(0, limit);
+  // Emotes before emoji; an emoji leads only when its name is exactly what's typed and no emote's is.
+  const ems = orderHits<Hit>(prefix, [...byName.values()].map((e) => ({ item: { emote: e }, name: e.name, tie: provider(e.provider) })), RANK.acronym);
+  const ejs = orderHits<Hit>(prefix, emoji.map((e) => ({ item: { emoji: e }, name: e.name })), RANK.acronym);
+  const exact = (h: Hit | undefined) => !!h && ('emote' in h ? h.emote.name : h.emoji.name).toLowerCase() === prefix.trim().toLowerCase();
+  const ranked = (exact(ejs[0]) && !exact(ems[0]) ? [ejs[0], ...ems, ...ejs.slice(1)] : [...ems, ...ejs]).slice(0, limit);
   const items: Item[] = ranked.map((h) =>
     'emote' in h
       ? { value: h.emote.name, label: h.emote.name, emote: { provider: h.emote.provider, id: h.emote.id, animated: h.emote.animated } }
