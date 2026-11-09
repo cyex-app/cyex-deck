@@ -99,7 +99,7 @@
   }
   /* V108-C25 Room for a link's card; the card sets its own width (V110-U70). */
   .tip:has(:global(.tip-card)) {
-    max-width: min(520px, calc(100vw - 16px));
+    max-width: min(1000px, calc(100vw - 16px));
   }
   @keyframes in {
     from {

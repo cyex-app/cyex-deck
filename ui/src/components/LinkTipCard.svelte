@@ -26,11 +26,14 @@
   <!-- V110-C66 With a picture the card is as wide as the picture size asked for.
        V110-U70 The size is the picture's height; it may be up to 1.6 times as wide, so wide
        pictures (screenshots) aren't drawn tiny. Never cropped. -->
-  {@const picW = Math.round(c.thumbWidth * 1.6)}
+  <!-- A picture with nothing else (an image host such as kappa.lol) is the whole point: twice as big. -->
+  {@const only = !p.title && !p.subtitle && !p.lines.some((l) => l.length)}
+  {@const picH = only ? c.thumbWidth * 2 : c.thumbWidth}
+  {@const picW = Math.round(picH * 1.6)}
   <div
     class="card tip-card"
     class:live={p.live}
-    style:min-width={pic && c.thumbWidth ? `${Math.max(200, c.thumbWidth)}px` : undefined}
+    style:min-width={pic && c.thumbWidth ? `${Math.max(200, picH)}px` : undefined}
     style:max-width={pic && c.thumbWidth ? `${Math.max(302, picW)}px` : '302px'}
   >
     <!-- V110-F46 A web page's site is its host, which the tip's "Opens x.com" already says. -->
@@ -52,7 +55,7 @@
       </div>
     {/if}
     {#if pic && c.thumbWidth}
-      <div class="pic" class:blur={c.blur} style:max-width="{picW}px" style:--pic-h="{c.thumbWidth}px">
+      <div class="pic" class:blur={c.blur} style:max-width="{picW}px" style:--pic-h="{picH}px">
         <img src={pic} alt="" referrerpolicy="no-referrer" />
         {#if c.blur}<span class="flag">NSFW</span>{/if}
       </div>
@@ -162,7 +165,7 @@
     width: auto;
     height: auto;
     max-width: 100%;
-    max-height: var(--pic-h);
+    max-height: min(var(--pic-h), 60vh);
   }
   .blur img {
     filter: blur(14px);
