@@ -22,6 +22,14 @@ export interface TipOptions {
   side?: Side;
   /** V108-C25 A link's card under the label, e.g. loading until it's known. */
   card?: TipCard;
+  /** V110-U59 Buttons under the card. The tip then takes the pointer, and lingers a moment
+   *  after it leaves the element (`lingerTip`) so it can get there. */
+  actions?: TipAction[];
+}
+
+export interface TipAction {
+  label: string;
+  run: () => void;
 }
 
 /** 1.52, V108-C25 A link's card: on its way, nothing to show, or the card. */
@@ -37,6 +45,7 @@ export const tip = $state({
   image: '',
   paint: '',
   card: null as TipCard | null,
+  actions: [] as TipAction[],
   /** The element it shows for, as it was when the tip opened. */
   anchor: null as Rect | null,
   side: 'below' as Side,
@@ -50,6 +59,10 @@ const WARM_MS = 400;
 let lastKey: string | null = null;
 let timer: ReturnType<typeof setTimeout> | undefined;
 let lastHidden = 0;
+/** V110-U59 Closes a tip with actions once the pointer has had time to reach it. */
+let linger: ReturnType<typeof setTimeout> | undefined;
+const LINGER_MS = 250;
+let overTip = false;
 /** The element the tip shows (or is about to show) for: only it may retitle it. */
 let owner: HTMLElement | null = null;
 /** V108-C25 Cards and titles that arrive before the tip shows wait here for it. */
@@ -63,6 +76,20 @@ export function showTip(node: HTMLElement, opts: TipOptions): void {
 
 export function hideTip(): void {
   hide();
+}
+
+/** V110-U59 The pointer left the element: a tip with actions waits for the pointer to reach it. */
+export function lingerTip(): void {
+  if (!tip.visible || !tip.actions.length) return hide();
+  clearTimeout(linger);
+  linger = setTimeout(() => !overTip && hide(), LINGER_MS);
+}
+
+/** V110-U59 The pointer is on, or left, the tip itself. */
+export function overTipNow(on: boolean): void {
+  overTip = on;
+  clearTimeout(linger);
+  if (!on) hide();
 }
 
 /** Changes the text of the tip `node` shows (or is about to), e.g. once a link resolves. */
@@ -81,6 +108,8 @@ function hintFor(opts: TipOptions): string {
 
 function show(node: HTMLElement, opts: TipOptions): void {
   clearTimeout(timer);
+  clearTimeout(linger);
+  overTip = false;
   // Nothing to say (e.g. a menu item without a note), or a drag is on (rb-1).
   if (!tipAllowed(opts, dragging())) return;
   owner = node;
@@ -95,6 +124,7 @@ function show(node: HTMLElement, opts: TipOptions): void {
     tip.image = opts.image ?? '';
     tip.paint = opts.paint ?? '';
     tip.card = cards.read(node) ?? null;
+    tip.actions = opts.actions ?? [];
     tip.anchor = node.getBoundingClientRect();
     tip.side = opts.side ?? 'below';
     tip.visible = true;
@@ -106,6 +136,8 @@ const dragging = () => typeof document !== 'undefined' && document.body.classLis
 
 function hide(): void {
   clearTimeout(timer);
+  clearTimeout(linger);
+  overTip = false;
   // Untracked: a layer that moves focus in its effect blurs a tipped trigger, and must not
   // re-run (and steal focus back) each time a tip shows inside it.
   if (untrack(() => tip.visible)) lastHidden = performance.now();

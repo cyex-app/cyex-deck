@@ -2,7 +2,7 @@
 // emote card and emote menu, @mentions, #channels, links and uploads, and the tips over
 // badges, links and emoji. The lists delegate their clicks, keys and hovers here.
 
-import { hideTip, previewTip, retitleTip, showTip } from '../../components/tooltip.svelte';
+import { hideTip, lingerTip, previewTip, retitleTip, showTip } from '../../components/tooltip.svelte';
 import type { MenuEntry } from '../../components/menu.svelte';
 import { popOut } from '../../app/panels';
 import type { LinkTarget } from '../../ipc/bindings/LinkTarget';
@@ -137,6 +137,13 @@ export function lineTips(root: () => HTMLElement | undefined) {
     hideTip();
   }
 
+  /** V110-U59 The link's tip stays while the pointer crosses to its buttons; the line's hold ends. */
+  function lingerLink() {
+    tipEl = null;
+    gone.disconnect();
+    lingerTip();
+  }
+
   function emojiTip(el: HTMLElement) {
     emojiName(el.dataset.emoji!)
       .then((name) => name && el.matches(':hover') && showTip(el, { label: name }))
@@ -149,7 +156,12 @@ export function lineTips(root: () => HTMLElement | undefined) {
     const url = el.dataset.link!;
     const host = el.dataset.host!;
     const shown = cardsShown();
-    showTip(el, { label: `Opens ${host}`, ...(shown && { card: { state: 'loading' } }) });
+    // V110-U59 Copy and open sit in the tip, which lingers a moment so the pointer can reach them.
+    const actions = [
+      { label: 'Copy link', run: () => void copy(url, 'Link') },
+      { label: 'Open in browser', run: () => void systemIpc.openChatLink(url).catch((err) => toast.error(errorText(err))) },
+    ];
+    showTip(el, { label: `Opens ${host}`, actions, ...(shown && { card: { state: 'loading' } }) });
     links
       .get(url)
       .then((p) => {
@@ -176,7 +188,9 @@ export function lineTips(root: () => HTMLElement | undefined) {
     },
     onmouseout(e: MouseEvent) {
       const from = (e.target as HTMLElement).closest(TIPPED);
-      if (from && !from.contains(e.relatedTarget as Node)) drop();
+      if (!from || from.contains(e.relatedTarget as Node)) return;
+      if ((from as HTMLElement).dataset.link) lingerLink();
+      else drop();
     },
     drop,
   };
