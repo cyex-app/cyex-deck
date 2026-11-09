@@ -2,6 +2,7 @@
 
 pub mod app;
 pub mod color;
+pub mod health;
 pub mod markdown;
 pub mod number;
 pub mod palette;

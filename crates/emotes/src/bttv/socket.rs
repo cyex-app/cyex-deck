@@ -59,6 +59,10 @@ impl Protocol for Socket {
     type Topic = String;
     type Event = Event;
 
+    fn label(&self) -> &'static str {
+        "BTTV"
+    }
+
     fn url(&self) -> String {
         URL.into()
     }

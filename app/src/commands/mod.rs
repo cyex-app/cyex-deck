@@ -56,6 +56,7 @@ pub fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static 
         accounts::accounts_sign_in_browser,
         accounts::accounts_reopen_sign_in,
         accounts::connections_counts,
+        accounts::connections_health,
         update::update_state,
         update::update_check,
         update::update_skip,

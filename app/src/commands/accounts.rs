@@ -93,6 +93,12 @@ pub fn accounts_set_default(app: AppHandle, user_id: String) -> CmdResult<()> {
 }
 
 #[tauri::command]
+pub fn connections_health() -> Vec<connections::LinkHealth> {
+    connections::health()
+}
+
+/// 1.13 The counter's numbers.
+#[tauri::command]
 pub fn connections_counts(app: AppHandle) -> Vec<ConnectionCount> {
     connections::counts(&app)
 }

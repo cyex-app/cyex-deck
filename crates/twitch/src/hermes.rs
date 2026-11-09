@@ -243,6 +243,10 @@ impl Protocol for Hermes {
     type Topic = Topic;
     type Event = Event;
 
+    fn label(&self) -> &'static str {
+        "Hermes"
+    }
+
     fn url(&self) -> String {
         format!("wss://hermes.twitch.tv/v1?clientId={}", clients::WEB)
     }

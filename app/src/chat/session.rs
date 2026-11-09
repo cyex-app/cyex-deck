@@ -163,6 +163,17 @@ fn unanswered(app: &AppHandle, identity: &Identity, channels: &[String], stamp: 
 }
 
 fn link_status(app: &AppHandle, identity: &Identity, link: LinkStatus) {
+    // V110-U65 Connection health: each drop of an IRC link.
+    if matches!(link, LinkStatus::Reconnecting | LinkStatus::AuthFailed) {
+        let who = match identity {
+            Identity::Anon => "anon".to_owned(),
+            Identity::Account(id) => {
+                crate::auth::accounts(app).list.iter().find(|a| a.user_id == *id).map_or_else(|| id.clone(), |a| a.login.clone())
+            }
+        };
+        let why = if link == LinkStatus::AuthFailed { "sign-in refused" } else { "dropped" };
+        cyex_core::health::note(&format!("IRC {who}"), why);
+    }
     let chat = app.state::<Chat>();
     let mut inner = chat.lock();
     let now = now_ms();

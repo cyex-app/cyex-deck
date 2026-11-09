@@ -4,6 +4,7 @@ import { listen } from '@tauri-apps/api/event';
 import type { AuthSnapshot } from './bindings/AuthSnapshot';
 import type { ConnectionCount } from './bindings/ConnectionCount';
 import type { DeviceStart } from './bindings/DeviceStart';
+import type { LinkHealth } from './bindings/LinkHealth';
 import type { Place } from './bindings/Place';
 import type { SignedIn } from './bindings/SignedIn';
 import type { TokenKind } from './bindings/TokenKind';
@@ -37,6 +38,8 @@ export const accountsIpc = {
   removeToken: (userId: string, kind: TokenKind) => invoke<void>('accounts_remove_token', { userId, kind }),
   setDefault: (userId: string) => invoke<void>('accounts_set_default', { userId }),
   connections: () => invoke<ConnectionCount[]>('connections_counts'),
+  /** V110-U65 Reconnects per socket in the last hour, and the last error. */
+  health: () => invoke<LinkHealth[]>('connections_health'),
   onChanged: (handler: (snapshot: AuthSnapshot) => void) =>
     listen<AuthSnapshot>('accounts:changed', (e) => handler(e.payload)),
   onConnections: (handler: (counts: ConnectionCount[]) => void) =>

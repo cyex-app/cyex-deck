@@ -840,6 +840,7 @@ dependencies = [
 name = "cyex-eventsub"
 version = "0.1.8"
 dependencies = [
+ "cyex-core",
  "futures-util",
  "serde",
  "serde_json",
@@ -853,6 +854,7 @@ name = "cyex-miner"
 version = "0.1.8"
 dependencies = [
  "cyex-settings",
+ "cyex-twitch",
  "serde",
  "serde_json",
  "ts-rs",

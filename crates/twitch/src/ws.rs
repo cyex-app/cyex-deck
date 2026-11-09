@@ -28,6 +28,10 @@ pub trait Protocol: Send + 'static {
     type Event: Send + 'static;
 
     fn url(&self) -> String;
+    /// V110-U65 Short name in the connection health table.
+    fn label(&self) -> &'static str {
+        "Socket"
+    }
     fn subscribe(&self, topic: &Self::Topic) -> String;
     fn unsubscribe(&self, topic: &Self::Topic) -> String;
     /// Most topics one connection may hold, counted by `cost`.
@@ -145,6 +149,7 @@ async fn run<P: Protocol>(
         };
         let Some((ws, _)) = attempt else {
             if !topics.is_empty() {
+                cyex_core::health::note(p.label(), "connect failed");
                 backoff = next_backoff(backoff);
             }
             continue;
@@ -209,6 +214,7 @@ async fn run<P: Protocol>(
         }
         // V110-F52 Only a connection that lived a while earns a fresh start.
         if !topics.is_empty() {
+            cyex_core::health::note(p.label(), "dropped");
             backoff = after_session(backoff, started.elapsed());
         }
     }

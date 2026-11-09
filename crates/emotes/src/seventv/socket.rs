@@ -81,6 +81,10 @@ impl Protocol for EventApi {
     type Topic = Topic;
     type Event = Event;
 
+    fn label(&self) -> &'static str {
+        "7TV"
+    }
+
     fn url(&self) -> String {
         format!("{URL}?app={}&version={}", cyex_core::app::SLUG, env!("CARGO_PKG_VERSION"))
     }

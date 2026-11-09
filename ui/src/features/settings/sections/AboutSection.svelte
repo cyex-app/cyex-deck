@@ -11,6 +11,7 @@
   import { checkText } from '../../update/updateText';
   import { STORE } from '../../accounts/cyexBadges';
   import SectionHead from '../SectionHead.svelte';
+  import ConnectionHealth from './ConnectionHealth.svelte';
 
   let version = $state('');
   $effect(() => {
@@ -53,6 +54,8 @@
   {#if checked}<span class="checked">{checked}</span>{/if}
   <Button small disabled={checking} onclick={() => void checkNow()}>{checking ? 'Checking…' : 'Check now'}</Button>
 </Row>
+
+<ConnectionHealth />
 
 <!-- V109-B02 -->
 <Row setting="about:badge" label="cyex badges" hint="Founder, supporter or supporter+. Pick yours under cyex cosmetics in the account menu.">

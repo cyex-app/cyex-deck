@@ -70,6 +70,7 @@ async fn run(mut stop: watch::Receiver<()>, out: mpsc::UnboundedSender<Out>) {
             if stop.has_changed().is_err() {
                 return;
             }
+            cyex_core::health::note("EventSub", "connect failed");
             backoff = next(backoff);
             continue;
         };
@@ -125,6 +126,7 @@ async fn run(mut stop: watch::Receiver<()>, out: mpsc::UnboundedSender<Out>) {
             }
         }
         let _ = out.send(Out::Lost);
+        cyex_core::health::note("EventSub", "dropped");
         backoff = next(if started.elapsed() >= STABLE { Duration::ZERO } else { backoff });
     }
 }

@@ -37,3 +37,25 @@ pub fn counts(app: &AppHandle) -> Vec<ConnectionCount> {
 pub fn notify(app: &AppHandle) {
     let _ = app.emit(CHANGED_EVENT, counts(app));
 }
+
+/// V110-U65 One socket's reconnects in the last hour, for the About page's table.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct LinkHealth {
+    pub label: String,
+    pub count: u32,
+    /// ms since the epoch; as a number in TS.
+    #[ts(type = "number")]
+    pub last_at: u64,
+    pub last_error: String,
+}
+
+/// Every socket that has dropped since start, latest first.
+pub fn health() -> Vec<LinkHealth> {
+    cyex_core::health::snapshot()
+        .into_iter()
+        .map(|l| LinkHealth { label: l.label, count: l.count, last_at: l.last_at, last_error: l.last_error })
+        .collect()
+}
+
