@@ -13,6 +13,8 @@ import type { TokenKind } from '../ipc/bindings/TokenKind';
 import type { IconName } from './icons';
 
 export interface MenuItem {
+  /** V110-U69 A stable name for the layout registry (menus/); the menu itself never reads it. */
+  id?: string;
   label: string;
   icon?: IconName;
   /** A color dot instead of an icon, e.g. a tab group's color. */

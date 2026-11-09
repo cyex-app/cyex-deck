@@ -14,11 +14,18 @@ export const menu = $state({
   /** The pointer, or the button it opened from. */
   anchor: point(0, 0) as Rect,
   align: 'start' as Align,
-  /** Lists shown so far; the last one is on screen. */
-  stack: [] as { title: string; items: MenuEntry[] }[],
+  /** Lists shown so far. With `flyout` all are on screen side by side (V110-U69); otherwise the
+   * last one replaces the others and has a back row. `from` is the row of the parent list that
+   * opened it; `anchor` is where its flyout sits (the parent's box at that row). */
+  stack: [] as { title: string; items: MenuEntry[]; from: number; anchor: Rect | null }[],
+  /** V110-U69 Submenus open beside their row. False in a window too narrow for two menus. */
+  flyout: false,
   /** V107-P5 The `confirm` item waiting for its second pick. */
   armed: null as MenuItem | null,
 });
+
+/** V110-U69 Narrower windows (pop-out chats) have no room for two menus: submenus swap in place. */
+const FLYOUT_MIN_WIDTH = 520;
 
 /** V109-F61 The button the open menu came from: clicking it again closes the menu. */
 const trigger = menuTrigger();
@@ -66,7 +73,8 @@ export function openMenu(
   menu.anchor = at instanceof Element ? at.getBoundingClientRect() : point(at.clientX, at.clientY);
   menu.align = align;
   confirming.cancel();
-  menu.stack = [{ title: '', items: tidy(items) }];
+  menu.stack = [{ title: '', items: tidy(items), from: -1, anchor: null }];
+  menu.flyout = typeof innerWidth === 'number' && innerWidth >= FLYOUT_MIN_WIDTH;
   menu.open = true;
 }
 
@@ -98,12 +106,30 @@ export function pick(item: MenuItem, viaKey = false): void {
   }
   if (item.items) {
     confirming.cancel();
-    menu.stack = [...menu.stack, { title: item.label, items: tidy(item.items) }];
+    menu.stack = [...menu.stack, { title: item.label, items: tidy(item.items), from: -1, anchor: null }];
     return;
   }
   if (!confirming.press(item, item.confirm, viaKey)) return;
   shut();
   item.run?.();
+}
+
+/** V110-U69 Opens row `index` of list `depth` as a flyout at `anchor`, replacing any deeper list. */
+export function showSub(depth: number, index: number, anchor: Rect): void {
+  const parent = menu.stack[depth];
+  const item = parent?.items[index];
+  if (!item || item === 'separator' || !item.items || item.disabled || item.lock) return;
+  const next = menu.stack[depth + 1];
+  if (next && next.from === index) return;
+  trim(depth);
+  menu.stack = [...menu.stack, { title: item.label, items: tidy(item.items), from: index, anchor }];
+}
+
+/** V110-U69 Closes every list deeper than `depth`. */
+export function trim(depth: number): void {
+  if (menu.stack.length <= depth + 1) return;
+  confirming.cancel();
+  menu.stack = menu.stack.slice(0, depth + 1);
 }
 
 export function back(): void {

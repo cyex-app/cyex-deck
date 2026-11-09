@@ -1,0 +1,173 @@
+/* V110-U69 The look of a menu panel and its rows, shared by the real menu (MenuHost) and the
+   mock in Settings > Menus. Plain global classes with a cx- prefix so both can use them. */
+
+.cx-menu {
+  position: fixed;
+  z-index: var(--z-menu);
+  min-width: 200px;
+  max-width: 300px;
+  max-height: calc(100vh - 12px);
+  overflow-y: auto;
+  padding: 4px;
+  background: var(--elevated);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-pop);
+}
+/* A static copy of the panel, e.g. a mock. */
+.cx-menu.still {
+  position: relative;
+  z-index: auto;
+  max-height: none;
+}
+.cx-menu:focus {
+  outline: none;
+}
+
+.cx-item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  height: 30px;
+  padding: 0 8px;
+  background: none;
+  border: 0;
+  border-radius: var(--radius);
+  color: var(--text);
+  text-align: left;
+}
+.cx-item:hover:not(:disabled),
+.cx-item.open {
+  background: var(--surface-hover);
+}
+/* Instant press feedback: no wait, no easing. */
+.cx-item:active:not(:disabled) {
+  background: color-mix(in srgb, var(--text) 10%, var(--surface-hover));
+}
+/* Keyboard focus is a ring, so it never reads as the hovered item. */
+.cx-item:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: -2px;
+}
+.cx-item:disabled {
+  opacity: 0.45;
+}
+/* V102-20 Greyed out, but the flag still takes you to the sign-in. */
+/* V110-F36 Locked reads as locked by its dim color and the lock, not by fading the text under
+   4,5:1 (it was 2,85:1 in the light theme): --dim is 5,4:1 or more in every theme. */
+.cx-item.locked {
+  color: var(--dim);
+}
+.cx-item.locked .cx-swatch,
+.cx-item.locked > svg {
+  opacity: 0.7;
+}
+.cx-item.danger {
+  color: var(--red);
+}
+/* V107-P5 Waiting for the second pick: a red wash under its callout. */
+.cx-item.armed,
+.cx-item.armed:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--red) 14%, transparent);
+  color: var(--red);
+}
+.cx-item.head {
+  color: var(--muted);
+  font-weight: 600;
+}
+/* V108-F58 C9 min-width 0 lets the flex child shrink, so the ellipsis shows instead of a hard cut. */
+.cx-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* V107-R1 Same look as the Add-tab account picker's "default". */
+.cx-tag {
+  margin-left: 6px;
+  color: var(--dim);
+  font-size: 0.78rem;
+}
+.cx-hint {
+  color: var(--dim);
+  font-size: 0.76rem;
+}
+.cx-swatch {
+  width: 12px;
+  height: 12px;
+  margin: 0 1px;
+  border-radius: 50%;
+}
+.cx-blank {
+  width: 14px;
+}
+.cx-check {
+  display: flex;
+  color: var(--accent-text);
+}
+.cx-warn {
+  display: flex;
+  color: var(--yellow);
+}
+.cx-menu hr {
+  margin: 4px 0;
+  border: 0;
+  border-top: 1px solid var(--border);
+}
+
+/* V107-R45 A typed value, e.g. a custom pin length. The input is one row: the rows' width,
+   height and corners. */
+.cx-menu-field input {
+  display: block;
+  width: 100%;
+  height: 30px;
+  padding: 0 8px;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  color: var(--text);
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+}
+.cx-menu-field input:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: -1px;
+}
+.cx-menu-field input.bad,
+.cx-menu-field input.bad:focus-visible {
+  border-color: var(--red);
+  outline-color: var(--red);
+}
+.cx-field-error {
+  padding: 4px 9px 2px;
+  color: var(--red);
+  font-size: 0.76rem;
+}
+
+/* V110-U69 A flyout grows out of its row's side: a small slide from the parent, no ease-in.
+   `use:floating` sets data-side to the side it landed on. Reduced motion: tokens.css sets the
+   duration to 0, so it only appears. */
+@keyframes cx-fly-in {
+  from {
+    opacity: 0;
+    transform: translateX(var(--fly-from, -4px)) scale(0.98);
+  }
+}
+.cx-menu.fly {
+  transform-origin: top left;
+  animation: cx-fly-in var(--fast) var(--ease);
+}
+.cx-menu.fly[data-side='left'] {
+  --fly-from: 4px;
+  transform-origin: top right;
+}
+@media (prefers-reduced-motion: reduce) {
+  @keyframes cx-fly-in {
+    from {
+      opacity: 0;
+      transform: none;
+    }
+  }
+}
