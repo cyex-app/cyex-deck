@@ -124,6 +124,31 @@ pub fn center_on_main(app: &AppHandle, w: f64, h: f64) -> Option<PhysicalPositio
     Some(PhysicalPosition::new(x, y))
 }
 
+/// V110-U63 Moves a just-built, still hidden pop-out that has nothing saved off the main window
+/// (`step` logical px right and down per pop-out already open) instead of centering it over the
+/// main window's edge. Nothing happens when the main window isn't on a known monitor.
+pub fn cascade_from_main(app: &AppHandle, window: &WebviewWindow, open: usize) -> tauri::Result<()> {
+    const STEP: f64 = 32.0;
+    let Some(main) = app.get_webview_window(MAIN) else { return Ok(()) };
+    let (Ok(Some(monitor)), Ok(at), Ok(size)) = (main.current_monitor(), main.outer_position(), main.outer_size()) else {
+        return Ok(());
+    };
+    if main.is_minimized().unwrap_or(false) {
+        return Ok(());
+    }
+    let s = screen(&monitor);
+    let rect = Rect {
+        x: at.x,
+        y: at.y,
+        w: i32::try_from(size.width).unwrap_or(i32::MAX),
+        h: i32::try_from(size.height).unwrap_or(i32::MAX),
+    };
+    let own = window.outer_size()?;
+    let step = (STEP * s.scale).round() as i32;
+    let (x, y) = placement::cascade(&s, &rect, (f64::from(own.width), f64::from(own.height)), step, open);
+    window.set_position(PhysicalPosition::new(x, y))
+}
+
 /// Whether a point (physical px) is on one of the app's visible windows.
 pub fn over_app(app: &AppHandle, x: f64, y: f64) -> bool {
     app.webview_windows().values().any(|w| {

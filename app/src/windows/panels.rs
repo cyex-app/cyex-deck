@@ -158,6 +158,13 @@ pub fn open_panel(app: &AppHandle, route: &str, title: &str, size: Option<(f64, 
     let (builder, placed) = geometry::on_builder(app, builder, saved.geometry.as_ref(), MIN_SIZE, (width, height));
     let window = builder.build().inspect_err(|_| crate::chat::shown::gone(app, &label))?;
     geometry::settle(&window, placed)?;
+    // V110-U63 Nothing saved: a cascade off the main window, not centered over its edge. The
+    // chat-ish pop-ups below open next to the pointer instead.
+    let at_pointer = route.starts_with("room/") || route.starts_with("roles/") || route.starts_with("thread/");
+    if saved.geometry.is_none() && !overlay && !at_pointer && !super::usercard::is_popup(route) {
+        let open = open_panels(app).len();
+        geometry::cascade_from_main(app, &window, open)?;
+    }
     if super::usercard::is_popup(route) {
         crate::sys::small_corners(&window);
     }

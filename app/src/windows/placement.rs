@@ -171,6 +171,22 @@ pub fn beside_point(s: &Screen, (x, y): (f64, f64), (w, h): (f64, f64), gap: f64
     (x.round() as i32, y.round() as i32)
 }
 
+/// V110-U63 Top-left corner (physical px) of a `w` x `h` (physical) pop-out opened `n` windows
+/// into a cascade off `main`: `step` px right and down per window from the main window's
+/// top-left, wrapping back to the first slot after `SLOTS`, inside `s`'s work area.
+pub fn cascade(s: &Screen, main: &Rect, (w, h): (f64, f64), step: i32, n: usize) -> (i32, i32) {
+    const SLOTS: usize = 8;
+    let k = i32::try_from(n % SLOTS + 1).unwrap_or(1);
+    let fit = |at: i32, size: f64, start: i32, room: i32| {
+        let end = f64::from(start) + f64::from(room) - size;
+        f64::from(at).min(end).max(f64::from(start)).round() as i32
+    };
+    (
+        fit(main.x + step * k, w, s.work.x, s.work.w),
+        fit(main.y + step * k, h, s.work.y, s.work.h),
+    )
+}
+
 /// Along one axis: after `at` when the window fits there, else before it when it fits
 /// there, else on the roomier side; always inside `start..start + len`.
 fn beside(at: f64, size: f64, gap: f64, start: f64, len: f64) -> f64 {

@@ -284,3 +284,26 @@ fn cards_open_beside_the_mouse_and_flip_near_the_edge() {
     assert_eq!(beside_point(&RIGHT, (2000.0, 0.0), (570.0, 840.0), 18.0), (2018, 18));
     assert_eq!(beside_point(&RIGHT, (5700.0, 1150.0), (570.0, 840.0), 18.0), (5112, 292));
 }
+
+#[test]
+fn v110_u63_pop_outs_cascade_off_the_main_window() {
+    let main = rect(100, 80, 1200, 800);
+    let size = (600.0, 400.0);
+    assert_eq!(cascade(&PRIMARY, &main, size, 32, 0), (132, 112));
+    assert_eq!(cascade(&PRIMARY, &main, size, 32, 2), (196, 176));
+    // The ninth is back on the first slot.
+    assert_eq!(cascade(&PRIMARY, &main, size, 32, 8), (132, 112));
+}
+
+#[test]
+fn v110_u63_a_cascaded_pop_out_stays_in_the_work_area() {
+    let main = rect(1500, 900, 400, 300);
+    // Past the right and bottom edges: pulled back in.
+    assert_eq!(cascade(&PRIMARY, &main, (600.0, 400.0), 32, 0), (1320, 632));
+    // A main window left of the work area: pushed in at the start.
+    let off = rect(-300, -200, 400, 300);
+    assert_eq!(cascade(&PRIMARY, &off, (600.0, 400.0), 32, 0), (0, 0));
+    // On the second monitor it uses that monitor's work area.
+    let on_right = rect(2000, -800, 1200, 800);
+    assert_eq!(cascade(&RIGHT, &on_right, (900.0, 600.0), 48, 0), (2048, -752));
+}
