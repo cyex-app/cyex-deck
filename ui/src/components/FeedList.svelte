@@ -5,6 +5,7 @@
   import type { Snippet } from 'svelte';
 
   import { formatDate, formatTime } from '../lib/format';
+  import { everyShown } from '../lib/awake';
 
   interface Props {
     rows: T[];
@@ -25,8 +26,7 @@
   // s2-12 A feed left open past midnight: the day moves on, and so do the labels.
   let today = $state(formatDate(new Date()));
   $effect(() => {
-    const t = setInterval(() => (today = formatDate(new Date())), 60_000);
-    return () => clearInterval(t);
+    return everyShown(() => (today = formatDate(new Date())), 60_000);
   });
 
   function when(ts: number): string {

@@ -48,7 +48,7 @@
   import SeekBar from './SeekBar.svelte';
   import { BUFFER_TEXT, STALL_TEXT } from './stall';
   import { offlineDelay, recheckDelay } from './recheck';
-  import { onShown, pageHidden } from '../../lib/awake';
+  import { everyShown, onShown, pageHidden } from '../../lib/awake';
   import { tabs } from '../tabs/tabs.svelte';
   import { audioFocus } from '../tabs/audioFocus.svelte';
 
@@ -114,8 +114,7 @@
   // Once a second while there's a countdown; the text just changes, nothing moves.
   $effect(() => {
     if (adEnd === null) return;
-    const t = setInterval(() => (adNow = Date.now()), 1000);
-    return () => clearInterval(t);
+    return everyShown(() => (adNow = Date.now()), 1000);
   });
 
   // Rust hands out a new tile object on every tab edit (volume, sizes): only these

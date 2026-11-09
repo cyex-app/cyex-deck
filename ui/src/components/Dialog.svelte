@@ -6,7 +6,7 @@
 
   import { layer } from '../lib/escape';
   import { firstField, focusScope } from '../lib/focusScope';
-  import { earlyEnter } from '../lib/keys';
+  import { earlyEnter, enterKey } from '../lib/keys';
   import IconButton from './IconButton.svelte';
 
   interface Props {
@@ -40,7 +40,7 @@
   }
 
   function enter(e: KeyboardEvent) {
-    if (e.key !== 'Enter' || !onsubmit || e.defaultPrevented || e.isComposing || e.ctrlKey || e.altKey || e.metaKey) return;
+    if (!enterKey(e) || !onsubmit || e.defaultPrevented || e.ctrlKey || e.altKey || e.metaKey) return;
     if ((e.target as HTMLElement).closest('button, a, textarea, select, [role="listbox"], [role="combobox"], [role="spinbutton"], [contenteditable="true"]')) return;
     e.preventDefault();
     onsubmit();

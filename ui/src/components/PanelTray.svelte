@@ -3,7 +3,10 @@
      room and opens a menu of them. One drags back onto a side of any panel; a click puts it
      back where it sits by default. -->
 <script lang="ts">
+  import { onDestroy } from 'svelte';
+
   import { drag } from '../features/tabs/drag.svelte';
+  import { trackPointer } from '../lib/trackPointer';
   import type { TrayItem } from './panel';
   import Popover from './Popover.svelte';
 
@@ -32,20 +35,17 @@
       }
     };
     // L1 Also a cancelled pointer or a lost window: the move listener never stays behind.
-    const end = (e: Event) => {
-      removeEventListener('pointermove', watch);
-      removeEventListener('pointerup', end);
-      removeEventListener('pointercancel', end);
-      removeEventListener('blur', end);
+    // V110-F88 Nor after an unmount mid-press (as PanelDock).
+    teardown?.();
+    teardown = trackPointer(watch, (e) => {
+      teardown = null;
       // The click that may follow is the drag's own; the next press starts fresh.
       if (e.type === 'pointerup') setTimeout(() => (dragged = false));
       else dragged = false;
-    };
-    addEventListener('pointermove', watch);
-    addEventListener('pointerup', end);
-    addEventListener('pointercancel', end);
-    addEventListener('blur', end);
+    });
   }
+  let teardown: (() => void) | null = null;
+  onDestroy(() => teardown?.());
 
   function click(item: TrayItem) {
     if (!dragged) {

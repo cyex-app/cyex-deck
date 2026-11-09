@@ -17,6 +17,7 @@
 
   import Button from '../../components/Button.svelte';
   import Icon from '../../components/Icon.svelte';
+  import { everyShown } from '../../lib/awake';
   import IconButton from '../../components/IconButton.svelte';
   import Popover from '../../components/Popover.svelte';
   import ViewerChart from '../channel/ViewerChart.svelte';
@@ -421,8 +422,7 @@
   // session ends.
   let clock = $state(Date.now());
   $effect(() => {
-    const t = setInterval(() => (clock = Date.now()), 30_000);
-    return () => clearInterval(t);
+    return everyShown(() => (clock = Date.now()), 30_000);
   });
   /** V108-N12 Twitch's own word on the session (signed in with Helix), live; `null` until read. */
   let sharedWith = $state<SharedParticipant[] | null>(null);

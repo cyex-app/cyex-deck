@@ -2,6 +2,7 @@
      (not the bars around it), 12 px in. -->
 <script lang="ts">
   import IconButton from '../../components/IconButton.svelte';
+  import { everyShown } from '../../lib/awake';
   import { formatDecimal, formatNumber } from '../../lib/format';
   import type { Stats } from './engine.svelte';
   import { containRect } from './videoRect';
@@ -39,8 +40,7 @@
   // svelte-ignore state_referenced_locally
   let s = $state(read());
   $effect(() => {
-    const timer = setInterval(() => (s = read()), 1000);
-    return () => clearInterval(timer);
+    return everyShown(() => (s = read()), 1000);
   });
 
   const kbps = (bits: number) => `${formatNumber(Math.round(bits / 1000))} kbps`;

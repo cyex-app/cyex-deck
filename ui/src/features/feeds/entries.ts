@@ -42,6 +42,11 @@ export function apply(list: FeedEntry[], events: KindEvent[], cap: number): Feed
       case 'clear':
         next = [];
         break;
+      default: {
+        // V110-F88 A new KindEvent variant fails to compile here until it is handled.
+        const unhandled: never = ev;
+        void unhandled;
+      }
     }
   }
   return next.length > cap ? next.slice(0, cap) : next;

@@ -3,6 +3,8 @@
 // to once per 5 minutes per catalog). Each badge asks once per catalog and window, so one
 // Twitch never returns doesn't ask on every line.
 
+import { CappedMap } from '../../lib/capped.ts';
+
 const MAX_SEEN = 2000;
 
 export class BadgeMisses {
@@ -32,7 +34,7 @@ export function missScope(channel: string, room: string | undefined): string {
 /** V110-F84 Keys whose read failed: asked again no sooner than `wait` ms later, so a line
  *  that renders over and over doesn't hammer a failing read. */
 export class RetryGate {
-  private failed = new Map<string, number>();
+  private failed = new CappedMap<string, number>(500);
   private wait: number;
 
   constructor(wait = 60_000) {
@@ -46,9 +48,7 @@ export class RetryGate {
   }
 
   fail(key: string, now = Date.now()) {
-    this.failed.delete(key);
     this.failed.set(key, now);
-    if (this.failed.size > 500) this.failed.delete(this.failed.keys().next().value as string);
   }
 
   done(key: string) {

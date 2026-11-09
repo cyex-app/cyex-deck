@@ -116,6 +116,11 @@ class BellStore {
       case 'allRead':
         this.items = this.items.map((i) => ({ ...i, read: true }));
         break;
+      default: {
+        // V110-F88 A new BellLive variant fails to compile here until it is handled.
+        const unhandled: never = l;
+        void unhandled;
+      }
     }
   }
 }

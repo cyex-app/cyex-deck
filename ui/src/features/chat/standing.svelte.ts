@@ -8,6 +8,8 @@
 import type { KnownStanding } from '../../ipc/bindings/KnownStanding';
 import { standingIpc } from '../../ipc/standing';
 import { errorText } from '../../lib/errors';
+import { latest } from '../../lib/latest';
+import { everyShown } from '../../lib/awake';
 import { inputOf, lockOf, nextReadOf, NOTHING_KNOWN, type Lock, type LockInput } from './chatLock';
 import type { ChatRoom } from './room.svelte';
 import { cached, keep, keyOf } from './standingCache';
@@ -19,7 +21,7 @@ export class Standing {
   now = $state(Date.now());
   busy = $state(false);
   error = $state('');
-  private seq = 0;
+  private readonly reads = latest();
   /** V108-F57e Set by stop(): a read or a topic message after that does nothing. */
   private dead = false;
   private timer: ReturnType<typeof setTimeout> | undefined;
@@ -58,7 +60,7 @@ export class Standing {
     if (this.dead) return;
     const who = this.who();
     if (!who) return;
-    const seq = ++this.seq;
+    const current = this.reads.begin();
     if (who.key !== this.key) {
       this.key = who.key;
       this.known = cached(who.key) ?? NOTHING_KNOWN;
@@ -69,25 +71,25 @@ export class Standing {
         } catch {
           // Nothing kept; the read below decides.
         }
-        if (seq !== this.seq) return;
+        if (!current()) return;
       }
     }
     try {
       const k = await standingIpc.read(who.account, who.channelId);
-      if (seq !== this.seq) return;
+      if (!current()) return;
       this.take(who.key, k);
     } catch {
       // A failed read keeps what was known; IRC's word still locks. The app may know more
       // (another window's read, IRC's word from a room this box never had).
       try {
         const k = await standingIpc.known(who.account, who.channelId);
-        if (seq !== this.seq) return;
+        if (!current()) return;
         this.take(who.key, k);
       } catch {
         // Keep what this window has.
       }
     }
-    if (seq === this.seq) this.plan();
+    if (current()) this.plan();
   }
 
   /** The next read, if the lock wants one. */
@@ -101,8 +103,7 @@ export class Standing {
 
   /** Ticks the clock once a second while a countdown shows. */
   tick(): () => void {
-    const t = setInterval(() => (this.now = Date.now()), 1000);
-    return () => clearInterval(t);
+    return everyShown(() => (this.now = Date.now()), 1000);
   }
 
   /** The account's topic said something moved here (a warning is kept by the app). */
@@ -163,6 +164,6 @@ export class Standing {
   stop(): void {
     this.dead = true;
     clearTimeout(this.timer);
-    this.seq++;
+    this.reads.cancel();
   }
 }

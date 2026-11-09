@@ -18,6 +18,7 @@
   import { pluginsIpc } from '../../ipc/plugins';
   import { windowsIpc } from '../../ipc/windows';
   import { formatDate, formatNumber } from '../../lib/format';
+  import { composing } from '../../lib/keys';
   import { reduced } from '../../lib/motion';
   import { EASE_OUT_CUBIC } from '../../lib/scrollMath';
   import { settings } from '../../lib/settings.svelte';
@@ -416,7 +417,7 @@
   }
 
   function onkeydown(e: KeyboardEvent) {
-    if (picked !== null && !e.isComposing && lineKeyDown(e)) return;
+    if (picked !== null && !composing(e) && lineKeyDown(e)) return;
     enterClicks(e);
     if (['PageUp', 'PageDown', 'ArrowUp', 'ArrowDown', 'Home', 'End'].includes(e.key)) letGo();
     // Alt+Up is the line selection, which holds still without leaving the bottom (F54).

@@ -30,6 +30,7 @@
   import { everyShown } from '../../lib/awake';
   import { density } from '../../lib/density.svelte';
   import { formatNumber } from '../../lib/format';
+  import { latest } from '../../lib/latest';
   import { settings } from '../../lib/settings.svelte';
   import { tabs } from '../tabs/tabs.svelte';
   import {
@@ -73,7 +74,7 @@
   /** The train as it closed, while its stats show. */
   let note = $state<HypeTrain | null>(null);
   let now = $state(Date.now());
-  let seq = 0;
+  const reads = latest();
   /** When the topic last said something, or a read last found the train. */
   let heard = 0;
   let noteTimer: ReturnType<typeof setTimeout> | undefined;
@@ -175,23 +176,23 @@
     celebrate('end');
     noteTimer = setTimeout(() => (note = null), NOTE_MS);
     // One more read for the final subs and bits; it lands only while this note shows.
-    const mine = seq;
+    const current = reads.peek();
     const own = noteSeq;
     lastTimer = setTimeout(() => {
       void hypeIpc
         .last(login)
         .then((last) => {
-          if (mine === seq && own === noteSeq && note) note = closing(note, last);
+          if (current() && own === noteSeq && note) note = closing(note, last);
         })
         .catch(() => {});
     }, LAST_READ_MS);
   }
 
   async function load() {
-    const mine = ++seq;
+    const current = reads.begin();
     try {
       const next = await hypeIpc.read(login);
-      if (mine !== seq) return;
+      if (!current()) return;
       if (next) {
         train = next;
         note = null;
@@ -211,7 +212,7 @@
     void login;
     train = null;
     note = null;
-    seq++;
+    reads.cancel();
     heard = 0;
     if (!on || !id) return;
     // V108-N04 No read for a channel known to be offline; one outside the tabs is read.
@@ -224,7 +225,7 @@
       heard = Date.now();
       const b = burstOf(train, c);
       if (c.kind === 'start') {
-        seq++;
+        reads.cancel();
         train = c.train;
         note = null;
         // The start message has no givers: read it once.
@@ -232,7 +233,7 @@
       } else if (c.kind === 'progress') {
         const fresh = !train;
         // An older read still in flight must not land over this.
-        seq++;
+        reads.cancel();
         train = mergeProgress(train, c.train);
         note = null;
         // A train joined midway has no givers yet: read it once.
@@ -246,11 +247,11 @@
       }
       if (b) celebrate(b);
     });
-    const poll = setInterval(() => {
+    const poll = everyShown(() => {
       if (train) void load();
     }, POLL_MS);
     return () => {
-      clearInterval(poll);
+      poll();
       clearTimeout(burstTimer);
       burst = null;
       clearTimeout(noteTimer);

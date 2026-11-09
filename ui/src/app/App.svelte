@@ -414,11 +414,16 @@
     focusTabChat(id, typing);
   }
 
-  /** V1051-02 Cancel on the 7TV consent, Escape in Settings: back to where you were. */
-  function leaveView(view: Fixed) {
+  /** V110-F88 Back to where you were before `view`, or home if that was `view` itself or a tab that's gone. */
+  function goBack(view: Fixed) {
     const back = before && !('view' in before && before.view === view) ? before : { view: 'home' as const };
     if ('tab' in back && tabs.tab(back.tab) && !tabs.popped.has(back.tab)) open(back.tab);
     else show('view' in back ? back.view : 'home');
+  }
+
+  /** V1051-02 Cancel on the 7TV consent, Escape in Settings: back to where you were. */
+  function leaveView(view: Fixed) {
+    goBack(view);
   }
 
   /** V107-R32, V108-C06 The cog, the whisper button and their hotkeys open the view; again, back to where you were. */
@@ -457,9 +462,7 @@
    * window closes the view comes back, if you're still there. */
   async function popOutView(view: Fixed, route: string, title?: string) {
     if (!(await popOut(route, title))) return;
-    const back: Place = before && !('view' in before && before.view === view) ? before : { view: 'home' };
-    if ('tab' in back && tabs.tab(back.tab) && !tabs.popped.has(back.tab)) open(back.tab);
-    else show('view' in back ? back.view : 'home');
+    goBack(view);
     docked.set(route, { view, at: here() ?? { view: 'home' } });
   }
 

@@ -26,7 +26,7 @@
   import { emoteEditMenu } from './edit/menu';
   import { type EditForm, removeHere } from './edit/run';
   import { errorText } from '../../lib/errors';
-  import { uniqueKeys } from '../../lib/keys';
+  import { enterKey, uniqueKeys } from '../../lib/keys';
   import Loading from '../../components/Loading.svelte';
   import type { GifInfo } from '../../ipc/bindings/GifInfo';
   import { chatxIpc } from '../../ipc/chatx';
@@ -157,7 +157,7 @@
 
   /** V107-N1d Enter in the search box takes the first match, like Tab does in the message box. */
   function pickFirst(e: KeyboardEvent) {
-    if (e.key !== 'Enter' || e.isComposing || !query || current === 'gifs') return;
+    if (!enterKey(e) || !query || current === 'gifs') return;
     const first = (e.currentTarget as HTMLElement).closest('.menu')?.querySelector<HTMLElement>('.body .cell:not(.locked)');
     if (!first) return;
     e.preventDefault();

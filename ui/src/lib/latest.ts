@@ -7,6 +7,11 @@ export function latest() {
       const id = ++n;
       return () => id === n;
     },
+    /** A check for the request now current, without starting a new one. */
+    peek(): () => boolean {
+      const id = n;
+      return () => id === n;
+    },
     /** Drops everything in flight. */
     cancel() {
       n++;

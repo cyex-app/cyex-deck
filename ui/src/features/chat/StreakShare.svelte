@@ -10,12 +10,14 @@
 
 <script lang="ts">
   import Icon from '../../components/Icon.svelte';
+  import { everyShown } from '../../lib/awake';
   import { tooltip } from '../../components/tooltip.svelte';
   import type { Streak } from '../../ipc/bindings/Streak';
   import { subsIpc } from '../../ipc/subs';
   import { accounts } from '../../lib/accounts.svelte';
   import { errorText } from '../../lib/errors';
   import { formatNumber } from '../../lib/format';
+  import { latest } from '../../lib/latest';
   import { toast } from '../../lib/toast.svelte';
   import { tabs } from '../tabs/tabs.svelte';
   import { shown, streakShort, streakText } from './streakShare';
@@ -36,7 +38,7 @@
   let streak = $state<Streak | null>(null);
   let busy = $state(false);
   let row = $state<HTMLElement>();
-  let seq = 0;
+  const reads = latest();
 
   const ready = $derived(account !== null && accounts.can('subs', account));
   /** Who the shown answer was asked for. */
@@ -48,10 +50,10 @@
   async function load() {
     const [a, l] = [account, login];
     if (!a || !ready) return;
-    const mine = ++seq;
+    const current = reads.begin();
     try {
       const next = await subsIpc.streak(a, l);
-      if (mine === seq) {
+      if (current()) {
         asked = { account: a, login: l };
         streak = next;
       }
@@ -64,18 +66,18 @@
     const a = account;
     void login;
     streak = null;
-    seq++;
+    reads.cancel();
     if (!a || !ready) return;
     void load();
     void subsIpc.watchStreak(a, true).catch(() => {});
     const off = subsIpc.onStreak((e) => {
       if (e.account === a && (!channelId || e.channelId === channelId)) void load();
     });
-    const timer = setInterval(() => {
+    const stop = everyShown(() => {
       if (streak?.live || (channelId && tabs.live[channelId]?.stream)) void load();
     }, POLL_MS);
     return () => {
-      clearInterval(timer);
+      stop();
       void off.then((f) => f());
       void subsIpc.watchStreak(a, false).catch(() => {});
     };

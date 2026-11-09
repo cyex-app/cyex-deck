@@ -6,6 +6,7 @@
   import { onDestroy, type Snippet } from 'svelte';
 
   import { drag } from '../features/tabs/drag.svelte';
+  import { trackPointer } from '../lib/trackPointer';
   import { clicked, splitDock, stillOpen } from './dock';
   import Icon from './Icon.svelte';
   import type { TrayItem } from './panel';
@@ -47,25 +48,13 @@
         open = null;
       }
     };
-    const stop = () => {
-      removeEventListener('pointermove', watch);
-      removeEventListener('pointerup', end);
-      removeEventListener('pointercancel', end);
-      removeEventListener('blur', end);
-      teardown = null;
-    };
-    const end = (ev: Event) => {
-      stop();
-      if (ev.type === 'pointerup') setTimeout(() => (dragged = false));
-      else dragged = false;
-    };
     // BUG-09 Also ends when this unmounts mid-press (as PanelLayout does).
     teardown?.();
-    teardown = stop;
-    addEventListener('pointermove', watch);
-    addEventListener('pointerup', end);
-    addEventListener('pointercancel', end);
-    addEventListener('blur', end);
+    teardown = trackPointer(watch, (ev) => {
+      teardown = null;
+      if (ev.type === 'pointerup') setTimeout(() => (dragged = false));
+      else dragged = false;
+    });
   }
 
   let teardown: (() => void) | null = null;

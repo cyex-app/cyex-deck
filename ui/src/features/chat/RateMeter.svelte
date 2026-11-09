@@ -3,6 +3,7 @@
 <script lang="ts">
   import { tooltip } from '../../components/tooltip.svelte';
   import { chatxIpc } from '../../ipc/chatx';
+  import { everyShown } from '../../lib/awake';
   import { formatNumber } from '../../lib/format';
   import { RATE_EVERY_MS, rateBusy, rateText } from './rateText';
 
@@ -26,10 +27,10 @@
         .catch(() => {});
     };
     look();
-    const timer = setInterval(look, RATE_EVERY_MS);
+    const stop = everyShown(look, RATE_EVERY_MS);
     return () => {
       dead = true;
-      clearInterval(timer);
+      stop();
     };
   });
 </script>

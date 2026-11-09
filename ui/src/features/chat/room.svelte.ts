@@ -180,6 +180,15 @@ export class ChatRoom {
         case 'restricted':
           this.said = { how: e.how, at: Date.now() };
           break;
+        // V110-F88 A mod's /clear: the room sends the notice line right after as a 'message'; the
+        // lines on screen stay (only 'wipe' empties the list).
+        case 'cleared':
+          break;
+        default: {
+          // A new RoomEvent variant fails to compile here until it is handled.
+          const unhandled: never = e;
+          void unhandled;
+        }
       }
     }
     if (changed) this.set(list);

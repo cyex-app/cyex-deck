@@ -5,6 +5,7 @@
 <script module lang="ts">
   import type { EmoteCard as Card } from '../../ipc/bindings/EmoteCard';
   import type { Layer } from '../../ipc/bindings/Layer';
+  import { CappedMap } from '../../lib/capped';
 
   /** ka-3, fb-1 The last pointer press and key: a card opened by a press (no key since)
    *  starts without a focus frame, even after a key (e.g. Esc) made the browser show them. */
@@ -26,11 +27,9 @@
   });
 
   /** fb-4 Details already shown this session: a card opened again has them at once. */
-  const seen = new Map<string, Card>();
+  const seen = new CappedMap<string, Card>(200);
   function remember(key: string, c: Card): void {
-    seen.delete(key);
     seen.set(key, c);
-    if (seen.size > 200) seen.delete(seen.keys().next().value!);
   }
 </script>
 

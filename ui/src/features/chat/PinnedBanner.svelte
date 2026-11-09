@@ -10,6 +10,7 @@
   import { untrack } from 'svelte';
 
   import Icon from '../../components/Icon.svelte';
+  import { everyShown } from '../../lib/awake';
   import { openMenuAt, type MenuEntry } from '../../components/menu.svelte';
   import type { Pinned } from '../../ipc/bindings/Pinned';
   import { chatIpc } from '../../ipc/chat';
@@ -132,8 +133,7 @@
   $effect(() => {
     if (!still || !pin.endsAt) return;
     tick = Date.now();
-    const t = setInterval(() => (tick = Date.now()), 10_000);
-    return () => clearInterval(t);
+    return everyShown(() => (tick = Date.now()), 10_000);
   });
   const span = $derived(pinSpan(pin, seenAt(pin.id), still ? tick : Date.now()));
   /** V107 The time left, beside who pinned it; ticks on the shared 1 s clock. */

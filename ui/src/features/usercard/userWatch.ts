@@ -49,6 +49,16 @@ export function touches(events: readonly RoomEvent[], userId: string, ids: strin
       case 'wipe':
         if (ids.length) hit = true;
         break;
+      case 'pinned':
+      case 'state':
+      case 'status':
+      case 'restricted':
+        break;
+      default: {
+        // V110-F88 A new RoomEvent variant fails to compile here until it is considered.
+        const unhandled: never = e;
+        void unhandled;
+      }
     }
   }
   return hit;

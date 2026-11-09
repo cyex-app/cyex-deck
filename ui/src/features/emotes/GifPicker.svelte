@@ -4,6 +4,7 @@
   import { onDestroy, onMount, tick, untrack } from 'svelte';
 
   import Loading from '../../components/Loading.svelte';
+  import { everyShown } from '../../lib/awake';
   import type { Gif } from '../../ipc/bindings/Gif';
   import { chatxIpc } from '../../ipc/chatx';
   import { errorText } from '../../lib/errors';
@@ -46,8 +47,7 @@
 
   $effect(() => {
     if (wait <= 0) return;
-    const t = setInterval(() => (now = Date.now()), 1000);
-    return () => clearInterval(t);
+    return everyShown(() => (now = Date.now()), 1000);
   });
 
   // Typing waits a moment; the first load (trending) doesn't.

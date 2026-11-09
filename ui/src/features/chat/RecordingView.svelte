@@ -4,6 +4,7 @@
   import { onDestroy, tick } from 'svelte';
 
   import Icon from '../../components/Icon.svelte';
+  import { everyShown } from '../../lib/awake';
   import Segmented from '../../components/Segmented.svelte';
   import type { ChatMessage } from '../../ipc/bindings/ChatMessage';
   import type { Gone } from '../../ipc/bindings/Gone';
@@ -102,14 +103,14 @@
   $effect(() => {
     if (!playing || !rec) return;
     let last = performance.now();
-    const t = setInterval(() => {
+    // V110-F88 The clock is the delta since the last step, so a hidden window catches up once on show.
+    return everyShown(() => {
       const now = performance.now();
       const to = Math.min(length, at + (now - last) * speed);
       last = now;
       void seek(to);
       if (to >= length) playing = false;
     }, 100);
-    return () => clearInterval(t);
   });
 
   function toggle() {

@@ -3,14 +3,15 @@
 import type { Page } from '../../ipc/bindings/Page';
 import { accounts } from '../../lib/accounts.svelte';
 import { errorText } from '../../lib/errors';
+import { latest } from '../../lib/latest';
 
 export class Paged<T extends { id: string }> {
   items = $state.raw<T[]>([]);
   cursor = $state<string | null>(null);
   loading = $state(false);
   error = $state<string | null>(null);
-  /** Bumped on every reset, so answers to an older list are dropped. */
-  private run = 0;
+  /** A reset starts a new list, so answers to an older one are dropped. */
+  private readonly runs = latest();
 
   constructor(private load: (after: string | null) => Promise<Page<T>>) {}
 
@@ -21,7 +22,7 @@ export class Paged<T extends { id: string }> {
 
   async reset(load?: (after: string | null) => Promise<Page<T>>): Promise<void> {
     if (load) this.load = load;
-    const run = ++this.run;
+    const run = this.runs.begin();
     this.items = [];
     this.cursor = null;
     this.error = null;
@@ -32,22 +33,22 @@ export class Paged<T extends { id: string }> {
     if (!this.cursor || this.loading || !this.canPage) return;
     // V110-F84 After a failed page the cursor stays: a click on Retry asks for that page again.
     this.error = null;
-    await this.fetch(this.run, this.cursor);
+    await this.fetch(this.runs.peek(), this.cursor);
   }
 
-  private async fetch(run: number, after: string | null): Promise<void> {
+  private async fetch(run: () => boolean, after: string | null): Promise<void> {
     this.loading = true;
     try {
       const page = await this.load(after);
-      if (run !== this.run) return;
+      if (!run()) return;
       const seen = new Set(this.items.map((x) => x.id));
       this.items = [...this.items, ...page.items.filter((x) => !seen.has(x.id) && seen.add(x.id))];
       this.cursor = page.cursor;
     } catch (e) {
-      if (run !== this.run) return;
+      if (!run()) return;
       this.error = errorText(e);
     } finally {
-      if (run === this.run) this.loading = false;
+      if (run()) this.loading = false;
     }
   }
 }

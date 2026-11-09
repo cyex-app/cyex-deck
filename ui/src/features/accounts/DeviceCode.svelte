@@ -10,12 +10,13 @@
   import { signIn } from './signIn.svelte';
   import { errorText } from '../../lib/errors';
   import { copy } from '../../lib/clipboard';
+  import { everyShown } from '../../lib/awake';
 
   let now = $state(Date.now());
 
   $effect(() => {
-    const timer = setInterval(() => (now = Date.now()), 1000);
-    return () => clearInterval(timer);
+    // V110-F88 Not while the window is hidden; it catches up once when it shows.
+    return everyShown(() => (now = Date.now()), 1000);
   });
 
   /** V102-19 Adding to an account: the sign-in has to be that account. */

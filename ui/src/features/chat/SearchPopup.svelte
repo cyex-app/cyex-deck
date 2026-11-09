@@ -11,6 +11,7 @@
   import { firstField, focusScope } from '../../lib/focusScope';
   import { actionFor, comboFromEvent } from '../../lib/hotkeys.svelte';
   import { formatNumber } from '../../lib/format';
+  import { enterKey } from '../../lib/keys';
   import { openMenu } from '../../components/menu.svelte';
   import type { CardTarget } from '../emotes/emotes';
   import EmoteCard from '../emotes/EmoteCard.svelte';
@@ -135,7 +136,7 @@
   }
 
   function keydown(e: KeyboardEvent) {
-    if (e.key !== 'Enter' || e.isComposing) return;
+    if (!enterKey(e)) return;
     e.preventDefault();
     jump(e.shiftKey ? 1 : -1);
   }
