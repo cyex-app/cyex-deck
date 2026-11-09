@@ -2,6 +2,7 @@
      can be canceled until then. D2 The countdown comes live from Twitch, "Raid now" works
      after 10 s, and Twitch's suggestions fill in the name (sign-in with a code). -->
 <script lang="ts">
+  import { everyShown } from '../../lib/awake';
   import { uniqueKeys } from '../../lib/keys';
   import Avatar from '../../components/Avatar.svelte';
   import Button from '../../components/Button.svelte';
@@ -32,8 +33,8 @@
   $effect(() => {
     if (!raid) return;
     starting = null;
-    const t = setInterval(() => (now = Date.now() / 1000), 500);
-    return () => clearInterval(t);
+    // V110-F84 Not while the window is hidden.
+    return everyShown(() => (now = Date.now() / 1000), 500);
   });
 
   function loadPicks() {
@@ -52,7 +53,8 @@
   }
 
   function start() {
-    if (!login) return;
+    // V110-F84 Enter twice is one raid request.
+    if (!login || busy) return;
     const to = login;
     act(smIpc.raid(to), () => {
       starting = to;

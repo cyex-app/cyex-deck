@@ -14,6 +14,7 @@ import { formatStamp } from '../../lib/format';
 import { hostOf } from '../../lib/host';
 import { settings } from '../../lib/settings.svelte';
 import { toast } from '../../lib/toast.svelte';
+import { readData } from './readData';
 import { emojiName } from '../emotes/emoji';
 import type { CardTarget } from '../emotes/emotes';
 import { cancelEmoteMenu, emoteEditMenu } from '../emotes/edit/menu';
@@ -45,8 +46,9 @@ export interface LineHost {
 }
 
 /** 1.41 The emote under `el`, placed for its card. */
-export function emoteAt(el: HTMLElement, host: LineHost): CardTarget {
-  const d = JSON.parse(el.dataset.emote!) as Omit<CardTarget, 'rect'>;
+export function emoteAt(el: HTMLElement, host: LineHost): CardTarget | undefined {
+  const d = readData<Omit<CardTarget, 'rect'>>(el.dataset.emote);
+  if (!d) return undefined;
   const sender = host.senderOf(el);
   return { ...d, ...(sender && { sender }), rect: el.getBoundingClientRect() };
 }
@@ -56,10 +58,12 @@ export function openPart(e: MouseEvent, el: HTMLElement, host: LineHost): boolea
   const d = el.dataset;
   if (d.emote) {
     hideTip();
-    host.openCard(emoteAt(el, host));
+    const t = emoteAt(el, host);
+    if (t) host.openCard(t);
   } else if (d.link) {
     e.preventDefault();
-    if (d.target && host.onlink) host.onlink(JSON.parse(d.target) as LinkTarget);
+    const target = readData<LinkTarget>(d.target);
+    if (target && host.onlink) host.onlink(target);
     else systemIpc.openChatLink(d.link).catch((err) => toast.error(errorText(err)));
   } else if (d.upload) {
     e.preventDefault();
@@ -87,6 +91,7 @@ export function enterClicks(e: KeyboardEvent): void {
 export async function emoteMenu(e: MouseEvent, el: HTMLElement, host: LineHost): Promise<void> {
   e.preventDefault();
   const t = emoteAt(el, host);
+  if (!t) return;
   const { emote } = t;
   const { account, channel } = host;
   hideTip();

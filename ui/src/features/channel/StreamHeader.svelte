@@ -70,7 +70,8 @@
             onclick={() => (chart = !chart)}>{formatShort(stream.viewers)} watching</button><Popover bind:open={chart} align="start" label="Viewers over time"><ViewerChart channelId={tile.channel.id} /></Popover></span>{#if up}{' · '}<span class="up">{up}</span>{/if}
       </span>
     {:else}
-      <span class="title">{tile.channel.name}</span>
+      <!-- V110-F84 In its own span: ellipsis doesn't reach text straight inside a flex box. -->
+      <span class="title"><span class="text">{tile.channel.name}</span></span>
       <span class="meta">Offline</span>
     {/if}
   </div>
@@ -109,6 +110,7 @@
     white-space: nowrap;
   }
   .title {
+    min-width: 0;
     display: flex;
     align-items: center;
     gap: 6px;

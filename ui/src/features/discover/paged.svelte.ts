@@ -30,6 +30,8 @@ export class Paged<T extends { id: string }> {
 
   async more(): Promise<void> {
     if (!this.cursor || this.loading || !this.canPage) return;
+    // V110-F84 After a failed page the cursor stays: a click on Retry asks for that page again.
+    this.error = null;
     await this.fetch(this.run, this.cursor);
   }
 
@@ -44,7 +46,6 @@ export class Paged<T extends { id: string }> {
     } catch (e) {
       if (run !== this.run) return;
       this.error = errorText(e);
-      this.cursor = null;
     } finally {
       if (run === this.run) this.loading = false;
     }

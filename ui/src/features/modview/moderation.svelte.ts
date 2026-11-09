@@ -25,23 +25,33 @@ class Mods {
    * `mod:roles`, so mod controls come and go while a chat is open. */
   private list = $state.raw<RoleEntry[]>([]);
   private started = false;
+  private listening = false;
+  private tries = 0;
+  private events = 0;
 
   private start(): void {
     if (this.started) return;
     this.started = true;
-    let events = 0;
-    void modIpc
-      .onRoles((list) => {
-        events++;
-        this.list = list;
-      })
-      .then(() => {
-        const before = events;
-        return modIpc.roles().then((list) => {
-          if (events === before) this.list = list;
+    void this.boot();
+  }
+
+  /** V110-F84 A failed start tries again a few times (like the bell); the listener is added once. */
+  private async boot(): Promise<void> {
+    try {
+      if (!this.listening) {
+        await modIpc.onRoles((list) => {
+          this.events++;
+          this.list = list;
         });
-      })
-      .catch(() => {});
+        this.listening = true;
+      }
+      const before = this.events;
+      const list = await modIpc.roles();
+      if (this.events === before) this.list = list;
+    } catch {
+      this.started = false;
+      if (++this.tries <= 3) setTimeout(() => this.start(), 5000 * this.tries);
+    }
   }
 
   /** The account's role here, or null: anonymous, not a mod, or the chat isn't open. */

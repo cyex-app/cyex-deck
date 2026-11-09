@@ -41,7 +41,7 @@ test('durations parse from short forms', () => {
 });
 
 test('unreadable durations are rejected', () => {
-  for (const bad of ['', 'abc', '10x', '5m later', '0m']) {
+  for (const bad of ['', 'abc', '10x', '5m later']) {
     assert.equal(parseDuration(bad), null, bad);
   }
 });
@@ -126,4 +126,35 @@ test('V110-F20 formatTime without options reads the clock source each call', () 
   assert.equal(formatTime(d), '2:05 pm');
   assert.equal(formatTime(d, { clock: 'h24' }), '14:05');
   setAppClock('h24');
+});
+
+test('V110-F84 bytes never print 1.024 of a unit', () => {
+  assert.equal(formatBytes(1_048_535), '1 MB');
+  assert.equal(formatBytes(1023.5 * 1024), '1 MB');
+  assert.equal(formatBytes(1024 * 1024 * 1024 - 100), '1 GB');
+  assert.equal(formatBytes(1023 * 1024), '1.023 KB');
+});
+
+test('V110-F84 bad numbers show a dash, not NaN, Infinity or 1e+21', () => {
+  for (const bad of [NaN, Infinity, -Infinity, 1e21]) {
+    assert.equal(formatNumber(bad), '-');
+    assert.equal(formatShort(bad), '-');
+    assert.equal(formatBytes(bad), '-');
+    assert.equal(formatSecs(bad), '-');
+  }
+  assert.equal(formatNumber(999_999_999_999), '999.999.999.999');
+});
+
+test('V110-F84 360 to 364 days read as 11 months, a year from 365', () => {
+  const day = 86_400_000;
+  assert.equal(ago(0, 360 * day, true), '11 months ago');
+  assert.equal(ago(0, 364 * day, true), '11 months ago');
+  assert.equal(ago(0, 365 * day, true), '1 year ago');
+  assert.equal(ago(0, 60 * day, true), '2 months ago');
+});
+
+test('V110-F84 a zero duration reads the same with or without a unit', () => {
+  assert.equal(parseDuration('0'), 0);
+  assert.equal(parseDuration('0s'), 0);
+  assert.equal(parseDuration('0m'), 0);
 });

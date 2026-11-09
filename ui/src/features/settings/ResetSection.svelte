@@ -4,7 +4,9 @@
   import ConfirmButton from '../../components/ConfirmButton.svelte';
   import type { Partition } from '../../ipc/bindings/Partition';
   import type { DeepPartial, SettingsValues } from '../../ipc/settings';
+  import { errorText } from '../../lib/errors';
   import { settings } from '../../lib/settings.svelte';
+  import { toast } from '../../lib/toast.svelte';
   import { ENTRIES, type PageId } from './registry';
   import { pageResetPatch } from './resetPatch';
 
@@ -21,7 +23,8 @@
     const done = page
       ? settings.patch(partition, pageResetPatch(ENTRIES, partition, page) as DeepPartial<SettingsValues[typeof partition]>)
       : settings.reset(partition);
-    void done.then(() => onreset?.());
+    // V110-F84 A failed reset says so instead of going unnoticed.
+    void done.then(() => onreset?.()).catch((e) => toast.error(errorText(e)));
   }
 </script>
 

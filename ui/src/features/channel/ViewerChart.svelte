@@ -31,7 +31,9 @@
 
   $effect(() => {
     void load();
-    const off = tabsIpc.onLive(() => void load());
+    // V110-F84 Only this channel's update reloads it.
+    const id = channelId;
+    const off = tabsIpc.onLive((list) => list.some((c) => c.id === id) && void load());
     return () => void off.then((f) => f());
   });
 

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { uniqueKeys } from '../lib/keys';
   import { floating } from '../lib/place';
   import LinkTipCard from './LinkTipCard.svelte';
   import { hideTip, overTipNow, tip } from './tooltip.svelte';
@@ -22,8 +23,10 @@
     {#if tip.card}<LinkTipCard c={tip.card} />{/if}
     {#if tip.actions.length}
       <!-- V110-U59 -->
+      <!-- V110-F84 Two actions with one label would make Svelte throw. -->
+      {@const keys = uniqueKeys(tip.actions, (a) => a.label)}
       <div class="acts-row">
-        {#each tip.actions as a (a.label)}
+        {#each tip.actions as a, i (keys[i])}
           <button
             type="button"
             onclick={() => {

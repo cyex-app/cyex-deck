@@ -16,16 +16,20 @@ const EMPTY: Menus = { user: [], message: [], channel: [], usercard: [] };
 
 class UserMenus {
   current = $state.raw<Menus>(EMPTY);
-  private seen: unknown = null;
+  private seen = -1;
+  private asked = 0;
 
   /** Keeps the menus in step with the settings; call from a component's effect. */
   track(): void {
-    const c = settings.v.commands;
-    if (c === this.seen) return;
-    this.seen = c;
+    // V110-F84 Keyed on the saves that landed, not on the edit shown at once: the shown edit changes
+    // before Rust has applied it, so the answer was the old menus and stuck.
+    const rev = settings.saved('commands');
+    if (rev === this.seen) return;
+    this.seen = rev;
+    const n = ++this.asked;
     rulesIpc
       .menus()
-      .then((m) => (this.current = m))
+      .then((m) => n === this.asked && (this.current = m))
       .catch(() => {});
   }
 }

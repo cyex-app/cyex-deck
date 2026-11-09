@@ -6,9 +6,10 @@ export interface Piece {
   emoji: boolean;
 }
 
-/** Flags, keycaps, and pictographs with their skin tone, variation selector and ZWJ joins. */
+/** V110-F84 (c), (r) and TM typed as text stay text: they count as emoji only with the variation selector.
+ *  Flags, keycaps, and pictographs with their skin tone, variation selector and ZWJ joins. */
 const EMOJI =
-  /\p{Regional_Indicator}{2}|[#*0-9]️?⃣|\p{Extended_Pictographic}(?:️|\p{Emoji_Modifier})?(?:‍\p{Extended_Pictographic}(?:️|\p{Emoji_Modifier})?)*/gu;
+  /\p{Regional_Indicator}{2}|[#*0-9]️?⃣|[\u00A9\u00AE\u2122]\uFE0F|(?![\u00A9\u00AE\u2122])\p{Extended_Pictographic}(?:️|\p{Emoji_Modifier})?(?:‍\p{Extended_Pictographic}(?:️|\p{Emoji_Modifier})?)*/gu;
 const ASCII = /^[\x00-\x7F]*$/;
 
 /** Plain runs and emoji, in order. Text without emoji comes back as one piece. */

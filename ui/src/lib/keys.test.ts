@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { uniqueKeys } from './keys.ts';
+import { earlyEnter, uniqueKeys } from './keys.ts';
 
 test('no repeats: keys unchanged', () => {
   assert.deepEqual(uniqueKeys(['a', 'b', 'c'], (s) => s), ['a', 'b', 'c']);
@@ -29,4 +29,12 @@ test('V110-F81 an IME confirm is composing, by flag or by keyCode 229', async ()
   assert.equal(enterKey({ key: 'Enter', keyCode: 229 }), false);
   assert.equal(enterKey({ key: 'Enter', keyCode: 13 }), true);
   assert.equal(enterKey({ key: 'a' }), false);
+});
+
+test('V110-F84 a held or too-early Enter does not confirm a dialog', () => {
+  assert.equal(earlyEnter({ key: 'Enter', repeat: true }, 0, 5000), true);
+  assert.equal(earlyEnter({ key: 'Enter' }, 1000, 1200), true);
+  assert.equal(earlyEnter({ key: 'Enter' }, 1000, 1300), false);
+  assert.equal(earlyEnter({ key: 'Enter' }, 1000, 1500, 400), false);
+  assert.equal(earlyEnter({ key: 'Escape', repeat: true }, 0, 0), false);
 });

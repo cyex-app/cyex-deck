@@ -10,6 +10,7 @@ const RUN = /\p{M}{4,}/u;
 /** A run of four or more combining marks in `text`. */
 export const stacks = (text: string | null | undefined) => !!text && RUN.test(text);
 
-/** Any text in the line stacks marks. */
-export const lineStacks = (body: Fragment[], notice?: string | null) =>
-  stacks(notice) || body.some((f) => 'text' in f && stacks(f.text));
+/** Any text in the line stacks marks. V110-F84 `also`: the other text a line draws (the sender's name,
+ *  the reply's quote), which can carry the same run. */
+export const lineStacks = (body: Fragment[], notice?: string | null, ...also: (string | null | undefined)[]) =>
+  stacks(notice) || also.some(stacks) || body.some((f) => 'text' in f && stacks(f.text));

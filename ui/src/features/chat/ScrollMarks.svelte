@@ -29,6 +29,8 @@
   let ticks: Tick[] = [];
   let timer = 0;
   let shown = false;
+  /** V110-F84 A redraw skipped while the window was hidden. */
+  let owed = false;
 
   /** `#rrggbbaa` is read as it is; `--name` from the theme. */
   function paint(token: string, style: CSSStyleDeclaration): string {
@@ -37,6 +39,7 @@
 
   function draw() {
     timer = 0;
+    if (document.hidden) return void (owed = true);
     const el = list;
     const cv = canvas;
     if (!el || !cv) return;
@@ -85,6 +88,7 @@
   }
 
   function schedule() {
+    if (document.hidden) return void (owed = true);
     if (!timer) timer = window.setTimeout(draw, EVERY_MS);
   }
   onDestroy(() => clearTimeout(timer));
@@ -116,6 +120,15 @@
 
 <!-- V110-F21 A new pixel ratio (another monitor, zoom) comes with a resize. -->
 <svelte:window onresize={schedule} />
+<!-- V110-F84 Redrawn once when the window shows again. -->
+<svelte:document
+  onvisibilitychange={() => {
+    if (!document.hidden && owed) {
+      owed = false;
+      schedule();
+    }
+  }}
+/>
 
 <canvas bind:this={canvas} class="marks" width={TRACK} aria-hidden="true"></canvas>
 

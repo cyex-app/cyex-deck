@@ -168,8 +168,13 @@
     emote = null;
   }
 
+  /** V110-F84 One answer for the Redeem button and for Enter in the text field. */
+  const ready = $derived(
+    !!picked && !busy && !locked && !(picked.needsText && !text.trim()) && !(picked.emote && !emote),
+  );
+
   async function redeem() {
-    if (!picked || busy || locked) return;
+    if (!picked || !ready) return;
     // V107-H11b Known to fail: say so here, Twitch isn't asked.
     const no = blocked(picked.cost, balance);
     if (no) return void toast.error(no);
@@ -248,6 +253,7 @@
               maxlength="500"
               placeholder="Your message"
               autofocus
+              data-draft={text ? '' : undefined}
               onkeydown={(e) => enterKey(e) && void redeem()}
             />
           {/if}
@@ -256,7 +262,7 @@
             <Button
               small
               variant="primary"
-              disabled={busy || !!locked || (picked.needsText && !text.trim()) || (!!picked.emote && !emote)}
+              disabled={!ready}
               onclick={redeem}
             >
               Redeem

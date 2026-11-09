@@ -34,6 +34,7 @@
   import { menuEntries } from '../../components/menus/use';
   import { logsMessageUrl } from './logsLink';
   import { hideUser } from './undo';
+  import { readData } from './readData';
   import { may, whose, type Act as ModAct } from '../modview/may';
   import { onModTarget } from '../modview/lineMod';
   import { standingOf } from '../modview/standing';
@@ -791,7 +792,8 @@
     if (d.mod) {
       modClick(el, d.mod);
     } else if (d.act) {
-      actClick(JSON.parse(d.act) as Act);
+      const act = readData<Act>(d.act);
+      if (act) actClick(act);
     } else if (d.pin) {
       hideTip();
       menuHere = true;

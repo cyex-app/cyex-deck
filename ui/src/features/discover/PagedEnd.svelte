@@ -1,6 +1,7 @@
 <!-- Bottom of a paged list: loads more as it comes into view, or says why it can't. -->
 <script lang="ts">
   import { type Paged, nearView } from './paged.svelte';
+  import Button from '../../components/Button.svelte';
   import Loading from '../../components/Loading.svelte';
 
   /** `shown`: how many of the loaded items the page actually lists (some may be hidden). */
@@ -8,7 +9,11 @@
 </script>
 
 {#if list.error}
-  <p class="end">{list.error}</p>
+  <p class="end" role="alert">{list.error}</p>
+  <!-- V110-F84 A failed later page keeps its cursor, so it can be asked for again. -->
+  {#if list.cursor && list.canPage}
+    <div class="retry"><Button small onclick={() => void list.more()}>Retry</Button></div>
+  {/if}
 {:else if list.loading}
   <Loading cards={shown ?? list.items.length ? 0 : 8} minHeight="72px" />
 {:else if !(shown ?? list.items.length) && !list.cursor}
@@ -26,6 +31,11 @@
     text-align: center;
     color: var(--dim);
     font-size: 0.85rem;
+  }
+  .retry {
+    display: flex;
+    justify-content: center;
+    padding-bottom: 24px;
   }
   .sentinel {
     height: 1px;

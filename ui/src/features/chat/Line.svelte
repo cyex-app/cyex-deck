@@ -9,6 +9,7 @@
   import type { ChatMessage } from '../../ipc/bindings/ChatMessage';
   import type { Look } from '../../ipc/bindings/Look';
   import { formatDuration, formatNumber, formatTime } from '../../lib/format';
+  import { uniqueKeys } from '../../lib/keys';
   import { MOD_ROLE_NOTE, modButtonsFor, takesModRole, type LineMod } from '../modview/lineMod';
   import { goneNote } from './gone';
   import { settings } from '../../lib/settings.svelte';
@@ -81,9 +82,11 @@
   const noticeParts = $derived(notice?.links.length ? splitNames(notice.text, notice.links) : null);
   // C37 V108-C03 Joins and leaves: each name opens its usercard; the count stays text.
   const presence = $derived(notice?.presence);
+  /** V110-F84 Names repeat in a long join list; a keyed each throws on a repeat. */
+  const presenceKeys = $derived(uniqueKeys(presence?.names ?? [], (login) => login));
   const hl = $derived(highlightStyle(m));
   /** V107-Mj Zalgo stays inside its line. */
-  const stacked = $derived(lineStacks(m.body, notice?.text));
+  const stacked = $derived(lineStacks(m.body, notice?.text, m.sender?.display, m.reply?.parentDisplay, m.reply?.parentBody));
   const client = $derived(c.showClient && m.client ? CLIENTS[m.client] : null);
   /** V108-N12 A Shared Chat line from another channel: that channel, once its room is read. */
   const from = $derived(m.source ? catalogs.room(m.source.roomId) : undefined);
@@ -153,7 +156,7 @@
   {#if notice}
     <div class="notice-text">
       {#if !sender && time}<span class="ts" data-stamp={m.ts}>{time}</span>{/if}{#if upLine}Uploaded <a class="up" href={upLine.link} data-upload={upLine.link}>{upLine.link}</a>{#if upLine.deletion}
-        · delete: <a class="up" href={upLine.deletion} data-upload={upLine.deletion}>{upLine.deletion}</a>{/if}{:else if presence}{presence.joined ? 'joined: ' : 'parted: '}{#each presence.names as login, i (login)}{i ? ', ' : ''}<span
+        · delete: <a class="up" href={upLine.deletion} data-upload={upLine.deletion}>{upLine.deletion}</a>{/if}{:else if presence}{presence.joined ? 'joined: ' : 'parted: '}{#each presence.names as login, i (presenceKeys[i])}{i ? ', ' : ''}<span
             class="who"
             role="link"
             tabindex="-1"

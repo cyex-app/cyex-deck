@@ -21,6 +21,7 @@
   import Line from '../chat/Line.svelte';
   import { withUndo } from '../chat/undo';
   import WhisperInput from './WhisperInput.svelte';
+  import { mergeLines } from './merge';
   import { whispers } from './whispers.svelte';
   import { errorText } from '../../lib/errors';
   import Loading from '../../components/Loading.svelte';
@@ -68,12 +69,18 @@
       const c = await whispersIpc.open(l);
       if (l !== login) return;
       conv = c;
-      messages = c.messages;
-      cursor = c.cursor;
+      if (fresh) {
+        messages = c.messages;
+        cursor = c.cursor;
+      } else {
+        // V110-F84 A refresh joins what is shown; older pages stay, and the view only follows from the bottom.
+        messages = mergeLines(messages, c.messages, MAX_LINES);
+      }
+      const follow = fresh || atBottom;
       await tick();
-      bottom();
+      if (follow) bottom();
       read();
-      input?.focus();
+      if (fresh) input?.focus();
     } catch (e) {
       if (l === login) error = errorText(e);
     }

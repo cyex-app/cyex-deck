@@ -27,6 +27,7 @@
   import { tooltip } from '../../components/tooltip.svelte';
   import type { HypeTrain } from '../../ipc/bindings/HypeTrain';
   import { hypeIpc } from '../../ipc/hypetrain';
+  import { everyShown } from '../../lib/awake';
   import { density } from '../../lib/density.svelte';
   import { formatNumber } from '../../lib/format';
   import { settings } from '../../lib/settings.svelte';
@@ -265,11 +266,11 @@
   $effect(() => {
     if (!running) return;
     now = Date.now();
-    const t = setInterval(() => {
+    // V110-F84 Not while the window is hidden; it catches up once when it shows again.
+    return everyShown(() => {
       now = Date.now();
       if (train && train.expiresAt && secondsLeft(train.expiresAt, now) === 0) finish(train);
     }, 1000);
-    return () => clearInterval(t);
   });
 </script>
 

@@ -3,8 +3,12 @@
 
 const pad = (n: number) => String(n).padStart(2, '0');
 
+/** V110-F84 Not a number, infinite, or so big that String() turns to "1e+21": shown as a dash. */
+const unreadable = (n: number) => !Number.isFinite(n) || Math.abs(n) >= 1e21;
+
 /** 1234567 → "1.234.567". Never the OS locale's separator (3.13). */
 export function formatNumber(n: number): string {
+  if (unreadable(n)) return '-';
   const digits = String(Math.trunc(Math.abs(n))).replace(/\B(?=(\d{3})+$)/g, '.');
   return n <= -1 ? `-${digits}` : digits;
 }
@@ -17,6 +21,7 @@ const SHORT: [suffix: string, size: number][] = [
 
 /** 999 → "999", 1250 → "1,2K", 2_000_000 → "2M". Rounds down; comma decimal so it can't read as a grouped number. */
 export function formatShort(n: number): string {
+  if (unreadable(n)) return '-';
   const abs = Math.abs(n);
   const unit = SHORT.find(([, size]) => abs >= size);
   if (!unit) return formatNumber(n);
@@ -37,6 +42,7 @@ export function formatFactor(n: number): string {
 
 /** 39_845_888 → "38 MB", 1_300_000_000 → "1,2 GB". Binary units, comma decimal, dots for thousands (3.13). */
 export function formatBytes(bytes: number): string {
+  if (unreadable(bytes)) return '-';
   const units = ['B', 'KB', 'MB', 'GB', 'TB'];
   let value = Math.max(0, bytes);
   let i = 0;
@@ -45,7 +51,12 @@ export function formatBytes(bytes: number): string {
     i++;
   }
   if (i === 0) return `${formatNumber(value)} B`;
-  const rounded = value >= 100 ? Math.round(value) : Math.round(value * 10) / 10;
+  let rounded = value >= 100 ? Math.round(value) : Math.round(value * 10) / 10;
+  // V110-F84 Rounding can land on the next unit's edge (1023,96 KB → 1.024 KB): count it in that unit.
+  if (rounded >= 1024 && i < units.length - 1) {
+    i++;
+    rounded = Math.round((rounded / 1024) * 10) / 10;
+  }
   const text = Number.isInteger(rounded) ? formatNumber(rounded) : formatDecimal(rounded, 1);
   return `${text} ${units[i]}`;
 }
@@ -68,7 +79,8 @@ export function ago(ms: number, now = Date.now(), words = false): string {
   const s = Math.max(0, Math.floor((now - ms) / 1000));
   if (words) {
     for (const [name, size] of AGO_UNITS) {
-      const n = Math.floor(s / size);
+      const n = name === 'month' ? Math.min(11, Math.floor(s / size)) : Math.floor(s / size);
+      // V110-F84 360 to 364 days are not "12 months": a year is 365.
       if (n >= 1) return `${n} ${name}${n === 1 ? '' : 's'} ago`;
     }
     return 'just now';
@@ -145,13 +157,14 @@ export function parseDuration(text: string): number | null {
     total += Number(match[1]) * size;
     consumed += match[0];
   }
-  return consumed.replace(/\s/g, '') === input.replace(/\s/g, '') && total > 0 ? total : null;
+  return consumed.replace(/\s/g, '') === input.replace(/\s/g, '') && consumed ? total : null; // V110-F84 "0s" is 0 like "0" is; callers range-check
 }
 
 const MONTH = 2_592_000;
 
 /** Compact length: 30 -> "30s", 90 -> "90s", 300 -> "5m", 3600 -> "1h", 5400 -> "90m", 86400 -> "1d", 604800 -> "1w", 7776000 -> "3mo" (30-day months). Up to 3 minutes stays in seconds; a decimal second keeps its comma. */
 export function formatSecs(secs: number): string {
+  if (unreadable(secs)) return '-';
   const n = Math.max(0, secs);
   if (!Number.isInteger(n)) return `${formatDecimal(n)}s`;
   if (n <= 180) return `${n}s`;

@@ -8,7 +8,7 @@ import { chatIpc } from '../../ipc/chat';
 import type { BadgeInfo } from '../../ipc/bindings/BadgeInfo';
 import type { CatalogUpdate } from '../../ipc/bindings/CatalogUpdate';
 import type { Cheermote } from '../../ipc/bindings/Cheermote';
-import { BadgeMisses, missScope } from './badgeMiss';
+import { BadgeMisses, RetryGate, missScope } from './badgeMiss';
 import type { BadgeRef } from './sharedBadges';
 
 interface Catalog {
@@ -31,6 +31,9 @@ class Catalogs {
   channels = new SvelteMap<string, Catalog>();
   private loading = new Set<string>();
   private misses = new BadgeMisses();
+  /** V110-F84 Channels asked for: a push for one of them lands even while the answer is out or was empty. */
+  private asked = new Set<string>();
+  private sourceFails = new RetryGate();
 
   async loadGlobal(): Promise<void> {
     if (this.loading.has('')) return;
@@ -51,9 +54,12 @@ class Catalogs {
   async loadChannel(login: string): Promise<void> {
     if (this.loading.has(login)) return;
     this.loading.add(login);
+    this.asked.add(login);
     try {
       const c = await chatIpc.channelCatalog(login);
       if (c) this.channels.set(login, index(c.badges, c.cheermotes));
+      // V110-F84 No answer yet: a later open asks again; the push fills it meanwhile.
+      else this.loading.delete(login);
     } catch {
       this.loading.delete(login);
     }
@@ -66,13 +72,15 @@ class Catalogs {
 
   async loadSource(roomId: string): Promise<void> {
     const key = `room:${roomId}`;
-    if (this.loading.has(key)) return;
+    if (this.loading.has(key) || !this.sourceFails.ok(key)) return;
     this.loading.add(key);
     try {
       const room = await chatIpc.sourceBadges(roomId);
       this.sources.set(roomId, new Map(room.badges.map((b) => [`${b.set}/${b.version}`, b])));
       if (room.login) this.rooms.set(roomId, { login: room.login, name: room.name, avatar: room.avatar ?? null });
+      this.sourceFails.done(key);
     } catch {
+      this.sourceFails.fail(key);
       this.loading.delete(key);
     }
   }
@@ -97,7 +105,7 @@ class Catalogs {
   private apply(u: CatalogUpdate) {
     if (u.kind === 'global') this.global = index(u.catalog.badges, u.catalog.cheermotes);
     else if (u.kind === 'channel') {
-      if (this.channels.has(u.login)) this.channels.set(u.login, index(u.catalog.badges, u.catalog.cheermotes));
+      if (this.channels.has(u.login) || this.asked.has(u.login)) this.channels.set(u.login, index(u.catalog.badges, u.catalog.cheermotes));
     } else if (this.sources.has(u.id)) {
       this.sources.set(u.id, new Map(u.room.badges.map((b) => [`${b.set}/${b.version}`, b])));
       if (u.room.login) this.rooms.set(u.id, { login: u.room.login, name: u.room.name, avatar: u.room.avatar ?? null });

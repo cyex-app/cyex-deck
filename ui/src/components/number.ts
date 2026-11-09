@@ -7,6 +7,13 @@ export interface NumberRange {
   step?: number;
 }
 
+/** V110-F84 Plain decimals only: `0x10`, `1e3` and `Infinity` are not numbers typed into a box. */
+function plain(t: string): number | null {
+  if (!/^[+-]?(\d+\.?\d*|\.\d+)$/.test(t)) return null;
+  const n = Number(t);
+  return Number.isFinite(n) ? n : null;
+}
+
 /** Inside the range and on the step grid. */
 export function clampNumber(value: number, { min, max, step = 1 }: NumberRange): number {
   const snapped = Math.round((value - min) / step) * step + min;
@@ -22,8 +29,8 @@ export function parseNumber(text: string, range: NumberRange): number | null {
   if (!t) return null;
   if (t.includes(',')) t = t.replace(/\./g, '').replace(',', '.');
   else if (/^-?\d{1,3}(\.\d{3})+$/.test(t)) t = t.replace(/\./g, '');
-  const n = Number(t);
-  return Number.isFinite(n) ? clampNumber(n, range) : null;
+  const n = plain(t);
+  return n !== null ? clampNumber(n, range) : null;
 }
 
 /** Up/Down move one step, PageUp/PageDown or Shift ten, Home/End to the ends; null for other keys. */
@@ -54,8 +61,8 @@ export function readNumber(text: string): number | null {
   if (!t) return null;
   if (t.includes(',')) t = t.replace(/\./g, '').replace(',', '.');
   else if (/^-?\d{1,3}(\.\d{3})+$/.test(t)) t = t.replace(/\./g, '');
-  const n = Number(t);
-  return Number.isFinite(n) ? n : null;
+  const n = plain(t);
+  return n;
 }
 
 /** "Max 5.000" / "Min 100" when the typed number is outside the range; null when it fits or isn't a number.

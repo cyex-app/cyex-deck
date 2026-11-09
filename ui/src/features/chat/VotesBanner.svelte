@@ -7,6 +7,7 @@
   import { tooltip } from '../../components/tooltip.svelte';
   import type { Outcome } from '../../ipc/bindings/Outcome';
   import { chatxIpc } from '../../ipc/chatx';
+  import { everyShown } from '../../lib/awake';
   import { formatDecimal, formatDuration, formatNumber } from '../../lib/format';
   import { toast } from '../../lib/toast.svelte';
   import { pollKey, pollLive, predictionKey, predictionLive, shows } from './eventStrip';
@@ -33,8 +34,8 @@
 
   $effect(() => {
     if (poll?.status !== 'ACTIVE' && pred?.status !== 'ACTIVE') return;
-    const t = setInterval(() => (now = Date.now()), 1000);
-    return () => clearInterval(t);
+    // V110-F84 Not while the window is hidden.
+    return everyShown(() => (now = Date.now()), 1000);
   });
 
   const pct = (part: number, total: number) => (total ? Math.round((part / total) * 100) : 0);

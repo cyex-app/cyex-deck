@@ -5,6 +5,7 @@
   import Button from '../../components/Button.svelte';
   import Dialog from '../../components/Dialog.svelte';
   import { formatNumber } from '../../lib/format';
+import { earlyEnter } from '../../lib/keys';
 
   let {
     bits,
@@ -18,7 +19,7 @@
   const opened = performance.now();
 
   function guard(e: KeyboardEvent) {
-    if (e.key === 'Enter' && (e.repeat || performance.now() - opened < READY_MS)) {
+    if (earlyEnter(e, opened, performance.now(), READY_MS)) {
       e.preventDefault();
       e.stopPropagation();
     }

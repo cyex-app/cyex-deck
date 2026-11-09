@@ -14,6 +14,7 @@
   import { smIpc } from '../../ipc/streammanager';
   import { formatDuration, formatSecs } from '../../lib/format';
   import { settings } from '../../lib/settings.svelte';
+  import { everyShown } from '../../lib/awake';
   import { toast } from '../../lib/toast.svelte';
   import Card from '../../components/PanelCard.svelte';
   import ConfirmButton from '../../components/ConfirmButton.svelte';
@@ -78,8 +79,8 @@
   });
 
   $effect(() => {
-    const t = setInterval(() => (now = Date.now()), 1000);
-    return () => clearInterval(t);
+    // V110-F84 Not while the window is hidden.
+    return everyShown(() => (now = Date.now()), 1000);
   });
 
   function run() {

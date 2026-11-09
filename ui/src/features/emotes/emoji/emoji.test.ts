@@ -65,3 +65,15 @@ test('emoji are found in chat text', () => {
     { text: ' ü', emoji: false },
   ]);
 });
+
+test('V110-F84 (c), (r) and TM stay text unless they carry the emoji selector', () => {
+  for (const ch of ['©', '®', '™']) {
+    assert.deepEqual(splitEmoji(`a ${ch} b`), [{ text: `a ${ch} b`, emoji: false }]);
+    assert.deepEqual(splitEmoji(`a ${ch}️ b`), [
+      { text: 'a ', emoji: false },
+      { text: `${ch}️`, emoji: true },
+      { text: ' b', emoji: false },
+    ]);
+  }
+  assert.equal(splitEmoji('\u{1F440}')[0].emoji, true);
+});

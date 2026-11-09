@@ -28,3 +28,30 @@ export class BadgeMisses {
 export function missScope(channel: string, room: string | undefined): string {
   return room ? `room:${room}` : channel;
 }
+
+/** V110-F84 Keys whose read failed: asked again no sooner than `wait` ms later, so a line
+ *  that renders over and over doesn't hammer a failing read. */
+export class RetryGate {
+  private failed = new Map<string, number>();
+  private wait: number;
+
+  constructor(wait = 60_000) {
+    this.wait = wait;
+  }
+
+  /** True when `key` never failed, or failed long enough ago. */
+  ok(key: string, now = Date.now()): boolean {
+    const at = this.failed.get(key);
+    return at === undefined || now - at >= this.wait;
+  }
+
+  fail(key: string, now = Date.now()) {
+    this.failed.delete(key);
+    this.failed.set(key, now);
+    if (this.failed.size > 500) this.failed.delete(this.failed.keys().next().value as string);
+  }
+
+  done(key: string) {
+    this.failed.delete(key);
+  }
+}

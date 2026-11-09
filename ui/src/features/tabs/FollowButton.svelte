@@ -2,6 +2,8 @@
      out without one (V102-20); anonymous tiles don't show it. Unfollowing takes a second
      click. Every follow and unfollow says how it went (V105-07). -->
 <script lang="ts">
+  import { onDestroy } from 'svelte';
+
   import Icon from '../../components/Icon.svelte';
   import IconButton from '../../components/IconButton.svelte';
   import { tooltip } from '../../components/tooltip.svelte';
@@ -22,6 +24,9 @@
   let failed = $state(false);
   let ask = $state(0);
   let timer: ReturnType<typeof setTimeout> | undefined;
+
+  // V110-F84 No stray timer after the button is gone.
+  onDestroy(() => clearTimeout(timer));
 
   $effect(() => {
     void ask;
@@ -49,12 +54,14 @@
     confirming = false;
     busy = true;
     const next = !following;
+    // V110-F84 Who this click was for: the tile may point elsewhere by the time the answer comes.
+    const [id, acc] = [channelId, account];
     following = next;
     let error: unknown;
     try {
-      await tabsIpc.follow(channelId, account, next);
+      await tabsIpc.follow(id, acc, next);
     } catch (e) {
-      following = !next;
+      if (id === channelId && acc === account) following = !next;
       error = e ?? null;
     }
     const t = followToast(next, name, error);

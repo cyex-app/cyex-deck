@@ -10,6 +10,7 @@
   import { pluginsIpc } from '../../ipc/plugins';
   import { formatTime } from '../../lib/format';
   import { toast } from '../../lib/toast.svelte';
+  import { mergeLog } from './consoleMerge';
   import { plugins } from './plugins.svelte';
   import { errorText } from '../../lib/errors';
 
@@ -43,17 +44,37 @@
   $effect(() => {
     const plugin = id;
     if (!plugin) return;
-    pluginsIpc
-      .logs(plugin)
+    // V110-F84 Subscribe first and hold what comes in until the snapshot lands, then merge;
+    // an answer for the plugin shown before is dropped.
+    let live = true;
+    let pending: Entry[] | null = [];
+    entries = [];
+    const un = pluginsIpc.onLog((from, l) => {
+      if (from !== plugin) return;
+      const e: Entry = { ts: l.ts, kind: 'log', level: l.level, text: l.text };
+      if (pending) pending.push(e);
+      else add(e);
+    });
+    void un
+      .then(() => pluginsIpc.logs(plugin))
       .then((lines) => {
-        entries = lines.map((l) => ({ ts: l.ts, kind: 'log', level: l.level, text: l.text }));
+        if (!live) return;
+        const snap = lines.map((l): Entry => ({ ts: l.ts, kind: 'log', level: l.level, text: l.text }));
+        // Console lines typed meanwhile are already in `entries`.
+        entries = mergeLog(snap, [...(pending ?? []), ...entries], MAX);
+        pending = null;
         void tick().then(() => list?.scrollTo({ top: list.scrollHeight }));
       })
-      .catch(() => {});
-    const un = pluginsIpc.onLog((from, l) => {
-      if (from === plugin) add({ ts: l.ts, kind: 'log', level: l.level, text: l.text });
-    });
-    return () => void un.then((f) => f());
+      .catch(() => {
+        if (live && pending) {
+          entries = mergeLog(entries, pending, MAX);
+          pending = null;
+        }
+      });
+    return () => {
+      live = false;
+      void un.then((f) => f());
+    };
   });
 
   async function run() {

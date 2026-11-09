@@ -19,6 +19,7 @@
   import { nameMenu } from './nameMenu';
   import { errorText } from '../../lib/errors';
   import { uniqueKeys } from '../../lib/keys';
+  import { latest } from '../../lib/latest';
   import Loading from '../../components/Loading.svelte';
 
   interface Props {
@@ -58,14 +59,18 @@
   let loading = $state(true);
   let query = $state('');
 
+  // V110-F84 A refresh while an older answer is out: only the newest lands.
+  const seq = latest();
+
   function load() {
+    const live = seq.begin();
     loading = true;
     error = '';
     chatIpc
       .viewers(account, login)
-      .then((c) => (data = c))
-      .catch((e) => (error = errorText(e)))
-      .finally(() => (loading = false));
+      .then((c) => live() && (data = c))
+      .catch((e) => live() && (error = errorText(e)))
+      .finally(() => live() && (loading = false));
   }
   load();
 

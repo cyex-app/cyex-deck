@@ -6,6 +6,7 @@
 
   import { layer } from '../lib/escape';
   import { firstField, focusScope } from '../lib/focusScope';
+  import { earlyEnter } from '../lib/keys';
   import IconButton from './IconButton.svelte';
 
   interface Props {
@@ -25,6 +26,14 @@
   let { title, width = 420, top = false, onclose, locked = false, onsubmit, children, footer }: Props = $props();
 
   let box = $state<HTMLElement>();
+
+  // V110-F84 The Enter that opened the dialog, still held, doesn't confirm it (plugin permissions, 7TV consent).
+  const opened = performance.now();
+  function early(e: KeyboardEvent) {
+    if (!earlyEnter(e, opened, performance.now())) return;
+    e.preventDefault();
+    e.stopPropagation();
+  }
 
   function dismiss() {
     if (!locked) onclose();
@@ -48,6 +57,8 @@
     };
   });
 </script>
+
+<svelte:window onkeydowncapture={early} />
 
 <!-- The backdrop only catches outside clicks; Escape is handled above. -->
 <!-- svelte-ignore a11y_no_static_element_interactions, a11y_click_events_have_key_events -->

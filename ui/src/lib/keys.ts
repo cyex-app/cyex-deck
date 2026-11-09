@@ -24,3 +24,9 @@ export function composing(e: { isComposing?: boolean; keyCode?: number }): boole
 export function enterKey(e: { key: string; isComposing?: boolean; keyCode?: number }): boolean {
   return e.key === 'Enter' && !composing(e);
 }
+
+/** V110-F84 An Enter that must not confirm a dialog yet: the key is held down (repeat), or it came
+ *  within `ms` of the dialog opening, i.e. the press that opened it is still going. */
+export function earlyEnter(e: { key: string; repeat?: boolean }, openedAt: number, now: number, ms = 300): boolean {
+  return e.key === 'Enter' && (!!e.repeat || now - openedAt < ms);
+}

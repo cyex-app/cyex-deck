@@ -4,8 +4,10 @@
 // pop-out or a new window starts from.
 
 import type { KnownStanding } from '../../ipc/bindings/KnownStanding';
+import { CappedMap } from '../../lib/capped.ts';
 
-const kept = new Map<string, KnownStanding>();
+// V110-F84 Capped: every account and channel opened in a long session adds one.
+const kept = new CappedMap<string, KnownStanding>(500);
 
 export const keyOf = (account: string, channelId: string): string => `${account}:${channelId}`;
 

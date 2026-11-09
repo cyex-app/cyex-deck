@@ -72,3 +72,15 @@ test('rangeNote names the limit that was passed', () => {
   assert.equal(rangeNote('abc', kept, g), null);
   assert.equal(rangeNote('', kept, g), null);
 });
+
+test('V110-F84 hex, exponent and words are not numbers', () => {
+  const r = { min: 0, max: 100 };
+  for (const bad of ['0x10', '1e3', 'Infinity', '0b11', '1_000']) {
+    assert.equal(parseNumber(bad, r), null, bad);
+    assert.equal(readNumber(bad), null, bad);
+  }
+  assert.equal(parseNumber('12,5', { ...r, step: 0.1 }), 12.5);
+  assert.equal(parseNumber('.5', { ...r, step: 0.1 }), 0.5);
+  assert.equal(readNumber('1.000'), 1000);
+  assert.equal(readNumber('-3'), -3);
+});

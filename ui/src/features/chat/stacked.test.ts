@@ -18,3 +18,10 @@ test('V107-Mj a line stacks when any text in it does', () => {
   assert.equal(lineStacks([{ t: 'text', text: 'hi' }, { t: 'break' }]), false);
   assert.equal(lineStacks([], 'sub' + '̖'.repeat(9)), true);
 });
+
+test('V110-F84 zalgo in a name or a reply quote clips its line too', () => {
+  const z = 'Z' + '̖̗́̀̋̏';
+  assert.equal(lineStacks([{ t: 'text', text: 'hi' }], null, z), true);
+  assert.equal(lineStacks([{ t: 'text', text: 'hi' }], null, 'Việt', undefined, z), true);
+  assert.equal(lineStacks([{ t: 'text', text: 'hi' }], null, 'Việt', undefined), false);
+});

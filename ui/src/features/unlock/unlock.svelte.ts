@@ -226,10 +226,12 @@ class Unlock {
   /** The yes (the dialog's sign-in click, with the consent shown), then 7TV's own sign-in
    * window: V108-7T in the account's Twitch pages profile when "Open in" is Browser. */
   private async seventv(account: string, name: string, step: Step, shared: boolean): Promise<string | null> {
-    const off = await cosmeticsIpc.onSignInStage((who, stage) => {
-      if (who === account && step.state === 'running') step.stage = stage;
-    });
+    // V110-F84 Inside the try: a failed listener ends the step as failed instead of leaving it running.
+    let off = () => {};
     try {
+      off = await cosmeticsIpc.onSignInStage((who, stage) => {
+        if (who === account && step.state === 'running') step.stage = stage;
+      });
       if (this.asked?.consent) {
         await cosmeticsIpc.allow(account);
         // Asked once: a second try doesn't show the consent again.

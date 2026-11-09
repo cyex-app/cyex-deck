@@ -90,21 +90,45 @@
     await copy(shareCode, 'Share code');
   }
 
-  function imported(partitions: Partition[] | undefined) {
-    if (partitions?.length) toast.success(`Imported ${partitionList(partitions)}.`);
+  /** V110-F84 What is there now, kept before anything overwrites it: a share code (Undo imports it again)
+   *  and, for a restore (V1052-03), a snapshot on disk (no sign-ins). An import keeps the code only, so a
+   *  cancelled file pick or a mistyped code leaves no snapshot behind. Null, with a toast, when it failed. */
+  async function keepCurrent(snapshot = false): Promise<string | null> {
+    try {
+      const before = await settingsIpc.shareCode([...PORTABLE_PARTITIONS]);
+      if (snapshot) await settingsIpc.snapshotNow();
+      return before;
+    } catch {
+      toast.error('Couldn’t keep your current settings first, so nothing was changed.');
+      return null;
+    }
+  }
+
+  /** The Undo that puts the kept settings back. */
+  function undoTo(before: string) {
+    return { label: 'Undo', run: () => void attempt(() => settingsIpc.importCode(before)).then((p) => p && imported(p)) };
+  }
+
+  function imported(partitions: Partition[] | undefined, before?: string) {
+    if (partitions?.length)
+      toast.success(`Imported ${partitionList(partitions)}.`, { action: before ? undoTo(before) : undefined });
   }
 
   async function importFile() {
-    imported(await attempt(() => settingsIpc.importFile()));
+    const before = await keepCurrent();
+    if (before === null) return;
+    imported(await attempt(() => settingsIpc.importFile()), before);
   }
 
   async function importCode(e: SubmitEvent) {
     e.preventDefault();
     codeError = '';
+    const before = await keepCurrent();
+    if (before === null) return;
     try {
       const result = await settingsIpc.importCode(code);
       code = '';
-      imported(result);
+      imported(result, before);
     } catch (err) {
       // t5 Said once, under the field (it has role=alert); a toast too stacked up per try.
       codeError = errorText(err);
@@ -121,16 +145,13 @@
   /** D1 Restoring first keeps what is there now as a share code (Undo imports it again) and,
    *  V1052-03, as a snapshot on disk (no sign-ins). */
   async function restore(date: string) {
-    const before = await attempt(() => settingsIpc.shareCode([...PORTABLE_PARTITIONS]));
-    await attempt(() => settingsIpc.snapshotNow());
+    // V110-F84 No safety copy, no restore.
+    const before = await keepCurrent(true);
+    if (before === null) return;
     const result = await attempt(() => settingsIpc.restoreBackup(date));
     void refreshBackups();
     if (!result) return;
-    toast.success(restoredText(date), {
-      action: before
-        ? { label: 'Undo', run: () => void attempt(() => settingsIpc.importCode(before)).then((p) => p && imported(p)) }
-        : undefined,
-    });
+    toast.success(restoredText(date), { action: undoTo(before) });
   }
 
   /** t5 A snapshot by its time, not its folder name ("before-restore-2026-10-20-021030"). */

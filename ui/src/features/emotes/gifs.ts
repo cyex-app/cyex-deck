@@ -2,6 +2,7 @@
 
 import type { GifInfo } from '../../ipc/bindings/GifInfo';
 import type { GifSent } from '../../ipc/bindings/GifSent';
+import { CappedMap } from '../../lib/capped.ts';
 
 /** Only where this account can send one here right now; never a disabled tab. Rust
  * checks tier, broadcaster, channel and Shield Mode; emote-only can change any second. */
@@ -27,7 +28,7 @@ export function sendError(r: GifSent): string | null {
 }
 
 /** Cooldowns per chat (account and channel), kept while the menu is closed. */
-const until = new Map<string, number>();
+const until = new CappedMap<string, number>(200); // V110-F84 capped for a long session
 
 export function cooldownUntil(key: string): number {
   return until.get(key) ?? 0;

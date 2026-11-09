@@ -30,7 +30,9 @@ export class Sources {
         this.menu = m;
       })
       .catch(() => (this.loading = false));
-    void emojiGroups().then((g) => (this.emoji = g));
+    void emojiGroups()
+      .then((g) => (this.emoji = g))
+      .catch(() => {});
     emotesIpc
       .botCommands(login)
       .then((c) => (this.commands = c))

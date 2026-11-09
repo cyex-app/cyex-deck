@@ -254,7 +254,7 @@
     suggest = items.length ? { word, items, index: 0 } : null;
   }
 
-  /** The commands this chat can run, asked once and kept. */
+  /** The commands this chat can run, asked once and kept (unless it failed or came back empty). */
   let commandNames: Promise<string[]> | null = null;
 
   /** A4 The first word after `/`: the commands that match. Enter still sends what's typed; Tab or
@@ -262,8 +262,18 @@
   async function suggestCommand(word: Word, typed: string, seq: number) {
     const view = room.view;
     if (!view) return void (suggest = null);
-    commandNames ??= chatIpc.commands(view).catch(() => []);
-    const names = await commandNames;
+    // V110-F84 A failed or empty list isn't kept: the next keystroke asks again.
+    const asked = (commandNames ??= chatIpc
+      .commands(view)
+      .then((l) => {
+        if (!l.length && commandNames === asked) commandNames = null;
+        return l;
+      })
+      .catch(() => {
+        if (commandNames === asked) commandNames = null;
+        return [] as string[];
+      }));
+    const names = await asked;
     if (seq !== argSeq) return;
     const found = typed ? commandMatches(typed, names, 12) : names.slice(0, 12).map((n) => `/${n}`);
     // V107 A command typed in full stays in the list, first, with its hint.

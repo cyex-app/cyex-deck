@@ -7,6 +7,7 @@
   import { smIpc } from '../../ipc/streammanager';
   import { toast } from '../../lib/toast.svelte';
   import Card from '../../components/PanelCard.svelte';
+  import SmProblem from './SmProblem.svelte';
   import { errorText } from '../../lib/errors';
 
   const TITLE_MAX = 140;
@@ -18,8 +19,11 @@
   let hits = $state<CategoryHit[]>([]);
   let loaded = $state(false);
   let saving = $state(false);
+  /** V110-F84 The first read failed: the fields stay shut, and Retry reads again. */
+  let failed = $state('');
 
   function load() {
+    failed = '';
     smIpc
       .info()
       .then((i) => {
@@ -28,7 +32,10 @@
         game = { id: i.gameId, name: i.gameName };
         loaded = true;
       })
-      .catch((e) => toast.error(errorText(e)));
+      .catch((e) => {
+        if (loaded) toast.error(errorText(e));
+        else failed = errorText(e);
+      });
   }
   load();
 
@@ -86,57 +93,61 @@
 </script>
 
 <Card title="Stream info">
-  <label class="label" for="sm-title">Title</label>
-  <div class="count-wrap">
-    <!-- v1.07 T4: Enter saves; in the search Enter takes the first hit and Escape closes it. -->
+  {#if failed && !loaded}
+    <SmProblem text={failed} onretry={load} />
+  {:else}
+    <label class="label" for="sm-title">Title</label>
+    <div class="count-wrap">
+      <!-- v1.07 T4: Enter saves; in the search Enter takes the first hit and Escape closes it. -->
+      <input
+        id="sm-title"
+        class="field"
+        maxlength={TITLE_MAX}
+        bind:value={title}
+        disabled={!loaded}
+        onkeydown={(e) => enterKey(e) && canSave && save()}
+      />
+      <span class="count" class:near={title.length > TITLE_MAX - 15}>{title.length}/{TITLE_MAX}</span>
+    </div>
+
+    <span class="label">Category</span>
+    <div class="line current">
+      <span class="game">{game.name || 'None'}</span>
+      {#if game.id}
+        <Button small variant="link" onclick={() => (game = { id: '', name: '' })}>Clear</Button>
+      {/if}
+    </div>
     <input
-      id="sm-title"
       class="field"
-      maxlength={TITLE_MAX}
-      bind:value={title}
+      placeholder="Search categories"
+      bind:value={query}
       disabled={!loaded}
-      onkeydown={(e) => enterKey(e) && canSave && save()}
+      onkeydown={(e) => {
+        if (enterKey(e) && hits.length) pick(hits[0]);
+        else if (e.key === 'Escape' && query) {
+          e.stopPropagation();
+          query = '';
+        }
+      }}
     />
-    <span class="count" class:near={title.length > TITLE_MAX - 15}>{title.length}/{TITLE_MAX}</span>
-  </div>
-
-  <span class="label">Category</span>
-  <div class="line current">
-    <span class="game">{game.name || 'None'}</span>
-    {#if game.id}
-      <Button small variant="link" onclick={() => (game = { id: '', name: '' })}>Clear</Button>
+    {#if hits.length}
+      <ul class="hits">
+        {#each hits as h (h.id)}
+          <li>
+            <button onclick={() => pick(h)}>
+              {#if h.boxArtUrl}<img src={art(h.boxArtUrl)} alt="" width="26" height="35" loading="lazy" />{/if}
+              <span>{h.name}</span>
+            </button>
+          </li>
+        {/each}
+      </ul>
     {/if}
-  </div>
-  <input
-    class="field"
-    placeholder="Search categories"
-    bind:value={query}
-    disabled={!loaded}
-    onkeydown={(e) => {
-      if (enterKey(e) && hits.length) pick(hits[0]);
-      else if (e.key === 'Escape' && query) {
-        e.stopPropagation();
-        query = '';
-      }
-    }}
-  />
-  {#if hits.length}
-    <ul class="hits">
-      {#each hits as h (h.id)}
-        <li>
-          <button onclick={() => pick(h)}>
-            {#if h.boxArtUrl}<img src={art(h.boxArtUrl)} alt="" width="26" height="35" loading="lazy" />{/if}
-            <span>{h.name}</span>
-          </button>
-        </li>
-      {/each}
-    </ul>
-  {/if}
 
-  <div class="line">
-    <Button small variant="primary" disabled={!canSave} onclick={save}>Save</Button>
-    {#if changed}<Button small variant="link" onclick={load}>Undo</Button>{/if}
-  </div>
+    <div class="line">
+      <Button small variant="primary" disabled={!canSave} onclick={save}>Save</Button>
+      {#if changed}<Button small variant="link" onclick={load}>Undo</Button>{/if}
+    </div>
+  {/if}
 </Card>
 
 <style>

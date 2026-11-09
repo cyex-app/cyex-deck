@@ -4,6 +4,7 @@
 <script lang="ts">
   import Button from '../../components/Button.svelte';
   import Dialog from '../../components/Dialog.svelte';
+  import { uniqueKeys } from '../../lib/keys';
   import { uploadIpc } from '../../ipc/upload';
 
   interface Props {
@@ -23,6 +24,8 @@
 
   const SHOWN = 4;
   let urls = $state<string[]>([]);
+  /** V110-F84 */
+  const urlKeys = $derived(uniqueKeys(urls, (u) => u));
   $effect(() => {
     const made = pictures.slice(0, SHOWN).map((f) => URL.createObjectURL(f));
     urls = made;
@@ -70,7 +73,7 @@
 <Dialog title={count === 1 ? 'Upload this image?' : `Upload ${count} images?`} onclose={onno}>
   {#if urls.length}
     <div class="thumbs">
-      {#each urls as u (u)}<img src={u} alt="" />{/each}
+      {#each urls as u, i (urlKeys[i])}<img src={u} alt="" />{/each}
       {#if count > urls.length}<span class="more">+{count - urls.length}</span>{/if}
     </div>
   {:else if names.length}
