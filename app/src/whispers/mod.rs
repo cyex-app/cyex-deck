@@ -36,6 +36,9 @@ const REFRESH: &str = "whispers:refresh";
 /// Lines kept per thread from this run: all there is without history, and how echoes of
 /// what we sent are recognized.
 const RECENT: usize = 200;
+/// V110-F73 Most unanswered threads from unknown senders kept; the oldest go first.
+const STRANGER_CAP: usize = 500;
+const THREAD: &str = "whispers:thread";
 const READ_SCOPE: &str = "user:read:whispers";
 const NO_ACCOUNT: &str = "Sign in to whisper (Settings → Accounts).";
 
@@ -52,6 +55,8 @@ struct ThreadState {
     view: WhisperThread,
     /// The newest message's id, for marking it read.
     last_id: Option<String>,
+    /// V110-F73 Started by someone's whisper this run and never answered: these are capped.
+    stranger: bool,
 }
 
 #[derive(Default)]
@@ -161,13 +166,50 @@ pub fn state(app: &AppHandle) -> WhisperState {
         more: inner.cursor.is_some(),
         loading: inner.loading,
         block_strangers: inner.block_strangers,
-        unread: inner
-            .threads
-            .iter()
-            .filter(|t| !t.view.muted && !t.view.archived)
-            .map(|t| t.view.unread)
-            .sum(),
+        unread: unread(&inner),
     }
+}
+
+/// Unread in threads that aren't muted or archived.
+fn unread(inner: &Inner) -> u32 {
+    inner
+        .threads
+        .iter()
+        .filter(|t| !t.view.muted && !t.view.archived)
+        .map(|t| t.view.unread)
+        .sum()
+}
+
+/// V110-F73 One thread changed (a whisper came in): only it goes to the windows, not the list.
+fn emit_thread(app: &AppHandle, change: view::WhisperThreadChange) {
+    let _ = app.emit(THREAD, change);
+}
+
+/// V110-F73 Keeps at most `cap` non-archived stranger threads: the oldest by last line go, with
+/// their kept lines. The thread on screen stays. Returns the dropped ids.
+fn cap_strangers(inner: &mut Inner, cap: usize) -> Vec<String> {
+    let mut kept: Vec<(i64, String)> = inner
+        .threads
+        .iter()
+        .filter(|t| t.stranger && !t.view.archived)
+        .map(|t| (t.view.last_ts, t.view.id.clone()))
+        .collect();
+    if kept.len() <= cap {
+        return Vec::new();
+    }
+    kept.sort();
+    let over = kept.len() - cap;
+    let dropped: Vec<String> = kept
+        .into_iter()
+        .map(|(_, id)| id)
+        .filter(|id| inner.viewing.as_deref() != Some(id))
+        .take(over)
+        .collect();
+    inner.threads.retain(|t| !dropped.contains(&t.view.id));
+    for id in &dropped {
+        inner.recent.remove(id);
+    }
+    dropped
 }
 
 fn emit_changed(app: &AppHandle) {
@@ -541,10 +583,12 @@ fn upsert(inner: &mut Inner, me: &Me, t: &api::Thread) {
             if view.other.avatar.is_none() {
                 view.other.avatar = s.view.other.avatar.take();
             }
+            // V110-F73 Once you've whispered them (Twitch says so), they're no stranger.
+            s.stranger &= !view.temporary && !view.last_own;
             s.view = view;
             s.last_id = last_id.or(s.last_id.take());
         }
-        None => inner.threads.push(ThreadState { view, last_id }),
+        None => inner.threads.push(ThreadState { view, last_id, stranger: false }),
     }
 }
 
@@ -657,6 +701,78 @@ mod tests {
     fn times_read() {
         assert_eq!(ms("2026-10-10T10:00:00Z"), 1_791_626_400_000);
         assert_eq!(ms("2026-10-10T10:00:00.5Z"), 1_791_626_400_500);
+    }
+
+    fn person(id: &str) -> api::Person {
+        api::Person {
+            id: id.to_owned(),
+            login: format!("u{id}"),
+            display: String::new(),
+            color: String::new(),
+            avatar: None,
+        }
+    }
+
+    fn stranger(id: &str, ts: i64, archived: bool) -> ThreadState {
+        let mut view = blank(&mut Colors::default(), id, &person(id));
+        view.last_ts = ts;
+        view.archived = archived;
+        ThreadState { view, last_id: None, stranger: true }
+    }
+
+    fn line() -> Arc<ChatMessage> {
+        Arc::new(cyex_chat::build::system(cyex_chat::model::NoticeKind::Info, "x", 1))
+    }
+
+    #[test]
+    fn v110_f73_the_oldest_strangers_go_with_their_lines() {
+        let mut inner = Inner::default();
+        for n in 1..=5 {
+            inner.threads.push(stranger(&n.to_string(), n * 10, false));
+            inner.recent.entry(n.to_string()).or_default().push_back(line());
+        }
+        assert!(cap_strangers(&mut inner, 5).is_empty());
+        inner.threads.push(stranger("6", 60, false));
+        let dropped = cap_strangers(&mut inner, 5);
+        assert_eq!(dropped, ["1"]);
+        assert_eq!(inner.threads.len(), 5);
+        assert!(!inner.recent.contains_key("1"));
+        assert!(inner.recent.contains_key("2"));
+    }
+
+    #[test]
+    fn v110_f73_archived_answered_and_open_threads_stay() {
+        let mut inner = Inner::default();
+        inner.threads.push(stranger("1", 10, true));
+        inner.threads.push(stranger("2", 20, false));
+        let mut answered = stranger("3", 30, false);
+        answered.stranger = false;
+        inner.threads.push(answered);
+        inner.threads.push(stranger("4", 40, false));
+        inner.viewing = Some("2".into());
+        // Two count (2 and 4); cap 1 wants one gone, but 2 is on screen, so 4 goes.
+        assert_eq!(cap_strangers(&mut inner, 1), ["4"]);
+        let ids: Vec<_> = inner.threads.iter().map(|t| t.view.id.as_str()).collect();
+        assert_eq!(ids, ["1", "2", "3"]);
+    }
+
+    #[test]
+    fn v110_f73_answering_a_stranger_makes_them_known() {
+        let mut inner = Inner::default();
+        let me = Me { id: "1".into(), login: "me".into(), display: "me".into(), gql: true };
+        inner.threads.push(stranger("2", 10, false));
+        let t = api::Thread {
+            id: "2".into(),
+            other: person("2"),
+            unread: 0,
+            archived: false,
+            muted: false,
+            spam: false,
+            temporary: true,
+            last: None,
+        };
+        upsert(&mut inner, &me, &t);
+        assert!(!inner.threads[0].stranger);
     }
 
     #[test]

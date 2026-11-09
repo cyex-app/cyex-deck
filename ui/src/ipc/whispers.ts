@@ -8,6 +8,7 @@ import type { WhisperEdit } from './bindings/WhisperEdit';
 import type { WhisperLine } from './bindings/WhisperLine';
 import type { WhisperPage } from './bindings/WhisperPage';
 import type { WhisperState } from './bindings/WhisperState';
+import type { WhisperThreadChange } from './bindings/WhisperThreadChange';
 
 export const whispersIpc = {
   state: () => invoke<WhisperState>('whispers_state'),
@@ -26,6 +27,9 @@ export const whispersIpc = {
   viewing: (threadId: string | null) => invoke<void>('whispers_viewing', { threadId }),
   onChanged: (cb: (s: WhisperState) => void): Promise<UnlistenFn> =>
     listen<WhisperState>('whispers:changed', (e) => cb(e.payload)),
+  /** V110-F73 One thread changed (a whisper came in), not the whole list. */
+  onThread: (cb: (c: WhisperThreadChange) => void): Promise<UnlistenFn> =>
+    listen<WhisperThreadChange>('whispers:thread', (e) => cb(e.payload)),
   onLine: (cb: (l: WhisperLine) => void): Promise<UnlistenFn> =>
     listen<WhisperLine>('whispers:line', (e) => cb(e.payload)),
   /** A line was edited or deleted: reload the thread if it's open. */

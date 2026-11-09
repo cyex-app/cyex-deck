@@ -6,6 +6,7 @@ import { whispersIpc } from '../../ipc/whispers';
 import { currentWindow } from '../../lib/window.svelte';
 import { popOut } from '../../app/panels';
 import { errorText } from '../../lib/errors';
+import { applyChange } from './threadChange';
 
 const EMPTY: WhisperState = {
   account: null,
@@ -38,7 +39,15 @@ class WhispersStore {
         evented = true;
         this.state = s;
       });
+      // V110-F73 A thread change before the first list can't be merged: ask for the list again.
+      let loaded = false;
+      await whispersIpc.onThread((c) => {
+        evented = true;
+        if (loaded) this.state = applyChange(this.state, c);
+        else void whispersIpc.state().then((s) => (this.state = s));
+      });
       const s = await whispersIpc.state();
+      loaded = true;
       if (!evented) this.state = s;
     } catch (e) {
       // Next call tries again.

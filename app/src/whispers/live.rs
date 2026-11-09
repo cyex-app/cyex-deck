@@ -15,7 +15,8 @@ use cyex_twitch::{helix, hermes};
 use tauri::{AppHandle, Manager};
 
 use super::{
-    GqlCall, build, emit_changed, emit_line, emit_refresh, lock, preview, remember, set_last, sort, upsert,
+    GqlCall, STRANGER_CAP, build, cap_strangers, emit_changed, emit_line, emit_refresh, emit_thread, lock, preview,
+    remember, set_last, sort, unread, upsert, view::WhisperThreadChange,
 };
 use crate::auth;
 use crate::settings::Settings;
@@ -48,7 +49,7 @@ pub fn on_hermes(app: &AppHandle, e: &hermes::Event) {
 /// A whisper sent or received. `to` names the other person on our own lines when known.
 pub(super) fn incoming(app: &AppHandle, thread_id: &str, m: api::Message, to: Option<api::Person>) {
     let n: Notifications = app.state::<Settings>().read(Partition::Notifications);
-    let (line, own, alert, feed_from) = {
+    let (line, own, alert, feed_from, change) = {
         let mut inner = lock(app);
         let Some(me) = inner.me.clone() else { return };
         if !thread_id.split('_').any(|p| p == me.id) {
@@ -83,6 +84,10 @@ pub(super) fn incoming(app: &AppHandle, thread_id: &str, m: api::Message, to: Op
                 last: None,
             };
             upsert(&mut inner, &me, &t);
+            // V110-F73 A first whisper from someone you never wrote to.
+            if !own && let Some(s) = inner.threads.iter_mut().find(|s| s.view.id == thread_id) {
+                s.stranger = true;
+            }
         }
         set_last(&mut inner, thread_id, &m);
         let mut muted = false;
@@ -92,6 +97,9 @@ pub(super) fn incoming(app: &AppHandle, thread_id: &str, m: api::Message, to: Op
             t.view.last_own = own;
             t.view.last_ts = line.ts;
             t.view.archived = false;
+            if own {
+                t.stranger = false;
+            }
             if !own && !viewing {
                 t.view.unread += 1;
             }
@@ -103,13 +111,19 @@ pub(super) fn incoming(app: &AppHandle, thread_id: &str, m: api::Message, to: Op
             ));
         }
         sort(&mut inner);
+        let dropped = cap_strangers(&mut inner, STRANGER_CAP);
+        let change = inner.threads.iter().find(|t| t.view.id == thread_id).map(|t| WhisperThreadChange {
+            thread: t.view.clone(),
+            dropped,
+            unread: unread(&inner),
+        });
         if !own {
             inner.last_from = Some(m.from.login.clone());
         }
         let alert = (!own && !muted)
             .then_some((viewing, target))
             .filter(|(v, _)| !(*v && toasts::app_in_front(app)));
-        (line, own, alert, feed_from)
+        (line, own, alert, feed_from, change)
     };
     if own && lock(app).threads.iter().all(|t| t.view.id != thread_id) {
         refresh(app, thread_id.to_owned()); // sent elsewhere to someone we didn't know
@@ -121,7 +135,11 @@ pub(super) fn incoming(app: &AppHandle, thread_id: &str, m: api::Message, to: Op
     if let Some(p) = feed_from.as_ref().filter(|_| !hidden) {
         crate::feeds::whispers::received(app, thread_id, p, &line);
     }
-    emit_changed(app);
+    // V110-F73 Only the thread that changed goes to the windows.
+    match change {
+        Some(change) => emit_thread(app, change),
+        None => emit_changed(app),
+    }
     if n.whispers.inline && !hidden {
         crate::chat::whisper_line(app, line.clone());
     }

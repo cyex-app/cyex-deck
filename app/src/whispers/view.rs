@@ -82,6 +82,18 @@ pub struct WhisperLine {
     pub message: ChatMessage,
 }
 
+/// V110-F73 One thread after a whisper came in, instead of the whole list.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct WhisperThreadChange {
+    pub thread: WhisperThread,
+    /// Threads cut to keep the unknown senders' count down.
+    pub dropped: Vec<String>,
+    /// Unread in threads that aren't muted or archived, after the change.
+    pub unread: u32,
+}
+
 /// A change to a thread's options.
 #[derive(Clone, Debug, Default, serde::Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
