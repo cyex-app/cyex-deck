@@ -10,7 +10,8 @@
     "ui:dev": "vite --config ui/vite.config.ts",
     "ui:build": "vite build --config ui/vite.config.ts",
     "check": "svelte-check --workspace ui --tsconfig ./tsconfig.json --fail-on-warnings",
-    "test:ui": "node --experimental-strip-types --no-warnings --test \"ui/src/**/*.test.ts\""
+    "test:ui": "node --experimental-strip-types --no-warnings --test \"ui/src/**/*.test.ts\"",
+    "test:embed": "node --test \"tools/embed-worker/test/*.test.mjs\""
   },
   "dependencies": {
     "@tauri-apps/api": "^2.12.2",
