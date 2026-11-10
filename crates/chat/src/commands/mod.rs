@@ -11,6 +11,7 @@ mod eval;
 mod json;
 pub mod menu;
 mod parse;
+pub mod taint;
 mod text;
 pub mod vars;
 
@@ -197,6 +198,27 @@ mod tests {
         assert_eq!(list.errors[0].message, "Give it a name.");
         assert!(list.command("hi", "").is_none());
         assert!(list.command("ok", "").is_some());
+    }
+
+    #[test]
+    fn an_automations_body_marks_what_it_didnt_write() {
+        // V110-F87 The body's own text is bare; what a replacement or function puts in is marked.
+        let fill = |body: &str, args: &str| {
+            let mut p = Params::new(args);
+            p.taint = true;
+            run(&parse(body).unwrap(), &p, &mut TestHost::default()).unwrap()
+        };
+        let out = fill("/chain /echo $1- | $lower($1) $\"/x\"", "/Ban a|b > c");
+        assert!(out.starts_with("/chain /echo ") && out.ends_with(" /x"));
+        assert_eq!(out.matches('|').count(), 1, "only the body's own bar splits");
+        assert_eq!(out.matches("/ban").count(), 0, "no bare command from the message");
+        assert_eq!(taint::clean(&out), "/chain /echo /Ban a|b > c | /ban /x");
+        // A branch of $if is the body's; the message inside it isn't.
+        let out = fill("$if(1,/timeout $1 60,/help)", "evil");
+        assert!(out.starts_with("/timeout ") && out.ends_with(" 60") && taint::has(&out));
+        assert_eq!(fill("$if(2,/timeout $1 60,/help)", "evil"), "/help");
+        // Off by default: typed commands are filled in as before.
+        assert_eq!(run(&parse("$1-").unwrap(), &Params::new("/ban x"), &mut TestHost::default()).unwrap(), "/ban x");
     }
 
     #[test]

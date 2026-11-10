@@ -588,7 +588,7 @@ mod tests {
                 sender: "",
                 text: "look [gif] nice",
                 emotes: "",
-                gifs: "5-9|g1|https://media.example/g1.gif",
+                gifs: "5-9|g1|https://media.giphy.com/g1.gif",
                 bits: 0,
             },
             &[],

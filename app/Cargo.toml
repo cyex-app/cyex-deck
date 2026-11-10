@@ -30,6 +30,8 @@ time.workspace = true
 regex.workspace = true
 tokio.workspace = true
 url.workspace = true
+# V110-F87 $request gets a client of its own (no redirects, pinned address). Already in the build.
+reqwest.workspace = true
 sha2.workspace = true
 minisign-verify.workspace = true
 ts-rs.workspace = true

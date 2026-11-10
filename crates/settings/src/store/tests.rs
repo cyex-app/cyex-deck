@@ -494,6 +494,89 @@ fn an_import_keeps_the_obs_files_of_this_pc() {
     assert_eq!(sm["chat"]["share"], 0.5);
 }
 
+fn commands_bundle(commands: Value) -> Bundle {
+    Bundle::from_json(
+        &json!({"format": "cyex-settings", "version": 1, "exported": "", "partitions": {"commands": commands}}).to_string(),
+    )
+    .unwrap()
+}
+
+/// V110-F87 A share code or file from someone else can't arm anything: automations come in
+/// switched off and its saved timers are left behind.
+#[test]
+fn an_import_arms_no_automations_or_timers() {
+    use crate::schema::Commands;
+    let tmp = TempDir::new("store-import-arms");
+    let clock = Arc::new(FakeClock::at(day(9)));
+    let (mut store, _) = open(tmp.path(), &clock);
+    let rule = json!({"channels": ["chan"], "trigger": "!hi", "response": "I was hacked", "count": 7});
+    let timer = json!({"id": "t1", "channel": "chan", "account": "1", "atMs": 9_999_999_999_999_i64, "command": "/raid evil"});
+    store.import(commands_bundle(json!({"automationsOn": true, "automations": [rule], "timers": [timer]}))).unwrap();
+    let c: Commands = store.read(Partition::Commands);
+    assert!(!c.automations_on, "off until the user switches them on");
+    assert_eq!(c.automations.len(), 1, "the rules themselves come along");
+    assert!(c.timers.is_empty());
+
+    // The user switched them on and has a timer of their own: an import with other rules
+    // switches them off again and leaves the timer alone.
+    let mine = json!({"id": "mine", "channel": "chan", "account": "1", "atMs": 9_999_999_999_999_i64, "command": "/slowoff"});
+    store.patch(Partition::Commands, &json!({"automationsOn": true, "timers": [mine]})).unwrap();
+    let other = json!({"channels": ["chan"], "trigger": "!hi", "response": "/ban $1"});
+    store.import(commands_bundle(json!({"automationsOn": true, "automations": [other], "timers": [timer]}))).unwrap();
+    let c: Commands = store.read(Partition::Commands);
+    assert!(!c.automations_on);
+    assert_eq!(c.timers.iter().map(|t| t.id.as_str()).collect::<Vec<_>>(), ["mine"]);
+
+    // Same rules, another custom command behind them: off too.
+    store.patch(Partition::Commands, &json!({"automationsOn": true})).unwrap();
+    let mut changed = store.get(Partition::Commands).clone();
+    changed["lines"] = json!([{"enabled": true, "text": "/so /ban $1"}]);
+    store.import(commands_bundle(changed)).unwrap();
+    assert!(!store.read::<Commands>(Partition::Commands).automations_on);
+
+    // An import can't switch them on, and off stays off.
+    let same = store.get(Partition::Commands).clone();
+    let mut on = same.clone();
+    on["automationsOn"] = json!(true);
+    store.import(commands_bundle(on)).unwrap();
+    assert!(!store.read::<Commands>(Partition::Commands).automations_on);
+}
+
+/// V110-F87 Your own export read back changes nothing, so automations stay on; the file
+/// itself carries no timers. A restore of a backup keeps all of it.
+#[test]
+fn your_own_commands_export_keeps_automations_on() {
+    use crate::schema::Commands;
+    let tmp = TempDir::new("store-import-own");
+    let clock = Arc::new(FakeClock::at(day(4)));
+    let (mut store, _) = open(tmp.path(), &clock);
+    let rule = json!({"channels": ["chan"], "trigger": "!hi", "response": "hello", "count": 2});
+    let timer = json!({"id": "t1", "channel": "chan", "account": "1", "atMs": 9_999_999_999_999_i64, "command": "/slowoff"});
+    store.patch(Partition::Commands, &json!({"automationsOn": true, "automations": [rule], "timers": [timer]})).unwrap();
+    let exported = store.export(&[Partition::Commands]);
+    assert!(exported.partitions["commands"].get("timers").is_none());
+    assert_eq!(exported.partitions["commands"]["automationsOn"], true);
+    // The count ran on since the export.
+    let mut ran = store.get(Partition::Commands).clone();
+    ran["automations"][0]["count"] = json!(5);
+    store.patch(Partition::Commands, &ran).unwrap();
+    store.import(Bundle::from_share_code(&exported.to_share_code()).unwrap()).unwrap();
+    let c: Commands = store.read(Partition::Commands);
+    assert!(c.automations_on);
+    assert_eq!(c.timers.len(), 1, "this PC's timer stays");
+
+    // Restore: as saved, timers and all.
+    store.flush().unwrap();
+    clock.advance_days(1);
+    drop(open(tmp.path(), &clock));
+    let (mut store, _) = open(tmp.path(), &clock);
+    store.patch(Partition::Commands, &json!({"automationsOn": false, "timers": []})).unwrap();
+    store.restore_backup(day(5)).unwrap();
+    let c: Commands = store.read(Partition::Commands);
+    assert!(c.automations_on);
+    assert_eq!(c.timers.len(), 1);
+}
+
 /// V107-N10a A file cut short comes back whole from the newest backup that reads; the day's
 /// backup never takes the broken copy.
 #[test]

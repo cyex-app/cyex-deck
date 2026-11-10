@@ -28,10 +28,24 @@ pub(crate) fn clean_sound_file(path: &mut String) {
     }
 }
 
-/// A file name the sound option takes: one of [`SOUND_TYPES`].
+/// A file the sound option takes: one of [`SOUND_TYPES`], on a drive of this PC.
 pub fn is_sound_file(path: &str) -> bool {
-    path.rsplit_once('.')
-        .is_some_and(|(_, ext)| SOUND_TYPES.iter().any(|t| t.eq_ignore_ascii_case(ext)))
+    is_drive_path(path)
+        && path
+            .rsplit_once('.')
+            .is_some_and(|(_, ext)| SOUND_TYPES.iter().any(|t| t.eq_ignore_ascii_case(ext)))
+}
+
+/// V110-F87 `X:\…` or `X:/…` and nothing else. A share (`\\host\share`, `//host/share`), a
+/// device path (`\\?\`, `\\.\`) or a relative path never is: an imported highlight naming a
+/// file on someone's server would hand them the Windows sign-in when a line matches.
+fn is_drive_path(path: &str) -> bool {
+    let b = path.as_bytes();
+    b.len() > 3
+        && b[0].is_ascii_alphabetic()
+        && b[1] == b':'
+        && matches!(b[2], b'\\' | b'/')
+        && !path.chars().any(char::is_control)
 }
 
 /// Which regex syntax a pattern is written in. One engine runs them all (V104-01).
@@ -426,5 +440,62 @@ impl IgnoreRule {
 impl FilterDef {
     pub fn is_blank(&self) -> bool {
         self.name.trim().is_empty() && self.expr.trim().is_empty()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn sound_files_are_on_a_local_drive() {
+        // V110-F87
+        for ok in [r"C:\Windows\Media\chimes.wav", "d:/sounds/a b.MP3", r"C:\a\..\b.ogg"] {
+            assert!(is_sound_file(ok), "{ok}");
+            let mut path = format!("  {ok} ");
+            clean_sound_file(&mut path);
+            assert_eq!(path, ok);
+        }
+        for bad in [
+            r"\\attacker\share\a.wav",
+            "//attacker/share/a.wav",
+            r"\\?\C:\a.wav",
+            r"\\?\UNC\attacker\share\a.wav",
+            r"\\.\pipe\a.wav",
+            r"\/attacker/share/a.wav",
+            r"/\attacker\share\a.wav",
+            "a.wav",
+            r"sounds\a.wav",
+            r"..\a.wav",
+            r"\a.wav",
+            "/a.wav",
+            "C:a.wav",
+            "C:.wav",
+            "file:///C:/a.wav",
+            "file://attacker/share/a.wav",
+            "https://attacker.example/a.wav",
+            r"1:\a.wav",
+            "C:\\a\n.wav",
+            r"C:\a.exe",
+            "",
+        ] {
+            assert!(!is_sound_file(bad), "{bad}");
+            let mut path = bad.to_owned();
+            clean_sound_file(&mut path);
+            assert_eq!(path, "", "{bad}");
+        }
+    }
+
+    #[test]
+    fn a_loaded_alert_drops_a_share() {
+        // V110-F87 What an import or an older file brought is gone after sanitize.
+        let mut a = Alert {
+            sound: true,
+            sound_file: r"\\attacker\share\a.wav".into(),
+            ..Alert::default()
+        };
+        a.sanitize();
+        assert_eq!(a.sound_file, "");
+        assert!(a.sound, "the chime still plays");
     }
 }

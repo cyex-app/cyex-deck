@@ -434,6 +434,10 @@ mod tests {
         assert_eq!(sound_file("file:///C:/a%20b.mp3"), r"C:\a b.mp3");
         assert_eq!(sound_file("qrc:/sounds/ping2.wav"), "");
         assert_eq!(sound_file("file:///C:/x.exe"), "");
+        // V110-F87 A file on someone's server never comes along.
+        assert_eq!(sound_file("file://attacker/share/a.wav"), "");
+        assert_eq!(sound_file("file://attacker.example/c$/a.wav"), "");
+        assert_eq!(sound_file("file:////attacker/share/a.wav"), "");
     }
 
     #[test]

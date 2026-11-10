@@ -11,6 +11,7 @@ use cyex_settings::Partition;
 use cyex_settings::schema::Commands;
 use tauri::{AppHandle, Manager};
 
+use super::reach;
 use crate::cosmetics::VarScope;
 use crate::settings::Settings;
 
@@ -18,6 +19,57 @@ use crate::settings::Settings;
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(10);
 /// And reads at most this much.
 const MAX_BODY: usize = 256 * 1024;
+
+/// V110-F87 `$request`'s GET: only to the public web (`reach`), on a client of its own that
+/// connects to the address that was checked and follows no redirect by itself. Each hop is
+/// checked again, and your headers stay with the host they were written for.
+async fn fetch(mut url: url::Url, mut headers: Vec<(String, String)>) -> Result<String, String> {
+    for _ in 0..=reach::MAX_HOPS {
+        let at = url.clone();
+        let addr = tokio::task::spawn_blocking(move || reach::resolve(&at))
+            .await
+            .map_err(|e| e.to_string())??;
+        let client = reqwest::Client::builder()
+            .user_agent(cyex_core::app::user_agent())
+            .timeout(REQUEST_TIMEOUT)
+            .redirect(reqwest::redirect::Policy::none())
+            .resolve(url.host_str().unwrap_or_default(), addr)
+            .build()
+            .map_err(|e| e.to_string())?;
+        let mut req = client.get(url.as_str());
+        for (k, v) in &headers {
+            req = req.header(k.as_str(), v.as_str());
+        }
+        let mut res = req.send().await.map_err(|e| e.without_url().to_string())?;
+        let status = res.status();
+        if status.is_redirection() {
+            let to = res
+                .headers()
+                .get(reqwest::header::LOCATION)
+                .and_then(|v| v.to_str().ok())
+                .ok_or_else(|| format!("The request failed ({}).", status.as_u16()))?;
+            let (next, same) = reach::next_hop(&url, to)?;
+            if !same {
+                headers.clear();
+            }
+            url = next;
+            continue;
+        }
+        if !status.is_success() {
+            return Err(format!("The request failed ({}).", status.as_u16()));
+        }
+        let mut out = Vec::new();
+        while out.len() < MAX_BODY {
+            match res.chunk().await.map_err(|e| e.without_url().to_string())? {
+                Some(chunk) => out.extend_from_slice(&chunk),
+                None => break,
+            }
+        }
+        out.truncate(MAX_BODY);
+        return Ok(String::from_utf8_lossy(&out).into_owned());
+    }
+    Err("Too many redirects.".into())
+}
 
 pub struct AppHost {
     pub app: AppHandle,
@@ -56,16 +108,11 @@ impl Host for AppHost {
         if !matches!(parsed.scheme(), "http" | "https") {
             return Err(format!("Not a web address: {url}"));
         }
-        let http = self.app.state::<crate::auth::Auth>().http.clone();
         let headers = headers.to_vec();
         self.runtime.block_on(async move {
-            tokio::time::timeout(
-                REQUEST_TIMEOUT,
-                http.get_text(parsed.as_str(), &headers, MAX_BODY),
-            )
-            .await
-            .map_err(|_| "The request took too long.".to_owned())?
-            .map_err(|e| e.to_string())
+            tokio::time::timeout(REQUEST_TIMEOUT, fetch(parsed, headers))
+                .await
+                .map_err(|_| "The request took too long.".to_owned())?
         })
     }
 

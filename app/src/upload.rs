@@ -17,7 +17,6 @@ use tauri::ipc::Channel;
 use tauri::{AppHandle, Manager};
 use ts_rs::TS;
 
-use crate::auth::Auth;
 use crate::settings::Settings;
 
 const MAX_BYTES: usize = 20 * 1024 * 1024;
@@ -194,6 +193,49 @@ fn missing(cfg: &Uploader) -> Vec<&'static str> {
     .collect()
 }
 
+/// V110-F87 A redirect is followed only to the same scheme, host and port.
+fn same_place(from: &reqwest::Url, to: &reqwest::Url) -> bool {
+    from.origin() == to.origin()
+}
+
+/// V110-F87 The upload's POST on a client of its own: your headers (often the host's key)
+/// and the picture go to the address in Settings, never on to wherever an answer points.
+/// The status and up to `max` bytes of the answer.
+async fn post(
+    url: &str,
+    headers: &[(String, String)],
+    content_type: &str,
+    body: Vec<u8>,
+    max: usize,
+) -> Result<(u16, Vec<u8>), ()> {
+    let client = reqwest::Client::builder()
+        .user_agent(cyex_core::app::user_agent())
+        .connect_timeout(Duration::from_secs(10))
+        .timeout(Duration::from_secs(120))
+        .redirect(reqwest::redirect::Policy::custom(|hop| {
+            let stays = hop.previous().len() <= 5 && hop.previous().last().is_some_and(|from| same_place(from, hop.url()));
+            if stays { hop.follow() } else { hop.stop() }
+        }))
+        .build()
+        .map_err(drop)?;
+    let mut req = client.post(url).header("Content-Type", content_type).body(body);
+    for (k, v) in headers {
+        req = req.header(k.as_str(), v.as_str());
+    }
+    let mut res = req.send().await.map_err(drop)?;
+    let status = res.status().as_u16();
+    // Only what's needed: a host that answers with a huge body isn't read to the end.
+    let mut out = Vec::new();
+    while out.len() < max {
+        match res.chunk().await.map_err(drop)? {
+            Some(chunk) => out.extend_from_slice(&chunk),
+            None => break,
+        }
+    }
+    out.truncate(max);
+    Ok((status, out))
+}
+
 async fn send_all(
     app: &AppHandle,
     channel: &str,
@@ -208,7 +250,6 @@ async fn send_all(
     if !gone.is_empty() {
         return Err(format!("Fill in {} in Settings → Image uploads.", gone.join(", ")));
     }
-    let http = app.state::<Auth>().http.clone();
     let extra = headers(&app.state::<Settings>().uploader_headers());
     let field = if cfg.form_field.is_empty() {
         "file"
@@ -224,10 +265,9 @@ async fn send_all(
         });
         let img = load(app, item)?;
         let (content_type, body) = multipart(field, &img.name, img.mime, &img.bytes);
-        let (status, answer) = http
-            .post_body(&cfg.url, &extra, &content_type, body, 64 * 1024)
+        let (status, answer) = post(&cfg.url, &extra, &content_type, body, 64 * 1024)
             .await
-            .map_err(|_| "Upload failed: can’t reach the host.".to_string())?;
+            .map_err(|()| "Upload failed: can’t reach the host.".to_string())?;
         if !(200..300).contains(&status) {
             return Err(format!("Upload failed: {}", error_text(status, &answer)));
         }
@@ -326,6 +366,26 @@ mod tests {
         let dir = std::env::temp_dir().join("cyex-upload-preview-test");
         fs::create_dir_all(&dir).unwrap();
         dir.join(name)
+    }
+
+    #[test]
+    fn a_redirect_is_followed_only_on_the_same_host() {
+        // V110-F87 The headers hold the host's key: they never travel to another address.
+        let u = |s: &str| reqwest::Url::parse(s).unwrap();
+        let from = u("https://i.example/upload");
+        assert!(same_place(&from, &u("https://i.example/v2/upload?x=1")));
+        assert!(same_place(&from, &u("https://I.EXAMPLE:443/")));
+        for other in [
+            "https://evil.example/upload",
+            "https://i.example.evil.example/upload",
+            "https://sub.i.example/upload",
+            "http://i.example/upload",
+            "https://i.example:8443/upload",
+            "https://i.example@evil.example/upload",
+            "http://127.0.0.1/upload",
+        ] {
+            assert!(!same_place(&from, &u(other)), "{other}");
+        }
     }
 
     #[test]

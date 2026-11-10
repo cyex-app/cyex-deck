@@ -385,6 +385,8 @@ impl Store {
                 // V107-N10b Nor picks the folder the OBS status files are written to.
                 // V107-H4b A restore keeps this PC's recent searches too (an old backup has none).
                                 let value = if local && p != Partition::General { value } else { keep_local(p, value, &self.values[&p]) };
+                // V110-F87 Nor arms anything that acts by itself (a restore keeps all of it).
+                let value = if !local && p == Partition::Commands { disarm(value, &self.values[&p]) } else { value };
                 checked.push((p, p.normalize(value)?));
             }
         }
@@ -543,7 +545,49 @@ fn without_private(p: Partition, mut v: Value) -> Value {
     if let (Partition::General, Value::Object(map)) = (p, &mut v) {
         map.remove("recentSearches");
     }
+    // V110-F87 Running `/timer -r` timers belong to this PC's session.
+    if let (Partition::Commands, Value::Object(map)) = (p, &mut v) {
+        map.remove(TIMERS);
+    }
     v
+}
+
+const TIMERS: &str = "timers";
+const AUTOMATIONS_ON: &str = "automationsOn";
+
+/// V110-F87 An imported commands partition (a file or share code, maybe someone else's) never
+/// brings saved timers (they would run commands later; this PC's stay) and never leaves
+/// automations switched on, which post and run commands from this account: they stay on only
+/// when they were on and the import changes nothing else in the partition (your own export,
+/// read back). Otherwise the user switches them on again, having seen the rules.
+fn disarm(mut incoming: Value, current: &Value) -> Value {
+    let Value::Object(map) = &mut incoming else {
+        return incoming;
+    };
+    match current.get(TIMERS) {
+        Some(mine) => map.insert(TIMERS.to_owned(), mine.clone()),
+        None => map.remove(TIMERS),
+    };
+    let was_on = current.get(AUTOMATIONS_ON) == Some(&Value::Bool(true));
+    let wants_on = map.get(AUTOMATIONS_ON) == Some(&Value::Bool(true));
+    let keep_on = was_on && wants_on && {
+        // Run counts move on by themselves; everything else has to be what is here already.
+        let rest = |v: &Value| {
+            let mut v = v.clone();
+            if let Some(map) = v.as_object_mut() {
+                map.remove(AUTOMATIONS_ON);
+                for rule in map.get_mut("automations").and_then(Value::as_array_mut).into_iter().flatten() {
+                    if let Some(rule) = rule.as_object_mut() {
+                        rule.remove("count");
+                    }
+                }
+            }
+            v
+        };
+        rest(&Value::Object(map.clone())) == rest(current)
+    };
+    map.insert(AUTOMATIONS_ON.to_owned(), Value::Bool(keep_on));
+    incoming
 }
 
 /// V107-R11 A broken or unreadable chat file never turns presence on (it shares which channel

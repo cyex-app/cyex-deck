@@ -4,11 +4,13 @@
 
 mod builtin;
 mod cosmetics;
+mod guard;
 mod seventv_edit;
 mod spam;
 pub use builtin::{block_user, reserved};
 pub mod complete;
 mod host;
+mod reach;
 pub mod registry;
 pub mod timers;
 
@@ -209,6 +211,8 @@ pub async fn automation(
         Err(e) => Err(e),
     };
     if let Err(e) = result {
+        // V110-F87 An error can quote the line: without the marks.
+        let e = commands::taint::clean(&e);
         local(app, &place.key, NoticeKind::Error, &format!("Automation: {e}"));
     }
 }
@@ -270,6 +274,10 @@ fn line<'a>(
             return Err("Too many commands in a row.".into());
         }
         if let Some(body) = text.strip_prefix("//") {
+            // V110-F87 Filled in again, so an automation's must be the rule's own text.
+            if place.automation {
+                guard::own(body, guard::REFILL)?;
+            }
             let p = params(app, place, "");
             let filled = fill(app, place, &format!("/{body}"), p)
                 .await?
@@ -278,14 +286,28 @@ fn line<'a>(
         }
         // F14 A dot starts a command only when the app knows it; ".gg" goes out as typed.
         let Some((name, args)) = super::typed::command(text, |n| known(app, place, n, custom)) else {
+            // V110-F87 An automation's text is said as text, whatever it starts with.
+            let said = if place.automation { guard::say(text) } else { text.to_owned() };
             return match gate(app, place, None)? {
-                true => send(app, place, text, reply_to).await.map(|()| None),
+                true => send(app, place, &said, reply_to).await.map(|()| None),
                 false => Ok(None),
             };
         };
         let name = name.to_ascii_lowercase();
+        // V110-F87 In an automation the rule's own text names the command; what the message
+        // put in reaches a command as plain words, and only `guard::NESTS` see the marks.
+        let (words, own_args, own_text);
+        let (words, args, text) = if place.automation {
+            guard::name(&name)?;
+            words = guard::plain(args);
+            own_args = guard::args(&name, args)?;
+            own_text = commands::taint::clean(text);
+            (words.as_str(), own_args.as_str(), own_text.as_str())
+        } else {
+            (args, args, text)
+        };
         if custom && let Some(body) = list(app).command(&name, place.channel()) {
-            let p = params(app, place, args);
+            let p = params(app, place, words);
             let filled = run_body(app, place, body, p)
                 .await?
                 .ok_or_else(|| format!("/{name} needs more after it."))?;
@@ -293,11 +315,16 @@ fn line<'a>(
         }
         // S5 A plugin's command; what it returns runs as if typed.
         if let Some(p) = crate::plugins::calls::command_owner(app, &name) {
-            let out = crate::plugins::calls::command(&p, &name, args, place.channel())
+            let out = crate::plugins::calls::command(&p, &name, words, place.channel())
                 .await
                 .map_err(|e| format!("/{name}: {e}"))?;
             let mut by = place.clone();
             by.plugins.push(p.id.clone());
+            // V110-F87 It can echo the message: in an automation its answer is text.
+            let out = match out {
+                Some(next) if place.automation => Some(guard::plugin_answer(&next, |n| known(app, &by, n, false))?),
+                out => out,
+            };
             return match out {
                 Some(next) => line(app, &by, &next, reply_to, false, depth + 1).await,
                 None => Ok(None),
@@ -408,8 +435,10 @@ async fn run_body(
     app: &AppHandle,
     place: &Place,
     body: Arc<commands::Items>,
-    p: Params,
+    mut p: Params,
 ) -> Result<Option<String>, String> {
+    // V110-F87
+    p.taint = place.automation;
     let mut host = AppHost {
         app: app.clone(),
         list: list(app),

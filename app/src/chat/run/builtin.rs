@@ -11,7 +11,7 @@ use cyex_settings::schema::{Commands, HiddenUser, Highlights};
 use cyex_twitch::{gql, helix};
 use tauri::{AppHandle, Manager};
 
-use super::{Place, UiAction, fill, line, local, params, send};
+use super::{Place, UiAction, fill, guard, line, local, params, send};
 use crate::settings::Settings;
 
 /// Twitch's mod and broadcaster commands; they come with the mod tools (phase 10).
@@ -106,8 +106,13 @@ pub async fn run(
         }
         "foreach" => {
             let (items, command) = split_foreach(args).ok_or("Usage: /foreach a b c > /command $1")?;
+            // V110-F87 The command is filled in again for each item.
+            if place.automation {
+                guard::own(&command, guard::LOOP)?;
+            }
             for (i, item) in capped(items)?.into_iter().enumerate() {
                 gap(i).await;
+                let item = if place.automation { guard::plain(&item) } else { item };
                 let p = params(app, place, &item);
                 if let Some(filled) = fill(app, place, &command, p).await? {
                     line(app, place, &filled, None, true, depth + 1).await?;
@@ -119,6 +124,8 @@ pub async fn run(
             let (chan, command) = args
                 .split_once(char::is_whitespace)
                 .ok_or("Usage: /runin channel /command")?;
+            // V110-F87 The marks stay on `command`, off the channel.
+            let chan = if place.automation { guard::plain(chan) } else { chan.to_owned() };
             let chan = chan.trim_start_matches('#').to_ascii_lowercase();
             let key = super::super::room_for(app, &place.key.0, &chan)
                 .ok_or_else(|| format!("Not in {chan}’s chat."))?;

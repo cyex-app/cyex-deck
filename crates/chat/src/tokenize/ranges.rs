@@ -45,7 +45,11 @@ pub fn gifs(tag: &str) -> Vec<Range<'_>> {
         let (Some(span), Some(id), Some(url)) = (parts.next(), parts.next(), parts.next()) else {
             continue;
         };
-        if let Some((start, end)) = span_of(span) {
+        // V110-F87 Only Giphy's own pictures: the tag also comes with history lines from
+        // another service, and the window loads the address as it is.
+        if let Some((start, end)) = span_of(span)
+            && giphy(url)
+        {
             out.push(Range {
                 start,
                 end,
@@ -54,6 +58,16 @@ pub fn gifs(tag: &str) -> Vec<Range<'_>> {
         }
     }
     out
+}
+
+/// An `https` address on giphy.com or a host under it.
+fn giphy(address: &str) -> bool {
+    url::Url::parse(address).is_ok_and(|u| {
+        u.scheme() == "https"
+            && u.host_str().is_some_and(|h| h == "giphy.com" || h.ends_with(".giphy.com"))
+            && u.username().is_empty()
+            && u.password().is_none()
+    })
 }
 
 /// Byte index of the next `,<digits>-<digits>|` after `from`, pointing past the comma.
@@ -109,16 +123,55 @@ mod tests {
 
     #[test]
     fn gif_tag() {
-        let r = gifs("0-5|g1|https://a.b/c,d.gif,7-9|g2|https://x.y/z");
+        let r = gifs("0-5|g1|https://media.giphy.com/c,d.gif,7-9|g2|https://giphy.com/z");
         assert_eq!(r.len(), 2);
         assert_eq!(
             r[0].kind,
             RangeKind::Gif {
                 id: "g1",
-                url: "https://a.b/c,d.gif"
+                url: "https://media.giphy.com/c,d.gif"
             }
         );
         assert_eq!((r[1].start, r[1].end), (7, 10));
+    }
+
+    #[test]
+    fn gifs_come_from_giphy_only() {
+        // V110-F87 Anything else is dropped, so the words stay text.
+        for ok in [
+            "https://media.giphy.com/media/abc/giphy.gif",
+            "https://media4.giphy.com/media/v1.Y2lk/abc/200.webp?cid=1&rid=200.webp",
+            "https://giphy.com/x.gif",
+            "HTTPS://MEDIA.GIPHY.COM/x.gif",
+        ] {
+            assert_eq!(gifs(&format!("0-1|g|{ok}")).len(), 1, "{ok}");
+        }
+        for bad in [
+            "https://a.b/c.gif",
+            "http://media.giphy.com/x.gif",
+            "https://evilgiphy.com/x.gif",
+            "https://giphy.com.evil.example/x.gif",
+            "https://evil.example/media.giphy.com/x.gif",
+            "https://media.giphy.com@evil.example/x.gif",
+            "https://evil.example#.giphy.com",
+            "https://evil.example?.giphy.com",
+            "https://user:pw@media.giphy.com/x.gif",
+            r"https://evil.example\@media.giphy.com/x.gif",
+            r"\\media.giphy.com\x.gif",
+            "//media.giphy.com/x.gif",
+            "media.giphy.com/x.gif",
+            "javascript:alert(1)//.giphy.com",
+            "data:image/gif;base64,AAAA",
+            "file:///C:/x.gif",
+            "https://127.0.0.1/x.gif",
+            "",
+        ] {
+            assert!(gifs(&format!("0-1|g|{bad}")).is_empty(), "{bad}");
+        }
+        // A bad one doesn't take the good one after it along.
+        let r = gifs("0-1|a|https://evil.example/a.gif,3-4|b|https://media.giphy.com/b.gif");
+        assert_eq!(r.len(), 1);
+        assert_eq!(r[0].start, 3);
     }
 
     #[test]

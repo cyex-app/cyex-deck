@@ -8,7 +8,7 @@ use serde_json::Value;
 
 use super::parse::{Func, Id, Item, Items, Src};
 use super::vars::Var;
-use super::{calc, datetime, json, text};
+use super::{calc, datetime, json, taint, text};
 
 /// What a command can read: its words (`$1`) and named values (`$(chan)`).
 #[derive(Clone, Debug, Default)]
@@ -21,6 +21,8 @@ pub struct Params {
     running: Vec<String>,
     /// Escape top-level results for `/chain` (`|`) or `/foreach` (`>`).
     pub(super) escape: Option<char>,
+    /// V110-F87 An automation's line: what replacements put in comes out marked (`taint`).
+    pub taint: bool,
 }
 
 impl Params {
@@ -113,6 +115,10 @@ pub fn eval(items: &Items, p: &Params, h: &mut dyn Host) -> Option<String> {
 
 /// Like `eval`, escaping what replacements put in when the command chains or loops.
 pub(super) fn eval_top(items: &Items, p: &Params, h: &mut dyn Host) -> Option<String> {
+    if p.taint {
+        // The marks make `|` and `>` inert, so no doubling on top.
+        return eval_marked(items, p, h);
+    }
     let mut out = String::new();
     for it in items {
         let value = item(it, p, h)?;
@@ -122,6 +128,68 @@ pub(super) fn eval_top(items: &Items, p: &Params, h: &mut dyn Host) -> Option<St
         }
     }
     Some(out)
+}
+
+/// V110-F87 `eval` for an automation: only the body's own text comes out bare. `$if`, `$ifeq`
+/// and `$switch` keep theirs too (the branch is the rule's, whatever picked it); everything
+/// else is marked whole.
+fn eval_marked(items: &Items, p: &Params, h: &mut dyn Host) -> Option<String> {
+    let mut out = String::new();
+    for it in items {
+        let value = match it {
+            Item::Text(t) => t.clone(),
+            Item::If {
+                src: s,
+                then,
+                other,
+                req: r,
+            } => {
+                let out = if src(s, p, h)?.is_empty() {
+                    opt_marked(other.as_ref(), p, h)?
+                } else {
+                    eval_marked(then, p, h)?
+                };
+                req(out, *r)?
+            }
+            Item::IfEq {
+                src: s,
+                cmp,
+                then,
+                other,
+                req: r,
+            } => {
+                let out = if src(s, p, h)? == eval(cmp, p, h)? {
+                    eval_marked(then, p, h)?
+                } else {
+                    opt_marked(other.as_ref(), p, h)?
+                };
+                req(out, *r)?
+            }
+            Item::Switch {
+                src: s,
+                cases,
+                default,
+                req: r,
+            } => {
+                let value = src(s, p, h)?;
+                let mut picked = default;
+                for (key, result) in cases {
+                    if eval(key, p, h)? == value {
+                        picked = result;
+                        break;
+                    }
+                }
+                req(eval_marked(picked, p, h)?, *r)?
+            }
+            other => taint::mark(&item(other, p, h)?),
+        };
+        out.push_str(&value);
+    }
+    Some(out)
+}
+
+fn opt_marked(items: Option<&Items>, p: &Params, h: &mut dyn Host) -> Option<String> {
+    items.map_or(Some(String::new()), |i| eval_marked(i, p, h))
 }
 
 /// Empty and required: cancel.

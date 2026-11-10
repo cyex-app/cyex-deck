@@ -189,10 +189,24 @@ fn matches(a: &Automation, regex: Option<&Regex>, text: &str) -> Option<String> 
         TriggerMatch::Exact => (lower == t).then(String::new),
         TriggerMatch::StartsWith => lower
             .starts_with(&t)
-            .then(|| text[trigger.len().min(text.len())..].trim().to_owned()),
+            .then(|| after_lowered(text, t.len()).trim().to_owned()),
         TriggerMatch::Contains => lower.contains(&t).then(|| text.to_owned()),
         TriggerMatch::Regex => regex?.is_match(text).then(|| text.to_owned()),
     }
+}
+
+/// V110-F87 `text` past the characters that make up the first `len` bytes of its lowercase
+/// form. Lowercasing changes lengths (the Kelvin sign is 3 bytes, its "k" one), so the
+/// trigger's own length can land inside a character.
+fn after_lowered(text: &str, len: usize) -> &str {
+    let mut seen = 0;
+    for (i, c) in text.char_indices() {
+        if seen >= len {
+            return &text[i..];
+        }
+        seen += c.to_lowercase().map(char::len_utf8).sum::<usize>();
+    }
+    ""
 }
 
 fn allowed(who: Access, m: &ChatMessage) -> bool {
@@ -372,5 +386,30 @@ mod tests {
         // Another trigger in that place starts from its own count.
         a.update(&cmds(vec![rule("bye", 0)]));
         assert_eq!(a.counts(), vec![(0, "bye", 0)]);
+    }
+
+    #[test]
+    fn starts_with_cuts_on_characters() {
+        // V110-F87 Lowercasing changes byte lengths: the trigger's length isn't the place to cut.
+        let a = |trigger: &str| Automation {
+            trigger: trigger.into(),
+            matching: TriggerMatch::StartsWith,
+            ..Automation::default()
+        };
+        let after = |trigger: &str, text: &str| matches(&a(trigger), None, text);
+        // U+212A KELVIN SIGN lowercases to "k": 3 bytes where the trigger has 1.
+        assert_eq!(after("!k", "!\u{212A}\u{1F600} hi").as_deref(), Some("\u{1F600} hi"));
+        assert_eq!(after("k", "\u{212A}").as_deref(), Some(""));
+        assert_eq!(after("!k", "!\u{212A}\u{212A}\u{212A}").as_deref(), Some("\u{212A}\u{212A}"));
+        // U+0130 lowercases to two characters; a trigger that ends inside them takes it whole.
+        assert_eq!(after("\u{130}x", "\u{130}X rest").as_deref(), Some("rest"));
+        assert_eq!(after("i", "\u{130}\u{1F600}").as_deref(), Some("\u{1F600}"));
+        // U+1E9E (capital sharp s) is 3 bytes, its lowercase 2.
+        assert_eq!(after("\u{1E9E}", "\u{DF}\u{1E9E} x").as_deref(), Some("\u{1E9E} x"));
+        assert_eq!(after("\u{1F600}!", "\u{1F600}!\u{1F600}").as_deref(), Some("\u{1F600}"));
+        // As before for plain text, and no match is no match.
+        assert_eq!(after("!So", "!so  someone ").as_deref(), Some("someone"));
+        assert_eq!(after("!so", "!s"), None);
+        assert_eq!(after_lowered("abc", 9), "");
     }
 }

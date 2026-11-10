@@ -76,8 +76,12 @@ fn escape(s: &str) -> String {
             '\\' => out.push_str("\\\\"),
             ';' => out.push_str("\\;"),
             ',' => out.push_str("\\,"),
-            '\n' => out.push_str("\\n"),
-            '\r' => {}
+            // V110-F87 Unicode's line and paragraph separators break a line for some readers too.
+            '\n' | '\u{2028}' | '\u{2029}' => out.push_str("\\n"),
+            '\t' => out.push(' '),
+            // V110-F87 No other control character (C0, DEL, C1 with NEL) reaches the file: a
+            // title can't start a line of its own or stop a calendar app reading.
+            c if c.is_control() => {}
             c => out.push(c),
         }
     }
@@ -164,6 +168,21 @@ mod tests {
         assert_eq!(escape("a,b;c\\d\ne\r"), "a\\,b\\;c\\\\d\\ne");
         let s = calendar("Xx", "xx", &[ev("a", "Rank, pt 2; late", "2026-10-30T18:00:00Z", None, false)], stamp());
         assert!(s.contains("SUMMARY:Xx: Rank\\, pt 2\\; late\r\n"));
+    }
+
+    #[test]
+    fn control_characters_never_reach_the_file() {
+        // V110-F87 A title is the streamer's text: nothing in it starts a line of its own.
+        assert_eq!(escape("a\u{0}b\u{1}c\u{7}\u{8}\u{b}\u{c}\u{1b}d\u{7f}e"), "abcde");
+        assert_eq!(escape("a\u{85}b\u{9b}c\u{2028}d\u{2029}e"), "abc\\nd\\ne");
+        assert_eq!(escape("a\tb"), "a b");
+        let title = "Ranked\u{b}END:VEVENT\u{85}BEGIN:VEVENT\u{2028}URL:https://evil.example\u{c}\u{0}";
+        let s = calendar("X\u{1}x", "xx", &[ev("a\u{1e}", title, "2026-10-30T18:00:00Z", None, false)], stamp());
+        assert!(!s.replace("\r\n", "").chars().any(|c| c.is_control() || matches!(c, '\u{2028}' | '\u{2029}')));
+        assert_eq!(s.matches("BEGIN:VEVENT").filter(|_| true).count(), 2, "one real, one inside the title's text");
+        assert_eq!(s.split("\r\n").filter(|l| l.starts_with("BEGIN:VEVENT")).count(), 1);
+        assert_eq!(s.split("\r\n").filter(|l| l.starts_with("URL:")).count(), 1);
+        assert!(s.contains("UID:a@cyex-deck\r\n") && s.contains("X-WR-CALNAME:Xx on Twitch\r\n"));
     }
 
     #[test]

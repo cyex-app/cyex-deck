@@ -292,9 +292,13 @@ pub(crate) fn popup(app: &AppHandle, url: Url, features: NewWindowFeatures) -> N
     }
 }
 
+/// V110-F87 Over `https` only: a plain `http://` page of the same name can be anyone's on an
+/// open network, and it would get the app's skin and the profile's cookies.
 fn host_is(url: &Url, domain: &str) -> bool {
-    url.host_str()
-        .is_some_and(|h| h == domain || h.ends_with(&format!(".{domain}")))
+    url.scheme() == "https"
+        && url
+            .host_str()
+            .is_some_and(|h| h == domain || h.ends_with(&format!(".{domain}")))
 }
 
 fn is_twitch(url: &Url) -> bool {
@@ -583,6 +587,9 @@ mod tests {
         let u = |s: &str| s.parse::<Url>().unwrap();
         assert!(is_twitch(&u("https://www.twitch.tv/wallet")) && is_twitch(&u("https://twitch.tv/")));
         assert!(!is_twitch(&u("https://twitch.tv.evil.com/")) && !is_twitch(&u("https://nottwitch.tv/")));
+        // V110-F87
+        assert!(!is_twitch(&u("http://www.twitch.tv/wallet")) && !is_twitch(&u("ftp://twitch.tv/")));
+        assert!(!is_payment(&u("http://www.paypal.com/checkoutnow")));
         assert!(is_payment(&u("https://www.paypal.com/checkoutnow")));
     }
 

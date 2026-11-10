@@ -29,13 +29,19 @@ pub fn mentions_global_status(app: AppHandle) -> GlobalStatus {
 /// Picks a sound file. Nothing when cancelled.
 #[tauri::command]
 pub async fn mentions_pick_sound(app: AppHandle) -> CmdResult<Option<String>> {
-    let Some(picked) = app
-        .dialog()
-        .file()
-        .set_title("Pick a sound")
-        .add_filter("Sounds", &SOUND_TYPES)
-        .blocking_pick_file()
-    else {
+    // V110-F85 The picker blocks: off the runtime's workers.
+    let asked = app.clone();
+    let picked = tokio::task::spawn_blocking(move || {
+        asked
+            .dialog()
+            .file()
+            .set_title("Pick a sound")
+            .add_filter("Sounds", &SOUND_TYPES)
+            .blocking_pick_file()
+    })
+    .await
+    .map_err(|e| e.to_string())?;
+    let Some(picked) = picked else {
         return Ok(None);
     };
     let path = picked.into_path().map_err(|e| e.to_string())?;

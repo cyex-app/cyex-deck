@@ -177,7 +177,10 @@ pub fn inline(s: &str) -> Vec<Span> {
             '!' if c.get(i + 1) == Some(&'[') && let Some((alt, url, end)) = bracket(&c, i + 1) => {
                 p.flush();
                 p.out.push(match web(&url) {
-                    Some(url) => Span::Image { url, alt },
+                    Some(url) if twitch_image(&url) => Span::Image { url, alt },
+                    // V110-F87 A picture from anywhere else is a link: loading it would show
+                    // its server (the streamer's) the address of everyone who opens the page.
+                    Some(url) => Span::Link { text: if alt.trim().is_empty() { url.clone() } else { alt }, url },
                     None => text_span(alt),
                 });
                 i = end;
@@ -330,6 +333,29 @@ fn web(url: &str) -> Option<String> {
     (lower.starts_with("https://") || lower.starts_with("http://")).then(|| url.to_owned())
 }
 
+/// V110-F87 Twitch's own picture hosts: where panel images live.
+const IMAGE_HOSTS: [&str; 3] = ["jtvnw.net", "twitch.tv", "ttvnw.net"];
+
+/// An `https` address on one of [`IMAGE_HOSTS`] or under it. Read the way a browser reads it:
+/// the host ends at the first `/`, `\`, `?` or `#`; anything odd in it (a sign-in part,
+/// characters a host name doesn't have) is a no.
+fn twitch_image(url: &str) -> bool {
+    let Some(rest) = url.get(..8).filter(|s| s.eq_ignore_ascii_case("https://")).map(|_| &url[8..]) else {
+        return false;
+    };
+    let authority = rest.split(['/', '\\', '?', '#']).next().unwrap_or("");
+    let host = match authority.rsplit_once(':') {
+        Some((host, port)) if port.bytes().all(|b| b.is_ascii_digit()) => host,
+        _ => authority,
+    };
+    let host = host.to_ascii_lowercase();
+    !host.is_empty()
+        && host.bytes().all(|b| b.is_ascii_alphanumeric() || matches!(b, b'-' | b'.'))
+        && IMAGE_HOSTS
+            .iter()
+            .any(|h| host == *h || host.strip_suffix(h).is_some_and(|sub| sub.ends_with('.')))
+}
+
 fn plain(s: &str) -> String {
     inline(s)
         .into_iter()
@@ -406,14 +432,60 @@ mod tests {
     }
 
     #[test]
+    fn images_load_from_twitch_only() {
+        // V110-F87 A tracking pixel in a panel becomes a link nobody loads.
+        let link = |text: &str, url: &str| Span::Link { text: text.into(), url: url.into() };
+        assert_eq!(inline("![](https://any.host/px.gif)"), [link("https://any.host/px.gif", "https://any.host/px.gif")]);
+        assert_eq!(inline("![my logo](https://any.host/l.png)"), [link("my logo", "https://any.host/l.png")]);
+        assert_eq!(inline("![x](ftp://any.host/l.png)"), [t("x")]);
+        for ok in [
+            "https://static-cdn.jtvnw.net/jtv_user_pictures/panel-1-image-a.png",
+            "https://panels.twitch.tv/panel-1-image-a.png",
+            "https://clips-media-assets2.twitch.tv/a.jpg",
+            "https://panels-images.twitch.tv/panel-1-image-a",
+            "HTTPS://Static-CDN.jtvnw.net:443/a.png?x=1#y",
+            "https://vod-secure.twitch.tv",
+            "https://d1.video.ttvnw.net/a.jpg",
+        ] {
+            assert!(twitch_image(ok), "{ok}");
+        }
+        for bad in [
+            "http://static-cdn.jtvnw.net/a.png",
+            "https://evil.example/static-cdn.jtvnw.net/a.png",
+            "https://static-cdn.jtvnw.net.evil.example/a.png",
+            "https://eviljtvnw.net/a.png",
+            "https://nottwitch.tv/a.png",
+            "https://static-cdn.jtvnw.net@evil.example/a.png",
+            "https://user:pw@static-cdn.jtvnw.net/a.png",
+            "https://evil.example\\@static-cdn.jtvnw.net/a.png",
+            "https://evil.example\\.twitch.tv/a.png",
+            "https://evil.example#.twitch.tv",
+            "https://evil.example?.twitch.tv",
+            "https://evil.example:443#@panels.twitch.tv/",
+            "https://evil.example%2f.twitch.tv/a.png",
+            "https://evil.example\u{FF0F}.twitch.tv/a.png",
+            "https://[::1].twitch.tv/a.png",
+            "https://.twitch.tv:x/a.png",
+            "https://",
+            "https:///panels.twitch.tv/a.png",
+            "//panels.twitch.tv/a.png",
+        ] {
+            assert!(!twitch_image(bad), "{bad}");
+            assert!(!inline(&format!("![a]({bad})")).iter().any(|s| matches!(s, Span::Image { .. })), "{bad}");
+        }
+    }
+
+    #[test]
     fn links_and_images_only_over_http() {
-        let spans = inline("[**Shop**](https://a.com/x_(y) \"t\") ![logo](https://i.com/l.png) [bad](javascript:alert(1))");
+        let spans = inline(
+            "[**Shop**](https://a.com/x_(y) \"t\") ![logo](https://static-cdn.jtvnw.net/l.png) [bad](javascript:alert(1))",
+        );
         assert_eq!(
             spans,
             [
                 Span::Link { text: "Shop".into(), url: "https://a.com/x_(y)".into() },
                 t(" "),
-                Span::Image { url: "https://i.com/l.png".into(), alt: "logo".into() },
+                Span::Image { url: "https://static-cdn.jtvnw.net/l.png".into(), alt: "logo".into() },
                 t(" "),
                 t("bad"),
             ]
