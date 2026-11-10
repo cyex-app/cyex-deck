@@ -135,6 +135,8 @@ pub struct Chat {
     pub last_read_line: bool,
     /// V110-C55 Ticks on the scrollbar at highlights, mentions and event lines. Click one to go there.
     pub scroll_marks: bool,
+    /// V110-A11 Screen reader mode: Tab reaches the chat and new lines are read out a few at a time.
+    pub screen_reader: bool,
     /// V110-M20 What clicking a name does (click, middle, Ctrl, Shift).
     pub name_clicks: NameClicks,
     /// V103-12 New messages slide in instead of popping up. Fast chats skip the slide.
@@ -227,6 +229,7 @@ impl Default for Chat {
             pause_key: PauseKey::Alt,
             last_read_line: true,
             scroll_marks: true,
+            screen_reader: false,
             name_clicks: NameClicks::default(),
             smooth_new_messages: false,
             repeats: false,

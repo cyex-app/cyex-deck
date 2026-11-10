@@ -16,7 +16,8 @@
   import ConfirmButton from '../../../components/ConfirmButton.svelte';
   import Checkbox from '../../../components/Checkbox.svelte';
   import { backupText } from '../backupLine';
-  import type { BackupLine, Imported, ImportReview } from '../../../ipc/settings';
+  import type { BackupLine, BrokenFile, Imported, ImportReview } from '../../../ipc/settings';
+  import { brokenRestoredText, brokenRow } from '../brokenFiles';
 
   let picked = $state<Partition[]>(['general', 'appearance', 'chat', 'highlights', 'commands', 'hotkeys']);
   let code = $state('');
@@ -53,11 +54,29 @@
   $effect(() => {
     void refreshStatus();
     void refreshBackups();
+    void refreshBroken();
     void refreshCache();
   });
 
   async function refreshCache() {
     cacheSize = await systemIpc.pictureCacheSize().catch(() => null);
+  }
+
+  /** V110-A44 Files a start set aside because they couldn't be read. */
+  let broken = $state<BrokenFile[]>([]);
+
+  async function refreshBroken() {
+    broken = await settingsIpc.brokenFiles().catch(() => []);
+  }
+
+  /** Same safety copy and Undo as a backup restore; the file itself stays where it is. */
+  async function restoreBroken(file: BrokenFile) {
+    const before = await keepCurrent(true);
+    if (before === null) return;
+    const result = await attempt(() => settingsIpc.restoreBroken(file.name));
+    void refreshBroken();
+    if (!result) return;
+    toast.success(brokenRestoredText(file), { action: undoTo(before) });
   }
 
   async function refreshBackups() {
@@ -285,6 +304,20 @@
 {:else}
   <p class="note">No backups yet. One is made each day you use cyex deck.</p>
 {/each}
+{#if broken.length}
+  <SectionHead title="Restore from a broken file" setting="data:broken">
+    Files set aside when they couldn’t be read. They’re removed after 30 days.
+  </SectionHead>
+  {#each broken as file (file.name)}
+    {@const row = brokenRow(file)}
+    <Row label={row.label} hint={row.hint}>
+      <ConfirmButton label="Restore" confirm="Click to restore" onconfirm={() => restoreBroken(file)} />
+    </Row>
+  {/each}
+  <div class="actions">
+    <Button variant="ghost" small icon="folder" onclick={() => attempt(() => settingsIpc.openFolder())}>Open folder</Button>
+  </div>
+{/if}
 <SectionHead title="Cache">Saved pictures that load faster next time.</SectionHead>
 <Row
   label="Picture cache"

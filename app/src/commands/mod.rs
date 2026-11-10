@@ -386,6 +386,8 @@ pub fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static 
         settings::settings_snapshot_now,
         settings::settings_backup_status,
         settings::settings_backup_now,
+        settings::settings_broken_files,
+        settings::settings_restore_broken,
         settings::settings_open_folder,
         settings::settings_take_load_report,
         crate::crash::crash_take_note,

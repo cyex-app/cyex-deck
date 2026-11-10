@@ -6,7 +6,6 @@
 <script lang="ts">
   import { onDestroy, onMount, setContext, tick, untrack } from 'svelte';
   import { onShown } from '../../lib/awake';
-  import { reader } from './readerMode.svelte';
   import { READER_MS, readout } from './readerMode';
 
   import Icon from '../../components/Icon.svelte';
@@ -454,7 +453,7 @@
   let readLast: string | null | undefined;
   let readTimer: ReturnType<typeof setTimeout> | undefined;
   $effect(() => {
-    if (!reader.on) {
+    if (!c.screenReader) {
       readLast = undefined;
       clearTimeout(readTimer);
       readTimer = undefined;
@@ -974,8 +973,8 @@
     onmouseenter={(e) => scroll.enter(e.clientX, e.clientY)}
     onmouseleave={() => scroll.exit()}
     role="log"
-    tabindex={reader.on ? 0 : -1}
-    aria-label={reader.on ? 'Chat' : undefined}
+    tabindex={c.screenReader ? 0 : -1}
+    aria-label={c.screenReader ? 'Chat' : undefined}
     data-arrows
     aria-live="off"
   >
@@ -994,7 +993,7 @@
   {#if c.scrollMarks}<ScrollMarks bind:this={marks} {list} {lines} messages={drawn} />{/if}
   <!-- V108-F54 The picked line, read out once as it is picked. -->
   <div class="sr-only" aria-live="polite">{heard}</div>
-  {#if reader.on}<div class="sr-only" aria-live="polite" aria-atomic="true">{announced}</div>{/if}
+  {#if c.screenReader}<div class="sr-only" aria-live="polite" aria-atomic="true">{announced}</div>{/if}
   {#if warning}
     {#key warning}<WarnBox login={warning.login} anchor={warning.anchor} send={sendWarn} onclose={() => (warning = null)} />{/key}
   {/if}

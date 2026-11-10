@@ -169,6 +169,10 @@ lastReadLine: boolean,
  */
 scrollMarks: boolean, 
 /**
+ * V110-A11 Screen reader mode: Tab reaches the chat and new lines are read out a few at a time.
+ */
+screenReader: boolean, 
+/**
  * V110-M20 What clicking a name does (click, middle, Ctrl, Shift).
  */
 nameClicks: NameClicks, 

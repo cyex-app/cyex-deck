@@ -6,6 +6,7 @@
 //! validation against their schema.
 
 mod backup;
+mod broken;
 pub mod chatterino;
 mod clock;
 mod cuts;
@@ -32,6 +33,7 @@ mod fuzz;
 mod fuzz_tests;
 
 pub use backup::{BACKUP_DAYS, BackupStatus};
+pub use broken::BrokenFile;
 pub use clock::{Clock, SystemClock};
 pub use error::{Error, Result};
 /// V110-F82 Temp file and rename, for stores outside this crate.

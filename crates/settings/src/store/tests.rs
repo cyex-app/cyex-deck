@@ -1164,3 +1164,101 @@ fn broken_files_older_than_thirty_days_are_removed_at_start() {
     assert!(tmp.path().join("chat.broken-20261001-120000.json").exists());
     assert!(tmp.path().join("notes.broken-x.json").exists());
 }
+
+/// V110-A44 The listing shows the set-aside files, newest first, and nothing else.
+#[test]
+fn broken_files_are_listed_newest_first() {
+    let tmp = TempDir::new("store-broken-list");
+    let clock = Arc::new(FakeClock::at(day(9)));
+    for (name, text) in [
+        ("general.broken-20261001-090000.json", "{"),
+        ("tabs.broken-20261008-231500.json", "abc"),
+        ("accounts.broken-20261008-231500.json", "x"),
+        ("chat.broken-oops.json", "x"),
+        ("notes.txt", "x"),
+    ] {
+        fs::write(tmp.path().join(name), text).unwrap();
+    }
+    let (store, _) = open(tmp.path(), &clock);
+    let list = store.broken_files();
+    assert_eq!(
+        list.iter().map(|f| (f.name.as_str(), f.partition, f.when.as_str(), f.size)).collect::<Vec<_>>(),
+        [
+            ("tabs.broken-20261008-231500.json", Partition::Tabs, "2026/10/08 23:15", 3),
+            ("general.broken-20261001-090000.json", Partition::General, "2026/10/01 09:00", 1),
+        ]
+    );
+}
+
+/// V110-A44 Restoring takes a name from the listing; a path or any other file is refused.
+#[test]
+fn restoring_a_broken_file_takes_only_listed_names() {
+    let tmp = TempDir::new("store-broken-names");
+    let clock = Arc::new(FakeClock::at(day(9)));
+    fs::write(tmp.path().join("general.broken-20261001-090000.json"), r#"{"chatFontSize": 17}"#).unwrap();
+    fs::write(tmp.path().join("secret.json"), r#"{"chatFontSize": 18}"#).unwrap();
+    let (mut store, _) = open(tmp.path(), &clock);
+    for bad in ["../secret.json", "secret.json", "general.json", "general.broken-20261001-090000.json/..", "general.broken-20261002-090000.json", ""] {
+        assert!(matches!(store.restore_broken(bad), Err(Error::Unreadable)), "{bad}");
+    }
+    assert_eq!(store.read::<General>(Partition::General).chat_font_size, 13);
+    assert_eq!(store.restore_broken("general.broken-20261001-090000.json").unwrap(), Partition::General);
+    assert_eq!(store.read::<General>(Partition::General).chat_font_size, 17);
+    assert!(store.is_dirty());
+    assert!(tmp.path().join("general.broken-20261001-090000.json").exists(), "the file stays");
+}
+
+/// V110-A44 A file that can't be read at all says so and changes nothing.
+#[test]
+fn an_unreadable_broken_file_changes_nothing() {
+    let tmp = TempDir::new("store-broken-garbage");
+    let clock = Arc::new(FakeClock::at(day(9)));
+    fs::write(tmp.path().join("chat.broken-20261001-090000.json"), "not json at all").unwrap();
+    fs::write(tmp.path().join("tabs.broken-20261001-090000.json"), "{\"tabs\": [{\"id\": \"a\", \"colu").unwrap();
+    let (mut store, _) = open(tmp.path(), &clock);
+    let before = store.all().clone();
+    assert!(matches!(store.restore_broken("chat.broken-20261001-090000.json"), Err(Error::Unreadable)));
+    assert!(matches!(store.restore_broken("tabs.broken-20261001-090000.json"), Err(Error::Unreadable)));
+    assert_eq!(store.all(), &before);
+    assert!(!store.is_dirty());
+}
+
+/// V110-A44 A cut-off tabs file comes back by its complete tabs; a chat file with one wrong
+/// value comes back by the fields that read.
+#[test]
+fn a_broken_tabs_or_chat_file_is_restored_as_far_as_it_reads() {
+    use crate::schema::Tabs;
+    let tmp = TempDir::new("store-broken-rescue");
+    let clock = Arc::new(FakeClock::at(day(9)));
+    let tab = |id: &str| json!({"id": id, "columns": [{"size": 1.0, "tiles": [{"id": format!("t{id}"), "channel": {"id": "1", "login": "a", "name": "A"}}]}]});
+    let full = serde_json::to_string_pretty(&json!({"tabs": [tab("a"), tab("b"), tab("c")]})).unwrap();
+    fs::write(tmp.path().join("tabs.broken-20261001-090000.json"), &full[..full.rfind("\"columns\"").unwrap()]).unwrap();
+    fs::write(tmp.path().join("chat.broken-20261001-090000.json"), r#"{"screenReader": true, "scrollback": "many"}"#).unwrap();
+    let (mut store, _) = open(tmp.path(), &clock);
+    store.restore_broken("tabs.broken-20261001-090000.json").unwrap();
+    let tabs: Tabs = store.read(Partition::Tabs);
+    assert_eq!(tabs.tabs.iter().map(|t| t.id.as_str()).collect::<Vec<_>>(), ["a", "b"]);
+    store.restore_broken("chat.broken-20261001-090000.json").unwrap();
+    assert!(store.read::<Chat>(Partition::Chat).screen_reader);
+    assert_eq!(store.read::<Chat>(Partition::Chat).scrollback, 1000);
+}
+
+/// V110-A11 Screen reader mode is a chat setting: off by default, and it travels in exports
+/// and share codes.
+#[test]
+fn screen_reader_mode_is_stored_and_exported() {
+    let tmp = TempDir::new("store-screen-reader");
+    let clock = Arc::new(FakeClock::at(day(1)));
+    let (mut store, _) = open(tmp.path(), &clock);
+    assert!(!store.read::<Chat>(Partition::Chat).screen_reader);
+    assert_eq!(store.get(Partition::Chat)["screenReader"], json!(false));
+    store.patch(Partition::Chat, &json!({"screenReader": true})).unwrap();
+    store.flush().unwrap();
+    let code = store.export(&[Partition::Chat]).to_share_code();
+    let other = TempDir::new("store-screen-reader-2");
+    let (mut b, _) = open(other.path(), &clock);
+    b.import(Bundle::from_share_code(&code).unwrap()).unwrap();
+    assert!(b.read::<Chat>(Partition::Chat).screen_reader);
+    let (again, _) = open(tmp.path(), &clock);
+    assert!(again.read::<Chat>(Partition::Chat).screen_reader);
+}

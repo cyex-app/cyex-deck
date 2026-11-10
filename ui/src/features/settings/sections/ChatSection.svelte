@@ -24,7 +24,6 @@
   import { timeoutSecs } from '../../modview/timeoutLength';
   import ModePresets from './ModePresets.svelte';
   import { adSecs, followMinutes, slowSecs } from '../../modview/modePresets';
-  import { reader } from '../../chat/readerMode.svelte';
   import { scrollbackHint } from '../scrollbackHint';
   import ResetSection from '../ResetSection.svelte';
   import Select from '../../../components/Select.svelte';
@@ -411,8 +410,8 @@
 <Row setting="chat.scrollMarks" label="Scrollbar marks" hint="Small ticks on the scrollbar for highlights, mentions and events. Click one to jump there.">
   <Toggle label="Scrollbar marks" checked={c.scrollMarks} onchange={(v) => settings.patch('chat', { scrollMarks: v })} />
 </Row>
-<Row setting="chat:reader" label="Screen reader mode" hint="Tab reaches the chat, and new messages are read out a few at a time.">
-  <Toggle label="Screen reader mode" checked={reader.on} onchange={(v) => reader.set(v)} />
+<Row setting="chat.screenReader" label="Screen reader mode" hint="Tab reaches the chat, and new messages are read out a few at a time.">
+  <Toggle label="Screen reader mode" checked={c.screenReader} onchange={(v) => settings.patch('chat', { screenReader: v })} />
 </Row>
 <Row setting="chat.delayTenths" label="Hold chat back" hint="Waits this long before showing messages, to match the stream’s delay.">
   <Select

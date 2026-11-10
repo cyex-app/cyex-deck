@@ -299,6 +299,18 @@ pub fn settings_restore_backup(
     Ok(restored)
 }
 
+/// V110-A44 The files a start set aside as broken (name, section, date, size), newest first.
+#[tauri::command]
+pub fn settings_broken_files(settings: State<Settings>) -> Vec<cyex_settings::BrokenFile> {
+    settings.broken_files()
+}
+
+/// V110-A44 Restores one of them by its listed name, never a path.
+#[tauri::command]
+pub fn settings_restore_broken(app: AppHandle, settings: State<Settings>, name: String) -> CmdResult<Partition> {
+    settings.restore_broken(&app, &name)
+}
+
 #[tauri::command]
 pub fn settings_open_folder(app: AppHandle, settings: State<Settings>) -> CmdResult<()> {
     let dir = settings.with(|s| s.dir().to_path_buf());

@@ -428,6 +428,33 @@ impl Store {
         Ok((checked.into_iter().map(|(p, _)| p).collect(), notes))
     }
 
+    /// V110-A44 The files set aside as broken, newest first.
+    pub fn broken_files(&self) -> Vec<crate::BrokenFile> {
+        crate::broken::list(&self.dir)
+    }
+
+    /// V110-A44 Puts a set-aside file back as its partition: read as is, a cut-off tabs file by
+    /// its complete tabs, a file with some wrong values by the fields that still read; then
+    /// checked like any restore. `name` has to be in [`Store::broken_files`], never a path. A
+    /// file that can't be read changes nothing. The file stays where it is.
+    pub fn restore_broken(&mut self, name: &str) -> Result<Partition> {
+        let file = crate::broken::find(&self.dir, name).ok_or(Error::Unreadable)?;
+        let p = file.partition;
+        let path = self.dir.join(&file.name);
+        let bytes = fs::read(&path).map_err(|_| Error::Unreadable)?;
+        let value = match parse_bytes(&bytes).ok().and_then(|v| p.normalize(v).ok()) {
+            Some(v) => v,
+            None => {
+                let text = String::from_utf8_lossy(&bytes);
+                let rescued = (p == Partition::Tabs).then(|| rescue::tabs(&text).map(|(v, _)| v)).flatten();
+                rescued.or_else(|| salvage(p, &path)).ok_or(Error::Unreadable)?
+            }
+        };
+        let bundle = Bundle::new(BTreeMap::from([(p.key().to_owned(), value)]), self.clock.now());
+        self.apply(bundle, true)?;
+        Ok(p)
+    }
+
     /// Snapshot dates, newest first.
     pub fn backups(&self) -> Result<Vec<Date>> {
         backup::list(&self.dir)
@@ -513,7 +540,7 @@ fn read_raw_with(path: &Path, read_file: ReadFn) -> Result<Option<Value>> {
 
 /// V110-F82 JSON from file bytes: a UTF-8 BOM is skipped (Windows PowerShell 5.1 writes one),
 /// UTF-16 is decoded by its BOM. Anything else must be UTF-8.
-fn parse_bytes(bytes: &[u8]) -> Result<Value> {
+pub(crate) fn parse_bytes(bytes: &[u8]) -> Result<Value> {
     if let Some(rest) = bytes.strip_prefix(&[0xFF, 0xFE]).or_else(|| bytes.strip_prefix(&[0xFE, 0xFF])) {
         let le = bytes[0] == 0xFF;
         let units: Vec<u16> = rest

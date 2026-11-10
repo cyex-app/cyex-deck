@@ -315,6 +315,18 @@ impl Settings {
         Ok(changed)
     }
 
+    /// V110-A44 The files set aside as broken, newest first.
+    pub fn broken_files(&self) -> Vec<cyex_settings::BrokenFile> {
+        self.lock().broken_files()
+    }
+
+    /// V110-A44 Puts one of them back (the UI keeps a safety copy first, like any restore).
+    pub fn restore_broken(&self, app: &AppHandle, name: &str) -> Result<Partition, String> {
+        let p = self.lock().restore_broken(name).map_err(|e| e.to_string())?;
+        self.broadcast(app, &[p]);
+        Ok(p)
+    }
+
     /// V1052-03 Saves the current settings on disk before a restore; returns the folder name.
     pub fn snapshot_now(&self) -> Result<Option<String>, String> {
         self.lock().snapshot_now().map_err(|e| e.to_string())

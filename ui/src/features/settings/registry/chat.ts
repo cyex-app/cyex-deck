@@ -166,7 +166,7 @@ export const CHAT: Entry[] = [
     keywords: ['scrollbar', 'highlight', 'mention', 'ticks', 'jump', 'event'],
   },
   {
-    id: 'chat:reader',
+    id: 'chat.screenReader',
     page: 'chat',
     label: 'Screen reader mode',
     description: 'Tab reaches the chat, and new messages are read out a few at a time.',

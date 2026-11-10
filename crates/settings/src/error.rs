@@ -19,6 +19,8 @@ pub enum Error {
     BadCode,
     #[error("that’s too big for cyex settings")]
     TooBig,
+    #[error("that file can’t be read, so nothing was changed")]
+    Unreadable,
     #[error("there’s no backup from {0}")]
     NoBackup(String),
 }

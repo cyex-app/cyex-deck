@@ -78,6 +78,15 @@ export interface ImportReview {
   lines: string[];
 }
 
+/** V110-A44 A settings file a start set aside as broken. `name` is what `restoreBroken` takes. */
+export interface BrokenFile {
+  name: string;
+  partition: Partition;
+  /** yyyy/mm/dd HH:MM */
+  when: string;
+  size: number;
+}
+
 export const settingsIpc = {
   all: () => invoke<SettingsValues>('settings_all'),
   patch: <P extends Partition>(partition: P, patch: DeepPartial<SettingsValues[P]>) =>
@@ -111,6 +120,10 @@ export const settingsIpc = {
   /** V110-U55 Tries today's copy now. */
   backupNow: () => invoke<BackupLine>('settings_backup_now'),
   restoreBackup: (date: string) => invoke<Partition[]>('settings_restore_backup', { date }),
+  /** V110-A44 Files set aside as broken, newest first. */
+  brokenFiles: () => invoke<BrokenFile[]>('settings_broken_files'),
+  /** V110-A44 Puts one back by its listed name. */
+  restoreBroken: (name: string) => invoke<Partition>('settings_restore_broken', { name }),
   openFolder: () => invoke<void>('settings_open_folder'),
   /** V107-N10a Files that went back to default, and files that came back from a backup (day yyyy/mm/dd when all share one). */
   takeLoadReport: () =>
