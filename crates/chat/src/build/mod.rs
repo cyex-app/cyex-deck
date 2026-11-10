@@ -139,9 +139,13 @@ fn presence(line: &Line<'_>, ctx: &Ctx<'_>) -> Option<Incoming> {
 }
 
 /// `tmi-sent-ts`, else the history service's receive time, else now.
+/// V110-F100 A time of 0, before 1970 or past the year 2100 isn't one: now, then.
 fn timestamp(line: &Line<'_>, now_ms: i64) -> i64 {
+    const YEAR_2100_MS: i64 = 4_102_444_800_000;
+    let sane = |t: &i64| (1..YEAR_2100_MS).contains(t);
     line.tag_num("tmi-sent-ts")
-        .or_else(|| line.tag_num("rm-received-ts"))
+        .filter(sane)
+        .or_else(|| line.tag_num("rm-received-ts").filter(sane))
         .unwrap_or(now_ms)
 }
 
@@ -158,5 +162,24 @@ pub fn system(kind: NoticeKind, text: impl Into<String>, ts: i64) -> ChatMessage
         source: None,
         flags: Vec::new(),
         meta: Meta::default(),
+    }
+}
+
+#[cfg(test)]
+mod time_tests {
+    use super::{Line, timestamp};
+
+    /// V110-F100 A line's own time counts only when it can be one.
+    #[test]
+    fn v110_f100_an_impossible_time_falls_back_to_now() {
+        let now = 1_800_000_000_000;
+        let at = |tags: &str| timestamp(&Line::parse(&format!("@{tags} :tmi.twitch.tv PRIVMSG #c :x")).unwrap(), now);
+        assert_eq!(at("tmi-sent-ts=1700000000000"), 1_700_000_000_000);
+        for bad in ["0", "-5", "9999999999999999", "abc"] {
+            assert_eq!(at(&format!("tmi-sent-ts={bad}")), now, "{bad}");
+        }
+        // The history service's time is next in line, and held to the same rule.
+        assert_eq!(at("tmi-sent-ts=0;rm-received-ts=1700000000001"), 1_700_000_000_001);
+        assert_eq!(at("tmi-sent-ts=0;rm-received-ts=-1"), now);
     }
 }

@@ -8,6 +8,7 @@
   import type { Look } from '../../ipc/bindings/Look';
   import { density } from '../../lib/density.svelte';
   import { focus } from '../../lib/focus.svelte';
+  import { uniqueKeys } from '../../lib/keys';
   import { settings } from '../../lib/settings.svelte';
   import { badgeOn } from '../emotes/badgeSets';
   import { looks } from '../emotes/looks.svelte';
@@ -56,6 +57,9 @@
   );
   const isMod = (set: string) => set === 'moderator' || set === 'lead_moderator';
   /** Provider badges not already drawn in a Twitch badge's place. */
+  /** V110-F100 A line can repeat a badge set ("moderator/1,moderator/1"): a keyed each throws on a
+   *  repeated key and took the whole chat down with it. */
+  const badgeKeys = $derived(uniqueKeys(badges, (r) => r.set));
   const rest = $derived(
     extra.filter(
       (b) =>
@@ -90,6 +94,7 @@
     if (ref.set === 'vip') return room?.vip ?? undefined;
     return undefined;
   }
+  const restKeys = $derived(uniqueKeys(rest, (b) => `${b.provider}:${b.id}`));
 </script>
 
 {#snippet provider(b: BadgeDef)}
@@ -108,7 +113,7 @@
 
 <!-- V109-F83 The Twitch block and the rest block below stay on one line: whitespace between them drew as an extra gap. -->
 {#if on.twitch}
-  {#each badges as ref (ref.set)}
+  {#each badges as ref, i (badgeKeys[i])}
     {@const sub = stand(ref)}
     {#if sub}
       {@render provider(sub)}
@@ -131,7 +136,7 @@
       {/if}
     {/if}
   {/each}
-{/if}{#each rest as b (`${b.provider}:${b.id}`)}
+{/if}{#each rest as b, i (restKeys[i])}
   {@render provider(b)}
 {/each}
 
