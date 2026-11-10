@@ -24,6 +24,10 @@ pub struct BadgeDef {
     pub image1x: String,
     pub image2x: String,
     pub image4x: String,
+    /// 256 px picture for the hover preview (cyex badges made after the large size came).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub image_large: Option<String>,
     /// E2 Still frame of a moving badge.
     pub still: Option<String>,
     /// FFZ: color behind the picture.
@@ -410,6 +414,7 @@ mod tests {
             image1x: String::new(),
             image2x: String::new(),
             image4x: String::new(),
+            image_large: None,
             still: None,
             color: None,
             replaces: None,

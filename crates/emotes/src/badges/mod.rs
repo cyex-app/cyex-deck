@@ -112,6 +112,7 @@ pub(crate) fn def(set: BadgeSet, name: &str, title: &str, sizes: [&str; 3]) -> B
         image1x: sizes[0].to_owned(),
         image2x: sizes[1].to_owned(),
         image4x: sizes[2].to_owned(),
+        image_large: None,
         still: None,
         color: None,
         replaces: None,

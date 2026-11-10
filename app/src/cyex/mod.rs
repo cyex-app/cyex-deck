@@ -184,6 +184,7 @@ pub(crate) fn own_list(me: &CyexMe) -> Vec<Held> {
                     x1: p.x1.clone(),
                     x2: p.x2.clone(),
                     x4: p.x4.clone(),
+                    large: p.large.clone(),
                 }),
             }),
             kind if badges::kind_ok(kind) && me.owns(kind) => Some(Held {
@@ -222,8 +223,9 @@ pub async fn view(app: &AppHandle, account: &str) -> CyexView {
                         x1: k.images.x1,
                         x2: k.images.x2,
                         x4: k.images.x4,
+                        large: k.images.large,
                     },
-                    stills: k.still.map(|s| model::CyexPics { x1: s.x1, x2: s.x2, x4: s.x4 }),
+                    stills: k.still.map(|s| model::CyexPics { x1: s.x1, x2: s.x2, x4: s.x4, large: None }),
                 })
                 .collect();
             CyexView::Ready { me, kinds }
@@ -372,6 +374,7 @@ mod tests {
             x1: "https://a/1.png".into(),
             x2: "https://a/2.png".into(),
             x4: "https://a/4.png".into(),
+            ..CyexPics::default()
         });
         m.equipped.shown = shown.iter().map(|s| (*s).to_owned()).collect();
         m

@@ -37,6 +37,9 @@ pub struct Images {
     pub x2: String,
     #[serde(rename = "4x", default)]
     pub x4: String,
+    /// 256 px, newer uploads only; for the hover preview.
+    #[serde(rename = "large", default, skip_serializing_if = "Option::is_none")]
+    pub large: Option<String>,
 }
 
 /// One badge a person holds, as the snapshot has it.
@@ -259,6 +262,7 @@ fn built_in(kinds: Option<&Kinds>, base: &str, kind: &str) -> (Images, Option<St
             x1: at("1x"),
             x2: at("2x"),
             x4: at("4x"),
+            large: None,
         }
     });
     let title = k.map(|k| k.title.clone());
@@ -268,7 +272,7 @@ fn built_in(kinds: Option<&Kinds>, base: &str, kind: &str) -> (Images, Option<St
     }
 }
 
-fn def(id: String, title: String, sizes: [&str; 3], still: Option<String>) -> BadgeDef {
+fn def(id: String, title: String, sizes: [&str; 3], still: Option<String>, large: Option<String>) -> BadgeDef {
     BadgeDef {
         provider: Provider::Twitch,
         id,
@@ -276,6 +280,7 @@ fn def(id: String, title: String, sizes: [&str; 3], still: Option<String>) -> Ba
         image1x: sizes[0].to_owned(),
         image2x: sizes[1].to_owned(),
         image4x: sizes[2].to_owned(),
+        image_large: large,
         still,
         color: None,
         replaces: None,
@@ -318,8 +323,10 @@ pub fn build<'a>(kinds: Option<&Kinds>, base: &str, users: impl IntoIterator<Ite
             let Some(sizes) = sizes(images) else { continue };
             let id = badge_id(user, h);
             if made.insert(id.clone()) {
+                // A moving badge's large picture is its still PNG's (the WebP set has none).
+                let large = images.large.as_ref().or(still.and_then(|s| s.large.as_ref())).filter(|u| picture_ok(u)).cloned();
                 let still = still.and_then(|s| self::sizes(s)).map(|s| s[1].to_owned());
-                out.defs.push(def(id.clone(), title(&h.id, h.number, named), sizes, still));
+                out.defs.push(def(id.clone(), title(&h.id, h.number, named), sizes, still, large));
             }
             out.give(user, &id);
         }
@@ -439,6 +446,41 @@ mod tests {
         assert_eq!(list[0].images.x2, "https://x/f2.webp");
         assert_eq!(list[0].still.as_ref().map(|s| s.x2.as_str()), Some("https://x/f2.png"));
         assert_eq!(list[1].still, None);
+    }
+
+    #[test]
+    fn large_picture_is_optional_and_must_be_a_safe_url() {
+        let with: Images = serde_json::from_str(r#"{"1x":"https://x/1.png","2x":"https://x/2.png","4x":"https://x/4.png","large":"https://x/l.png"}"#).unwrap();
+        assert_eq!(with.large.as_deref(), Some("https://x/l.png"));
+        let without: Images = serde_json::from_str(r#"{"1x":"https://x/1.png"}"#).unwrap();
+        assert_eq!(without.large, None);
+        assert!(!serde_json::to_string(&without).unwrap().contains("large"));
+        // Built into defs: custom badge with a large picture, one with a bad one, one without.
+        let user = |id: &str, large: &str| {
+            let imgs = format!(r#"{{"1x":"https://x/1.png","2x":"https://x/2.png","4x":"https://x/4.png"{large}}}"#);
+            (id.to_owned(), vec![Held { id: CUSTOM.into(), number: None, images: Some(serde_json::from_str(&imgs).unwrap()) }])
+        };
+        let users: HashMap<String, Vec<Held>> = [
+            user("1", r#","large":"https://x/l.png""#),
+            user("2", r#","large":"http://x/l.png""#),
+            user("3", ""),
+        ]
+        .into();
+        let l = build(None, BASE, &users);
+        let large = |id: &str| l.defs.iter().find(|d| d.id == id).unwrap().image_large.clone();
+        assert_eq!(large("cyex:u1").as_deref(), Some("https://x/l.png"));
+        assert_eq!(large("cyex:u2"), None);
+        assert_eq!(large("cyex:u3"), None);
+        // A catalog badge takes its large from /badges; a moving one from its still PNG set.
+        let kinds: Kinds = serde_json::from_str(
+            r#"{"badges":[{"id":"founder","title":"cyex founder","animated":true,
+                            "animatedUrls":{"1x":"https://x/f1.webp","2x":"https://x/f2.webp","4x":"https://x/f4.webp"},
+                            "images":{"1x":"https://x/f1.png","2x":"https://x/f2.png","4x":"https://x/f4.png","large":"https://x/fl.png"}}]}"#,
+        )
+        .unwrap();
+        let held = HashMap::from([("7".to_owned(), vec![Held { id: FOUNDER.into(), number: None, images: None }])]);
+        let l = build(Some(&kinds), BASE, &held);
+        assert_eq!(l.defs[0].image_large.as_deref(), Some("https://x/fl.png"));
     }
 
     #[test]

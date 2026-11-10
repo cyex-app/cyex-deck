@@ -111,6 +111,7 @@ pub fn badge_item(e: &BadgeEntry) -> BadgeItem {
             image1x: one(0),
             image2x: one(1),
             image4x: one(3),
+            image_large: None,
             still: e.stills[0].clone(),
             color: None,
             replaces: None,

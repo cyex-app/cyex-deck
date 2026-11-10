@@ -6,6 +6,10 @@ import type { Provider } from "./Provider";
  */
 export type BadgeDef = { provider: Provider, id: string, title: string, image1x: string, image2x: string, image4x: string, 
 /**
+ * 256 px picture for the hover preview (cyex badges made after the large size came).
+ */
+imageLarge?: string, 
+/**
  * E2 Still frame of a moving badge.
  */
 still: string | null, 

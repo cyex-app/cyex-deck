@@ -45,9 +45,10 @@ export function badgeSet(b: { image1x: string; image2x: string; image4x: string 
   return parts.length > 1 ? parts.join(', ') : undefined;
 }
 
-/** V110-B1 The picture for a badge's hover preview (112 px tall): the largest one there is. */
-export function badgeLarge(b: { image1x: string; image2x: string; image4x: string }): string {
-  return b.image4x || b.image2x || b.image1x;
+/** V110-B1 The picture for a badge's hover preview (112 px tall): the largest one there is (the 256 px
+ *  one of cyex badges uploaded after that size came, else the 4x). */
+export function badgeLarge(b: { image1x: string; image2x: string; image4x: string; imageLarge?: string | null }): string {
+  return b.imageLarge || b.image4x || b.image2x || b.image1x;
 }
 
 /** Twitch's two `<3` hearts: their 3.0 picture is another drawing (an outlined heart, not the

@@ -194,6 +194,7 @@ fn room_badge(
         image1x: one,
         image2x: two,
         image4x: four,
+        image_large: None,
         still: None,
         color: color.map(str::to_owned),
         replaces: Some(kind.to_owned()),

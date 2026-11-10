@@ -51,6 +51,10 @@ test('badges give a 1x/2x/4x srcset and the preview takes the largest (V110-B1)'
   assert.equal(badgeSet({ image1x: 'a', image2x: 'a', image4x: 'a' }), undefined);
   assert.equal(badgeSet({ image1x: 'a', image2x: '', image4x: 'c' }), 'a 1x, c 4x');
   assert.equal(badgeLarge({ image1x: 'a', image2x: 'b', image4x: '' }), 'b');
+  // A cyex badge with a 256 px picture previews with it; null or empty falls back to the 4x.
+  assert.equal(badgeLarge({ ...b, imageLarge: 'L' }), 'L');
+  assert.equal(badgeLarge({ ...b, imageLarge: null }), 'c');
+  assert.equal(badgeLarge({ ...b, imageLarge: '' }), 'c');
   const src = readFileSync(new URL('./Badges.svelte', import.meta.url), 'utf8');
   assert.ok(!src.includes('data-tip-img={b.image4x}'));
   assert.ok((src.match(/srcset=/g) ?? []).length >= 2);

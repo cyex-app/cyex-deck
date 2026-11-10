@@ -13,6 +13,10 @@ pub struct CyexPics {
     pub x2: String,
     #[serde(rename = "4x", default)]
     pub x4: String,
+    /// 256 px, only on newer uploads.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub large: Option<String>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize, TS)]

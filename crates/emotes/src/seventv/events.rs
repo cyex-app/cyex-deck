@@ -119,6 +119,7 @@ fn dispatch(d: Value) -> Option<Event> {
                         image1x: url,
                         image2x: url2,
                         image4x: url4,
+                        image_large: None,
                         still: Some(still),
                         color: None,
                         replaces: None,
