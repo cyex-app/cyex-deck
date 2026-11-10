@@ -33,3 +33,9 @@ export const PORTABLE_PARTITIONS = ALL_PARTITIONS.filter((p) => p !== 'accounts'
 export function partitionList(partitions: Partition[]): string {
   return partitions.map((p) => PARTITION_LABELS[p]).join(', ');
 }
+
+/** V110-F92 The import toast: an import with automations brings them in switched off. */
+export function importedText(partitions: Partition[]): string {
+  const base = `Imported ${partitionList(partitions)}.`;
+  return partitions.includes('commands') ? `${base} Automations are off until you switch them on.` : base;
+}

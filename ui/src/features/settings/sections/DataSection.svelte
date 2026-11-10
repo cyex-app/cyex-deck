@@ -6,7 +6,7 @@
   import type { Partition } from '../../../ipc/bindings/Partition';
   import { systemIpc } from '../../../ipc/system';
   import { settingsIpc } from '../../../ipc/settings';
-  import { PARTITION_LABELS, PORTABLE_PARTITIONS, partitionList } from '../../../lib/partitions';
+  import { PARTITION_LABELS, PORTABLE_PARTITIONS, importedText } from '../../../lib/partitions';
   import { toast } from '../../../lib/toast.svelte';
   import { errorText } from '../../../lib/errors';
   import { copy } from '../../../lib/clipboard';
@@ -111,7 +111,7 @@
 
   function imported(partitions: Partition[] | undefined, before?: string) {
     if (partitions?.length)
-      toast.success(`Imported ${partitionList(partitions)}.`, { action: before ? undoTo(before) : undefined });
+      toast.success(importedText(partitions), { action: before ? undoTo(before) : undefined });
   }
 
   async function importFile() {

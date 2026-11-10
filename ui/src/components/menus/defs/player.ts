@@ -37,6 +37,10 @@ export interface PlayerMenu {
   save?: { saving: string | null; start: () => void; stop: () => void };
   /** V108-N25 Streams: the moments found in chat, newest first. Left out without chat. */
   moments?: MomentRow[];
+  /** V110-F92 Streams: the bar's Clip, for tiles too narrow to show it; `off` says why it can't now. */
+  clipLive?: { run: () => void; busy?: boolean; off?: string | null };
+  /** V110-F92 Streams: the bar's Pop out chat, left out where the tile has no chat to pop out. */
+  popChat?: () => void;
   /** V110-U66 Streams in a tab: theatre mode. */
   theatre?: { hint?: string; run: () => void };
 }
@@ -111,6 +115,15 @@ export const PLAYER_DEF: MenuDef<PlayerMenu> = {
     row('clipHere', 'Clip at current time', 'scissors', (m) => (m.clipHere ? { label: 'Clip at current time', icon: 'scissors', disabled: m.clipHere.busy, run: m.clipHere.run } : null), {
       when: 'videos',
     }),
+    // V110-F92 Same actions as the bar buttons, which hide in narrow tiles. A clip is public, so it asks like the bar does.
+    row(
+      'clipLive',
+      'Clip',
+      'scissors',
+      (m) => (m.clipLive ? { label: 'Clip', icon: 'scissors', disabled: !!m.clipLive.off || m.clipLive.busy, note: m.clipLive.off ?? undefined, confirm: 'Click to clip', run: m.clipLive.run } : null),
+      { when: 'streams' },
+    ),
+    row('popChat', 'Pop out chat', 'popout', (m) => (m.popChat ? { label: 'Pop out chat', icon: 'popout', run: m.popChat } : null), { when: 'streams' }),
     row(
       'save',
       'Save as MP4',
@@ -141,10 +154,12 @@ export const PLAYER_DEF: MenuDef<PlayerMenu> = {
     item('quality'),
     item('fullscreen'),
     item('clipHere'),
+    item('clipLive'),
     SEP,
     item('speed'),
     item('pip'),
     item('moments'),
+    item('popChat'),
     SEP,
     group('share', 'Share', [item('copyLink'), item('copyAt'), item('open')], 'link'),
     SEP,
@@ -176,6 +191,8 @@ export function playerSample(_who: Who): PlayerMenu {
     copy: noop,
     open: noop,
     clipHere: { run: noop },
+    clipLive: { run: noop },
+    popChat: noop,
     save: { saving: null, start: noop, stop: noop },
     moments: [{ time: '0:10', text: 'Chat spike', goThere: noop, clip: noop }],
     theatre: { run: noop },

@@ -98,9 +98,11 @@ test('the other menus keep their size', () => {
     'Quality',
     'Fullscreen',
     'Clip at current time',
+    'Clip',
     'Speed',
     'Picture in picture',
     'Moments',
+    'Pop out chat',
     'Share',
     'Tools',
   ]);

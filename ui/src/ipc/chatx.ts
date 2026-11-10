@@ -50,8 +50,8 @@ export const chatxIpc = {
     return invoke<Recording>('recording_load', { id, onEvents: channel });
   },
   deleteRecording: (id: string) => invoke<void>('recording_delete', { id }),
-  onRecording: (cb: (e: { channel: string; recording: boolean }) => void) =>
-    listen<{ channel: string; recording: boolean }>('chat:recording', (e) => cb(e.payload)),
+  onRecording: (cb: (e: { channel: string; recording: boolean; reason?: string | null }) => void) =>
+    listen<{ channel: string; recording: boolean; reason?: string | null }>('chat:recording', (e) => cb(e.payload)),
   votes: (login: string) => invoke<VotesUpdate | null>('chat_votes', { login }),
   onVotes: (cb: (v: VotesUpdate) => void) => listen<VotesUpdate>('chat:votes', (e) => cb(e.payload)),
   /** V108-N25 Moments found in a channel's chat so far, oldest first. */

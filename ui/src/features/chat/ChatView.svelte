@@ -40,6 +40,7 @@
   import { bindingOf, useHotkeys } from '../../lib/hotkeys.svelte';
   import { settings } from '../../lib/settings.svelte';
   import { toast } from '../../lib/toast.svelte';
+  import { recordingStopText } from './recordingStop';
   import { editDone } from '../emotes/edit/run'; // I106-3
   import { catalogs } from './catalog.svelte';
   import ChatInput from './ChatInput.svelte';
@@ -195,7 +196,10 @@
     let gone = false;
     void chatxIpc
       .onRecording((e) => {
-        if (e.channel === login) recording = e.recording;
+        if (e.channel !== login) return;
+        recording = e.recording;
+        const why = recordingStopText(e);
+        if (why) toast.info(why);
       })
       .then((u) => (gone ? u() : (stop = u)));
     return () => {

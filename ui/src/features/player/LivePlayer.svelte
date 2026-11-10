@@ -423,6 +423,9 @@
       link: `https://www.twitch.tv/${login}`,
       copy: copyText,
       open: openLink,
+      // V110-F92 The bar hides these in narrow tiles; same actions (a menu click is the confirm).
+      clipLive: onclip || clipOff ? { run: clipHere, busy: clipMaking.busy, off: clipOff ?? (failure ? 'Nothing is playing to clip.' : null) } : undefined,
+      popChat: onpopchat,
       theatre: theatreHere(),
     }, login);
   }
