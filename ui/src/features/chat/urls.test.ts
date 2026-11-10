@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 
 import { pictureScale, type Scale } from '../../lib/scale.ts';
-import { badgeLarge, badgeSet, badgeSrc,cheerImg, cheerTier, emoteImg, emoteLarge } from './urls.ts';
+import { badgeLarge, badgeSet, badgeSrc, badgeTip, cheerImg, cheerTier, emoteImg, emoteLarge } from './urls.ts';
 
 const cheer = {
   prefix: 'Cheer',
@@ -55,6 +55,12 @@ test('badges give a 1x/2x/4x srcset and the preview takes the largest (V110-B1)'
   assert.equal(badgeLarge({ ...b, imageLarge: 'L' }), 'L');
   assert.equal(badgeLarge({ ...b, imageLarge: null }), 'c');
   assert.equal(badgeLarge({ ...b, imageLarge: '' }), 'c');
+  // Drawn still, a moving badge previews with its still large (else its still frame), not the animated one.
+  const moving = { ...b, imageLarge: 'L.webp', still: 'S', stillLarge: 'SL' };
+  assert.equal(badgeTip(moving, true), 'SL');
+  assert.equal(badgeTip({ ...moving, stillLarge: null }, true), 'S');
+  assert.equal(badgeTip(moving, false), 'L.webp');
+  assert.equal(badgeTip({ ...b, imageLarge: 'L' }, true), 'L');
   const src = readFileSync(new URL('./Badges.svelte', import.meta.url), 'utf8');
   assert.ok(!src.includes('data-tip-img={b.image4x}'));
   assert.ok((src.match(/srcset=/g) ?? []).length >= 2);

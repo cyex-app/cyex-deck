@@ -99,6 +99,7 @@ pub fn badge(id: &str, title: &str, url: &str) -> BadgeDef {
         image2x: url.to_owned(),
         image4x: url.to_owned(),
         image_large: None,
+        still_large: None,
         still: None,
         color: None,
         replaces: None,

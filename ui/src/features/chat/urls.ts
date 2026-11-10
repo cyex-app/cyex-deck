@@ -51,6 +51,15 @@ export function badgeLarge(b: { image1x: string; image2x: string; image4x: strin
   return b.imageLarge || b.image4x || b.image2x || b.image1x;
 }
 
+/** The hover preview picture of a badge: while it is drawn still (reduced motion, paused views) a moving
+ *  badge previews with its 256 px still (else its still frame), never the animated large. */
+export function badgeTip(
+  b: { image1x: string; image2x: string; image4x: string; imageLarge?: string | null; still?: string | null; stillLarge?: string | null },
+  still: boolean,
+): string {
+  return still && b.still ? b.stillLarge || b.still : badgeLarge(b);
+}
+
 /** Twitch's two `<3` hearts: their 3.0 picture is another drawing (an outlined heart, not the
  *  pixel heart of 1.0 and 2.0), so they stop at 2.0 and look the same on every screen (user). */
 const TWITCH_STOP_AT_2 = new Set(['9', '555555584']);

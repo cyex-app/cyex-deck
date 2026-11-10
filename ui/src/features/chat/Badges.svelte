@@ -17,7 +17,7 @@
   import { saved } from './saved';
   import { subHint } from './subTier';
   import type { BadgeRef } from './sharedBadges';
-  import { badgeLarge, badgeSet, badgeSrc } from './urls';
+  import { badgeLarge, badgeSet, badgeSrc, badgeTip } from './urls';
 
   type Ref = BadgeRef;
 
@@ -106,7 +106,7 @@
     srcset={still && b.still ? undefined : badgeSet(b)}
     alt={b.title}
     data-tip={b.title}
-    data-tip-img={badgeLarge(b)}
+    data-tip-img={badgeTip(b, still)}
     loading="lazy"
     decoding="async"
   />

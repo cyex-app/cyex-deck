@@ -10,6 +10,10 @@ export type BadgeDef = { provider: Provider, id: string, title: string, image1x:
  */
 imageLarge?: string, 
 /**
+ * 256 px still picture of a moving badge (its hover preview when it is drawn still).
+ */
+stillLarge?: string, 
+/**
  * E2 Still frame of a moving badge.
  */
 still: string | null, 

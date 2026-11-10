@@ -28,6 +28,10 @@ pub struct BadgeDef {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub image_large: Option<String>,
+    /// 256 px still picture of a moving badge (its hover preview when it is drawn still).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub still_large: Option<String>,
     /// E2 Still frame of a moving badge.
     pub still: Option<String>,
     /// FFZ: color behind the picture.
@@ -415,6 +419,7 @@ mod tests {
             image2x: String::new(),
             image4x: String::new(),
             image_large: None,
+            still_large: None,
             still: None,
             color: None,
             replaces: None,

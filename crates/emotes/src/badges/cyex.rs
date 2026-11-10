@@ -272,7 +272,7 @@ fn built_in(kinds: Option<&Kinds>, base: &str, kind: &str) -> (Images, Option<St
     }
 }
 
-fn def(id: String, title: String, sizes: [&str; 3], still: Option<String>, large: Option<String>) -> BadgeDef {
+fn def(id: String, title: String, sizes: [&str; 3], still: Option<String>, still_large: Option<String>, large: Option<String>) -> BadgeDef {
     BadgeDef {
         provider: Provider::Twitch,
         id,
@@ -281,6 +281,7 @@ fn def(id: String, title: String, sizes: [&str; 3], still: Option<String>, large
         image2x: sizes[1].to_owned(),
         image4x: sizes[2].to_owned(),
         image_large: large,
+        still_large,
         still,
         color: None,
         replaces: None,
@@ -326,8 +327,10 @@ pub fn build<'a>(kinds: Option<&Kinds>, base: &str, users: impl IntoIterator<Ite
                 // V110-B1 A moving badge has no large picture: its hover preview stays the animated
                 // 4x (a still 256 px frame would stop the animation).
                 let large = images.large.as_ref().filter(|u| picture_ok(u)).cloned();
+                // The still set's 256 px picture, for the preview when the badge is drawn still.
+                let still_large = still.and_then(|s| s.large.as_ref()).filter(|u| picture_ok(u)).cloned();
                 let still = still.and_then(|s| self::sizes(s)).map(|s| s[1].to_owned());
-                out.defs.push(def(id.clone(), title(&h.id, h.number, named), sizes, still, large));
+                out.defs.push(def(id.clone(), title(&h.id, h.number, named), sizes, still, still_large, large));
             }
             out.give(user, &id);
         }
@@ -472,7 +475,7 @@ mod tests {
         assert_eq!(large("cyex:u1").as_deref(), Some("https://x/l.png"));
         assert_eq!(large("cyex:u2"), None);
         assert_eq!(large("cyex:u3"), None);
-        // A catalog badge takes its large from /badges; a moving one has none (its preview animates).
+        // A catalog badge takes its large from /badges; a moving one has none unless animatedUrls carries one.
         let kinds: Kinds = serde_json::from_str(
             r#"{"badges":[{"id":"founder","title":"cyex founder","animated":true,
                             "animatedUrls":{"1x":"https://x/f1.webp","2x":"https://x/f2.webp","4x":"https://x/f4.webp"},
@@ -481,6 +484,22 @@ mod tests {
         .unwrap();
         let held = HashMap::from([("7".to_owned(), vec![Held { id: FOUNDER.into(), number: None, images: None }])]);
         let l = build(Some(&kinds), BASE, &held);
+        assert_eq!(l.defs[0].image_large, None);
+        // The still set's 256 px picture is kept apart for the still preview.
+        assert_eq!(l.defs[0].still_large.as_deref(), Some("https://x/fl.png"));
+        // An animatedUrls with a large becomes image_large; a bad one is dropped.
+        let moving = |large: &str| -> Kinds {
+            serde_json::from_str(&format!(
+                r#"{{"badges":[{{"id":"founder","title":"cyex founder","animated":true,
+                    "animatedUrls":{{"1x":"https://x/f1.webp","2x":"https://x/f2.webp","4x":"https://x/f4.webp"{large}}},
+                    "images":{{"1x":"https://x/f1.png","2x":"https://x/f2.png","4x":"https://x/f4.png","large":"https://x/fl.png"}}}}]}}"#
+            ))
+            .unwrap()
+        };
+        let l = build(Some(&moving(r#","large":"https://x/fl.webp""#)), BASE, &held);
+        assert_eq!(l.defs[0].image_large.as_deref(), Some("https://x/fl.webp"));
+        assert_eq!(l.defs[0].still_large.as_deref(), Some("https://x/fl.png"));
+        let l = build(Some(&moving(r#","large":"http://x/fl.webp""#)), BASE, &held);
         assert_eq!(l.defs[0].image_large, None);
     }
 
