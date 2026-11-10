@@ -7,7 +7,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use reqwest::dns::{Addrs, Name, Resolve, Resolving};
-use reqwest::header::{AUTHORIZATION, COOKIE, LOCATION};
+use reqwest::header::LOCATION;
 use reqwest::{Method, StatusCode};
 
 pub use reqwest::Client;
@@ -87,12 +87,8 @@ async fn run(client: &Client, req: HttpRequest) -> Result<HttpResponse, String> 
         let mut rb = client
             .request(method.clone(), url.clone())
             .timeout(Duration::from_millis(req.timeout_ms));
-        for (k, v) in &req.headers {
-            if !same_host
-                && (k.eq_ignore_ascii_case(AUTHORIZATION.as_str()) || k.eq_ignore_ascii_case(COOKIE.as_str()))
-            {
-                continue;
-            }
+        // V110-F85 Another host gets none of the plugin's headers (API keys come in custom ones).
+        for (k, v) in headers_for(&req.headers, same_host) {
             rb = rb.header(k, v);
         }
         if let Some(b) = &body {
@@ -130,6 +126,11 @@ async fn run(client: &Client, req: HttpRequest) -> Result<HttpResponse, String> 
     Err("Too many redirects.".into())
 }
 
+/// V110-F85 The plugin's headers for a hop: all on the first host, none after a redirect elsewhere.
+fn headers_for(headers: &[(String, String)], same_host: bool) -> &[(String, String)] {
+    if same_host { headers } else { &[] }
+}
+
 fn short(e: &reqwest::Error) -> String {
     let mut src = e.source();
     while let Some(s) = src {
@@ -159,6 +160,13 @@ mod tests {
             .collect();
         let kept = keep_public(addrs.into_iter());
         assert_eq!(kept, vec!["93.184.216.34:0".parse::<SocketAddr>().unwrap()]);
+    }
+
+    #[test]
+    fn v110_f85_a_redirect_to_another_host_drops_every_plugin_header() {
+        let h = vec![("X-Api-Key".to_owned(), "k".to_owned()), ("Authorization".to_owned(), "t".to_owned())];
+        assert_eq!(headers_for(&h, true).len(), 2);
+        assert!(headers_for(&h, false).is_empty());
     }
 
     #[test]

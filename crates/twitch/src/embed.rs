@@ -72,7 +72,7 @@ pub async fn lookup(http: &Http, url: &str) -> Next {
 
 async fn fetch(http: &Http, url: &str) -> Result<(u16, String)> {
     let encoded: String = url::form_urlencoded::byte_serialize(url.as_bytes()).collect();
-    let res = http
+    let mut res = http
         .0
         .get(format!("{}/v1/card?url={encoded}", base()))
         .timeout(TIMEOUT)
@@ -86,9 +86,12 @@ async fn fetch(http: &Http, url: &str) -> Result<(u16, String)> {
     if res.content_length().is_some_and(|n| n > MAX_BODY as u64) {
         return Ok((502, String::new()));
     }
-    let bytes = res.bytes().await.map_err(|e| crate::Error::Network(e.without_url()))?;
-    if bytes.len() > MAX_BODY {
-        return Ok((502, String::new()));
+    // V110-F85 A running limit: a chunked body can't skip the Content-Length check above.
+    let mut bytes = Vec::new();
+    while let Some(chunk) = res.chunk().await.map_err(|e| crate::Error::Network(e.without_url()))? {
+        if !crate::http::push_within(&mut bytes, &chunk, MAX_BODY) {
+            return Ok((502, String::new()));
+        }
     }
     Ok((status, String::from_utf8_lossy(&bytes).into_owned()))
 }

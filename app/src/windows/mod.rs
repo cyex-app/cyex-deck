@@ -21,7 +21,7 @@ pub use usercard::open as open_usercard;
 use cyex_settings::Partition;
 use cyex_settings::schema::{General, Windows};
 use serde_json::json;
-use tauri::webview::{PageLoadEvent, PageLoadPayload};
+use tauri::webview::{NewWindowResponse, PageLoadEvent, PageLoadPayload};
 use tauri::{AppHandle, Manager, Webview, WebviewUrl, WebviewWindowBuilder, WindowEvent, Wry};
 
 use crate::icons;
@@ -69,6 +69,11 @@ pub fn builder<'a>(
         .enable_clipboard_access()
         // Zoom only moves in the app's own steps (appearance.zoom), never by Ctrl+wheel.
         .zoom_hotkeys_enabled(false)
+        // V110-F85 Defence in depth: a link, `location` change or `window.open` never takes an
+        // app window to a remote page (WebView2 reports main-frame navigations here; the app
+        // has no iframes).
+        .on_navigation(|u| own_page(u, cfg!(debug_assertions)))
+        .on_new_window(|_, _| NewWindowResponse::Deny)
 }
 
 pub fn init(app: &AppHandle) -> tauri::Result<()> {
@@ -313,4 +318,62 @@ fn hide_on_close(app: &AppHandle, window: &tauri::Window) {
             action: None,
         },
     );
+}
+
+/// V110-F85 Whether an app window (main, pop-outs, overlay, usercard) may navigate to `url`:
+/// only its own pages, `tauri://` or `tauri.localhost`, the Vite dev server in a debug build,
+/// and `about:blank`. A stray link, `location` change or form post to anywhere else is refused.
+fn own_page(url: &tauri::Url, debug: bool) -> bool {
+    match url.scheme() {
+        "tauri" => true,
+        "about" => url.as_str() == "about:blank",
+        "http" | "https" => match url.host_str() {
+            Some("tauri.localhost") => true,
+            Some("localhost" | "127.0.0.1") => debug,
+            _ => false,
+        },
+        _ => false,
+    }
+}
+
+#[cfg(test)]
+mod nav_tests {
+    use super::own_page;
+
+    fn ok(url: &str, debug: bool) -> bool {
+        own_page(&url.parse().unwrap(), debug)
+    }
+
+    #[test]
+    fn v110_f85_app_windows_stay_on_the_apps_own_pages() {
+        for url in [
+            "tauri://localhost/index.html",
+            "http://tauri.localhost/index.html#/panel/room/x",
+            "https://tauri.localhost/",
+            "about:blank",
+        ] {
+            assert!(ok(url, false), "{url}");
+        }
+        for url in [
+            "https://twitch.tv/",
+            "https://tauri.localhost.evil.com/",
+            "http://tauri.localhost@evil.com/",
+            "https://evil.com/?https://tauri.localhost/",
+            "http://localhost:5173/",
+            "http://127.0.0.1:5173/",
+            "file:///C:/Windows/win.ini",
+            "about:srcdoc",
+            "javascript:alert(1)",
+            "data:text/html,hi",
+            "blob:https://tauri.localhost/x",
+            "ftp://tauri.localhost/",
+        ] {
+            assert!(!ok(url, false), "{url}");
+        }
+        // The dev server only in a debug build, and only on the local names.
+        assert!(ok("http://localhost:5173/", true));
+        assert!(ok("http://127.0.0.1:5173/", true));
+        assert!(!ok("http://localhost.evil.com/", true));
+        assert!(!ok("https://evil.com/", true));
+    }
 }

@@ -16,6 +16,22 @@ use super::{Chan, Miner, gql_auth, http, lock, now_ms};
 
 const CONTEXT_AGE: i64 = 30 * 60_000;
 const DROPS_AGE: i64 = 15 * 60_000;
+/// V110-F85 Points contexts read in one refresh (the oldest first); the rest wait for the next.
+const CONTEXTS_PER_REFRESH: usize = 10;
+/// V110-F85 A channel whose context read failed or came back empty is asked again after this.
+const CONTEXT_RETRY: i64 = 5 * 60_000;
+
+/// V110-F85 What a context read that failed (or found nothing) leaves behind: the `context_at`
+/// to store, so `now - context_at >= CONTEXT_AGE` holds only [`CONTEXT_RETRY`] later.
+fn context_retry_stamp(now: i64) -> i64 {
+    now - CONTEXT_AGE + CONTEXT_RETRY
+}
+
+/// V110-F85 Oldest reads first, at most [`CONTEXTS_PER_REFRESH`], so no channel starves.
+fn context_batch<T>(mut due: Vec<(i64, T)>) -> Vec<T> {
+    due.sort_by_key(|d| d.0);
+    due.into_iter().take(CONTEXTS_PER_REFRESH).map(|d| d.1).collect()
+}
 /// Drops are looked up for the first few live channels only.
 const DROPS_CHECKED: usize = 20;
 const FOLLOWS_AGE: Duration = Duration::from_secs(15 * 60);
@@ -346,11 +362,12 @@ async fn contexts(app: &AppHandle, account: &str, s: &MinerSettings) {
     let (due, drops_due): (Vec<(String, String, bool)>, Vec<String>) = {
         let st = lock(app);
         let live = st.channels.iter().filter(|c| c.stream.is_some());
-        let due = live
-            .clone()
-            .filter(|c| now - c.context_at >= CONTEXT_AGE)
-            .map(|c| (c.id.clone(), c.login.clone(), c.helper_for.is_some()))
-            .collect();
+        let due = context_batch(
+            live.clone()
+                .filter(|c| now - c.context_at >= CONTEXT_AGE)
+                .map(|c| (c.context_at, (c.id.clone(), c.login.clone(), c.helper_for.is_some())))
+                .collect(),
+        );
         let listed = live.clone().filter(|c| c.helper_for.is_none()).take(DROPS_CHECKED);
         let helpers = live.filter(|c| c.helper_for.is_some());
         let drops = listed
@@ -386,8 +403,15 @@ async fn contexts(app: &AppHandle, account: &str, s: &MinerSettings) {
                     super::goals::contribute(app, account, &ctx).await;
                 }
             }
-            Ok(None) => {}
-            Err(e) => eprintln!("miner: points of {login}: {e}"),
+            Ok(None) => stamp_context_retry(app, &id, now),
+            Err(e) => {
+                eprintln!("miner: points of {login}: {e}");
+                stamp_context_retry(app, &id, now);
+                // V110-F85 Twitch said slow down: the other channels wait for the next refresh.
+                if e.is_rate_limited() {
+                    break;
+                }
+            }
         }
         tokio::time::sleep(Duration::from_millis(400)).await;
     }
@@ -416,6 +440,13 @@ async fn contexts(app: &AppHandle, account: &str, s: &MinerSettings) {
     }
 }
 
+/// V110-F85 Stamps a channel so its context isn't asked for again before [`CONTEXT_RETRY`].
+fn stamp_context_retry(app: &AppHandle, id: &str, now: i64) {
+    if let Some(c) = lock(app).channels.iter_mut().find(|c| c.id == id) {
+        c.context_at = context_retry_stamp(now);
+    }
+}
+
 /// V110-U68 A campaign running here that isn't fully claimed yet: the Drops rule means
 /// drops still to earn.
 fn has_drops_left(campaigns: &[String], done: &HashSet<String>) -> bool {
@@ -431,6 +462,22 @@ pub fn nudge(app: &AppHandle) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn v110_f85_a_failed_context_read_waits_5_minutes_and_a_refresh_reads_a_few() {
+        let now = 100 * 60_000;
+        let stamp = context_retry_stamp(now);
+        assert!(now + CONTEXT_RETRY - stamp >= CONTEXT_AGE);
+        assert!(now + CONTEXT_RETRY - 1 - stamp < CONTEXT_AGE);
+        // Not due a minute later, due after five.
+        assert!(now + 60_000 - stamp < CONTEXT_AGE);
+        let due: Vec<(i64, usize)> = (0..25).map(|n| (1_000 - n as i64, n)).collect();
+        let batch = context_batch(due);
+        assert_eq!(batch.len(), CONTEXTS_PER_REFRESH);
+        // The oldest stamps (the highest n) come first.
+        assert_eq!(batch[0], 24);
+        assert!(context_batch(Vec::<(i64, u8)>::new()).is_empty());
+    }
 
     #[test]
     fn v110_f54_wakes_wait_out_the_gap() {

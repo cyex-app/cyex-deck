@@ -14,6 +14,11 @@ use crate::manifest::DATA;
 
 /// Memory a plugin may use.
 pub const MEMORY: usize = 64 << 20;
+/// V110-F85 Longest text and pattern the pattern functions take (see [`pattern_check`]).
+const MAX_SUBJECT: usize = 64 << 10;
+const MAX_PATTERN: usize = 512;
+/// V110-F85 Longest text `string.rep` builds.
+const MAX_REP: usize = 1 << 20;
 /// The time check runs this often, in Lua instructions.
 const CHECK_EVERY: u32 = 1000;
 
@@ -63,6 +68,7 @@ fn trim(lua: &Lua) -> mlua::Result<()> {
     }
     let string: Table = g.get("string")?;
     string.raw_set("dump", Value::Nil)?;
+    guard_strings(lua, &string)?;
     // The clock and dates; nothing that touches files, programs or the environment.
     let os: Table = g.get("os")?;
     let keep = lua.create_table()?;
@@ -112,6 +118,103 @@ fn trim(lua: &Lua) -> mlua::Result<()> {
     })?;
     g.raw_set("collectgarbage", guarded)?;
     Ok(())
+}
+
+/// V110-F85 The count hook can't stop one long C call, and a pattern with several `.-` or
+/// `.*` on a long text backtracks for hours inside `string.find`. These refuse such calls
+/// with a Lua error before they start, and cap what `string.rep` builds.
+fn guard_strings(lua: &Lua, string: &Table) -> mlua::Result<()> {
+    for name in ["find", "match", "gmatch", "gsub"] {
+        let orig: Function = string.get(name)?;
+        let guarded = lua.create_function(move |_, args: MultiValue| {
+            // `find(s, p, init, true)` is a plain search: no pattern to backtrack.
+            let plain = name == "find" && args.get(3).is_some_and(|v| !matches!(v, Value::Nil | Value::Boolean(false)));
+            if !plain && let (Some(Value::String(s)), Some(Value::String(p))) = (args.front(), args.get(1)) {
+                pattern_check(s.as_bytes().len(), &p.as_bytes(), name != "gmatch").map_err(mlua::Error::runtime)?;
+            }
+            orig.call::<MultiValue>(args)
+        })?;
+        string.raw_set(name, guarded)?;
+    }
+    let rep: Function = string.get("rep")?;
+    let guarded = lua.create_function(move |_, args: MultiValue| {
+        if let (Some(Value::String(s)), Some(n)) = (args.front(), args.get(1)) {
+            let n = match n {
+                Value::Integer(i) => *i as f64,
+                Value::Number(f) => *f,
+                _ => 0.0,
+            };
+            let sep = match args.get(2) {
+                Some(Value::String(sep)) => sep.as_bytes().len(),
+                _ => 0,
+            };
+            if rep_too_long(s.as_bytes().len(), sep, n) {
+                return Err(mlua::Error::runtime("string.rep: the text would be over 1 MB"));
+            }
+        }
+        rep.call::<MultiValue>(args)
+    })?;
+    string.raw_set("rep", guarded)
+}
+
+/// V110-F85 `string.rep(s, n, sep)` would be over [`MAX_REP`] bytes.
+fn rep_too_long(len: usize, sep: usize, n: f64) -> bool {
+    n >= 1.0 && (len as f64) * n + (sep as f64) * (n - 1.0) > MAX_REP as f64
+}
+
+/// V110-F85 Whether the pattern functions may run on a text of `subject` bytes with this
+/// pattern. Backtracking grows with the power of the repetitions (`*`, `+`, `-`), so the
+/// allowed text shrinks with their number: up to 1 repetition 64 KB, 2: 4 KB, 3: 512 bytes,
+/// more than 3: refused. A leading `^` takes one repetition off.
+fn pattern_check(subject: usize, pattern: &[u8], anchor_counts: bool) -> Result<(), &'static str> {
+    if pattern.len() > MAX_PATTERN {
+        return Err("the pattern is over 512 bytes");
+    }
+    // A `^` start spares the walk over every start position: one repetition less (not in gmatch).
+    let anchored = usize::from(anchor_counts && pattern.first() == Some(&b'^'));
+    let limit = match repetitions(pattern).saturating_sub(anchored) {
+        0 | 1 => MAX_SUBJECT,
+        2 => 4 << 10,
+        3 => 512,
+        _ => return Err("the pattern has too many repetitions (*, + or -); split it up"),
+    };
+    if subject > limit {
+        return Err(if limit == MAX_SUBJECT {
+            "the text is over 64 KB"
+        } else {
+            "the text is too long for a pattern with this many repetitions (*, + or -)"
+        });
+    }
+    Ok(())
+}
+
+/// V110-F85 Repetition marks in a pattern, counted generously: `%`-escapes and the inside
+/// of `[...]` sets don't count, a leading mark is a plain character.
+fn repetitions(p: &[u8]) -> usize {
+    let (mut i, mut n) = (0, 0);
+    while i < p.len() {
+        match p[i] {
+            b'%' => i += if p.get(i + 1) == Some(&b'b') { 4 } else { 2 },
+            b'[' => {
+                i += 1;
+                if p.get(i) == Some(&b'^') {
+                    i += 1;
+                }
+                // The first character of a set is always part of it, even a `]`.
+                i += 1;
+                while i < p.len() && p[i] != b']' {
+                    i += if p[i] == b'%' { 2 } else { 1 };
+                }
+                i += 1;
+            }
+            b'*' | b'+' | b'-' => {
+                n += usize::from(i > 0);
+                i += 1;
+            }
+            _ => i += 1,
+        }
+    }
+    n
 }
 
 /// `require("a.b")` loads `a/b.lua` or `a/b/init.lua` from the plugin's folder, once.
@@ -232,6 +335,69 @@ mod tests {
             assert!(lua.load(format!("require('{bad}')")).exec().is_err(), "{bad}");
         }
         let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn v110_f85_a_catastrophic_pattern_is_refused_before_it_runs() {
+        let dir = temp();
+        let (lua, _) = lua_in(&dir);
+        let t = Instant::now();
+        for code in [
+            "return string.find(string.rep('a', 60000), '.-.-.-.-.-b')",
+            "return (string.rep('a', 60000)):match('.-.-.-.-b')",
+            "return string.gsub(string.rep('a', 5000), '.-.-b', 'x')",
+            "for _ in string.gmatch(string.rep('a', 60000), '(.-)(.-)(.-)b') do end",
+            "return string.find('abc', string.rep('a', 600))",
+            "return string.find(string.rep('a', 70000), 'b')",
+            "return string.rep('abc', 1000000)",
+            "return string.rep('a', 2e6)",
+            "return ('x'):rep(600000, 'yy')",
+        ] {
+            let err = lua.load(code).exec().unwrap_err();
+            assert!(!err.to_string().contains("took too long"), "{code}");
+        }
+        assert!(t.elapsed() < Duration::from_secs(2));
+        // Everyday patterns and sizes still work.
+        let ok: bool = lua
+            .load(
+                "local s = string.rep('a', 60000) .. 'b'
+                 return s:find('b', 1, true) == 60001
+                   and s:find('a-b') == 1
+                   and ('key=value'):match('^(%w+)=(.-)$') == 'key'
+                   and ('a,b,c'):gsub(',', ';') == 'a;b;c'
+                   and ('x[y]'):find('[%]]') == 4
+                   and #string.rep('ab', 1000, ',') == 2999
+                   and string.rep('x', 0) == ''
+                   and string.rep('x', -3) == ''
+                   and #string.rep('a', 1000000) == 1000000",
+            )
+            .eval()
+            .unwrap();
+        assert!(ok);
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn v110_f85_pattern_check_tiers() {
+        assert_eq!(repetitions(b"%s*=%s*(.-)%s*$"), 4);
+        assert_eq!(repetitions(b"[a-z]+"), 1);
+        assert_eq!(repetitions(b"[]-]x%-"), 0);
+        assert_eq!(repetitions(b"-x*"), 1);
+        assert!(pattern_check(64 << 10, b"%d+", true).is_ok());
+        assert!(pattern_check((64 << 10) + 1, b"x", true).is_err());
+        assert!(pattern_check(4 << 10, b"(%w+)=(%w+)", true).is_ok());
+        assert!(pattern_check((4 << 10) + 1, b"(%w+)=(%w+)", true).is_err());
+        assert!(pattern_check(512, b".-.-.-b", true).is_ok());
+        assert!(pattern_check(513, b".-.-.-b", true).is_err());
+        assert!(pattern_check(5, b".-.-.-.-b", true).is_err());
+        assert!(pattern_check(5, &[b'a'; 513], true).is_err());
+        assert!(pattern_check(512, b"^.-.-.-b", true).is_ok());
+        assert!(pattern_check(5, b"^.-.-.-.-b", true).is_ok());
+        assert!(pattern_check(5, b"^.-.-.-.-.-b", true).is_err());
+        assert!(pattern_check(5, b"^.-.-.-.-b", false).is_err());
+        assert!(rep_too_long(1, 0, 1_048_577.0));
+        assert!(!rep_too_long(1, 0, 1_048_576.0));
+        assert!(!rep_too_long(5, 5, 0.0));
     }
 
     #[test]

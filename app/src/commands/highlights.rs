@@ -49,16 +49,23 @@ pub async fn highlights_chatterino_preview(
     app: AppHandle,
     settings: State<'_, Settings>,
 ) -> CmdResult<Option<HighlightPreview>> {
-    let mut dialog = app
-        .dialog()
-        .file()
-        .set_title("Import highlights from Chatterino")
-        .add_filter("Chatterino settings", &["json"])
-        .add_filter("All files", &["*"]);
-    if let Some(dir) = chatterino::folder(&app) {
-        dialog = dialog.set_directory(dir);
-    }
-    let Some(source) = dialog.blocking_pick_file() else {
+    // V110-F85 The picker blocks: off the runtime's workers.
+    let (asked, start) = (app.clone(), chatterino::folder(&app));
+    let picked = tokio::task::spawn_blocking(move || {
+        let mut dialog = asked
+            .dialog()
+            .file()
+            .set_title("Import highlights from Chatterino")
+            .add_filter("Chatterino settings", &["json"])
+            .add_filter("All files", &["*"]);
+        if let Some(dir) = start {
+            dialog = dialog.set_directory(dir);
+        }
+        dialog.blocking_pick_file()
+    })
+    .await
+    .map_err(|e| e.to_string())?;
+    let Some(source) = picked else {
         return Ok(None);
     };
     let path = source.into_path().map_err(|e| e.to_string())?;

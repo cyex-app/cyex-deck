@@ -89,14 +89,20 @@ pub async fn settings_export_file(
     }
     let bundle = settings.with(|s| s.export(&partitions));
     let name = suggested_file_name(&partitions, SystemClock.now());
-    let Some(target) = app
-        .dialog()
-        .file()
-        .set_title("Export settings")
-        .set_file_name(name)
-        .add_filter(FILE_FILTER.0, FILE_FILTER.1)
-        .blocking_save_file()
-    else {
+    // V110-F85 The picker blocks: off the runtime's workers (as in `schedule_save_ics`).
+    let asked = app.clone();
+    let picked = tokio::task::spawn_blocking(move || {
+        asked
+            .dialog()
+            .file()
+            .set_title("Export settings")
+            .set_file_name(name)
+            .add_filter(FILE_FILTER.0, FILE_FILTER.1)
+            .blocking_save_file()
+    })
+    .await
+    .map_err(|e| e.to_string())?;
+    let Some(target) = picked else {
         return Ok(false);
     };
     let path = target.into_path().map_err(|e| e.to_string())?;
@@ -110,13 +116,19 @@ pub async fn settings_import_file(
     app: AppHandle,
     settings: State<'_, Settings>,
 ) -> CmdResult<Vec<Partition>> {
-    let Some(source) = app
-        .dialog()
-        .file()
-        .set_title("Import settings")
-        .add_filter(FILE_FILTER.0, FILE_FILTER.1)
-        .blocking_pick_file()
-    else {
+    // V110-F85 The picker blocks: off the runtime's workers.
+    let asked = app.clone();
+    let picked = tokio::task::spawn_blocking(move || {
+        asked
+            .dialog()
+            .file()
+            .set_title("Import settings")
+            .add_filter(FILE_FILTER.0, FILE_FILTER.1)
+            .blocking_pick_file()
+    })
+    .await
+    .map_err(|e| e.to_string())?;
+    let Some(source) = picked else {
         return Ok(Vec::new());
     };
     let path = source.into_path().map_err(|e| e.to_string())?;
@@ -146,16 +158,23 @@ pub async fn settings_chatterino_preview(app: AppHandle) -> CmdResult<Option<Imp
     }
     // Said before the picker opens, not after.
     chatterino::account(&app)?;
-    let mut dialog = app
-        .dialog()
-        .file()
-        .set_title("Import from Chatterino")
-        .add_filter(LAYOUT_FILTER.0, LAYOUT_FILTER.1)
-        .add_filter("All files", &["*"]);
-    if let Some(dir) = chatterino::folder(&app) {
-        dialog = dialog.set_directory(dir);
-    }
-    let Some(source) = dialog.blocking_pick_file() else {
+    // V110-F85 The picker blocks: off the runtime's workers.
+    let (asked, start) = (app.clone(), chatterino::folder(&app));
+    let picked = tokio::task::spawn_blocking(move || {
+        let mut dialog = asked
+            .dialog()
+            .file()
+            .set_title("Import from Chatterino")
+            .add_filter(LAYOUT_FILTER.0, LAYOUT_FILTER.1)
+            .add_filter("All files", &["*"]);
+        if let Some(dir) = start {
+            dialog = dialog.set_directory(dir);
+        }
+        dialog.blocking_pick_file()
+    })
+    .await
+    .map_err(|e| e.to_string())?;
+    let Some(source) = picked else {
         return Ok(None);
     };
     let path = source.into_path().map_err(|e| e.to_string())?;

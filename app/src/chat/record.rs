@@ -8,11 +8,13 @@ use std::fs::{self, File};
 use std::io::{BufRead, BufReader, BufWriter, Write};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 
 use cyex_chat::model::{ChatMessage, Fragment, Provider, RoomEvent};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use tauri::{AppHandle, Emitter, Manager};
+use tokio::sync::Semaphore;
 use ts_rs::TS;
 
 use super::{RoomKey, now_ms};
@@ -24,6 +26,12 @@ const MAX_ASSET: usize = 8 * 1024 * 1024;
 const EVENT: &str = "chat:recording";
 /// V107-R1 How long pictures may still come in after a recording stops.
 const LATE_ASSETS: std::time::Duration = std::time::Duration::from_secs(120);
+/// V110-F85 A recording stops by itself when its events file passes this.
+const MAX_EVENTS_BYTES: u64 = 500 * 1024 * 1024;
+/// V110-F85 Pictures downloaded at the same time, over all recordings.
+static DOWNLOADS: Semaphore = Semaphore::const_new(4);
+/// V110-F85 `assets.json` is written at most this often (the pictures in between wait).
+const ASSETS_EVERY: Duration = Duration::from_secs(1);
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(default, rename_all = "camelCase")]
@@ -44,6 +52,8 @@ struct Rec {
     out: BufWriter<File>,
     /// Asset keys already saved or on their way.
     seen: HashSet<String>,
+    /// V110-F85 Bytes written to `events.jsonl`.
+    bytes: u64,
 }
 
 #[derive(Default)]
@@ -51,6 +61,8 @@ pub struct Recorder {
     live: Mutex<HashMap<RoomKey, Rec>>,
     /// Asset key → file name, per recording id.
     assets: Mutex<HashMap<String, HashMap<String, String>>>,
+    /// V110-F85 Recording ids whose `assets.json` write is already scheduled.
+    flushing: Mutex<HashSet<String>>,
 }
 
 pub fn init(app: &AppHandle) {
@@ -106,6 +118,7 @@ pub fn start(app: &AppHandle, key: &RoomKey) -> Result<String, String> {
         dir,
         out,
         seen: HashSet::new(),
+        bytes: 0,
     };
     app.state::<Recorder>()
         .live
@@ -122,6 +135,11 @@ pub fn start(app: &AppHandle, key: &RoomKey) -> Result<String, String> {
 }
 
 pub fn stop(app: &AppHandle, key: &RoomKey) -> Option<RecordingMeta> {
+    stop_for(app, key, None)
+}
+
+/// [`stop`], telling the UI why when it wasn't the user (`reason` rides on the same event).
+fn stop_for(app: &AppHandle, key: &RoomKey, reason: Option<&str>) -> Option<RecordingMeta> {
     let mut rec = app
         .state::<Recorder>()
         .live
@@ -131,7 +149,7 @@ pub fn stop(app: &AppHandle, key: &RoomKey) -> Option<RecordingMeta> {
     let _ = rec.out.flush();
     rec.meta.ended_ms = now_ms();
     let _ = write_meta(&rec.dir, &rec.meta);
-    let _ = app.emit(EVENT, json!({ "channel": key.1, "recording": false }));
+    let _ = app.emit(EVENT, json!({ "channel": key.1, "recording": false, "reason": reason }));
     // V107-R1 Its asset list goes once the last pictures are in (it stayed for the run).
     let (app, id) = (app.clone(), rec.meta.id.clone());
     tauri::async_runtime::spawn(async move {
@@ -139,7 +157,12 @@ pub fn stop(app: &AppHandle, key: &RoomKey) -> Option<RecordingMeta> {
         let recorder = app.state::<Recorder>();
         let live = recorder.live.lock().unwrap_or_else(|p| p.into_inner());
         if !live.values().any(|r| r.meta.id == id) {
-            recorder.assets.lock().unwrap_or_else(|p| p.into_inner()).remove(&id);
+            // V110-F85 The last write, whatever the batching left waiting.
+            if let Some(map) = recorder.assets.lock().unwrap_or_else(|p| p.into_inner()).remove(&id)
+                && let Some(dir) = dir(&app)
+            {
+                write_assets(&dir.join(&id), &map);
+            }
         }
     });
     Some(rec.meta)
@@ -156,6 +179,7 @@ fn write_meta(dir: &std::path::Path, meta: &RecordingMeta) -> Result<(), String>
 /// New events in a room: written down when it's being recorded.
 pub fn events(app: &AppHandle, key: &RoomKey, events: &[RoomEvent]) {
     let mut wanted: Vec<(String, String, PathBuf, String)> = Vec::new();
+    let mut full = false;
     {
         let recorder = app.state::<Recorder>();
         let mut live = recorder.live.lock().unwrap_or_else(|p| p.into_inner());
@@ -181,8 +205,13 @@ pub fn events(app: &AppHandle, key: &RoomKey, events: &[RoomEvent]) {
                     }
                 }
             }
-            let line = json!({ "t": t, "e": e });
+            let line = json!({ "t": t, "e": e }).to_string();
             let _ = writeln!(rec.out, "{line}");
+            rec.bytes += line.len() as u64 + 1;
+            if over_cap(rec.bytes) {
+                full = true;
+                break;
+            }
         }
         // Every 50 messages; a batch of only edits or deletes on a round count writes nothing.
         if rec.meta.messages / 50 != before / 50 {
@@ -190,9 +219,31 @@ pub fn events(app: &AppHandle, key: &RoomKey, events: &[RoomEvent]) {
             let _ = write_meta(&rec.dir, &rec.meta);
         }
     }
+    if full {
+        // V110-F85 The UI hears it on the same event as any stop, with the reason.
+        eprintln!("chat recording of {} stopped: events.jsonl passed 500 MB", key.1);
+        stop_for(app, key, Some("size"));
+        return;
+    }
     for (id, k, dir, url) in wanted {
         let app = app.clone();
         tauri::async_runtime::spawn(async move { save_asset(&app, &id, &k, &dir, &url).await });
+    }
+}
+
+/// V110-F85 The events file is as big as a recording may get.
+fn over_cap(bytes: u64) -> bool {
+    bytes >= MAX_EVENTS_BYTES
+}
+
+/// V110-F85 True for the first caller while `id` has no write scheduled.
+fn claim_flush(pending: &mut HashSet<String>, id: &str) -> bool {
+    pending.insert(id.to_owned())
+}
+
+fn write_assets(dir: &std::path::Path, map: &HashMap<String, String>) {
+    if let Ok(text) = serde_json::to_string(map) {
+        let _ = fs::write(dir.join("assets.json"), text);
     }
 }
 
@@ -248,6 +299,8 @@ fn emote_asset(provider: Provider, id: &str, animated: bool) -> (String, String)
 }
 
 async fn save_asset(app: &AppHandle, id: &str, key: &str, dir: &std::path::Path, url: &str) {
+    // V110-F85 A busy chat has many new emotes at once: four downloads at a time.
+    let Ok(_slot) = DOWNLOADS.acquire().await else { return };
     let http = app.state::<crate::auth::Auth>().http.clone();
     let Ok(bytes) = http.get_bytes(url, MAX_ASSET).await else {
         return;
@@ -263,16 +316,26 @@ async fn save_asset(app: &AppHandle, id: &str, key: &str, dir: &std::path::Path,
     if fs::write(dir.join(&file), &bytes).is_err() {
         return;
     }
-    let map = {
+    let first = {
         let recorder = app.state::<Recorder>();
         let mut assets = recorder.assets.lock().unwrap_or_else(|p| p.into_inner());
         // Past `LATE_ASSETS` the list is gone: writing a new one would drop the others.
         let Some(map) = assets.get_mut(id) else { return };
         map.insert(key.to_owned(), file);
-        map.clone()
+        claim_flush(&mut recorder.flushing.lock().unwrap_or_else(|p| p.into_inner()), id)
     };
-    if let Ok(text) = serde_json::to_string(&map) {
-        let _ = fs::write(dir.join("assets.json"), text);
+    // V110-F85 One write per second for everything that arrived meanwhile, not one per picture.
+    if first {
+        let (app, id, dir) = (app.clone(), id.to_owned(), dir.to_owned());
+        tauri::async_runtime::spawn(async move {
+            tokio::time::sleep(ASSETS_EVERY).await;
+            let recorder = app.state::<Recorder>();
+            recorder.flushing.lock().unwrap_or_else(|p| p.into_inner()).remove(&id);
+            let map = recorder.assets.lock().unwrap_or_else(|p| p.into_inner()).get(&id).cloned();
+            if let Some(map) = map {
+                write_assets(&dir, &map);
+            }
+        });
     }
 }
 
@@ -386,6 +449,18 @@ mod tests {
             "https://cdn.frankerfacez.com/emote/1/animated/2"
         );
         assert_eq!(sniff(b"GIF89a"), "gif");
+    }
+
+    #[test]
+    fn v110_f85_the_events_file_has_a_cap_and_asset_writes_are_batched() {
+        assert!(!over_cap(MAX_EVENTS_BYTES - 1));
+        assert!(over_cap(MAX_EVENTS_BYTES));
+        let mut pending = HashSet::new();
+        assert!(claim_flush(&mut pending, "a"));
+        assert!(!claim_flush(&mut pending, "a"));
+        assert!(claim_flush(&mut pending, "b"));
+        pending.remove("a");
+        assert!(claim_flush(&mut pending, "a"));
     }
 
     #[test]

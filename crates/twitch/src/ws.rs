@@ -11,8 +11,9 @@ use std::time::Duration;
 use futures_util::{SinkExt, StreamExt};
 use tokio::sync::mpsc;
 use tokio::time::{Instant, sleep_until};
-use tokio_tungstenite::connect_async;
+use tokio_tungstenite::connect_async_with_config;
 use tokio_tungstenite::tungstenite::Message;
+use tokio_tungstenite::tungstenite::protocol::WebSocketConfig;
 
 const MAX_BACKOFF: Duration = Duration::from_secs(120);
 /// How long a connection must live before its drop counts as a fresh start.
@@ -22,6 +23,29 @@ const STABLE: Duration = Duration::from_secs(60);
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(15);
 #[cfg(test)]
 const CONNECT_TIMEOUT: Duration = Duration::from_millis(300);
+
+/// V110-F85 Biggest message or frame taken (the library default is 64 MiB; EventAPI, BTTV and
+/// Hermes frames are a few KB).
+const MAX_MESSAGE: usize = 4 << 20;
+/// V110-F85 A write that takes longer means the connection is half-open: treated as lost.
+#[cfg(not(test))]
+const WRITE_TIMEOUT: Duration = Duration::from_secs(10);
+#[cfg(test)]
+const WRITE_TIMEOUT: Duration = Duration::from_millis(200);
+
+fn config() -> WebSocketConfig {
+    WebSocketConfig::default()
+        .max_message_size(Some(MAX_MESSAGE))
+        .max_frame_size(Some(MAX_MESSAGE))
+}
+
+/// V110-F85 Sends one message; false when it failed or didn't go out within [`WRITE_TIMEOUT`].
+async fn send<S>(sink: &mut S, msg: Message) -> bool
+where
+    S: futures_util::Sink<Message> + Unpin,
+{
+    matches!(tokio::time::timeout(WRITE_TIMEOUT, sink.send(msg)).await, Ok(Ok(())))
+}
 
 pub trait Protocol: Send + 'static {
     type Topic: Clone + Eq + Hash + Send + Sync + 'static;
@@ -131,7 +155,7 @@ async fn run<P: Protocol>(
             }
         }
         // V107-A6 Time-boxed, and topics keep coming in while it runs.
-        let connect = tokio::time::timeout(CONNECT_TIMEOUT, connect_async(p.url()));
+        let connect = tokio::time::timeout(CONNECT_TIMEOUT, connect_async_with_config(p.url(), Some(config()), false));
         tokio::pin!(connect);
         let attempt = loop {
             tokio::select! {
@@ -161,7 +185,7 @@ async fn run<P: Protocol>(
         let mut ok = true;
         if ready {
             for t in &topics {
-                ok &= sink.send(Message::text(p.subscribe(t))).await.is_ok();
+                ok &= send(&mut sink, Message::text(p.subscribe(t))).await;
             }
             if ok {
                 note_synced(&mut p, &mut synced);
@@ -176,11 +200,11 @@ async fn run<P: Protocol>(
                         match p.read(&text, &events) {
                             Step::Continue => {}
                             Step::Reconnect => break,
-                            Step::Reply(line) => ok = sink.send(Message::text(line)).await.is_ok(),
+                            Step::Reply(line) => ok = send(&mut sink, Message::text(line)).await,
                             Step::Ready if !ready => {
                                 ready = true;
                                 for t in &topics {
-                                    ok &= sink.send(Message::text(p.subscribe(t))).await.is_ok();
+                                    ok &= send(&mut sink, Message::text(p.subscribe(t))).await;
                                 }
                                 if ok {
                                     note_synced(&mut p, &mut synced);
@@ -202,10 +226,10 @@ async fn run<P: Protocol>(
                     };
                     apply(&mut topics, c, p.limit());
                     if let Some(line) = line {
-                        ok = sink.send(Message::text(line)).await.is_ok();
+                        ok = send(&mut sink, Message::text(line)).await;
                     }
                     if topics.is_empty() {
-                        let _ = sink.send(Message::Close(None)).await;
+                        let _ = send(&mut sink, Message::Close(None)).await;
                         break;
                     }
                 }
@@ -350,6 +374,45 @@ fn next_backoff(prev: Duration) -> Duration {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A sink that never takes anything: a half-open connection with a full send buffer.
+    struct Stuck;
+
+    impl futures_util::Sink<Message> for Stuck {
+        type Error = ();
+
+        fn poll_ready(self: Pin<&mut Self>, _: &mut std::task::Context<'_>) -> std::task::Poll<Result<(), ()>> {
+            std::task::Poll::Pending
+        }
+
+        fn start_send(self: Pin<&mut Self>, _: Message) -> Result<(), ()> {
+            Ok(())
+        }
+
+        fn poll_flush(self: Pin<&mut Self>, _: &mut std::task::Context<'_>) -> std::task::Poll<Result<(), ()>> {
+            std::task::Poll::Pending
+        }
+
+        fn poll_close(self: Pin<&mut Self>, _: &mut std::task::Context<'_>) -> std::task::Poll<Result<(), ()>> {
+            std::task::Poll::Pending
+        }
+    }
+
+    #[tokio::test]
+    async fn v110_f85_a_write_that_never_completes_counts_as_lost() {
+        let started = std::time::Instant::now();
+        assert!(!send(&mut Stuck, Message::text("x")).await);
+        assert!(started.elapsed() < Duration::from_secs(5));
+        let mut tx = futures_util::sink::drain::<Message>();
+        assert!(send(&mut tx, Message::text("x")).await);
+    }
+
+    #[test]
+    fn v110_f85_messages_are_capped() {
+        let c = config();
+        assert_eq!(c.max_message_size, Some(MAX_MESSAGE));
+        assert_eq!(c.max_frame_size, Some(MAX_MESSAGE));
+    }
 
     #[test]
     fn short_sessions_keep_growing_the_backoff() {

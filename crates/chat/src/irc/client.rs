@@ -25,6 +25,11 @@ const LOGIN_TIMEOUT: Duration = Duration::from_secs(10);
 /// Send our own PING after this long without any line.
 const IDLE_PING: Duration = Duration::from_secs(60);
 const PONG_TIMEOUT: Duration = Duration::from_secs(10);
+/// V110-F85 A write that takes longer means a half-open link with a full send buffer: lost.
+#[cfg(not(test))]
+const WRITE_TIMEOUT: Duration = Duration::from_secs(10);
+#[cfg(test)]
+const WRITE_TIMEOUT: Duration = Duration::from_millis(200);
 /// A send with no line back this long checks the link with a PING.
 const SEND_ANSWER: Duration = Duration::from_secs(5);
 const MAX_BACKOFF: Duration = Duration::from_secs(60);
@@ -439,8 +444,13 @@ struct Writer(WriteHalf<BoxStream>);
 
 impl Writer {
     async fn line(&mut self, line: &str) -> io::Result<()> {
-        self.0.write_all(format!("{line}\r\n").as_bytes()).await?;
-        self.0.flush().await
+        let write = async {
+            self.0.write_all(format!("{line}\r\n").as_bytes()).await?;
+            self.0.flush().await
+        };
+        timeout(WRITE_TIMEOUT, write)
+            .await
+            .unwrap_or_else(|_| Err(io::ErrorKind::TimedOut.into()))
     }
 
     async fn lines(&mut self, lines: &[String]) -> io::Result<()> {
@@ -500,6 +510,17 @@ mod tests {
     use tokio::sync::Mutex;
 
     use super::*;
+
+    #[tokio::test]
+    async fn v110_f85_a_write_into_a_full_buffer_times_out() {
+        // Nobody reads the other end and the pipe holds 8 bytes.
+        let (client, _server) = duplex(8);
+        let mut out = Writer(tokio::io::split(Box::new(client) as BoxStream).1);
+        let started = std::time::Instant::now();
+        let err = out.line("PRIVMSG #a :a line longer than the pipe").await.unwrap_err();
+        assert_eq!(err.kind(), io::ErrorKind::TimedOut);
+        assert!(started.elapsed() < Duration::from_secs(5));
+    }
 
     #[test]
     fn reconnects_back_off_unless_the_session_held() {

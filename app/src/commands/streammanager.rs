@@ -231,11 +231,18 @@ pub fn sm_obs_open(app: AppHandle) -> Result<(), String> {
 /// V106-15 Picks the status folder. Nothing when cancelled.
 #[tauri::command]
 pub async fn sm_obs_pick_folder(app: AppHandle) -> Result<Option<String>, String> {
-    let mut d = app.dialog().file().set_title("Folder for the OBS files");
-    if let Some(dir) = obs::folder(&app).filter(|p| p.is_dir()) {
-        d = d.set_directory(dir);
-    }
-    let Some(picked) = d.blocking_pick_folder() else {
+    // V110-F85 The picker blocks: off the runtime's workers.
+    let (asked, start) = (app.clone(), obs::folder(&app).filter(|p| p.is_dir()));
+    let picked = tokio::task::spawn_blocking(move || {
+        let mut d = asked.dialog().file().set_title("Folder for the OBS files");
+        if let Some(dir) = start {
+            d = d.set_directory(dir);
+        }
+        d.blocking_pick_folder()
+    })
+    .await
+    .map_err(|e| e.to_string())?;
+    let Some(picked) = picked else {
         return Ok(None);
     };
     Ok(Some(picked.into_path().map_err(|e| e.to_string())?.to_string_lossy().into_owned()))

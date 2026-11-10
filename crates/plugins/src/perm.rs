@@ -138,7 +138,9 @@ pub fn check_ws_url(url: &str, hosts: &[String]) -> Result<Url, String> {
 pub(crate) fn public(ip: IpAddr) -> bool {
     match ip {
         IpAddr::V4(v4) => {
-            let [a, b, ..] = v4.octets();
+            let [a, b, c, _] = v4.octets();
+            // V110-F85 Also 192.0.0.0/24 (protocol assignments), 198.18.0.0/15 (benchmarking)
+            // and 240.0.0.0/4 (reserved; 255.255.255.255 is in it).
             !(v4.is_private()
                 || v4.is_loopback()
                 || v4.is_link_local()
@@ -147,10 +149,15 @@ pub(crate) fn public(ip: IpAddr) -> bool {
                 || v4.is_multicast()
                 || v4.is_documentation()
                 || a == 0
-                || (a == 100 && (64..128).contains(&b)))
+                || (a == 100 && (64..128).contains(&b))
+                || (a == 192 && b == 0 && c == 0)
+                || (a == 198 && (b & 0xfe) == 18)
+                || a >= 240)
         }
         IpAddr::V6(v6) => {
-            if let Some(v4) = v6.to_ipv4_mapped() {
+            // V110-F85 An IPv4 address inside an IPv6 one (mapped, compatible, NAT64, 6to4) is
+            // judged as the IPv4 address it carries.
+            if let Some(v4) = embedded_v4(&v6) {
                 return public(IpAddr::V4(v4));
             }
             let first = v6.segments()[0];
@@ -163,11 +170,39 @@ pub(crate) fn public(ip: IpAddr) -> bool {
     }
 }
 
+/// V110-F85 The IPv4 address an IPv6 one carries: `::ffff:a.b.c.d`, `::a.b.c.d`, NAT64
+/// `64:ff9b::a.b.c.d` and 6to4 `2002:aabb:ccdd::`.
+fn embedded_v4(v6: &std::net::Ipv6Addr) -> Option<std::net::Ipv4Addr> {
+    let s = v6.segments();
+    let from = |hi: u16, lo: u16| {
+        let [a, b] = hi.to_be_bytes();
+        let [c, d] = lo.to_be_bytes();
+        std::net::Ipv4Addr::new(a, b, c, d)
+    };
+    if s[..5] == [0; 5] && s[5] == 0xffff {
+        return Some(from(s[6], s[7]));
+    }
+    // `::` and `::1` stay what they are (unspecified, loopback); the rest of `::/96` is compatible.
+    if s[..6] == [0; 6] && (s[6] != 0 || s[7] > 1) {
+        return Some(from(s[6], s[7]));
+    }
+    if s[..6] == [0x64, 0xff9b, 0, 0, 0, 0] {
+        return Some(from(s[6], s[7]));
+    }
+    if s[0] == 0x2002 {
+        return Some(from(s[1], s[2]));
+    }
+    None
+}
+
 /// A file in the data folder: letters, digits, `.`, `_`, `-`, not starting with a dot.
 pub fn data_name(name: &str) -> Result<&str, String> {
     let ok = !name.is_empty()
         && name.len() <= 64
         && !name.starts_with('.')
+        // V110-F85 A trailing dot is dropped by Windows, so it names another file.
+        && !name.ends_with('.')
+        && !device_name(name)
         && name
             .chars()
             .all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '-'));
@@ -176,6 +211,15 @@ pub fn data_name(name: &str) -> Result<&str, String> {
     } else {
         Err(format!("\"{name}\" can’t be a file name here."))
     }
+}
+
+/// V110-F85 `nul`, `con`, `com1`... with or without an extension: Windows opens the device.
+fn device_name(name: &str) -> bool {
+    let stem = name.split('.').next().unwrap_or(name).to_ascii_lowercase();
+    matches!(stem.as_str(), "con" | "prn" | "aux" | "nul" | "conin" | "conout")
+        || ["com", "lpt"]
+            .iter()
+            .any(|p| stem.strip_prefix(p).is_some_and(|n| n.len() == 1 && n.as_bytes()[0].is_ascii_digit()))
 }
 
 #[cfg(test)]
@@ -272,6 +316,49 @@ mod tests {
             &"a".repeat(65),
         ] {
             assert!(data_name(bad).is_err(), "{bad}");
+        }
+    }
+
+    #[test]
+    fn v110_f85_device_names_and_trailing_dots_are_refused() {
+        for bad in [
+            "nul", "NUL", "nul.txt", "Con", "con.log", "prn", "aux.x.y", "com1", "COM9.dat", "lpt1", "Lpt0.txt",
+            "notes.", "a..",
+        ] {
+            assert!(data_name(bad).is_err(), "{bad}");
+        }
+        for ok in ["null", "console.txt", "com10", "com", "lpt", "comm1", "a.nul", "my-nul.txt"] {
+            assert!(data_name(ok).is_ok(), "{ok}");
+        }
+    }
+
+    #[test]
+    fn v110_f85_reserved_ranges_and_embedded_v4_are_not_public() {
+        for bad in [
+            "http://192.0.0.8/",
+            "http://198.18.0.1/",
+            "http://198.19.255.255/",
+            "http://240.0.0.1/",
+            "http://255.255.255.255/",
+            "http://[64:ff9b::7f00:1]/",
+            "http://[64:ff9b::a00:1]/",
+            "http://[2002:7f00:1::]/",
+            "http://[2002:c0a8:101::1]/",
+            "http://[::ffff:10.0.0.1]/",
+            "http://[::127.0.0.1]/",
+            "http://[::10.0.0.1]/",
+        ] {
+            assert!(check_url(bad, &[]).is_err(), "{bad}");
+        }
+        for ok in [
+            "http://198.20.0.1/",
+            "http://192.0.2.1.nip.io/",
+            "http://[64:ff9b::101:101]/",
+            "http://[2002:101:101::]/",
+            "http://[2606:4700::1111]/",
+            "http://1.1.1.1/",
+        ] {
+            assert!(check_url(ok, &[]).is_ok(), "{ok}");
         }
     }
 }

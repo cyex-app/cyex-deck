@@ -107,19 +107,13 @@ impl Http {
     /// X6 A picture to keep, refused when bigger than `max`.
     pub async fn get_bytes(&self, url: &str, max: usize) -> Result<Vec<u8>> {
         let req = self.0.get(url).header("Accept", "image/webp,image/*");
-        let bytes = body(req).await?;
-        if bytes.len() > max {
-            return Err(Error::Api {
-                status: 413,
-                message: "too big".into(),
-            });
-        }
-        Ok(bytes)
+        // V110-F85 Read with a running limit: a chunked or mislabelled body never fills memory.
+        limited_to(req, max).await.0
     }
 
     /// The status of a HEAD request (watch time touches a segment like a player would).
     pub async fn head(&self, url: &str, user_agent: &str) -> Result<u16> {
-        let res = self.0.head(url).header("User-Agent", user_agent).send().await.map_err(Error::Network)?;
+        let res = self.0.head(url).header("User-Agent", user_agent).send().await.map_err(|e| Error::Network(e.without_url()))?;
         Ok(res.status().as_u16())
     }
 
@@ -132,7 +126,7 @@ impl Http {
             .form(form)
             .send()
             .await
-            .map_err(Error::Network)?;
+            .map_err(|e| Error::Network(e.without_url()))?;
         Ok(res.status().as_u16())
     }
 
@@ -312,29 +306,107 @@ impl RateLimit {
 
 /// Like `body`, plus the rate limit Twitch reported, if any (mod tools pace by it).
 pub(crate) async fn limited(req: RequestBuilder) -> (Result<Vec<u8>>, Option<RateLimit>) {
-    let res = match req.send().await {
+    limited_to(req, MAX_BODY).await
+}
+
+/// V110-F85 The most an API answer may be (the biggest are inventories and follow lists).
+const MAX_BODY: usize = 32 << 20;
+
+/// V110-F85 [`limited`] with a running size limit: `Error::Api` 413 once the body passes
+/// `max`, without having buffered more than `max` plus one chunk. Errors never carry the URL.
+async fn limited_to(req: RequestBuilder, max: usize) -> (Result<Vec<u8>>, Option<RateLimit>) {
+    let mut res = match req.send().await {
         Ok(r) => r,
-        Err(e) => return (Err(Error::Network(e)), None),
+        Err(e) => return (Err(Error::Network(e.without_url())), None),
     };
     let status = res.status();
     let limit = RateLimit::read(res.headers());
-    let body = match res.bytes().await {
-        Ok(b) => b,
-        Err(e) => return (Err(Error::Network(e)), limit),
-    };
+    if res.content_length().is_some_and(|n| n > max as u64) {
+        return (Err(too_big()), limit);
+    }
+    let mut body = Vec::new();
+    loop {
+        match res.chunk().await {
+            Ok(Some(chunk)) => {
+                if !push_within(&mut body, &chunk, max) {
+                    return (Err(too_big()), limit);
+                }
+            }
+            Ok(None) => break,
+            Err(e) => return (Err(Error::Network(e.without_url())), limit),
+        }
+    }
     let out = if status.is_success() {
-        Ok(body.to_vec())
+        Ok(body)
     } else {
         Err(Error::api(status.as_u16(), &body))
     };
     (out, limit)
 }
 
+fn too_big() -> Error {
+    Error::Api {
+        status: 413,
+        message: "too big".into(),
+    }
+}
+
+/// V110-F85 Appends `chunk` unless the body would pass `max`; false then (nothing appended).
+pub(crate) fn push_within(body: &mut Vec<u8>, chunk: &[u8], max: usize) -> bool {
+    if body.len().saturating_add(chunk.len()) > max {
+        return false;
+    }
+    body.extend_from_slice(chunk);
+    true
+}
+
 #[cfg(test)]
 mod tests {
     use reqwest::header::{HeaderMap, HeaderValue};
 
-    use super::RateLimit;
+    use super::{Http, RateLimit, push_within};
+
+    #[test]
+    fn v110_f85_a_body_is_refused_past_the_limit_without_being_kept() {
+        let mut body = Vec::new();
+        assert!(push_within(&mut body, &[0; 6], 10));
+        assert!(!push_within(&mut body, &[0; 5], 10));
+        assert_eq!(body.len(), 6);
+        assert!(push_within(&mut body, &[0; 4], 10));
+        assert!(!push_within(&mut body, &[0; 1], 10));
+        assert!(!push_within(&mut Vec::new(), &[0; 1], 0));
+    }
+
+    /// A server that answers with a chunked body of `chunks` x 1 KB and then hangs up.
+    async fn chunky(chunks: usize) -> String {
+        use tokio::io::AsyncWriteExt;
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        tokio::spawn(async move {
+            let (mut s, _) = listener.accept().await.unwrap();
+            let mut buf = [0u8; 2048];
+            let _ = tokio::io::AsyncReadExt::read(&mut s, &mut buf).await;
+            let _ = s.write_all(b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n").await;
+            for _ in 0..chunks {
+                let _ = s.write_all(b"400\r\n").await;
+                let _ = s.write_all(&[b'x'; 1024]).await;
+                if s.write_all(b"\r\n").await.is_err() {
+                    return;
+                }
+            }
+            let _ = s.write_all(b"0\r\n\r\n").await;
+        });
+        format!("http://{addr}/")
+    }
+
+    #[tokio::test]
+    async fn v110_f85_a_chunked_picture_over_the_limit_is_refused() {
+        let http = Http::new().unwrap();
+        let err = http.get_bytes(&chunky(64).await, 10 * 1024).await.unwrap_err();
+        assert!(matches!(err, crate::Error::Api { status: 413, .. }), "{err:?}");
+        let ok = http.get_bytes(&chunky(4).await, 10 * 1024).await.unwrap();
+        assert_eq!(ok.len(), 4096);
+    }
 
     #[test]
     fn rate_limit_headers() {

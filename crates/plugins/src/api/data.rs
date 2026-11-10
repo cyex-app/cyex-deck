@@ -12,6 +12,8 @@ use crate::state;
 
 const MAX_FILE: u64 = 10 << 20;
 const MAX_FILES: usize = 1000;
+/// V110-F85 All files of a plugin together (1000 files of 10 MB would be 10 GB).
+const MAX_TOTAL: u64 = 100 << 20;
 
 fn path(lua: &Lua, name: &str, write: bool) -> mlua::Result<PathBuf> {
     let name = data_name(name).map_err(mlua::Error::runtime)?;
@@ -62,6 +64,7 @@ pub fn table(lua: &Lua) -> mlua::Result<Table> {
                 return Err(mlua::Error::runtime("up to 10 MB per file"));
             }
             room_for(&p)?;
+            room_in_total(&p, bytes.len() as u64)?;
             std::fs::write(&p, &*bytes).map_err(err)
         })?,
     )?;
@@ -75,6 +78,7 @@ pub fn table(lua: &Lua) -> mlua::Result<Table> {
                 return Err(mlua::Error::runtime("up to 10 MB per file"));
             }
             room_for(&p)?;
+            room_in_total(&p, now + bytes.len() as u64)?;
             let mut f = std::fs::OpenOptions::new()
                 .create(true)
                 .append(true)
@@ -128,4 +132,52 @@ fn room_for(p: &std::path::Path) -> mlua::Result<()> {
         return Err(mlua::Error::runtime(format!("up to {MAX_FILES} files")));
     }
     Ok(())
+}
+
+/// V110-F85 True when the other files plus a file of `new_len` bytes stay within [`MAX_TOTAL`].
+fn fits_total(others: u64, new_len: u64) -> bool {
+    others.saturating_add(new_len) <= MAX_TOTAL
+}
+
+/// V110-F85 The folder's other files plus the file `p` at `new_len` bytes stay within
+/// [`MAX_TOTAL`]. The folder holds at most [`MAX_FILES`] files, so adding up their sizes is cheap.
+fn room_in_total(p: &std::path::Path, new_len: u64) -> mlua::Result<()> {
+    let others: u64 = p
+        .parent()
+        .and_then(|d| std::fs::read_dir(d).ok())
+        .map_or(0, |it| {
+            it.filter_map(Result::ok)
+                .filter(|e| e.path() != p)
+                .filter_map(|e| e.metadata().ok())
+                .filter(std::fs::Metadata::is_file)
+                .map(|m| m.len())
+                .sum()
+        });
+    if fits_total(others, new_len) {
+        Ok(())
+    } else {
+        Err(mlua::Error::runtime("up to 100 MB of files in all"))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn v110_f85_the_folder_total_is_capped() {
+        assert!(fits_total(0, MAX_TOTAL));
+        assert!(!fits_total(1, MAX_TOTAL));
+        assert!(!fits_total(u64::MAX, 10));
+        let dir = crate::tests::temp_dir();
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("a"), vec![0u8; 1000]).unwrap();
+        std::fs::write(dir.join("b"), vec![0u8; 500]).unwrap();
+        // Replacing `a` doesn't count its old size.
+        assert!(room_in_total(&dir.join("a"), MAX_TOTAL - 500).is_ok());
+        assert!(room_in_total(&dir.join("a"), MAX_TOTAL - 499).is_err());
+        assert!(room_in_total(&dir.join("new"), MAX_TOTAL - 1500).is_ok());
+        assert!(room_in_total(&dir.join("new"), MAX_TOTAL - 1499).is_err());
+        let _ = std::fs::remove_dir_all(dir);
+    }
 }

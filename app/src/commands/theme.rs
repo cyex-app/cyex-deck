@@ -65,13 +65,19 @@ pub fn theme_code(settings: State<Settings>, id: String) -> CmdResult<String> {
 /// or nothing when cancelled.
 #[tauri::command]
 pub async fn theme_pick_wallpaper(app: AppHandle) -> CmdResult<Option<String>> {
-    let Some(picked) = app
-        .dialog()
-        .file()
-        .set_title("Pick a wallpaper")
-        .add_filter("Pictures", &["png", "jpg", "jpeg", "webp", "gif"])
-        .blocking_pick_file()
-    else {
+    // V110-F85 The picker blocks: off the runtime's workers.
+    let asked = app.clone();
+    let picked = tokio::task::spawn_blocking(move || {
+        asked
+            .dialog()
+            .file()
+            .set_title("Pick a wallpaper")
+            .add_filter("Pictures", &["png", "jpg", "jpeg", "webp", "gif"])
+            .blocking_pick_file()
+    })
+    .await
+    .map_err(|e| e.to_string())?;
+    let Some(picked) = picked else {
         return Ok(None);
     };
     let path = picked.into_path().map_err(|e| e.to_string())?;

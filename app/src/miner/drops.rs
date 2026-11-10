@@ -5,7 +5,7 @@
 //! hidden and idle every 30 minutes. Badge drops of wanted campaigns are claimed even with
 //! drop claims off.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::sync::{LazyLock, Mutex};
 use std::time::Duration;
 
@@ -60,6 +60,26 @@ fn first_time(seen: &mut HashSet<String>, instance: &str) -> bool {
 
 /// V108-C37d Refused instances kept before the list starts over.
 const SEEN_MAX: usize = 500;
+
+/// V110-F85 How long a drop Twitch refused to hand out is left alone.
+const REFUSED_SKIP_MS: i64 = 30 * 60_000;
+
+/// V110-F85 Refused drop instance → when (ms), so an unlinked game account isn't asked again
+/// on every inventory read.
+static REFUSED: LazyLock<Mutex<HashMap<String, i64>>> = LazyLock::new(Mutex::default);
+
+/// V110-F85 True while `instance` was refused less than [`REFUSED_SKIP_MS`] ago.
+fn skip_refused(refused: &HashMap<String, i64>, instance: &str, now: i64) -> bool {
+    refused.get(instance).is_some_and(|&at| now - at < REFUSED_SKIP_MS)
+}
+
+/// V110-F85 Notes a refusal at `now`; true the first time for this instance (log it then only).
+fn note_refused(refused: &mut HashMap<String, i64>, instance: &str, now: i64) -> bool {
+    if refused.len() > SEEN_MAX {
+        refused.clear();
+    }
+    refused.insert(instance.to_owned(), now).is_none()
+}
 
 pub fn spawn(app: &AppHandle) {
     let app = app.clone();
@@ -172,14 +192,18 @@ async fn tick(app: &AppHandle) -> bool {
         let claim_all = s.claim_drops;
         let badge_campaign = badge_campaigns.contains(&c.id);
         for d in c.drops.iter().filter(|d| d.claimable() && (claim_all || (badge_campaign && d.badge))) {
+            let Some(instance) = d.instance_id.as_deref() else {
+                continue;
+            };
+            // V110-F85 Refused a short while ago: no new request, no new pause.
+            if skip_refused(&REFUSED.lock().unwrap_or_else(|p| p.into_inner()), instance, now_ms()) {
+                continue;
+            }
             if !first {
                 let pause = 5_000 + (now_ms() % 5_000) as u64;
                 tokio::time::sleep(Duration::from_millis(pause)).await;
             }
             first = false;
-            let Some(instance) = d.instance_id.as_deref() else {
-                continue;
-            };
             match super::source::claim(app, &http, auth, instance).await {
                 Ok(true) => {
                     let game = c.game.as_deref().map(|g| format!(" ({g})")).unwrap_or_default();
@@ -194,15 +218,18 @@ async fn tick(app: &AppHandle) -> bool {
                     }
                 }
                 Ok(false) => {
-                    log::add(
-                        app,
-                        LogKind::Drop,
-                        None,
-                        format!(
-                            "Couldn’t claim “{}”. Is the game account linked on Twitch?",
-                            d.name
-                        ),
-                    );
+                    // V110-F85 Told once per drop; it is asked again after 30 minutes.
+                    if note_refused(&mut REFUSED.lock().unwrap_or_else(|p| p.into_inner()), instance, now_ms()) {
+                        log::add(
+                            app,
+                            LogKind::Drop,
+                            None,
+                            format!(
+                                "Couldn’t claim “{}”. Is the game account linked on Twitch?",
+                                d.name
+                            ),
+                        );
+                    }
                     // V108-C37 Ready but Twitch said no: worth a card, once per drop.
                     if told_once(instance) {
                         card(app, "Drop ready", &d.name, c.game.as_deref(), d.image.clone());
@@ -221,6 +248,23 @@ async fn tick(app: &AppHandle) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn v110_f85_a_refused_drop_is_left_alone_for_30_minutes() {
+        let mut refused = HashMap::new();
+        assert!(!skip_refused(&refused, "a", 0));
+        assert!(note_refused(&mut refused, "a", 1_000));
+        assert!(skip_refused(&refused, "a", 1_000 + REFUSED_SKIP_MS - 1));
+        assert!(!skip_refused(&refused, "a", 1_000 + REFUSED_SKIP_MS));
+        assert!(!skip_refused(&refused, "b", 1_000));
+        // Refused again after the wait: not logged again, the clock restarts.
+        assert!(!note_refused(&mut refused, "a", 1_000 + REFUSED_SKIP_MS));
+        assert!(skip_refused(&refused, "a", 2_000 + REFUSED_SKIP_MS));
+        for i in 0..=SEEN_MAX {
+            note_refused(&mut refused, &i.to_string(), 0);
+        }
+        assert!(refused.len() <= SEEN_MAX + 1);
+    }
 
     #[test]
     fn v108_c37d_a_refused_drop_is_told_once_and_the_list_stays_small() {
