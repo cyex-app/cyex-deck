@@ -323,8 +323,9 @@ pub fn build<'a>(kinds: Option<&Kinds>, base: &str, users: impl IntoIterator<Ite
             let Some(sizes) = sizes(images) else { continue };
             let id = badge_id(user, h);
             if made.insert(id.clone()) {
-                // A moving badge's large picture is its still PNG's (the WebP set has none).
-                let large = images.large.as_ref().or(still.and_then(|s| s.large.as_ref())).filter(|u| picture_ok(u)).cloned();
+                // V110-B1 A moving badge has no large picture: its hover preview stays the animated
+                // 4x (a still 256 px frame would stop the animation).
+                let large = images.large.as_ref().filter(|u| picture_ok(u)).cloned();
                 let still = still.and_then(|s| self::sizes(s)).map(|s| s[1].to_owned());
                 out.defs.push(def(id.clone(), title(&h.id, h.number, named), sizes, still, large));
             }
@@ -471,7 +472,7 @@ mod tests {
         assert_eq!(large("cyex:u1").as_deref(), Some("https://x/l.png"));
         assert_eq!(large("cyex:u2"), None);
         assert_eq!(large("cyex:u3"), None);
-        // A catalog badge takes its large from /badges; a moving one from its still PNG set.
+        // A catalog badge takes its large from /badges; a moving one has none (its preview animates).
         let kinds: Kinds = serde_json::from_str(
             r#"{"badges":[{"id":"founder","title":"cyex founder","animated":true,
                             "animatedUrls":{"1x":"https://x/f1.webp","2x":"https://x/f2.webp","4x":"https://x/f4.webp"},
@@ -480,7 +481,7 @@ mod tests {
         .unwrap();
         let held = HashMap::from([("7".to_owned(), vec![Held { id: FOUNDER.into(), number: None, images: None }])]);
         let l = build(Some(&kinds), BASE, &held);
-        assert_eq!(l.defs[0].image_large.as_deref(), Some("https://x/fl.png"));
+        assert_eq!(l.defs[0].image_large, None);
     }
 
     #[test]
