@@ -15,7 +15,7 @@ use tauri::{AppHandle, Manager};
 use ts_rs::TS;
 
 use super::badge_refresh::{Scope, Throttle};
-use super::{Chat, RoomKey, now_ms, queue};
+use super::{Chat, RoomKey, queue};
 use crate::auth::Auth;
 
 const PIN_POLL: Duration = Duration::from_secs(300);
@@ -374,6 +374,13 @@ fn pin_body(fragments: Vec<PinFragment>) -> Vec<Fragment> {
     body
 }
 
+/// V110-B5 An RFC 3339 time in ms, 0 when missing or unreadable.
+fn sent_ms(at: Option<&str>) -> i64 {
+    use time::{OffsetDateTime, format_description::well_known::Rfc3339};
+    at.and_then(|t| OffsetDateTime::parse(t, &Rfc3339).ok())
+        .map_or(0, |t| i64::try_from(t.unix_timestamp_nanos() / 1_000_000).unwrap_or(0))
+}
+
 fn to_pinned(p: PinnedMessage, me: Option<&Me>, colors: &mut cyex_chat::build::Colors) -> Pinned {
     let sender = p.sender.map(|s| {
         let raw = s
@@ -399,7 +406,8 @@ fn to_pinned(p: PinnedMessage, me: Option<&Me>, colors: &mut cyex_chat::build::C
         paid: p.kind == "PAID",
         message: ChatMessage {
             id: p.message_id,
-            ts: now_ms(),
+            // V110-B5 When it was sent; 0 when Twitch didn't say (the banner then shows no time).
+            ts: sent_ms(p.sent_at.as_deref()),
             sender,
             body,
             notice: None,
@@ -415,6 +423,13 @@ fn to_pinned(p: PinnedMessage, me: Option<&Me>, colors: &mut cyex_chat::build::C
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn v110_b5_a_pin_keeps_when_its_message_was_sent() {
+        assert_eq!(sent_ms(Some("2026-11-10T14:03:00Z")), 1_794_319_380_000);
+        assert_eq!(sent_ms(None), 0);
+        assert_eq!(sent_ms(Some("yesterday")), 0);
+    }
 
     #[test]
     fn pin_links_are_links() {

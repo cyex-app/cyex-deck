@@ -26,7 +26,7 @@ const SOURCE_BADGES: &str =
 
 const PINNED: &str = "query($id: ID!) { channel(id: $id) { pinnedChatMessages(first: 1) { edges { node { \
     id type startsAt endsAt pinnedBy { login displayName } \
-    pinnedMessage { id sender { id login displayName chatColor } \
+    pinnedMessage { id sentAt sender { id login displayName chatColor } \
       content { text fragments { text content { __typename ... on Emote { emoteID: id token } ... on User { login } } } } } \
     } } } } }";
 
@@ -101,6 +101,8 @@ pub struct PinnedMessage {
     /// V107-P5 For the usercard.
     pub pinned_by_login: Option<String>,
     pub message_id: String,
+    /// V110-B5 RFC 3339, when the pinned message was sent.
+    pub sent_at: Option<String>,
     pub sender: Option<PinSender>,
     pub fragments: Vec<PinFragment>,
 }
@@ -190,6 +192,7 @@ pub async fn pinned(http: &Http, channel_id: &str) -> Result<Option<PinnedMessag
             pinned_by_login: n.pinned_by.as_ref().and_then(|p| p.login.clone()),
             pinned_by: n.pinned_by.map(|p| p.display_name),
             message_id: msg.as_ref().map(|m| m.id.clone()).unwrap_or_default(),
+            sent_at: msg.as_ref().and_then(|m| m.sent_at.clone()),
             sender: msg.as_ref().and_then(|m| m.sender.as_ref()).map(|s| PinSender {
                 id: s.id.clone(),
                 login: s.login.clone(),
@@ -401,8 +404,11 @@ struct RawPinnedBy {
 }
 
 #[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct RawPinMessage {
     id: String,
+    #[serde(default)]
+    sent_at: Option<String>,
     sender: Option<RawPinSender>,
     content: RawContent,
 }

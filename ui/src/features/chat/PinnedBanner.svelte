@@ -28,6 +28,8 @@
   import { eventStrip } from './eventStrip.svelte';
   import { shownName } from './names';
   import { ownNameColor } from './ownColor';
+  import { pinSent } from './pinTime';
+  import { formatStamp } from '../../lib/format';
   import { nowSecond } from '../../lib/clock.svelte';
   import { pinLeft, pinSpan } from './pinTimer';
   import { lineStacks } from './stacked';
@@ -256,6 +258,8 @@
   const sender = $derived(pin.message.sender);
   const name = $derived(sender ? shownName(sender, c.names, c.users[sender.id]) : null);
   // V108-N08
+  /** V110-B5 When the pinned message was sent. */
+  const sentAt = $derived(pinSent(pin.message.ts));
   const nameColor = $derived(sender ? (ownNameColor(c.users[sender.id]?.color) ?? sender.color) : null);
   /** V107-P5 Who pinned it, for their usercard; older reads had only the display name. */
   const byLogin = $derived(pin.byLogin ?? (pin.by && /^\w+$/.test(pin.by) ? pin.by.toLowerCase() : null));
@@ -280,6 +284,7 @@
       {#if ((sender && name) || pin.by || left) && (shown || !short) && !slim}
         <div class="head">
           <span class="who">
+            {#if sentAt}<time class="sent" datetime={new Date(pin.message.ts).toISOString()} data-tip="Sent {formatStamp(pin.message.ts)}">{sentAt}</time>{/if}
             {#if sender && name}
               <span
                 class="name"
@@ -461,6 +466,14 @@
   }
   :global(:root[data-theme='light']) .name {
     color: var(--cl);
+  }
+  /* V110-B5 Like a chat line's time. */
+  .sent {
+    margin-right: 6px;
+    color: var(--dim);
+    font: 600 0.72rem var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    user-select: none;
   }
   .by {
     color: var(--dim);
