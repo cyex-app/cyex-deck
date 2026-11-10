@@ -212,6 +212,12 @@
       display: none;
     }
   }
+  /* V110-F98 A player squeezed to no width (chat only) must not keep Tab stops nobody can see. */
+  @container side (max-width: 40px) {
+    .side > :global(*) {
+      display: none;
+    }
+  }
   .body {
     position: relative;
     flex: 1;

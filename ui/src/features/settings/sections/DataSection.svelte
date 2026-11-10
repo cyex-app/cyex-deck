@@ -6,7 +6,7 @@
   import type { Partition } from '../../../ipc/bindings/Partition';
   import { systemIpc } from '../../../ipc/system';
   import { settingsIpc } from '../../../ipc/settings';
-  import { PARTITION_LABELS, PORTABLE_PARTITIONS, importedText, partitionList } from '../../../lib/partitions';
+  import { PARTITION_LABELS, PORTABLE_PARTITIONS, importedText } from '../../../lib/partitions';
   import { settings } from '../../../lib/settings.svelte';
   import { toast } from '../../../lib/toast.svelte';
   import { errorText } from '../../../lib/errors';
@@ -119,7 +119,7 @@
         void attempt(() => settingsIpc.importCode(before)).then(async (p) => {
           if (!p) return;
           if (on && p.includes('commands')) await settings.patch('commands', { automationsOn: true });
-          toast.success(on ? `Imported ${partitionList(p)}.` : importedText(p));
+          toast.success(on || !p.includes('commands') ? 'Put back.' : 'Put back. Automations are off until you switch them on.');
         }),
     };
   }

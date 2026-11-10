@@ -20,8 +20,9 @@
 
 <style>
   /* V110-F90 Last of the secondary buttons to go; the right-click menu has the same entries. */
+  /* V110-F98 Under the shell so it outweighs Shell's own `.shell .ctl { display: grid }`. */
   @container bar (max-width: 199px) {
-    button.ctl {
+    :global(.shell) button.ctl {
       display: none;
     }
   }
