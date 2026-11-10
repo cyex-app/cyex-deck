@@ -13,7 +13,7 @@ use super::words;
 /// Twitch's answer as a line; a term on the list already first.
 fn say(e: &Error, permitted: bool) -> String {
     match e {
-        Error::Refused(c) if c.contains("DUPLICATE") || c.contains("ALREADY") => already(permitted),
+        Error::Refused(_) if e.is_already() => already(permitted),
         e => words::gql(e),
     }
 }

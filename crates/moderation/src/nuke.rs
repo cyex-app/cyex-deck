@@ -109,7 +109,8 @@ impl Nuke {
 
     /// Everyone matched in the window, newest message kept per user, most recent first.
     pub fn scan(&self, lines: &[Line<'_>], now_ms: i64) -> Vec<Hit> {
-        let cutoff = now_ms - self.window_secs as i64 * 1000;
+        // V110-F89 A huge window means everything in the buffer, not a wrapped number.
+        let cutoff = now_ms.saturating_sub(i64::try_from(self.window_secs).unwrap_or(i64::MAX).saturating_mul(1000));
         let mut hits: Vec<Hit> = Vec::new();
         for l in lines.iter().rev() {
             if l.ts_ms < cutoff {

@@ -6,7 +6,7 @@ use tauri::AppHandle;
 use crate::subs;
 use crate::windows::twitch;
 
-type CmdResult<T> = Result<T, String>;
+use super::CmdResult;
 
 #[tauri::command]
 pub async fn subs_mine(app: AppHandle, account: String) -> CmdResult<Subs> {

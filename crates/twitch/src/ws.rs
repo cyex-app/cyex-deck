@@ -33,7 +33,7 @@ const WRITE_TIMEOUT: Duration = Duration::from_secs(10);
 #[cfg(test)]
 const WRITE_TIMEOUT: Duration = Duration::from_millis(200);
 
-fn config() -> WebSocketConfig {
+pub(crate) fn config() -> WebSocketConfig {
     WebSocketConfig::default()
         .max_message_size(Some(MAX_MESSAGE))
         .max_frame_size(Some(MAX_MESSAGE))

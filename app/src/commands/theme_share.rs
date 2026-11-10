@@ -5,7 +5,7 @@ use tauri::{AppHandle, State};
 use crate::settings::Settings;
 use crate::theme_share::{self, LinkUpdate, ThemePreview};
 
-type CmdResult<T> = Result<T, String>;
+use super::CmdResult;
 
 /// Shares a theme and returns its link (the same link when it's shared already).
 #[tauri::command]

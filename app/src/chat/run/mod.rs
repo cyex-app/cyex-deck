@@ -83,9 +83,18 @@ pub struct Place {
     /// V107-Mb Plugins whose command returned this line, outermost first: it writes to
     /// Twitch only if each holds SendMessages (`plugins::gate`).
     pub plugins: Vec<String>,
+    /// V110-F94 A menu entry or usercard button: you clicked, but what fills the entry in is
+    /// someone else's (their message, their names), so `guard` holds here as in an automation.
+    /// Also a line that came with marks on it (a `/set var` value an automation stored).
+    pub taint: bool,
 }
 
 impl Place {
+    /// V110-F94 Text the line's writer didn't write can't name a command here (`guard`).
+    pub fn guarded(&self) -> bool {
+        self.automation || self.taint
+    }
+
     pub fn channel(&self) -> &str {
         &self.key.1
     }
@@ -168,7 +177,8 @@ async fn menu_at(
     ctx: MenuContext,
     ui: bool,
 ) -> Result<Option<UiAction>, String> {
-    let place = place_of(app, view, ui)?;
+    // V110-F94 The entry's own text names the command; the clicked message and names fill it in.
+    let place = Place { taint: true, ..place_of(app, view, ui)? };
     let mut p = params(app, &place, ctx.login.as_deref().unwrap_or(""));
     for (k, v) in MENU_VALUES.into_iter().zip([&ctx.login, &ctx.display, &ctx.user_id, &ctx.msg_id, &ctx.msg]) {
         if let Some(v) = v {
@@ -181,7 +191,8 @@ async fn menu_at(
     let filled = fill(app, &place, command, p)
         .await?
         .ok_or("Something this needs is missing.")?;
-    line(app, &place, &filled, None, true, 0).await
+    // An error can quote the line: without the marks.
+    line(app, &place, &filled, None, true, 0).await.map_err(|e| commands::taint::clean(&e))
 }
 
 /// S4 An automation went off in a room.
@@ -200,6 +211,7 @@ pub async fn automation(
         automation: true,
         ui: false,
         plugins: Vec::new(),
+        taint: false,
     };
     let mut p = params(app, &place, args);
     let [nick_key, count_key] = AUTOMATION_VALUES;
@@ -253,6 +265,7 @@ fn place_of(app: &AppHandle, view: u32, ui: bool) -> Result<Place, String> {
         automation: false,
         ui,
         plugins: Vec::new(),
+        taint: false,
     })
 }
 
@@ -273,9 +286,19 @@ fn line<'a>(
         if depth > MAX_DEPTH {
             return Err("Too many commands in a row.".into());
         }
+        // V110-F94 Marks on a line typed or run by a command of yours: a `/set var` value an
+        // automation or menu click stored from someone's message (`AppHost::get`). From here
+        // down it is guarded like theirs.
+        let marked;
+        let place = if !place.guarded() && commands::taint::has(text) {
+            marked = Place { taint: true, ..place.clone() };
+            &marked
+        } else {
+            place
+        };
         if let Some(body) = text.strip_prefix("//") {
             // V110-F87 Filled in again, so an automation's must be the rule's own text.
-            if place.automation {
+            if place.guarded() {
                 guard::own(body, guard::REFILL)?;
             }
             let p = params(app, place, "");
@@ -287,7 +310,7 @@ fn line<'a>(
         // F14 A dot starts a command only when the app knows it; ".gg" goes out as typed.
         let Some((name, args)) = super::typed::command(text, |n| known(app, place, n, custom)) else {
             // V110-F87 An automation's text is said as text, whatever it starts with.
-            let said = if place.automation { guard::say(text) } else { text.to_owned() };
+            let said = if place.guarded() { guard::say(text) } else { text.to_owned() };
             return match gate(app, place, None)? {
                 true => send(app, place, &said, reply_to).await.map(|()| None),
                 false => Ok(None),
@@ -297,7 +320,7 @@ fn line<'a>(
         // V110-F87 In an automation the rule's own text names the command; what the message
         // put in reaches a command as plain words, and only `guard::NESTS` see the marks.
         let (words, own_args, own_text);
-        let (words, args, text) = if place.automation {
+        let (words, args, text) = if place.guarded() {
             guard::name(&name)?;
             words = guard::plain(args);
             own_args = guard::args(&name, args)?;
@@ -322,7 +345,7 @@ fn line<'a>(
             by.plugins.push(p.id.clone());
             // V110-F87 It can echo the message: in an automation its answer is text.
             let out = match out {
-                Some(next) if place.automation => Some(guard::plugin_answer(&next, |n| known(app, &by, n, false))?),
+                Some(next) if place.guarded() => Some(guard::plugin_answer(&next, |n| known(app, &by, n, false))?),
                 out => out,
             };
             return match out {
@@ -437,14 +460,15 @@ async fn run_body(
     body: Arc<commands::Items>,
     mut p: Params,
 ) -> Result<Option<String>, String> {
-    // V110-F87
-    p.taint = place.automation;
+    // V110-F87, V110-F94
+    p.taint = place.guarded();
     let mut host = AppHost {
         app: app.clone(),
         list: list(app),
         channel: place.channel().to_owned(),
         runtime: tokio::runtime::Handle::current(),
         vars: VarScope::new(place.account().map(str::to_owned), place.automation),
+        foreign: std::cell::Cell::new(false),
     };
     let (out, notes) = tokio::task::spawn_blocking(move || {
         let out = commands::run(&body, &p, &mut host);

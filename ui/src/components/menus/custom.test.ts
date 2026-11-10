@@ -70,7 +70,7 @@ test('picking an entry does its action with the values filled', () => {
     assert.ok(e !== 'separator');
     (e as { run: () => void }).run();
   }
-  assert.deepEqual(r.calls, ['link https://x.tv/u/a%20b%26c', 'chat /shoutout a b&c', 'prefill @Ä b ', 'copy xqc/m-1']);
+  assert.deepEqual(r.calls, ['link https://x.tv/u/a%20b%26c', 'chat /shoutout $(nick)', 'prefill @Ä b ', 'copy xqc/m-1']);
 });
 
 test('a link never opens anything but the web', () => {

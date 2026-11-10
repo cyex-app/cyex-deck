@@ -14,3 +14,12 @@ pub use capped::Capped;
 pub use cosmetics::{BadgeDef, BadgeRef, Cosmetics, Look, Looks};
 pub use index::{Lookup, RoomEmotes};
 pub use model::{Emote, EmoteSet, Scope};
+
+#[cfg(test)]
+#[path = "../../chat/src/fuzz.rs"]
+mod fuzz;
+#[cfg(test)]
+#[path = "../../chat/src/fuzz_json.rs"]
+mod fuzz_json;
+#[cfg(test)]
+mod fuzz_tests;

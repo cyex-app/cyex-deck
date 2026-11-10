@@ -367,6 +367,16 @@ impl Room {
         self.timeouts.lifted(user_id);
     }
 
+    /// V110-F95 The channel id from elsewhere (a room Twitch sends no ROOMSTATE for). Only the
+    /// first one counts: the State event comes back when the id was new.
+    pub fn learn_channel_id(&mut self, id: &str) -> Option<RoomEvent> {
+        if self.state.channel_id.is_some() {
+            return None;
+        }
+        self.state.channel_id = Some(id.to_owned());
+        Some(RoomEvent::State { state: self.state.clone() })
+    }
+
     /// V107-M7 Puts timeout line `m`, received at `now_ms` (local time for both sources,
     /// never IRC's `tmi-sent-ts`), into its stack.
     fn stacked(&mut self, user_id: &str, src: stack::Source, m: &mut ChatMessage, now_ms: i64) -> Stacked {
@@ -458,30 +468,7 @@ impl Room {
             Incoming::Gift { message, gift } => events.extend(self.gift(message, gift, now_ms, emotes)),
             Incoming::Delete { id } => events.extend(self.gone_msg(&id, Gone::new(GoneHow::Deleted, None))),
             Incoming::ClearUser { user_id, secs, notice } => {
-                events.extend(self.gone_user(&user_id, Gone::new(cleared(secs), None).with_secs(secs)));
-                let me = self.me.as_ref().is_some_and(|m| m.user_id == user_id);
-                // V107-M7 Timeouts in a row share one line; bans stand alone.
-                let mut notice = notice;
-                // V107-N2e A ban shares its line with the feed's copy only.
-                let key = match secs {
-                    Some(_) => user_id.clone(),
-                    None => stack::ban_key(&user_id),
-                };
-                let stacked = self.stacked(&key, stack::Source::Irc, &mut notice, now_ms);
-                match stacked {
-                    Stacked::Update(update) => events.push(update),
-                    Stacked::New => events.extend(self.add(notice, now_ms, emotes)),
-                    Stacked::Dup => {}
-                }
-                if me && let Some(secs) = secs {
-                    // V110-F80 A huge duration saturates instead of wrapping to the past.
-                    events.extend(self.wait(now_ms.saturating_add(i64::try_from(secs).unwrap_or(i64::MAX).saturating_mul(1000))));
-                }
-                // V108-C40 Our own ban or timeout locks the chat box.
-                if me {
-                    let how = secs.map_or(Restriction::Banned, |secs| Restriction::TimedOut { secs });
-                    events.push(RoomEvent::Restricted { how });
-                }
+                events.extend(self.clear_user(user_id, secs, notice, now_ms, emotes));
             }
             Incoming::Clear { notice } => {
                 events.push(RoomEvent::Cleared);
@@ -493,59 +480,104 @@ impl Room {
                     state: self.state.clone(),
                 });
             }
-            Incoming::UserState(us) => {
-                if let Some(me) = &self.me {
-                    let own = us.to_self(&me.login, self.owner());
-                    events.extend(self.set_own(own));
-                }
-                if let Some(id) = us.sent_id.clone() {
-                    self.expire(now_ms);
-                    if let Some(p) = self.answered(us.nonce.as_deref()) {
-                        // V105-06 The reader may have brought our line already.
-                        if !self.buffer.iter().any(|b| b.id == id) {
-                            let m = self.echo(p, &us, id, now_ms, emotes);
-                            events.extend(self.add(m, now_ms, emotes));
-                        }
-                        let slow = self.state.slow;
-                        let exempt = self.state.own.as_ref().is_some_and(|o| o.fast_lane());
-                        if slow > 0 && !exempt {
-                            events.extend(self.wait(now_ms + i64::from(slow) * 1000));
-                        }
-                    }
-                }
-            }
-            Incoming::Notice { msg_id, notice } => {
-                // A send's answer (V105-06 the writer's NOTICE for a pending line).
-                let answered = msg_id.starts_with("msg_") && {
-                    self.expire(now_ms);
-                    self.pending.pop_front().is_some()
-                };
-                if msg_id == "msg_channel_suspended" {
-                    events.extend(self.set_status(ConnStatus::Unavailable, now_ms));
-                } else if !answered && self.me.is_some() && self.waiting() {
-                    // V105-05 Twitch spoke instead of letting us in (Chatterino shows such notices
-                    // where they're aimed; here the chat also counts as not joined).
-                    // V109-F80 A ban is a ban, not the join limit, and so is any notice Twitch
-                    // uses for a channel or a send; only one it uses for nothing else is.
-                    if let Some(status) = refusal(&msg_id) {
-                        events.extend(self.set_status(status, now_ms));
-                    }
-                }
-                let said = notice.notice.as_ref().map_or("", |n| n.text.as_str());
-                if matches!(msg_id.as_str(), "msg_slowmode" | "msg_timedout")
-                    && let Some(secs) = seconds_in(said)
-                {
-                    events.extend(self.wait(now_ms.saturating_add(secs.saturating_mul(1000))));
-                }
-                if self.me.is_some()
-                    && let Some(how) = restriction(&msg_id, said)
-                {
-                    events.push(RoomEvent::Restricted { how });
-                }
-                events.extend(self.add(notice, now_ms, emotes));
-            }
+            Incoming::UserState(us) => events.extend(self.user_state(&us, now_ms, emotes)),
+            Incoming::Notice { msg_id, notice } => events.extend(self.notice(&msg_id, notice, now_ms, emotes)),
             Incoming::Presence { login, joined } => events.extend(self.presence(login, joined, now_ms)),
         }
+        events
+    }
+
+    /// A user's lines gone (timeout or ban), one stacked line saying so; for us, a wait and a lock.
+    fn clear_user(
+        &mut self,
+        user_id: String,
+        secs: Option<u64>,
+        mut notice: ChatMessage,
+        now_ms: i64,
+        emotes: &dyn Emotes,
+    ) -> Vec<RoomEvent> {
+        let mut events = Vec::new();
+        events.extend(self.gone_user(&user_id, Gone::new(cleared(secs), None).with_secs(secs)));
+        let me = self.me.as_ref().is_some_and(|m| m.user_id == user_id);
+        // V107-M7 Timeouts in a row share one line; bans stand alone.
+        // V107-N2e A ban shares its line with the feed's copy only.
+        let key = match secs {
+            Some(_) => user_id.clone(),
+            None => stack::ban_key(&user_id),
+        };
+        let stacked = self.stacked(&key, stack::Source::Irc, &mut notice, now_ms);
+        match stacked {
+            Stacked::Update(update) => events.push(update),
+            Stacked::New => events.extend(self.add(notice, now_ms, emotes)),
+            Stacked::Dup => {}
+        }
+        if me && let Some(secs) = secs {
+            events.extend(self.wait(until(now_ms, secs)));
+        }
+        // V108-C40 Our own ban or timeout locks the chat box.
+        if me {
+            let how = secs.map_or(Restriction::Banned, |secs| Restriction::TimedOut { secs });
+            events.push(RoomEvent::Restricted { how });
+        }
+        events
+    }
+
+    /// Our USERSTATE: our badges and roles, and the answer to a line we sent (its echo, slow mode).
+    fn user_state(&mut self, us: &UserState, now_ms: i64, emotes: &dyn Emotes) -> Vec<RoomEvent> {
+        let mut events = Vec::new();
+        if let Some(me) = &self.me {
+            let own = us.to_self(&me.login, self.owner());
+            events.extend(self.set_own(own));
+        }
+        if let Some(id) = us.sent_id.clone() {
+            self.expire(now_ms);
+            if let Some(p) = self.answered(us.nonce.as_deref()) {
+                // V105-06 The reader may have brought our line already.
+                if !self.buffer.iter().any(|b| b.id == id) {
+                    let m = self.echo(p, us, id, now_ms, emotes);
+                    events.extend(self.add(m, now_ms, emotes));
+                }
+                let slow = self.state.slow;
+                let exempt = self.state.own.as_ref().is_some_and(|o| o.fast_lane());
+                if slow > 0 && !exempt {
+                    events.extend(self.wait(until(now_ms, u64::from(slow))));
+                }
+            }
+        }
+        events
+    }
+
+    /// A NOTICE: the answer to a send, a refusal to let us in, a wait or a lock, and its line.
+    fn notice(&mut self, msg_id: &str, notice: ChatMessage, now_ms: i64, emotes: &dyn Emotes) -> Vec<RoomEvent> {
+        let mut events = Vec::new();
+        // A send's answer (V105-06 the writer's NOTICE for a pending line).
+        let answered = msg_id.starts_with("msg_") && {
+            self.expire(now_ms);
+            self.pending.pop_front().is_some()
+        };
+        if msg_id == "msg_channel_suspended" {
+            events.extend(self.set_status(ConnStatus::Unavailable, now_ms));
+        } else if !answered && self.me.is_some() && self.waiting() {
+            // V105-05 Twitch spoke instead of letting us in (Chatterino shows such notices
+            // where they're aimed; here the chat also counts as not joined).
+            // V109-F80 A ban is a ban, not the join limit, and so is any notice Twitch
+            // uses for a channel or a send; only one it uses for nothing else is.
+            if let Some(status) = refusal(msg_id) {
+                events.extend(self.set_status(status, now_ms));
+            }
+        }
+        let said = notice.notice.as_ref().map_or("", |n| n.text.as_str());
+        if matches!(msg_id, "msg_slowmode" | "msg_timedout")
+            && let Some(secs) = seconds_in(said)
+        {
+            events.extend(self.wait(until(now_ms, u64::try_from(secs).unwrap_or(0))));
+        }
+        if self.me.is_some()
+            && let Some(how) = restriction(msg_id, said)
+        {
+            events.push(RoomEvent::Restricted { how });
+        }
+        events.extend(self.add(notice, now_ms, emotes));
         events
     }
 
@@ -829,6 +861,12 @@ enum Stacked {
     New,
     /// A second feed delivery of one just counted.
     Dup,
+}
+
+/// V110-F95 When a wait of `secs` from `now_ms` ends. A huge duration saturates instead of
+/// wrapping to the past (V110-F80).
+fn until(now_ms: i64, secs: u64) -> i64 {
+    now_ms.saturating_add(i64::try_from(secs).unwrap_or(i64::MAX).saturating_mul(1000))
 }
 
 /// "…talk again in 10 seconds." or "…for 600 more seconds." → the number.

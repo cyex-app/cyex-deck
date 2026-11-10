@@ -12,7 +12,7 @@ use crate::settings::Settings;
 use crate::update::install::{self, UpdateProgress};
 use crate::update::{self, CheckResult, UpdateState};
 
-type CmdResult<T> = Result<T, String>;
+use super::CmdResult;
 
 #[tauri::command]
 pub fn update_state(app: AppHandle) -> UpdateState {

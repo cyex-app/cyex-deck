@@ -265,9 +265,12 @@ impl Inline {
     }
 }
 
+/// V110-F89 Looks at most 1.000 characters ahead: an unclosed `*a *a *a …` line would otherwise
+/// rescan the rest of the line at every star (quadratic).
 fn closer_after(c: &[char], from: usize, m: char, run: usize) -> bool {
     let mut i = from;
-    while i < c.len() {
+    let stop = c.len().min(from.saturating_add(1000));
+    while i < stop {
         if c[i] == m {
             let len = c[i..].iter().take_while(|&&x| x == m).count();
             if len == run && !c[i - 1].is_whitespace() {

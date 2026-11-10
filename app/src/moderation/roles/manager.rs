@@ -137,7 +137,7 @@ fn after_change(change: Result<String, String>, reread: Result<RolesView, String
     }
 }
 
-const NEEDS_GQL: &str = "The Roles Manager needs a GQL sign-in. Add one in Settings → Accounts.";
+const NEEDS_GQL: &str = "The Roles manager needs a GQL sign-in. Add one in Settings → Accounts.";
 
 /// The channel is the account's own, by its sign-in: a login from the UI that names another
 /// channel is refused.

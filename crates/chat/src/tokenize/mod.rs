@@ -88,6 +88,24 @@ pub(crate) fn is_me(names: &[String], word: &str) -> bool {
         })
 }
 
+/// V110-F94 Text as it is shown: no control characters (a tab becomes a space) and none of the
+/// bidi embeddings, overrides and isolates (U+202A–202E, U+2066–2069) that turn the text after
+/// them around. Right-to-left text and its marks (U+200E, U+200F) stay.
+pub fn shown(s: &str) -> std::borrow::Cow<'_, str> {
+    let gone = |c: char| c.is_control() || matches!(c, '\u{202A}'..='\u{202E}' | '\u{2066}'..='\u{2069}');
+    if !s.contains(gone) {
+        return s.into();
+    }
+    s.chars()
+        .filter_map(|c| match c {
+            '\t' => Some(' '),
+            c if gone(c) => None,
+            c => Some(c),
+        })
+        .collect::<String>()
+        .into()
+}
+
 /// `me`: the account's login and display name, lowercase. Empty when anonymous.
 pub fn tokenize(input: &Input<'_>, me: &[String], emotes: &dyn Emotes) -> Tokens {
     let text = input.text;
@@ -121,7 +139,7 @@ pub fn tokenize(input: &Input<'_>, me: &[String], emotes: &dyn Emotes) -> Tokens
         let (start, end) = (byte(r.start), byte(r.end));
         b.words(&text[pos..start]);
         b.push(match r.kind {
-            RangeKind::Emote { id } => Fragment::emote(Provider::Twitch, id, &text[start..end]),
+            RangeKind::Emote { id } => Fragment::emote(Provider::Twitch, id, &*shown(&text[start..end])),
             RangeKind::Gif { id, url } => Fragment::Gif {
                 id: id.to_owned(),
                 url: url.to_owned(),
@@ -175,6 +193,9 @@ fn bttv_modifier(word: &str) -> Option<u32> {
 
 impl Builder<'_> {
     fn words(&mut self, s: &str) {
+        // V110-F94 Cleaned here, one stretch between tag ranges at a time: the ranges count
+        // code points of the text as Twitch sent it.
+        let s = &*shown(s);
         for (i, word) in s.split(' ').enumerate() {
             if i > 0 {
                 self.pending.push(' ');
@@ -445,6 +466,50 @@ mod tests {
             run("👋🏽 Kappa ü", "25:3-7"),
             [Fragment::text("👋🏽 "), emote("25", "Kappa"), Fragment::text(" ü")]
         );
+    }
+
+    #[test]
+    fn v110_f94_controls_and_bidi_overrides_are_not_shown() {
+        assert_eq!(
+            run("zero\u{200b}width \u{202e}evil\u{202c} ctrl\u{1}\u{2}", ""),
+            [Fragment::text("zero\u{200b}width evil ctrl")]
+        );
+        assert_eq!(run("a\tb\u{7f}\u{85}\u{2066}c\u{2069}\r\n", ""), [Fragment::text("a bc")]);
+        // Right-to-left text and its marks stay as sent.
+        for text in ["שלום \u{200f}عالم\u{200e}!", "hello  there ", "👋🏽 ü"] {
+            assert_eq!(run(text, ""), [Fragment::text(text)], "{text}");
+            assert!(matches!(shown(text), std::borrow::Cow::Borrowed(_)));
+        }
+        assert!(run("\u{202e}\u{1}", "").is_empty());
+    }
+
+    #[test]
+    fn v110_f94_ranges_still_line_up_after_an_override() {
+        // The ranges count the override and the control: the emotes sit where Twitch said.
+        assert_eq!(
+            run("\u{202e}abc Kappa \u{1}x Kappa", "25:5-9,14-18"),
+            [Fragment::text("abc "), emote("25", "Kappa"), Fragment::text(" x "), emote("25", "Kappa")]
+        );
+        let body = tokenize(
+            &Input {
+                sender: "",
+                text: "\u{202d}look\u{202c} [gif] \u{202e}@Foo twitch.tv/bar\u{202c} Cheer100\u{2}",
+                emotes: "",
+                gifs: "7-11|g1|https://media.giphy.com/g1.gif",
+                bits: 100,
+            },
+            &[],
+            &NoEmotes,
+        )
+        .body;
+        assert_eq!(body[0], Fragment::text("look "));
+        assert!(matches!(&body[1], Fragment::Gif { id, .. } if id == "g1"));
+        assert_eq!(body[2], Fragment::text(" "));
+        assert!(matches!(&body[3], Fragment::Mention { text, login } if text == "@Foo" && login == "foo"));
+        assert!(matches!(&body[5], Fragment::Link { text, url, .. } if text == "twitch.tv/bar" && url == "https://twitch.tv/bar"));
+        assert_eq!(body[7], Fragment::Cheer { prefix: "Cheer".into(), amount: 100 });
+        assert_eq!(body.len(), 8);
+        assert!(!crate::model::plain(&body).contains(['\u{202e}', '\u{202c}', '\u{2}']));
     }
 
     #[test]

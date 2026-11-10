@@ -258,8 +258,7 @@ fn take_tab(s: &mut state::State) -> mlua::Result<()> {
 /// S13 Switches to the first tab showing the channel, or opens a tab for it.
 fn open_channel(lua: &Lua, login: String) -> mlua::Result<()> {
     let login = login.trim().trim_start_matches('#').to_ascii_lowercase();
-    let ok = (1..=25).contains(&login.len()) && login.chars().all(|c| c.is_ascii_alphanumeric() || c == '_');
-    if !ok {
+    if !cyex_core::login::is_login(&login) {
         return Err(mlua::Error::runtime(format!("\"{login}\" isn’t a Twitch login")));
     }
     state::with(lua, |s| {

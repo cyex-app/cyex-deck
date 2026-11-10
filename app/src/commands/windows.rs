@@ -6,7 +6,7 @@ use ts_rs::TS;
 
 use crate::windows::{self, MAIN};
 
-type CmdResult<T> = Result<T, String>;
+use super::CmdResult;
 
 #[derive(Serialize, TS)]
 #[serde(rename_all = "camelCase")]

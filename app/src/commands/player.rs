@@ -14,7 +14,7 @@ use time::format_description::well_known::Rfc3339;
 use crate::auth::{Auth, gql_token, unix_now};
 use crate::player::{self, PlayerSession, Players};
 
-type CmdResult<T> = Result<T, String>;
+use super::CmdResult;
 
 /// 1.1 A live stream for this window's player, signed in as `account` when it can (D19).
 /// `replay`: the player's key for going back in what it played (V108-N24).

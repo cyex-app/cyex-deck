@@ -12,7 +12,7 @@ use crate::chat::peek;
 use crate::plugins::logs::{self, PluginLog};
 use crate::plugins::{self, PluginsView, calls, hook_line};
 
-type CmdResult<T> = Result<T, String>;
+use super::CmdResult;
 
 #[tauri::command]
 pub fn plugins_view(app: AppHandle) -> PluginsView {

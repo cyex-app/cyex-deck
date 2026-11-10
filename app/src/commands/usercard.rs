@@ -7,7 +7,7 @@ use tauri::AppHandle;
 use crate::chat::run::{MenuContext, UiAction};
 use crate::chat::usercard::{self, FollowAge, LogPage, OtherModCount};
 
-type CmdResult<T> = Result<T, String>;
+use super::CmdResult;
 
 #[tauri::command]
 pub async fn user_sub_status(app: AppHandle, user: String, channel: String) -> CmdResult<SubStatus> {

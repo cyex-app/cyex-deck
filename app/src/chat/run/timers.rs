@@ -46,6 +46,7 @@ pub fn restore(app: &AppHandle) {
             automation: t.automation,
             ui: false,
             plugins: Vec::new(),
+            taint: false,
         };
         schedule(app, place, t.id, t.at_ms, t.command, true);
     }
@@ -54,8 +55,10 @@ pub fn restore(app: &AppHandle) {
 
 /// V110-F85 The saved timers still ahead, at most [`MAX_TIMERS`] (the earliest ones): a settings
 /// file with thousands of them would start thousands of tasks.
+/// V110-F94 An automation's timer saved before V110-F87 may hold a chatter's words as its
+/// line (no `own_text`): dropped. Yours stay.
 fn restorable(mut saved: Vec<SavedTimer>, now: i64) -> Vec<SavedTimer> {
-    saved.retain(|t| t.at_ms > now);
+    saved.retain(|t| t.at_ms > now && (t.own_text || !t.automation));
     saved.sort_by_key(|t| t.at_ms);
     saved.truncate(MAX_TIMERS);
     saved
@@ -143,8 +146,9 @@ fn begin(app: &AppHandle, place: &Place, s: TimerStart) -> Result<(), String> {
 }
 
 fn schedule(app: &AppHandle, place: Place, id: String, at: i64, command: String, keep: bool) {
-    // Fires later, when no window is waiting for an answer.
-    let place = Place { ui: false, ..place };
+    // Fires later, when no window is waiting for an answer. V110-F94 The line a guarded
+    // `/timer` keeps is all the entry's own text (`guard::args`): it runs as typed.
+    let place = Place { ui: false, taint: false, ..place };
     let (app2, place2, id2, cmd2) = (app.clone(), place.clone(), id.clone(), command.clone());
     let task = tauri::async_runtime::spawn(async move {
         let wait = (at - now_ms()).max(0) as u64;
@@ -222,6 +226,7 @@ fn save(app: &AppHandle) {
             at_ms: t.at_ms,
             command: t.command.clone(),
             automation: t.place.automation,
+            own_text: true,
         })
         .collect();
     let _ = app
@@ -304,6 +309,24 @@ mod tests {
         assert!(kept.iter().all(|t| t.at_ms > 1_000));
         assert!(kept.windows(2).all(|w| w[0].at_ms <= w[1].at_ms));
         assert_eq!(restorable(vec![at(1, 5)], 10).len(), 0);
+    }
+
+    #[test]
+    fn v110_f94_an_automations_timer_from_before_the_fix_is_dropped() {
+        let timer = |id: &str, automation, own_text| SavedTimer {
+            id: id.into(),
+            at_ms: 20,
+            command: "/raid x".into(),
+            automation,
+            own_text,
+            ..SavedTimer::default()
+        };
+        // What 0.1.08 saved has no `ownText`.
+        let old: SavedTimer =
+            serde_json::from_str(r#"{"id":"old","atMs":20,"command":"/raid x","automation":true}"#).unwrap();
+        let saved = vec![old, timer("mine", false, false), timer("rule", true, true), timer("new", false, true)];
+        let ids: Vec<String> = restorable(saved, 10).into_iter().map(|t| t.id).collect();
+        assert_eq!(ids, ["mine", "rule", "new"]);
     }
 
     #[test]

@@ -231,6 +231,8 @@ pub fn accent_tokens_on(input: &str, theme: Theme, [page, surface]: [Rgb; 2]) ->
     } else {
         DARK_INK
     };
+    // V110-F94 On a mid grey neither reaches 4.5 (#7a7a7a: 4.3 and 4.4); black always does there.
+    let ink = if contrast(fill, ink) < TEXT_CONTRAST { BLACK } else { ink };
     let tint = match theme {
         Theme::Dark => fill,
         Theme::Light => text,
@@ -379,6 +381,23 @@ mod tests {
                 let t = accent_tokens(input, theme);
                 let c = contrast(rgb(&t.accent), theme.backgrounds()[0]);
                 assert!(c >= FILL_CONTRAST, "{input} {theme:?}: fill {c:.2}");
+            }
+        }
+    }
+
+    #[test]
+    fn v110_f94_ink_on_a_grey_accent_is_readable() {
+        let ink_contrast = |input: &str, theme| {
+            let t = accent_tokens(input, theme);
+            contrast(rgb(&t.accent_ink), rgb(&t.accent))
+        };
+        for theme in [Theme::Dark, Theme::Light] {
+            assert!(ink_contrast("#7a7a7a", theme) >= TEXT_CONTRAST, "{theme:?}");
+            for v in 0..=255u8 {
+                let grey = format!("#{v:02x}{v:02x}{v:02x}");
+                assert!(ink_contrast(&grey, theme) >= TEXT_CONTRAST, "{grey} {theme:?}");
+                let teal = format!("#{:02x}{v:02x}{v:02x}", v / 2);
+                assert!(ink_contrast(&teal, theme) >= TEXT_CONTRAST, "{teal} {theme:?}");
             }
         }
     }

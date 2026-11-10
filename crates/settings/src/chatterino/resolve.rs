@@ -10,10 +10,8 @@ pub const BATCH: usize = 100;
 
 /// Whether `name` can be a Twitch login: 1 to 25 of `a-z`, `0-9` and `_`.
 pub fn is_login(name: &str) -> bool {
-    (1..=25).contains(&name.len())
-        && name
-            .bytes()
-            .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'_')
+    // V110-F95 The shared rule, plus lowercase only: the import format stores logins lowercase.
+    cyex_core::login::is_login(name) && name == name.to_ascii_lowercase()
 }
 
 /// The logins to look up, once each, in the layout's order. Names that can't be logins

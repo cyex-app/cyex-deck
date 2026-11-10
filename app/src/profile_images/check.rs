@@ -87,9 +87,10 @@ fn code_kind(code: &str) -> ImageErrorKind {
 /// GQL's integrity and auth refusals, e.g. "failed integrity check", "unauthorized".
 fn refused_text(s: &str) -> bool {
     let s = s.to_ascii_lowercase();
-    ["integrity", "unauthorized", "unauthenticated", "forbidden", "not authorized", "permission"]
-        .iter()
-        .any(|w| s.contains(w))
+    cyex_twitch::integrity_text(&s)
+        || ["unauthorized", "unauthenticated", "forbidden", "not authorized", "permission"]
+            .iter()
+            .any(|w| s.contains(w))
 }
 
 #[cfg(test)]

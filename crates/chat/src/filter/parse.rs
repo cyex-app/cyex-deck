@@ -158,6 +158,8 @@ pub fn parse(text: &str) -> Result<Expr, String> {
     let mut p = Parser {
         toks: lex(text)?,
         pos: 0,
+        depth: 0,
+        nodes: 0,
     };
     if p.toks.is_empty() {
         return Err("The filter is empty".into());
@@ -172,12 +174,37 @@ pub fn parse(text: &str) -> Result<Expr, String> {
     }
 }
 
+/// V110-F89 Nesting of `(`, `{` and `!` the parser follows, and the most operators in one filter:
+/// the tree is walked recursively (type check, eval, drop) and a stack overflow closes the app.
+const MAX_DEPTH: usize = 64;
+const MAX_NODES: usize = 1000;
+
 struct Parser {
     toks: Vec<Tok>,
     pos: usize,
+    depth: usize,
+    nodes: usize,
 }
 
 impl Parser {
+    fn node(&mut self) -> Result<(), String> {
+        self.nodes += 1;
+        if self.nodes > MAX_NODES {
+            return Err("The filter is too long.".into());
+        }
+        Ok(())
+    }
+
+    fn deeper<T>(&mut self, f: impl FnOnce(&mut Self) -> Result<T, String>) -> Result<T, String> {
+        if self.depth >= MAX_DEPTH {
+            return Err("Too deeply nested.".into());
+        }
+        self.depth += 1;
+        let v = f(self);
+        self.depth -= 1;
+        v
+    }
+
     fn sym(&mut self, s: &str) -> bool {
         let hit = matches!(self.toks.get(self.pos), Some(Tok::Sym(x)) if x == s);
         if hit {
@@ -189,6 +216,7 @@ impl Parser {
     fn or(&mut self) -> Result<Expr, String> {
         let mut e = self.and()?;
         while self.sym("||") {
+            self.node()?;
             e = Expr::Bin(Op::Or, Box::new(e), Box::new(self.and()?));
         }
         Ok(e)
@@ -197,6 +225,7 @@ impl Parser {
     fn and(&mut self) -> Result<Expr, String> {
         let mut e = self.not()?;
         while self.sym("&&") {
+            self.node()?;
             e = Expr::Bin(Op::And, Box::new(e), Box::new(self.not()?));
         }
         Ok(e)
@@ -204,7 +233,8 @@ impl Parser {
 
     fn not(&mut self) -> Result<Expr, String> {
         if self.sym("!") {
-            return Ok(Expr::Not(Box::new(self.not()?)));
+            self.node()?;
+            return Ok(Expr::Not(Box::new(self.deeper(Self::not)?)));
         }
         self.comparison()
     }
@@ -217,6 +247,7 @@ impl Parser {
         };
         let Some(op) = op else { return Ok(left) };
         self.pos += 1;
+        self.node()?;
         Ok(Expr::Bin(op, Box::new(left), Box::new(self.math()?)))
     }
 
@@ -229,6 +260,7 @@ impl Parser {
             };
             let Some(op) = op else { return Ok(e) };
             self.pos += 1;
+            self.node()?;
             e = Expr::Bin(op, Box::new(e), Box::new(self.value()?));
         }
     }
@@ -249,7 +281,7 @@ impl Parser {
             ),
             Tok::Word(w) => Expr::Var(Var::from_name(&w).ok_or_else(|| format!("Unknown name '{w}'"))?),
             Tok::Sym(s) if s == "(" => {
-                let e = self.or()?;
+                let e = self.deeper(Self::or)?;
                 if !self.sym(")") {
                     return Err("Missing ')'".into());
                 }
@@ -259,7 +291,8 @@ impl Parser {
                 let mut items = Vec::new();
                 if !self.sym("}") {
                     loop {
-                        items.push(self.or()?);
+                        self.node()?;
+                        items.push(self.deeper(Self::or)?);
                         if self.sym("}") {
                             break;
                         }

@@ -223,12 +223,7 @@ async fn cached_avatar(app: &AppHandle, url: &str) -> Option<PathBuf> {
         return None;
     }
     std::fs::create_dir_all(&dir).ok()?;
-    let part = path.with_extension("part");
-    std::fs::write(&part, bytes).ok()?;
-    if std::fs::rename(&part, &path).is_err() {
-        let _ = std::fs::remove_file(&part);
-        return None;
-    }
+    cyex_settings::write_atomic(&path, &bytes).ok()?;
     Some(path)
 }
 

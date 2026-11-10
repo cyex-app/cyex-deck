@@ -155,11 +155,8 @@ async fn round(app: &AppHandle) {
 
 /// Written next to the file first, then swapped in, so a crash never leaves half a file.
 fn save(file: &std::path::Path, text: &str) {
-    let tmp = file.with_extension("json.tmp");
     if let Some(dir) = file.parent() {
         let _ = std::fs::create_dir_all(dir);
     }
-    if std::fs::write(&tmp, text).is_ok() && std::fs::rename(&tmp, file).is_err() {
-        let _ = std::fs::remove_file(&tmp);
-    }
+    let _ = cyex_settings::write_atomic(file, text.as_bytes());
 }

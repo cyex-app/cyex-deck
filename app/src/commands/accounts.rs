@@ -9,7 +9,7 @@ use crate::auth::open::Place;
 use crate::auth::{self, Auth, AuthSnapshot, DeviceStart, SignedIn};
 use crate::connections;
 
-type CmdResult<T> = Result<T, String>;
+use super::CmdResult;
 
 #[tauri::command]
 pub fn accounts_snapshot(app: AppHandle) -> AuthSnapshot {

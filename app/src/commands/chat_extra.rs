@@ -17,7 +17,7 @@ use crate::chat::record::{self, Recording, RecordingMeta};
 use crate::chat::votes::{self, VotesUpdate};
 use crate::chat::{self, Chat};
 
-type CmdResult<T> = Result<T, String>;
+use super::CmdResult;
 
 /// F1 Search one chat, or with no view every joined chat (C29).
 #[tauri::command]

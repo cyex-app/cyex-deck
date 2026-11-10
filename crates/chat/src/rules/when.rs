@@ -116,7 +116,7 @@ impl Cond {
             return false;
         }
         if let Some((n, ms)) = self.burst {
-            let from = c.ts - ms;
+            let from = c.ts.saturating_sub(ms); // V110-F89
             let count = c.recent.map_or(0, |r| r.iter().rev().take_while(|t| **t >= from).take(n).count());
             if count < n {
                 return false;
@@ -152,10 +152,10 @@ impl Bursts {
         let (n, ms) = keep;
         self.noted = self.noted.wrapping_add(1);
         if self.noted.is_multiple_of(SWEEP) {
-            self.by.retain(|_, t| t.back().is_some_and(|last| ts - last <= ms));
+            self.by.retain(|_, t| t.back().is_some_and(|last| ts.saturating_sub(*last) <= ms));
         }
         let times = self.by.entry(user.to_owned()).or_default();
-        while times.front().is_some_and(|t| ts - t > ms) || times.len() >= n {
+        while times.front().is_some_and(|t| ts.saturating_sub(*t) > ms) || times.len() >= n {
             times.pop_front();
         }
         times.push_back(ts);

@@ -37,6 +37,22 @@ impl Error {
         }
     }
 
+    /// V110-F95 Twitch turned the call away for its integrity check (it wants the action done
+    /// on its own page, or a fresh GQL sign-in).
+    pub fn is_integrity(&self) -> bool {
+        self.api_message().is_some_and(integrity_text)
+    }
+
+    /// V110-F95 Twitch says it exists already: an API message with "already", or a GQL
+    /// refusal code with "ALREADY" or "DUPLICATE".
+    pub fn is_already(&self) -> bool {
+        match self {
+            Error::Api { message, .. } => already_text(message),
+            Error::Refused(code) => contains_any(code, &["already", "duplicate"]),
+            _ => false,
+        }
+    }
+
     /// Too many requests (429): wait, then try again.
     pub fn is_rate_limited(&self) -> bool {
         matches!(self, Error::Api { status: 429, .. })
@@ -103,6 +119,22 @@ impl Error {
     }
 }
 
+/// V110-F95 An error text about Twitch's integrity check, for callers that only hold a
+/// `String`. The word lists for `is_integrity` and `is_already` live here and nowhere else.
+pub fn integrity_text(s: &str) -> bool {
+    contains_any(s, &["integrity"])
+}
+
+/// V110-F95 An error text saying the thing exists already (see `Error::is_already`).
+pub fn already_text(s: &str) -> bool {
+    contains_any(s, &["already"])
+}
+
+fn contains_any(s: &str, words: &[&str]) -> bool {
+    let s = s.to_ascii_lowercase();
+    words.iter().any(|w| s.contains(w))
+}
+
 /// A body that isn't JSON, short: an HTML error page gives its `<title>`, whitespace
 /// collapses, at most 200 chars.
 fn plain_body(body: &[u8]) -> String {
@@ -131,7 +163,27 @@ fn collapse(s: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::Error;
+    use super::{Error, already_text, integrity_text};
+
+    #[test]
+    fn integrity_and_already_wordings() {
+        let api = |m: &str| Error::Api { status: 200, message: m.into() };
+        for m in ["failed integrity check", "Failed Integrity Check", "integrity"] {
+            assert!(api(m).is_integrity(), "{m}");
+            assert!(integrity_text(m), "{m}");
+        }
+        assert!(!api("unauthorized").is_integrity());
+        assert!(!Error::Refused("integrity".into()).is_integrity());
+        for m in ["subscription already exists", "Already following"] {
+            assert!(api(m).is_already(), "{m}");
+            assert!(already_text(m), "{m}");
+        }
+        assert!(!api("duplicate").is_already());
+        for c in ["ALREADY_ADDED", "DUPLICATE", "duplicate_term"] {
+            assert!(Error::Refused(c.into()).is_already(), "{c}");
+        }
+        assert!(!Error::Refused("FORBIDDEN".into()).is_already());
+    }
 
     #[test]
     fn schema_errors_are_told_apart() {

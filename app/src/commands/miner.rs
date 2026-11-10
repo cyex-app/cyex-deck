@@ -11,7 +11,7 @@ use crate::miner::stats::{self, StatsChannel};
 use crate::miner::{self as m, MinerStatus};
 use crate::settings::Settings;
 
-type CmdResult<T> = Result<T, String>;
+use super::CmdResult;
 
 #[tauri::command]
 pub fn miner_status(app: AppHandle) -> MinerStatus {

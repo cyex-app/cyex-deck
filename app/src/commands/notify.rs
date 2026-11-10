@@ -7,7 +7,7 @@ use tauri::AppHandle;
 use crate::bell::{self, BellPage, BellState};
 use crate::profile::{self, TwitchNotify};
 
-type CmdResult<T> = Result<T, String>;
+use super::CmdResult;
 
 #[tauri::command]
 pub fn bell_state(app: AppHandle) -> BellState {

@@ -10,7 +10,8 @@ use serde_json::Value;
 use tokio::sync::{mpsc, watch};
 use tokio::time::{Instant, sleep, sleep_until, timeout};
 use tokio_tungstenite::tungstenite::Message;
-use tokio_tungstenite::{MaybeTlsStream, WebSocketStream, connect_async};
+use tokio_tungstenite::tungstenite::protocol::WebSocketConfig;
+use tokio_tungstenite::{MaybeTlsStream, WebSocketStream, connect_async_with_config};
 
 use crate::frame::{self, Frame};
 
@@ -131,9 +132,16 @@ async fn run(mut stop: watch::Receiver<()>, out: mpsc::UnboundedSender<Out>) {
     }
 }
 
+/// V110-F94 The most one message may take, as on the app's other sockets (the library takes
+/// 64 MiB by default; an EventSub message is a few KB).
+const MAX_MESSAGE: usize = 4 << 20;
+
 async fn connect(url: &str, stop: &mut watch::Receiver<()>) -> Option<Socket> {
+    let config = WebSocketConfig::default()
+        .max_message_size(Some(MAX_MESSAGE))
+        .max_frame_size(Some(MAX_MESSAGE));
     tokio::select! {
-        r = timeout(Duration::from_secs(15), connect_async(url)) => r.ok()?.ok().map(|(ws, _)| ws),
+        r = timeout(Duration::from_secs(15), connect_async_with_config(url, Some(config), false)) => r.ok()?.ok().map(|(ws, _)| ws),
         _ = stop.changed() => None,
     }
 }
@@ -194,5 +202,23 @@ mod tests {
         let grown = next(Duration::from_secs(4));
         assert!(grown >= Duration::from_secs(8) && grown < Duration::from_secs(10));
         assert!(next(Duration::from_secs(600)) <= MAX_BACKOFF + MAX_BACKOFF / 4);
+    }
+
+    #[tokio::test]
+    async fn v110_f94_a_message_over_the_cap_ends_the_read() {
+        use futures_util::SinkExt;
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let url = format!("ws://{}", listener.local_addr().unwrap());
+        tokio::spawn(async move {
+            let (tcp, _) = listener.accept().await.unwrap();
+            let mut ws = tokio_tungstenite::accept_async(tcp).await.unwrap();
+            let _ = ws.send(Message::text("small")).await;
+            let _ = ws.send(Message::binary(vec![0u8; MAX_MESSAGE + 1])).await;
+            let _ = ws.next().await;
+        });
+        let (_keep, mut stop) = watch::channel(());
+        let mut ws = connect(&url, &mut stop).await.unwrap();
+        assert!(matches!(ws.next().await, Some(Ok(Message::Text(t))) if t.as_str() == "small"));
+        assert!(matches!(ws.next().await, Some(Err(_))));
     }
 }

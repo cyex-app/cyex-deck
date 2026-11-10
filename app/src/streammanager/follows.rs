@@ -78,7 +78,7 @@ pub fn take_over(app: &AppHandle, account: &str, channel_id: &str, session_id: &
         for _ in 0..4 {
             tokio::time::sleep(Duration::from_secs(2)).await;
             match helix::eventsub::subscribe(&http, auth, &session_id, "channel.follow", "2", &cond).await {
-                Err(e) if e.api_message().is_some_and(|m| m.contains("already")) => continue,
+                Err(e) if e.is_already() => continue,
                 _ => return,
             }
         }

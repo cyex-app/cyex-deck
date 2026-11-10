@@ -23,12 +23,17 @@ mod transfer;
 mod docs;
 #[cfg(test)]
 mod testutil;
+#[cfg(test)]
+#[path = "../../chat/src/fuzz.rs"]
+mod fuzz;
+#[cfg(test)]
+mod fuzz_tests;
 
 pub use backup::{BACKUP_DAYS, BackupStatus};
 pub use clock::{Clock, SystemClock};
 pub use error::{Error, Result};
 /// V110-F82 Temp file and rename, for stores outside this crate.
-pub use fsutil::write_atomic;
+pub use fsutil::{write_atomic, write_atomic_via};
 pub use legacy::MergeReport;
 pub use partition::Partition;
 pub use schema::Schema;

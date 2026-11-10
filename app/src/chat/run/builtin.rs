@@ -4,6 +4,7 @@
 //! everything else go on to Twitch or say why not.
 
 use cyex_chat::commands::chain::{split_chain, split_foreach};
+use cyex_chat::commands::taint;
 use cyex_chat::model::{ModRole, NoticeKind};
 use cyex_moderation::command::Need;
 use cyex_settings::Partition;
@@ -87,6 +88,8 @@ pub async fn run(
             super::spam::Spam::Run { count, text } => {
                 // Claimed here, so a stop right after finds it.
                 let claim = super::spam::begin(&place.key)?;
+                // V110-F94 Someone's message in it stays text to Twitch too (".ban x").
+                let text = if place.guarded() { guard::spam(text) } else { text };
                 // Off the caller: a long run doesn't hold the box or a chain.
                 let (app, place) = (app.clone(), place.clone());
                 tauri::async_runtime::spawn(async move {
@@ -107,12 +110,12 @@ pub async fn run(
         "foreach" => {
             let (items, command) = split_foreach(args).ok_or("Usage: /foreach a b c > /command $1")?;
             // V110-F87 The command is filled in again for each item.
-            if place.automation {
+            if place.guarded() {
                 guard::own(&command, guard::LOOP)?;
             }
             for (i, item) in capped(items)?.into_iter().enumerate() {
                 gap(i).await;
-                let item = if place.automation { guard::plain(&item) } else { item };
+                let item = if place.guarded() { guard::plain(&item) } else { item };
                 let p = params(app, place, &item);
                 if let Some(filled) = fill(app, place, &command, p).await? {
                     line(app, place, &filled, None, true, depth + 1).await?;
@@ -125,7 +128,7 @@ pub async fn run(
                 .split_once(char::is_whitespace)
                 .ok_or("Usage: /runin channel /command")?;
             // V110-F87 The marks stay on `command`, off the channel.
-            let chan = if place.automation { guard::plain(chan) } else { chan.to_owned() };
+            let chan = if place.guarded() { guard::plain(chan) } else { chan.to_owned() };
             let chan = chan.trim_start_matches('#').to_ascii_lowercase();
             let key = super::super::room_for(app, &place.key.0, &chan)
                 .ok_or_else(|| format!("Not in {chan}’s chat."))?;
@@ -135,6 +138,7 @@ pub async fn run(
                 automation: place.automation,
                 ui: false,
                 plugins: place.plugins.clone(),
+                taint: place.taint,
             };
             line(app, &there, command, None, true, depth + 1).await
         }
@@ -386,6 +390,10 @@ fn login_arg(args: &str) -> Result<String, String> {
 
 /// `/set var key value`; an empty value removes the key.
 fn set_var(app: &AppHandle, args: &str) -> Result<(), String> {
+    // V110-F94 Marks only come with a guarded line (`guard::args`): what it stores from
+    // someone's message is kept flagged, so no command of yours runs it later (`AppHost::get`).
+    let foreign = taint::has(args);
+    let args = &guard::plain(args);
     let mut words = args.splitn(3, ' ');
     if words.next() != Some("var") {
         return Err("Only /set var key value works.".into());
@@ -395,7 +403,8 @@ fn set_var(app: &AppHandle, args: &str) -> Result<(), String> {
         .filter(|k| !k.is_empty())
         .ok_or("Usage: /set var key value")?
         .to_owned();
-    let value = words.next().unwrap_or("").to_owned();
+    let value = words.next().unwrap_or("");
+    let value = if foreign && !value.is_empty() { taint::flag(value) } else { value.to_owned() };
     app.state::<Settings>()
         .update::<Commands>(app, Partition::Commands, |c| {
             if value.is_empty() {

@@ -69,7 +69,8 @@ pub fn sender(line: &Line<'_>, colors: &mut Colors) -> Option<Sender> {
         .unwrap_or_else(|| line.nick().to_owned());
     let display = line
         .tag("display-name")
-        .map(|d| d.trim().to_owned())
+        // V110-F94 Shown, so cleaned like the text.
+        .map(|d| crate::tokenize::shown(&d).trim().to_owned())
         .filter(|d| !d.is_empty())
         .unwrap_or_else(|| login.clone());
     let raw = line
@@ -133,6 +134,17 @@ mod tests {
         assert_eq!(default_color("7", "foo"), DEFAULT_COLORS[7]);
         assert!(s.color.dark.starts_with('#'));
         assert!(!s.localized());
+    }
+
+    #[test]
+    fn v110_f94_a_display_name_shows_no_controls_or_overrides() {
+        let name = |tag: &str| {
+            let raw = format!("@user-id=7;display-name={tag} :foo!foo@foo.tmi.twitch.tv PRIVMSG #c :hi");
+            sender(&Line::parse(&raw).unwrap(), &mut Colors::default()).unwrap().display
+        };
+        assert_eq!(name("\u{202e}Mod\u{1}\u{202c}"), "Mod");
+        assert_eq!(name("\u{202e}\u{2066}"), "foo");
+        assert_eq!(name("サイ"), "サイ");
     }
 
     #[test]

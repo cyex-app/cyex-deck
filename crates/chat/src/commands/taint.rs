@@ -32,6 +32,12 @@ pub fn mark(value: &str) -> String {
     out
 }
 
+/// V110-F94 `value` as `/set var` stores it when someone else's message put it there: [`has`]
+/// finds the flag when it is read, [`clean`] gives the value back.
+pub fn flag(value: &str) -> String {
+    format!("{MARK}{}", clean(value))
+}
+
 /// Whether any of `text` is marked.
 pub fn has(text: &str) -> bool {
     text.contains(ours)
@@ -74,6 +80,15 @@ mod tests {
             }
         }
         assert!(!m.trim().starts_with(['/', '.']));
+    }
+
+    #[test]
+    fn v110_f94_a_flagged_value_reads_back_clean() {
+        for value in ["/ban x", "a | b", ""] {
+            assert!(has(&flag(value)));
+            assert_eq!(clean(&flag(value)), value);
+        }
+        assert_eq!(flag(&flag("x")), flag("x"));
     }
 
     #[test]

@@ -95,6 +95,12 @@ pub trait Host {
     fn cosmetic(&mut self, _v: &Var) -> String {
         String::new()
     }
+    /// V110-F94 Whether something read since `set_foreign(false)` was stored from someone
+    /// else's message (a `/set var` value an automation wrote).
+    fn foreign(&self) -> bool {
+        false
+    }
+    fn set_foreign(&mut self, _on: bool) {}
     /// A number below `below`.
     fn random(&mut self, below: u64) -> u64;
     /// Unix milliseconds.
@@ -121,13 +127,32 @@ pub(super) fn eval_top(items: &Items, p: &Params, h: &mut dyn Host) -> Option<St
     }
     let mut out = String::new();
     for it in items {
+        h.set_foreign(false);
         let value = item(it, p, h)?;
         match (it, p.escape) {
-            (Item::Text(_), _) | (_, None) => out.push_str(&value),
+            (Item::Text(_), _) => out.push_str(&value),
+            // V110-F94 It read what someone else's message stored: marked, as in an automation.
+            _ if h.foreign() => out.push_str(&taint::mark(&value)),
+            (_, None) => out.push_str(&value),
             (_, Some(c)) => out.push_str(&text::double_runs(&value, c)),
         }
     }
     Some(out)
+}
+
+/// V110-F94 What picks a branch doesn't make the branch someone else's.
+fn picks(s: &Src, p: &Params, h: &mut dyn Host) -> Option<String> {
+    let was = h.foreign();
+    let value = src(s, p, h);
+    h.set_foreign(was);
+    value
+}
+
+fn picks_items(items: &Items, p: &Params, h: &mut dyn Host) -> Option<String> {
+    let was = h.foreign();
+    let value = eval(items, p, h);
+    h.set_foreign(was);
+    value
 }
 
 /// V110-F87 `eval` for an automation: only the body's own text comes out bare. `$if`, `$ifeq`
@@ -257,7 +282,7 @@ fn item(it: &Item, p: &Params, h: &mut dyn Host) -> Option<String> {
             other,
             req: r,
         } => {
-            let value = src(s, p, h)?;
+            let value = picks(s, p, h)?;
             let out = if value.is_empty() {
                 opt(other.as_ref(), p, h)?
             } else {
@@ -272,8 +297,8 @@ fn item(it: &Item, p: &Params, h: &mut dyn Host) -> Option<String> {
             other,
             req: r,
         } => {
-            let value = src(s, p, h)?;
-            let out = if value == eval(cmp, p, h)? {
+            let value = picks(s, p, h)?;
+            let out = if value == picks_items(cmp, p, h)? {
                 eval(then, p, h)?
             } else {
                 opt(other.as_ref(), p, h)?
@@ -286,9 +311,9 @@ fn item(it: &Item, p: &Params, h: &mut dyn Host) -> Option<String> {
             default,
             req: r,
         } => {
-            let value = src(s, p, h)?;
+            let value = picks(s, p, h)?;
             for (key, result) in cases {
-                if eval(key, p, h)? == value {
+                if picks_items(key, p, h)? == value {
                     return req(eval(result, p, h)?, *r);
                 }
             }
@@ -453,6 +478,8 @@ pub(super) mod tests {
         pub customs: HashMap<String, Arc<Items>>,
         pub vars: HashMap<String, String>,
         pub next_random: u64,
+        /// V110-F94 Like the app's host: set when a flagged (`taint::flag`) variable is read.
+        pub foreign: std::cell::Cell<bool>,
     }
 
     impl Host for TestHost {
@@ -460,7 +487,17 @@ pub(super) mod tests {
             self.customs.get(name).cloned()
         }
         fn get(&self, name: &str, key: Option<&str>) -> Option<String> {
-            (name == "var").then(|| self.vars.get(key?).cloned()).flatten()
+            let value = (name == "var").then(|| self.vars.get(key?).cloned()).flatten()?;
+            if taint::has(&value) {
+                self.foreign.set(true);
+            }
+            Some(taint::clean(&value))
+        }
+        fn foreign(&self) -> bool {
+            self.foreign.get()
+        }
+        fn set_foreign(&mut self, on: bool) {
+            self.foreign.set(on);
         }
         fn request(&mut self, url: &str, _: &[(String, String)]) -> Result<String, String> {
             Ok(format!(" body of {url} "))

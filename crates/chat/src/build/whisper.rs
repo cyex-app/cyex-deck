@@ -49,11 +49,9 @@ pub fn message(w: &Whisper<'_>, me: &[String], colors: &mut Colors, emotes: &dyn
     } else {
         w.from.color
     };
-    let display = if w.from.display.trim().is_empty() {
-        w.from.login
-    } else {
-        w.from.display.trim()
-    };
+    // V110-F94 Shown, so cleaned like the text.
+    let display = crate::tokenize::shown(w.from.display);
+    let display = if display.trim().is_empty() { w.from.login } else { display.trim() };
     let mut flags = vec![Flag::Whisper];
     if w.own {
         flags.push(Flag::Own);

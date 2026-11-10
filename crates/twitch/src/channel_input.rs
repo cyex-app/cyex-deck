@@ -72,9 +72,7 @@ fn from_path(path: &str) -> Option<&str> {
     (!NOT_CHANNELS.contains(&lower.as_str())).then_some(first)
 }
 
-fn is_login(s: &str) -> bool {
-    (1..=25).contains(&s.len()) && s.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_')
-}
+use cyex_core::login::is_login;
 
 fn is_id(s: &str) -> bool {
     (1..=20).contains(&s.len()) && s.bytes().all(|b| b.is_ascii_digit())

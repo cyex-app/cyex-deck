@@ -5,16 +5,21 @@ use std::path::Path;
 /// Writes via a temp file and rename, so a crash never leaves a half-written file.
 /// V107-N10a A failed write (a full disk) removes its temp file; the old file stays.
 pub fn write_atomic(path: &Path, contents: &[u8]) -> std::io::Result<()> {
-    let tmp = path.with_extension("tmp");
+    write_atomic_via(path, &path.with_extension("tmp"), contents)
+}
+
+/// V110-F95 [`write_atomic`] with the temp file's name chosen by the caller, for folders where
+/// `.tmp` would clash (several files with one stem) or another reader skips a `.part` name.
+pub fn write_atomic_via(path: &Path, tmp: &Path, contents: &[u8]) -> std::io::Result<()> {
     let written = (|| {
-        let mut file = File::create(&tmp)?;
+        let mut file = File::create(tmp)?;
         file.write_all(contents)?;
         file.sync_all()?;
         drop(file);
-        fs::rename(&tmp, path)
+        fs::rename(tmp, path)
     })();
     if written.is_err() {
-        let _ = fs::remove_file(&tmp);
+        let _ = fs::remove_file(tmp);
     }
     written
 }

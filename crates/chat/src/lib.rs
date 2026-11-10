@@ -17,4 +17,9 @@ pub mod search;
 pub mod similar;
 pub mod tokenize;
 
+#[cfg(test)]
+mod fuzz;
+#[cfg(test)]
+mod fuzz_tests;
+
 pub use room::{BACKGROUND, BUFFER, budget, GAP_NOTE, gap_may_miss, LineChange, LineHook, PendingSend, Room, RoomSnapshot};

@@ -235,11 +235,9 @@ pub fn load_for_room(app: AppHandle, key: RoomKey, generation: u64, history: Opt
             let chat = app.state::<Chat>();
             let mut inner = chat.lock();
             if let Some(entry) = inner.rooms.get_mut(&key)
-                && entry.room.state.channel_id.is_none()
+                && let Some(ev) = entry.room.learn_channel_id(&c.channel_id)
             {
-                entry.room.state.channel_id = Some(c.channel_id.clone());
-                let state = entry.room.state.clone();
-                queue(entry, [cyex_chat::model::RoomEvent::State { state }], &chat.wake);
+                queue(entry, [ev], &chat.wake);
             }
         }
         if let Some(a) = super::account_of(&key.0) {

@@ -468,3 +468,6 @@ pub fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static 
         player::player_clip_save_cancel,
     ]
 }
+
+/// V110-F95 What an IPC command returns: the error is the line the UI shows.
+pub type CmdResult<T> = Result<T, String>;

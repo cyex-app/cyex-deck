@@ -5,7 +5,7 @@ use tauri::{AppHandle, Manager, State};
 
 use crate::upload::{self, UploadEvent, UploadItem, Uploads};
 
-type CmdResult<T> = Result<T, String>;
+use super::CmdResult;
 
 /// Pasted image data (raw body, extension in the `x-ext` header). Returns an id for `upload_images`.
 #[tauri::command]

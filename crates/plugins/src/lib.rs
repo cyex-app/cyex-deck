@@ -15,6 +15,11 @@ mod state;
 
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+#[path = "../../chat/src/fuzz.rs"]
+mod fuzz;
+#[cfg(test)]
+mod fuzz_tests;
 
 pub use convert::color;
 pub use host::{

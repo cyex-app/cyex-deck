@@ -251,7 +251,7 @@ async fn subscribe(app: &AppHandle, account: &str, login: &str, id: &str, sessio
     for (kind, version, cond) in subs::shared_chat(id) {
         match helix::eventsub::subscribe(&http, a, session_id, kind, version, &cond).await {
             Ok(sub) => made.push(sub),
-            Err(e) if e.api_message().is_some_and(|m| m.contains("already")) => {}
+            Err(e) if e.is_already() => {}
             Err(e) => eprintln!("shared chat: couldn't follow {kind} in {login}: {e}"),
         }
     }

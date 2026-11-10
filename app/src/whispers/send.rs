@@ -181,9 +181,7 @@ fn echo(app: &AppHandle, me: &super::Me, thread_id: &str, other: api::Person, te
 
 /// Twitch turned the token itself away (integrity, sign-in), not the whisper.
 fn refused(e: &cyex_twitch::Error) -> bool {
-    e.api_message().is_some_and(|m| {
-        m.contains("integrity") || m.contains("unauthenticated") || m.contains("Unauthorized")
-    })
+    e.is_integrity() || e.api_message().is_some_and(|m| m.contains("unauthenticated") || m.contains("Unauthorized"))
 }
 
 fn reason(code: &str, network: bool) -> String {

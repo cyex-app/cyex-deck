@@ -16,7 +16,7 @@ use crate::auth;
 use crate::settings::Settings;
 use crate::tabs::import as chatterino;
 
-type CmdResult<T> = Result<T, String>;
+use super::CmdResult;
 
 const UI_DATE: &[time::format_description::BorrowedFormatItem<'static>] =
     format_description!("[year]/[month]/[day]");

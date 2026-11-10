@@ -225,10 +225,7 @@ impl Chat {
     }
 }
 
-/// Twitch logins: letters, digits, underscores, up to 25.
-fn valid_login(login: &str) -> bool {
-    (1..=25).contains(&login.len()) && login.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_')
-}
+use cyex_core::login::is_login as valid_login;
 
 fn identity_for(app: &AppHandle, account: Option<&str>) -> (Identity, Option<Me>) {
     let accounts = crate::auth::accounts(app);
@@ -635,41 +632,46 @@ pub fn local_line(app: &AppHandle, key: &RoomKey, kind: NoticeKind, text: &str) 
 /// S7 A plugin's line in every room of the channel, anonymous and signed in. `false`:
 /// none is open.
 pub fn plugin_line(app: &AppHandle, login: &str, m: Arc<ChatMessage>) -> bool {
-    each_room(app, login, |room| vec![room.local(m.clone())])
+    each_room(app, login, |room, _| vec![room.local(m.clone())])
 }
 
 /// S7 A plugin's line swapped for a new one. `false`: it's gone.
 pub fn plugin_replace(app: &AppHandle, login: &str, m: Arc<ChatMessage>) -> bool {
-    each_room(app, login, |room| room.replace(m.clone()).into_iter().collect())
+    each_room(app, login, |room, _| room.replace(m.clone()).into_iter().collect())
 }
 
 /// S7 A plugin's change to any line. `false`: it's gone.
 pub fn plugin_change(app: &AppHandle, login: &str, id: &str, change: &cyex_chat::LineChange) -> bool {
     let emotes = crate::emotes::room(app, None, login);
-    each_room(app, login, |room| room.change(id, change, &emotes))
+    each_room(app, login, |room, _| room.change(id, change, &emotes))
 }
 
 /// S14 A plugin's own line taken back. `false`: it's gone.
 pub fn plugin_remove(app: &AppHandle, login: &str, id: &str) -> bool {
-    each_room(app, login, |room| room.remove(id).into_iter().collect())
+    each_room(app, login, |room, _| room.remove(id).into_iter().collect())
 }
 
 /// S14 A chat emptied on screen by a plugin, with a line saying which. `false`: not open.
 pub fn plugin_clear(app: &AppHandle, login: &str, text: &str) -> bool {
     let now = now_ms();
-    each_room(app, login, |room| vec![room.wipe(), room.system(NoticeKind::Info, text, now)])
+    each_room(app, login, |room, _| vec![room.wipe(), room.system(NoticeKind::Info, text, now)])
 }
 
-/// Runs `f` on every room of a channel and queues what comes back. `true` when any did.
-fn each_room(app: &AppHandle, login: &str, mut f: impl FnMut(&mut cyex_chat::Room) -> Vec<RoomEvent>) -> bool {
+/// Runs `f` on every room of a channel (with the identity that reads it) and queues what
+/// comes back. `true` when any did.
+fn each_room(
+    app: &AppHandle,
+    login: &str,
+    mut f: impl FnMut(&mut cyex_chat::Room, &Identity) -> Vec<RoomEvent>,
+) -> bool {
     let Some(chat) = app.try_state::<Chat>() else { return false };
     let mut inner = chat.lock();
     let mut any = false;
-    for ((_, l), entry) in inner.rooms.iter_mut() {
+    for ((id, l), entry) in inner.rooms.iter_mut() {
         if l != login {
             continue;
         }
-        let events = f(&mut entry.room);
+        let events = f(&mut entry.room, id);
         any |= !events.is_empty();
         queue(entry, events, &chat.wake);
     }
@@ -762,72 +764,48 @@ pub fn system_line(app: &AppHandle, login: &str, text: &str) {
 
 /// A line of `kind` in every room of a channel.
 pub fn notice_line(app: &AppHandle, login: &str, kind: NoticeKind, text: &str) {
-    let Some(chat) = app.try_state::<Chat>() else { return };
-    let mut inner = chat.lock();
     let now = now_ms();
-    for ((_, l), entry) in inner.rooms.iter_mut() {
-        if l == login {
-            let ev = entry.room.system(kind, text, now);
-            queue(entry, [ev], &chat.wake);
-        }
-    }
+    each_room(app, login, |room, _| vec![room.system(kind, text, now)]);
 }
 
 /// V107-H3g [`notice_line`] in `account`'s own rooms, `others` in the other accounts' rooms
 /// of that channel ("You …" read as theirs there).
 pub fn notice_line_by(app: &AppHandle, account: &str, login: &str, kind: NoticeKind, text: &str, others: &str) {
-    let Some(chat) = app.try_state::<Chat>() else { return };
-    let mut inner = chat.lock();
     let now = now_ms();
-    for ((id, l), entry) in inner.rooms.iter_mut() {
-        if l == login {
-            let ev = entry.room.system(kind, if account_of(id) == Some(account) { text } else { others }, now);
-            queue(entry, [ev], &chat.wake);
-        }
-    }
+    each_room(app, login, |room, id| {
+        vec![room.system(kind, if account_of(id) == Some(account) { text } else { others }, now)]
+    });
 }
 
 /// V107-M7 A mod-action timeout line, stacked with that user's timeouts just before it.
 /// V107-N2g `user_id`'s timeout was lifted in `login`: their next one starts a new line.
 pub fn lifted(app: &AppHandle, login: &str, user_id: &str) {
-    let Some(chat) = app.try_state::<Chat>() else { return };
-    let mut inner = chat.lock();
-    for ((_, l), entry) in inner.rooms.iter_mut() {
-        if l == login {
-            entry.room.lifted(user_id);
-        }
-    }
+    each_room(app, login, |room, _| {
+        room.lifted(user_id);
+        Vec::new()
+    });
 }
 
 /// V107-N2e `ban`: a ban's line, one with IRC's.
 pub fn timeout_line(app: &AppHandle, login: &str, user_id: &str, ban: bool, text: &str) {
-    let Some(chat) = app.try_state::<Chat>() else { return };
-    let mut inner = chat.lock();
     let now = now_ms();
-    for ((_, l), entry) in inner.rooms.iter_mut() {
-        if l == login {
-            // A second delivery (another mod account's feed) brings nothing.
-            let ev = entry.room.timeout_line(user_id, ban, text, now);
-            queue(entry, ev, &chat.wake);
-        }
-    }
+    // A second delivery (another mod account's feed) brings nothing.
+    each_room(app, login, |room, _| room.timeout_line(user_id, ban, text, now).into_iter().collect());
 }
 
 /// V107-R34 A mod feed named who deleted a line (`msg`) or timed out or banned a user: their
 /// lines in `account`'s rooms of `login` say so. Only the modding account's rooms: viewers
 /// see just "(deleted)".
 pub fn gone_by(app: &AppHandle, account: &str, login: &str, target: GoneTarget<'_>, gone: Gone) {
-    let Some(chat) = app.try_state::<Chat>() else { return };
-    let mut inner = chat.lock();
-    for ((id, l), entry) in inner.rooms.iter_mut() {
-        if l == login && account_of(id) == Some(account) {
-            let ev = match target {
-                GoneTarget::Message(m) => entry.room.gone_msg(m, gone.clone()),
-                GoneTarget::User(u) => entry.room.gone_user(u, gone.clone()),
-            };
-            queue(entry, ev, &chat.wake);
+    each_room(app, login, |room, id| {
+        if account_of(id) != Some(account) {
+            return Vec::new();
         }
-    }
+        match target {
+            GoneTarget::Message(m) => room.gone_msg(m, gone.clone()),
+            GoneTarget::User(u) => room.gone_user(u, gone.clone()),
+        }
+    });
 }
 
 /// V107-R34 What a mod action took away.

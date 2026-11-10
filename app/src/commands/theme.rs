@@ -10,7 +10,7 @@ use tauri_plugin_dialog::DialogExt;
 use crate::settings::Settings;
 use crate::theme::{self, ThemeLook};
 
-type CmdResult<T> = Result<T, String>;
+use super::CmdResult;
 
 #[tauri::command]
 pub fn theme_accent_tokens(accent: String, theme: Theme) -> AccentTokens {

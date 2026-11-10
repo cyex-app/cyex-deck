@@ -34,7 +34,7 @@ pub async fn set(app: &AppHandle, channel_id: &str, account: &str, follow: bool)
 fn error_text(e: &cyex_twitch::Error) -> String {
     match e.api_message() {
         None => "Twitch didn’t answer.".into(),
-        Some(m) if m.contains("integrity") => {
+        Some(_) if e.is_integrity() => {
             "Twitch wants a fresh GQL sign-in. Sign in again in Settings → Accounts.".into()
         }
         Some("TOO_MANY_FOLLOWS") => "You follow too many channels.".into(),

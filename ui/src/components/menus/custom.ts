@@ -129,7 +129,10 @@ export function customEntry(node: CustomNode, values: Values, run: Runners): Men
         const url = fill(a.url, values, 'url');
         // Only ever the web, whatever the template turned into.
         if (/^https?:\/\//i.test(url)) run.openLink(url);
-      } else if (a.kind === 'chat') run.chat(fill(a.command, values));
+      }
+      // V110-F94 Not filled here: Rust fills it from the menu's context and keeps what the
+      // message put in from naming a command (`chat::run::guard`).
+      else if (a.kind === 'chat') run.chat(a.command);
       else if (a.kind === 'prefill') run.prefill(fill(a.text, values));
       else run.copy(fill(a.text, values));
     },

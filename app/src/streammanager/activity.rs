@@ -113,7 +113,7 @@ fn subscribe(app: &AppHandle, account: String, channel_id: String, session_id: S
         let auth = crate::auth::helix_auth(&token, &client_id);
         for (kind, version, cond) in subs::for_broadcaster(&channel_id, &account) {
             if let Err(e) = helix::eventsub::subscribe(&http, auth, &session_id, kind, version, &cond).await
-                && !e.api_message().is_some_and(|m| m.contains("already"))
+                && !e.is_already()
             {
                 eprintln!("stream manager: couldn't follow {kind}: {e}");
             }

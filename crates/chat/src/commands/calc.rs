@@ -2,7 +2,7 @@
 
 pub fn calc(expr: &str) -> Option<f64> {
     let tokens = lex(expr)?;
-    let mut p = Calc { tokens, pos: 0 };
+    let mut p = Calc { tokens, pos: 0, depth: 0 };
     let v = p.sum()?;
     (p.pos == p.tokens.len() && v.is_finite()).then_some(v)
 }
@@ -56,12 +56,26 @@ fn lex(expr: &str) -> Option<Vec<Tok>> {
     Some(out)
 }
 
+/// V110-F89 Nesting limit for parentheses, functions, `-` and `^` chains (a stack overflow closes the app).
+const MAX_DEPTH: usize = 64;
+
 struct Calc {
     tokens: Vec<Tok>,
     pos: usize,
+    depth: usize,
 }
 
 impl Calc {
+    fn nested<T>(&mut self, f: impl FnOnce(&mut Self) -> Option<T>) -> Option<T> {
+        if self.depth >= MAX_DEPTH {
+            return None;
+        }
+        self.depth += 1;
+        let v = f(self);
+        self.depth -= 1;
+        v
+    }
+
     fn op(&mut self, ops: &str) -> Option<char> {
         match self.tokens.get(self.pos) {
             Some(Tok::Op(c)) if ops.contains(*c) => {
@@ -98,17 +112,17 @@ impl Calc {
     fn power(&mut self) -> Option<f64> {
         let base = self.unary()?;
         if self.op("^").is_some() {
-            return Some(base.powf(self.power()?));
+            return Some(base.powf(self.nested(Self::power)?));
         }
         Some(base)
     }
 
     fn unary(&mut self) -> Option<f64> {
         if self.op("-").is_some() {
-            return Some(-self.unary()?);
+            return Some(-self.nested(Self::unary)?);
         }
         if self.op("+").is_some() {
-            return self.unary();
+            return self.nested(Self::unary);
         }
         self.atom()
     }
@@ -121,7 +135,7 @@ impl Calc {
             }
             Tok::Op('(') => {
                 self.pos += 1;
-                let v = self.sum()?;
+                let v = self.nested(Self::sum)?;
                 self.op(")")?;
                 Some(v)
             }
@@ -135,7 +149,7 @@ impl Calc {
                     _ => return None,
                 };
                 self.op("(")?;
-                let v = self.sum()?;
+                let v = self.nested(Self::sum)?;
                 self.op(")")?;
                 Some(f(v))
             }

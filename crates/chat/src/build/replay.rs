@@ -50,7 +50,7 @@ pub fn replay(c: &Comment<'_>, ctx: &mut Ctx<'_>) -> ChatMessage {
         sender: Some(Sender {
             id: c.user_id.to_owned(),
             login: c.login.to_owned(),
-            display: c.display.to_owned(),
+            display: crate::tokenize::shown(c.display).into_owned(),
             color: ctx.colors.get(raw),
             badges: c
                 .badges

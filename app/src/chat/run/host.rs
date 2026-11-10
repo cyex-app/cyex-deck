@@ -6,7 +6,7 @@ use std::hash::{BuildHasher, Hasher};
 use std::sync::Arc;
 use std::time::Duration;
 
-use cyex_chat::commands::{CommandList, Host, Items, Var};
+use cyex_chat::commands::{CommandList, Host, Items, Var, taint};
 use cyex_settings::Partition;
 use cyex_settings::schema::Commands;
 use tauri::{AppHandle, Manager};
@@ -71,6 +71,12 @@ async fn fetch(mut url: url::Url, mut headers: Vec<(String, String)>) -> Result<
     Err("Too many redirects.".into())
 }
 
+/// V110-F94 A stored `/set var` value, and whether an automation or a menu click stored it
+/// from someone else's message (`taint::flag`).
+pub(super) fn stored(value: &str) -> (String, bool) {
+    (taint::clean(value), taint::has(value))
+}
+
 pub struct AppHost {
     pub app: AppHandle,
     pub list: Arc<CommandList>,
@@ -78,6 +84,8 @@ pub struct AppHost {
     pub runtime: tokio::runtime::Handle,
     /// V1051-04 7TV variables for this run.
     pub vars: VarScope,
+    /// V110-F94 A `/set var` value read in this run was stored from someone else's message.
+    pub foreign: std::cell::Cell<bool>,
 }
 
 impl Host for AppHost {
@@ -87,13 +95,14 @@ impl Host for AppHost {
 
     fn get(&self, name: &str, key: Option<&str>) -> Option<String> {
         match (name, key) {
-            ("var", Some(k)) => self
-                .app
-                .state::<Settings>()
-                .read::<Commands>(Partition::Commands)
-                .vars
-                .get(k)
-                .cloned(),
+            ("var", Some(k)) => {
+                let commands = self.app.state::<Settings>().read::<Commands>(Partition::Commands);
+                let (value, foreign) = stored(commands.vars.get(k)?);
+                if foreign {
+                    self.foreign.set(true);
+                }
+                Some(value)
+            }
             ("username", None) => {
                 let accounts = crate::auth::accounts(&self.app);
                 let id = accounts.default_id.as_deref()?;
@@ -101,6 +110,14 @@ impl Host for AppHost {
             }
             _ => None,
         }
+    }
+
+    fn foreign(&self) -> bool {
+        self.foreign.get()
+    }
+
+    fn set_foreign(&mut self, on: bool) {
+        self.foreign.set(on);
     }
 
     fn request(&mut self, url: &str, headers: &[(String, String)]) -> Result<String, String> {

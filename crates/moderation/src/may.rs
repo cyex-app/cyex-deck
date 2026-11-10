@@ -264,9 +264,6 @@ mod tests {
     /// The UI tests read Rust's answers from here (`ui/src/features/modview/*.test.ts`).
     #[test]
     fn v107_r14_writes_the_ui_fixture() {
-        let Ok(dir) = std::env::var("TS_RS_EXPORT_DIR") else {
-            return;
-        };
         let all: serde_json::Map<String, serde_json::Value> =
             [ModRole::Moderator, ModRole::LeadModerator, ModRole::Broadcaster]
                 .into_iter()
@@ -278,10 +275,17 @@ mod tests {
                 })
                 .collect();
         let text = serde_json::to_string_pretty(&all).unwrap() + "\n";
-        let path = std::path::Path::new(&dir).join("caps.fixture.json");
-        if std::fs::read_to_string(&path).ok().as_deref() != Some(text.as_str()) {
-            std::fs::write(path, text).unwrap();
+        // V110-F95 The committed fixture must equal what the code says: drift fails the run
+        // once, and the file is written again (when `TS_RS_EXPORT_DIR` is set) to commit.
+        let committed = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../ui/src/ipc/bindings/caps.fixture.json");
+        let before = std::fs::read_to_string(&committed).ok().map(|t| t.replace("\r\n", "\n"));
+        if let Ok(dir) = std::env::var("TS_RS_EXPORT_DIR") {
+            let path = std::path::Path::new(&dir).join("caps.fixture.json");
+            if std::fs::read_to_string(&path).ok().as_deref() != Some(text.as_str()) {
+                std::fs::write(path, &text).unwrap();
+            }
         }
+        assert_eq!(before.as_deref(), Some(text.as_str()), "ui/src/ipc/bindings/caps.fixture.json is stale: commit the rewritten file");
     }
 
     #[test]

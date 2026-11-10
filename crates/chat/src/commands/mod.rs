@@ -222,6 +222,34 @@ mod tests {
     }
 
     #[test]
+    fn v110_f94_a_variable_someone_elses_message_stored_comes_out_marked() {
+        // An automation ran "/set var q $1-" on "!q /ban x"; later you type a command of yours.
+        let mut h = TestHost::default();
+        h.vars.insert("q".into(), taint::flag("/ban x | /mod y"));
+        h.vars.insert("mine".into(), "/slow 30".into());
+        h.customs.insert("_q".into(), Arc::new(parse("$get(var,q)").unwrap()));
+        let mut fill = |body: &str| run(&parse(body).unwrap(), &Params::new(""), &mut h).unwrap();
+        for body in ["$get(var,q)", "$lower($get(var,q))", "$(_q)", "$if(1,x,$get(var,q))"] {
+            let out = fill(body);
+            assert!(taint::has(&out) && !out.trim().starts_with(['/', '.']) && !out.contains('|'), "{body}: {out}");
+        }
+        assert_eq!(taint::clean(&fill("$get(var,q)")), "/ban x | /mod y");
+        // The command's own text stays bare, and a function sees the value without marks.
+        let out = fill("/timeout $get(var,q) 60");
+        assert!(out.starts_with("/timeout ") && out.ends_with(" 60") && taint::has(&out));
+        assert_eq!(taint::clean(&fill("$urlencode($get(var,q))")), "%2Fban+x+%7C+%2Fmod+y");
+        // What you set yourself is yours, also right after a stored one was read.
+        assert_eq!(fill("$get(var,mine)"), "/slow 30");
+        assert!(fill("$get(var,q) $get(var,mine)").ends_with(" /slow 30"));
+        // A stored value may pick the branch; the branch is the command's own text.
+        assert_eq!(fill("$if($get(var,q),/slow 30,/slowoff)"), "/slow 30");
+        assert_eq!(fill("$ifeq($get(var,q),on,/slow 30,/slowoff)"), "/slowoff");
+        assert_eq!(fill("$switch($get(var,q),on:/slow 30,/slowoff)"), "/slowoff");
+        // The branch that is the stored value is marked all the same.
+        assert!(taint::has(&fill("$if($get(var,mine),$get(var,q))")));
+    }
+
+    #[test]
     fn chain_bodies_escape_replacements() {
         let body = parse("/chain /echo $1 | /echo b").unwrap();
         let out = run(&body, &Params::new("a|z"), &mut TestHost::default()).unwrap();

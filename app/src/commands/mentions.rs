@@ -9,7 +9,7 @@ use tauri_plugin_dialog::DialogExt;
 
 use crate::chat::global::{self, GlobalStatus};
 
-type CmdResult<T> = Result<T, String>;
+use super::CmdResult;
 
 /// Sound files larger than this aren't played.
 const MAX_SOUND: u64 = 5 * 1024 * 1024;

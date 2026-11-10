@@ -6,7 +6,7 @@ use tauri::AppHandle;
 use crate::whispers::view::{WhisperConversation, WhisperEdit, WhisperPage, WhisperState};
 use crate::whispers::{self};
 
-type CmdResult<T> = Result<T, String>;
+use super::CmdResult;
 
 #[tauri::command]
 pub fn whispers_state(app: AppHandle) -> WhisperState {

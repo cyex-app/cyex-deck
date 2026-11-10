@@ -50,7 +50,14 @@ pub fn args(name: &str, marked: &str) -> Result<String, String> {
     if name == "timer" && taint::has(marked) {
         return Err(TIMER.into());
     }
-    Ok(if NESTS.contains(&name) { marked.to_owned() } else { plain(marked) })
+    // V110-F94 `/set` too: it stores the value with a flag when the message put it there.
+    Ok(if NESTS.contains(&name) || name == "set" { marked.to_owned() } else { plain(marked) })
+}
+
+/// V110-F94 `/spam`'s text in a guarded line: the entry may write `/me`, anything else that
+/// Twitch could read as a command goes behind `typed::INVISIBLE`.
+pub fn spam(text: String) -> String {
+    if text.starts_with("/me ") { text } else { say(&text) }
 }
 
 /// Marked text for a reader that takes plain words (a custom command's `$1`, a plugin).

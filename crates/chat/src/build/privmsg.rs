@@ -3,7 +3,7 @@
 
 use crate::irc::Line;
 use crate::model::{ChatMessage, Client, Flag, Fragment, Gone, GoneHow, Meta, Reply, RewardRef, SharedSource};
-use crate::tokenize::{Input, is_me, tokenize};
+use crate::tokenize::{Input, is_me, shown, tokenize};
 
 use super::sender::{badges, sender};
 use super::{Ctx, timestamp};
@@ -131,8 +131,9 @@ fn reply(line: &Line<'_>) -> Option<Reply> {
         parent_display: line
             .tag("reply-parent-display-name")
             .filter(|d| !d.is_empty())
-            .map_or_else(|| parent_login.clone(), |d| d.into_owned()),
-        parent_body: line.tag("reply-parent-msg-body").unwrap_or_default().into_owned(),
+            .map_or_else(|| parent_login.clone(), |d| shown(&d).into_owned()),
+        // V110-F94 The quoted line is shown too.
+        parent_body: shown(&line.tag("reply-parent-msg-body").unwrap_or_default()).into_owned(),
         parent_login,
     })
 }

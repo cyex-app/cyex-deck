@@ -107,6 +107,9 @@ pub struct SavedTimer {
     pub command: String,
     /// V1051-04 Set by an automation (S4): stays one after a restart.
     pub automation: bool,
+    /// V110-F94 Saved by a build that keeps message text out of a timer's line (V110-F87).
+    /// An automation's timer without it is dropped on start.
+    pub own_text: bool,
 }
 
 /// S4 How the trigger is matched against a message.

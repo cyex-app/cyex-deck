@@ -7,7 +7,7 @@ use tauri::{AppHandle, Manager};
 use crate::auth::Auth;
 use crate::tabs;
 
-type CmdResult<T> = Result<T, String>;
+use super::CmdResult;
 
 /// Applies an edit to the tab list.
 #[tauri::command]

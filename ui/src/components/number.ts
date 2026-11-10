@@ -16,7 +16,8 @@ function plain(t: string): number | null {
 
 /** Inside the range and on the step grid. */
 export function clampNumber(value: number, { min, max, step = 1 }: NumberRange): number {
-  const snapped = Math.round((value - min) / step) * step + min;
+  // V110-F89 A step of 0 or less is no grid (dividing by it gave NaN).
+  const snapped = step > 0 ? Math.round((value - min) / step) * step + min : value;
   // Float noise from steps like 0.1.
   const tidy = Number(snapped.toFixed(6));
   return Math.min(Math.max(tidy, min), max);

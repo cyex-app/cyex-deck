@@ -53,13 +53,8 @@ pub struct VodProgress {
 
 /// Written beside, then moved over: a crash mid-write can't cut the file short and lose all 500.
 fn write_whole(file: &std::path::Path, json: &str) -> std::io::Result<()> {
-    let tmp = file.with_extension("json.tmp");
     // V110-F59 A failed write or move leaves no `.tmp` behind.
-    fs::write(&tmp, json)
-        .and_then(|()| fs::rename(&tmp, file))
-        .inspect_err(|_| {
-            let _ = fs::remove_file(&tmp);
-        })
+    cyex_settings::write_atomic(file, json.as_bytes())
 }
 
 impl Positions {
@@ -166,7 +161,7 @@ mod tests {
         let _ = fs::remove_dir_all(&dir);
         fs::create_dir_all(dir.join("p.json")).unwrap(); // a folder in the file's place: the move fails
         assert!(write_whole(&dir.join("p.json"), "{}").is_err());
-        assert!(!dir.join("p.json.tmp").exists());
+        assert!(!dir.join("p.tmp").exists());
         let _ = fs::remove_dir_all(&dir);
     }
 
@@ -227,7 +222,7 @@ mod tests {
         let p = Positions::load(Some(file.clone()));
         assert_eq!(p.get("old"), Some(120.0), "pre-v1.07 entry");
         p.save("1", 3300.0, 3600.0, 2);
-        assert!(!file.with_extension("json.tmp").exists(), "no temp file left");
+        assert!(!file.with_extension("tmp").exists(), "no temp file left");
         let again = Positions::load(Some(file));
         assert!(one(&again, "1").unwrap().watched);
         assert_eq!(again.get("1"), Some(3300.0));

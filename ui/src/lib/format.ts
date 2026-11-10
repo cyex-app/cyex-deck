@@ -32,11 +32,13 @@ export function formatShort(n: number): string {
 
 /** 1.5 → "1,5", fixed to `digits` places. The decimal mark is a comma, like formatShort (3.13). */
 export function formatDecimal(n: number, digits = 1): string {
+  if (unreadable(n)) return '-'; // V110-F89
   return n.toFixed(digits).replace('.', ',');
 }
 
 /** A speed or factor: 0.75 → "0,75×", 2 → "2×". As many decimals as it has, comma decimal (3.13). */
 export function formatFactor(n: number): string {
+  if (unreadable(n)) return '-'; // V110-F89
   return `${String(n).replace('.', ',')}×`;
 }
 
@@ -62,6 +64,7 @@ export function formatBytes(bytes: number): string {
 }
 
 export function formatDate(d: Date): string {
+  if (Number.isNaN(d.getTime())) return '-'; // V110-F89
   return `${d.getFullYear()}/${pad(d.getMonth() + 1)}/${pad(d.getDate())}`;
 }
 
@@ -76,6 +79,7 @@ const AGO_UNITS: [name: string, secs: number][] = [
 /** How long ago, short: "now", "5m", "3h", "2d", then the date. `words`: "3 days ago",
  *  "2 months ago", "just now" (V107-R40, hovers and lists). The one relative time. */
 export function ago(ms: number, now = Date.now(), words = false): string {
+  if (unreadable(ms) || unreadable(now)) return '-'; // V110-F89
   const s = Math.max(0, Math.floor((now - ms) / 1000));
   if (words) {
     for (const [name, size] of AGO_UNITS) {
@@ -112,6 +116,7 @@ export function useClockSource(get: () => 'h24' | 'h12'): void {
 }
 
 export function formatTime(d: Date, { seconds = false, clock = clockOf() }: TimeOptions = {}): string {
+  if (Number.isNaN(d.getTime())) return '-'; // V110-F89
   const s = seconds ? `:${pad(d.getSeconds())}` : '';
   if (clock !== 'h12') return `${pad(d.getHours())}:${pad(d.getMinutes())}${s}`;
   const h = d.getHours() % 12 || 12;
@@ -120,6 +125,7 @@ export function formatTime(d: Date, { seconds = false, clock = clockOf() }: Time
 
 /** V110-C65 The full time of a line, for a hover: 2026/11/08 14:03:09 in the Time format, seconds always. */
 export function formatStamp(ms: number): string {
+  if (unreadable(ms) || Number.isNaN(new Date(ms).getTime())) return '-'; // V110-F89
   const d = new Date(ms);
   return `${formatDate(d)} ${formatTime(d, { seconds: true })}`;
 }
@@ -134,6 +140,7 @@ const UNITS: [suffix: string, seconds: number][] = [
 
 /** 90 → "1m 30s", 3600 → "1h". */
 export function formatDuration(totalSeconds: number): string {
+  if (unreadable(totalSeconds)) return '-'; // V110-F89
   let rest = Math.max(0, Math.round(totalSeconds));
   const parts: string[] = [];
   for (const [suffix, size] of UNITS) {

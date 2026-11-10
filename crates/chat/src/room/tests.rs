@@ -615,3 +615,12 @@ fn own_ban_timeout_and_warning_lock_the_box() {
     let ev = feed(&mut anon, "@msg-id=msg_banned :tmi.twitch.tv NOTICE #chan :x");
     assert_eq!(restricted(&ev), None, "reading anonymously");
 }
+
+#[test]
+fn v110_f95_a_channel_id_learned_elsewhere_counts_once() {
+    let mut r = room();
+    assert!(matches!(r.learn_channel_id("7"), Some(RoomEvent::State { .. })));
+    assert_eq!(r.state.channel_id.as_deref(), Some("7"));
+    assert!(r.learn_channel_id("8").is_none());
+    assert_eq!(r.state.channel_id.as_deref(), Some("7"));
+}

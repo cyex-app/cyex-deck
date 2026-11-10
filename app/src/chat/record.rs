@@ -171,9 +171,7 @@ fn stop_for(app: &AppHandle, key: &RoomKey, reason: Option<&str>) -> Option<Reco
 fn write_meta(dir: &std::path::Path, meta: &RecordingMeta) -> Result<(), String> {
     let text = serde_json::to_string_pretty(meta).map_err(|e| e.to_string())?;
     // Through a temp file: a crash halfway leaves the old meta, not a broken recording.
-    let tmp = dir.join("meta.json.tmp");
-    fs::write(&tmp, text).map_err(|e| e.to_string())?;
-    fs::rename(&tmp, dir.join("meta.json")).map_err(|e| e.to_string())
+    cyex_settings::write_atomic(&dir.join("meta.json"), text.as_bytes()).map_err(|e| e.to_string())
 }
 
 /// New events in a room: written down when it's being recorded.

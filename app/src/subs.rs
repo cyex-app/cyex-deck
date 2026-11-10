@@ -28,9 +28,10 @@ fn failed(e: cyex_twitch::Error) -> String {
         return "Couldn’t reach Twitch.".into();
     }
     eprintln!("subs: {e}");
-    match e.api_message() {
-        Some(m) if m.contains("integrity") => "Twitch wants this done on its own page.".into(),
-        _ => "Twitch didn’t take that. Try again in a bit.".into(),
+    if e.is_integrity() {
+        "Twitch wants this done on its own page.".into()
+    } else {
+        "Twitch didn’t take that. Try again in a bit.".into()
     }
 }
 
@@ -304,9 +305,7 @@ fn changed(app: &AppHandle, account: &str, channel_id: String, value: Option<u32
 
 /// Which Twitch page a sub action opens in the app's Twitch window.
 pub fn page(kind: &str, login: &str) -> Option<String> {
-    let login_ok = !login.is_empty()
-        && login.len() <= 25
-        && login.chars().all(|c| c.is_ascii_alphanumeric() || c == '_');
+    let login_ok = cyex_core::login::is_login(login);
     if matches!(kind, "subscribe" | "gift") && !login_ok {
         return None;
     }

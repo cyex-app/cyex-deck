@@ -111,8 +111,7 @@ pub fn add(dir: &Path, kind: &str, ext: &str, now_ms: u64, bytes: &[u8], thumb: 
         fs::write(dir.join(format!("{kind}-{id}.thumb.png")), t)?;
     }
     let tmp = dir.join(format!("{kind}-{id}.part"));
-    fs::write(&tmp, bytes)?;
-    fs::rename(&tmp, dir.join(format!("{kind}-{id}.{ext}")))?;
+    cyex_settings::write_atomic_via(&dir.join(format!("{kind}-{id}.{ext}")), &tmp, bytes)?;
     for old in list(dir, kind).iter().skip(max) {
         drop_id(dir, kind, &old.id);
     }

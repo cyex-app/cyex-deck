@@ -352,9 +352,8 @@ fn log(app: &AppHandle, entry: Value) {
     let Ok(text) = serde_json::to_vec_pretty(&list) else {
         return;
     };
-    let tmp = dir.join("uploads.json.tmp");
-    if fs::create_dir_all(&dir).is_ok() && fs::write(&tmp, text).is_ok() {
-        let _ = fs::rename(&tmp, &path);
+    if fs::create_dir_all(&dir).is_ok() {
+        let _ = cyex_settings::write_atomic(&path, &text);
     }
 }
 

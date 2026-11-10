@@ -38,8 +38,7 @@ pub fn save(dir: &Path, kind: &str, ext: &str, now_ms: u64, bytes: &[u8]) -> std
     fs::create_dir_all(dir)?;
     let path = dir.join(format!("{kind}-{now_ms}.{ext}"));
     let tmp = dir.join(format!("{kind}-{now_ms}.part"));
-    fs::write(&tmp, bytes)?;
-    fs::rename(&tmp, &path)?;
+    cyex_settings::write_atomic_via(&path, &tmp, bytes)?;
     for (s, old) in of_kind(dir, kind) {
         if s < now_ms || (s == now_ms && old != path) {
             let _ = fs::remove_file(old);

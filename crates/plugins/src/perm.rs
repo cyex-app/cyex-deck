@@ -86,7 +86,8 @@ pub fn check_url(url: &str, hosts: &[String]) -> Result<Url, String> {
         return Err("Only http and https addresses work.".into());
     }
     let name = match u.host() {
-        Some(Host::Domain(d)) => d.to_ascii_lowercase(),
+        // V110-F89 `localhost.` is the same name as `localhost`: drop trailing dots before any name check.
+        Some(Host::Domain(d)) => d.trim_end_matches('.').to_ascii_lowercase(),
         Some(Host::Ipv4(ip)) => {
             return if public(IpAddr::V4(ip)) && hosts.is_empty() {
                 Ok(u)
@@ -103,7 +104,7 @@ pub fn check_url(url: &str, hosts: &[String]) -> Result<Url, String> {
         }
         None => return Err("The address has no host.".into()),
     };
-    if name == "localhost" || name.ends_with(".localhost") || !name.contains('.') {
+    if name.is_empty() || name == "localhost" || name.ends_with(".localhost") || !name.contains('.') {
         return Err(format!("{name} isn’t allowed."));
     }
     if hosts.is_empty() || hosts.iter().any(|p| host_matches(p, &name)) {

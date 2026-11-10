@@ -14,7 +14,7 @@ use crate::chat::catalog::{self, ChannelCatalog, GlobalCatalog};
 use crate::chat::run::{MenuContext, UiAction};
 use crate::chat::{self, ChatOpened};
 
-type CmdResult<T> = Result<T, String>;
+use super::CmdResult;
 
 /// Opens a chat view; events stream over `on_event` until `chat_close`. `filters` are
 /// the F3 filter ids the panel shows messages through. `follows`: the mod view's or the

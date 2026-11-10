@@ -13,7 +13,7 @@ use tauri_plugin_dialog::DialogExt;
 use crate::settings::Settings;
 use crate::tabs::import as chatterino;
 
-type CmdResult<T> = Result<T, String>;
+use super::CmdResult;
 
 /// Settings files are small; a file this big isn't one.
 const MAX_BYTES: u64 = 16 * 1024 * 1024;

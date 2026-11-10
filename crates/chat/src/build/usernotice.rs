@@ -3,7 +3,7 @@
 
 use crate::irc::Line;
 use crate::model::{ChatMessage, Flag, Meta, Notice, NoticeKind, NoticeUser, SharedSource};
-use crate::tokenize::{Input, tokenize};
+use crate::tokenize::{Input, shown, tokenize};
 
 use super::sender::{badges, sender};
 use super::{Ctx, GiftLink, Incoming, timestamp};
@@ -15,7 +15,8 @@ pub fn usernotice(line: &Line<'_>, ctx: &mut Ctx<'_>) -> Option<Incoming> {
         id => id,
     };
     let kind = kind_of(msg_id);
-    let mut text = line.tag("system-msg").unwrap_or_default().trim().to_owned();
+    // V110-F94 Shown, and it holds names: cleaned like the text.
+    let mut text = shown(line.tag("system-msg").unwrap_or_default().trim()).into_owned();
     if text.is_empty() {
         text = fallback_text(msg_id, line);
     } else if msg_id == "modiversary" {

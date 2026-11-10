@@ -5,7 +5,7 @@ use tauri::ipc::InvokeBody;
 
 use crate::sound::{self, SoundDevices};
 
-type CmdResult<T> = Result<T, String>;
+use super::CmdResult;
 
 /// Async, so listing the devices never holds the window's thread.
 #[tauri::command]

@@ -112,7 +112,7 @@ impl Automations {
         let text = plain(&m.body);
         let text = text.trim();
         let chat = self.chats.entry(channel.to_owned()).or_default();
-        while chat.sent.front().is_some_and(|t| now_ms - t > WINDOW_MS) {
+        while chat.sent.front().is_some_and(|t| now_ms.saturating_sub(*t) > WINDOW_MS) {
             chat.sent.pop_front();
         }
         if chat.user_at.len() >= MAX_USER_COOLDOWNS {
@@ -120,7 +120,7 @@ impl Automations {
             chat.user_at.retain(|(i, _), t| {
                 rules
                     .get(*i)
-                    .is_some_and(|r| now_ms - *t < i64::from(r.cfg.user_cooldown_secs) * 1000)
+                    .is_some_and(|r| now_ms.saturating_sub(*t) < i64::from(r.cfg.user_cooldown_secs) * 1000)
             });
         }
         // Still full of live cooldowns (long ones in a busy chat): the oldest half goes.
@@ -145,13 +145,13 @@ impl Automations {
             let rule_cool = chat
                 .rule_at
                 .get(&i)
-                .is_some_and(|t| now_ms - t < i64::from(a.cooldown_secs) * 1000);
+                .is_some_and(|t| now_ms.saturating_sub(*t) < i64::from(a.cooldown_secs) * 1000);
             let user_key = (i, sender.id.clone());
             let user_cool = chat
                 .user_at
                 .get(&user_key)
-                .is_some_and(|t| now_ms - t < i64::from(a.user_cooldown_secs) * 1000);
-            let busy = chat.sent.len() >= self.limit || chat.sent.back().is_some_and(|t| now_ms - t < GAP_MS);
+                .is_some_and(|t| now_ms.saturating_sub(*t) < i64::from(a.user_cooldown_secs) * 1000);
+            let busy = chat.sent.len() >= self.limit || chat.sent.back().is_some_and(|t| now_ms.saturating_sub(*t) < GAP_MS);
             if rule_cool || user_cool || busy {
                 return None;
             }

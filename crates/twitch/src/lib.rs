@@ -30,7 +30,16 @@ pub mod uploader;
 pub mod usher;
 pub mod ws;
 
+#[cfg(test)]
+#[path = "../../chat/src/fuzz.rs"]
+mod fuzz;
+#[cfg(test)]
+#[path = "../../chat/src/fuzz_json.rs"]
+mod fuzz_json;
+#[cfg(test)]
+mod fuzz_tests;
+
 pub use call::{Call, Reply, Verb};
 pub use download::DownloadError;
-pub use error::{Error, Result};
+pub use error::{Error, Result, already_text, integrity_text};
 pub use http::{BROWSER_AGENT, Http, RateLimit};

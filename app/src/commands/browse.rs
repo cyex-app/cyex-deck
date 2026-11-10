@@ -8,7 +8,7 @@ use crate::auth::Auth;
 use crate::browse::schedule::{self, ChannelSchedule, NextStream};
 use crate::browse::{discover, follows};
 
-type CmdResult<T> = Result<T, String>;
+use super::CmdResult;
 
 /// 1.6 Channels the account follows. `force` fetches the whole list again.
 #[tauri::command]

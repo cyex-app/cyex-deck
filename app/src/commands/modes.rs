@@ -5,7 +5,7 @@ use tauri::{AppHandle, WebviewWindow};
 use crate::streamer::{self, StreamerState};
 use crate::windows::overlay;
 
-type CmdResult<T> = Result<T, String>;
+use super::CmdResult;
 
 #[tauri::command]
 pub fn streamer_state(app: AppHandle) -> StreamerState {

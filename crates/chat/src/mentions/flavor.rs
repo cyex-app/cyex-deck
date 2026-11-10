@@ -370,19 +370,25 @@ mod tests {
 
     #[test]
     fn rewrites_compile() {
+        // V110-F95 Each rewrite compiles and matches its own sample. `None`: a pattern that can
+        // never match (`\b\B` together, `\A` after a character, JavaScript's empty `[]`), which
+        // only has to compile.
         let cases = [
-            (r"[\d\w-]\D\W\b\B", Js),
-            (r"a{x}b}c]", Js),
-            (r"[^][]", Js),
-            (r"é\u{1F600}\cJ\/\-\!\@", Js),
-            (r"[a&&b~~c]", Js),
-            (r"(?<=a+)b(?<!c)(?<n>x)\k<n>", Js),
-            (r"[]a]\Z\A(?#x)(?i:a)(?ai)b", Py),
-            (r"(?P<n>a)(?P=n)\U0001F600\a", Py),
+            (r"[\d\w-]\D\W\b\B", Js, None),
+            (r"a{x}b}c]", Js, Some("a{x}b}c]")),
+            (r"[^][]", Js, None),
+            (r"é\u{1F600}\cJ\/\-\!\@", Js, Some("é\u{1F600}\n/-!@")),
+            (r"[a&&b~~c]", Js, Some("&")),
+            (r"(?<=a+)b(?<!c)(?<n>x)\k<n>", Js, Some("abxx")),
+            (r"[]a]\Z\A(?#x)(?i:a)(?ai)b", Py, None),
+            (r"(?P<n>a)(?P=n)\U0001F600\a", Py, Some("aa\u{1F600}\u{7}")),
         ];
-        for (src, flavor) in cases {
+        for (src, flavor, sample) in cases {
             let p = t(src, flavor);
-            assert!(fancy_regex::Regex::new(&p).is_ok(), "{src} → {p}");
+            let re = fancy_regex::Regex::new(&p).unwrap_or_else(|e| panic!("{src} → {p}: {e}"));
+            if let Some(sample) = sample {
+                assert!(re.is_match(sample).unwrap(), "{src} → {p} should match {sample:?}");
+            }
         }
     }
 

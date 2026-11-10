@@ -131,14 +131,20 @@ pub fn parse(text: &str) -> Result<Items> {
     let mut p = Parser {
         chars: text.chars().collect(),
         pos: 0,
+        depth: 0,
     };
     let items = p.until(&[])?;
     Ok(items)
 }
 
+/// V110-F89 How many `$name(` may sit inside each other: the parser recurses once per level and
+/// a stack overflow closes the app.
+const MAX_DEPTH: usize = 64;
+
 struct Parser {
     chars: Vec<char>,
     pos: usize,
+    depth: usize,
 }
 
 impl Parser {
@@ -181,6 +187,16 @@ impl Parser {
 
     /// Reads items until one of `stop` (not consumed) or the end.
     fn until(&mut self, stop: &[char]) -> Result<Items> {
+        if self.depth >= MAX_DEPTH {
+            return Err(self.error("Too deeply nested.".into()));
+        }
+        self.depth += 1;
+        let items = self.until_inner(stop);
+        self.depth -= 1;
+        items
+    }
+
+    fn until_inner(&mut self, stop: &[char]) -> Result<Items> {
         let mut items = Items::new();
         let mut text = String::new();
         while let Some(c) = self.peek() {

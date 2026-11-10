@@ -17,3 +17,9 @@ pub mod pacer;
 pub mod restack;
 pub mod roles;
 pub mod said;
+
+#[cfg(test)]
+#[path = "../../chat/src/fuzz.rs"]
+mod fuzz;
+#[cfg(test)]
+mod fuzz_tests;

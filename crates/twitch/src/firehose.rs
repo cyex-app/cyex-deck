@@ -8,7 +8,7 @@ use std::time::Duration;
 use futures_util::StreamExt;
 use tokio::sync::watch;
 use tokio::time::{Instant, sleep_until, timeout};
-use tokio_tungstenite::connect_async;
+use tokio_tungstenite::connect_async_with_config;
 use tokio_tungstenite::tungstenite::Message;
 
 pub const URL: &str = "wss://logs.cyex.app/firehose";
@@ -51,7 +51,7 @@ pub async fn run(
         }
         status(Status::Connecting);
         let ws = tokio::select! {
-            r = timeout(CONNECT, connect_async(url)) => r.ok().and_then(Result::ok),
+            r = timeout(CONNECT, open(url)) => r.ok().and_then(Result::ok),
             r = stop.changed() => if r.is_err() || *stop.borrow() { return } else { None },
         };
         let Some((ws, _)) = ws else {
@@ -88,6 +88,16 @@ fn next(backoff: Duration) -> Duration {
     }
 }
 
+/// V110-F94 Opened with the 4 MiB message cap of `ws` (the library takes 64 MiB by default).
+async fn open(
+    url: &str,
+) -> tokio_tungstenite::tungstenite::Result<(
+    tokio_tungstenite::WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>>,
+    tokio_tungstenite::tungstenite::handshake::client::Response,
+)> {
+    connect_async_with_config(url, Some(crate::ws::config()), false).await
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -116,5 +126,23 @@ mod tests {
         let (_, ()) = tokio::join!(timeout(Duration::from_secs(10), task), stopper);
         assert_eq!(states.first(), Some(&Status::Connecting));
         assert!(states.contains(&Status::Offline(2)), "{states:?}");
+    }
+
+    #[tokio::test]
+    async fn v110_f94_a_message_over_the_cap_ends_the_read() {
+        use futures_util::{SinkExt, StreamExt};
+        use tokio_tungstenite::tungstenite::Message;
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let url = format!("ws://{}", listener.local_addr().unwrap());
+        tokio::spawn(async move {
+            let (tcp, _) = listener.accept().await.unwrap();
+            let mut ws = tokio_tungstenite::accept_async(tcp).await.unwrap();
+            let _ = ws.send(Message::text("small")).await;
+            let _ = ws.send(Message::binary(vec![0u8; (4 << 20) + 1])).await;
+            let _ = ws.next().await;
+        });
+        let (mut ws, _) = super::open(&url).await.unwrap();
+        assert!(matches!(ws.next().await, Some(Ok(Message::Text(t))) if t.as_str() == "small"));
+        assert!(matches!(ws.next().await, Some(Err(_))));
     }
 }
