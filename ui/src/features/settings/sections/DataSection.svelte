@@ -6,7 +6,8 @@
   import type { Partition } from '../../../ipc/bindings/Partition';
   import { systemIpc } from '../../../ipc/system';
   import { settingsIpc } from '../../../ipc/settings';
-  import { PARTITION_LABELS, PORTABLE_PARTITIONS, importedText } from '../../../lib/partitions';
+  import { PARTITION_LABELS, PORTABLE_PARTITIONS, importedText, partitionList } from '../../../lib/partitions';
+  import { settings } from '../../../lib/settings.svelte';
   import { toast } from '../../../lib/toast.svelte';
   import { errorText } from '../../../lib/errors';
   import { copy } from '../../../lib/clipboard';
@@ -96,6 +97,7 @@
   async function keepCurrent(snapshot = false): Promise<string | null> {
     try {
       const before = await settingsIpc.shareCode([...PORTABLE_PARTITIONS]);
+      keptOn = settings.v.commands.automationsOn;
       if (snapshot) await settingsIpc.snapshotNow();
       return before;
     } catch {
@@ -104,9 +106,22 @@
     }
   }
 
+  /** V110-F97 Whether automations were on when the safety copy was taken: an import switches them off,
+   *  and Undo is an import too, so it switches them back on itself. */
+  let keptOn = false;
+
   /** The Undo that puts the kept settings back. */
   function undoTo(before: string) {
-    return { label: 'Undo', run: () => void attempt(() => settingsIpc.importCode(before)).then((p) => p && imported(p)) };
+    const on = keptOn;
+    return {
+      label: 'Undo',
+      run: () =>
+        void attempt(() => settingsIpc.importCode(before)).then(async (p) => {
+          if (!p) return;
+          if (on && p.includes('commands')) await settings.patch('commands', { automationsOn: true });
+          toast.success(on ? `Imported ${partitionList(p)}.` : importedText(p));
+        }),
+    };
   }
 
   function imported(partitions: Partition[] | undefined, before?: string) {
