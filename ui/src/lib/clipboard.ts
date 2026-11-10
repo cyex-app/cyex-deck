@@ -9,11 +9,12 @@ export type Write = (text: string) => Promise<void>;
 
 const system: Write = (text) => navigator.clipboard.writeText(text);
 
-/** Copies `text`; `what` names it for the toast ("Link", "Code"). True when it worked. */
-export async function copy(text: string, what: string, write: Write = system): Promise<boolean> {
+/** Copies `text`; `what` names it for the toast ("Link", "Code"). True when it worked.
+ *  `quiet`: no success toast (a button shows a check mark instead, see copied.svelte.ts); a failure still says so. */
+export async function copy(text: string, what: string, write: Write = system, quiet = false): Promise<boolean> {
   try {
     await write(text);
-    toast.success(`${what.charAt(0).toUpperCase()}${what.slice(1)} copied.`);
+    if (!quiet) toast.success(`${what.charAt(0).toUpperCase()}${what.slice(1)} copied.`);
     return true;
   } catch {
     toast.error('Couldn’t copy that. Try again.');

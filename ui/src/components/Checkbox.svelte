@@ -63,6 +63,12 @@
     background: var(--surface);
     color: var(--accent-ink);
   }
+  /* V110-A18 24 px to hit, 16 px to see. */
+  .box::before {
+    content: '';
+    position: absolute;
+    inset: -4px;
+  }
   .dash {
     width: 8px;
     height: 2px;

@@ -176,6 +176,17 @@
     border: 0;
     color: var(--muted);
   }
+  /* V110-A18 Each half reaches 4 px past the field, so the hit area is taller than it looks. */
+  .steps button:first-child::before {
+    content: '';
+    position: absolute;
+    inset: -4px 0 0;
+  }
+  .steps button:last-child::before {
+    content: '';
+    position: absolute;
+    inset: 0 0 -4px;
+  }
   .steps button + button {
     border-top: 1px solid var(--border-strong);
   }

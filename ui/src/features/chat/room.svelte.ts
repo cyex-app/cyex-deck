@@ -11,7 +11,7 @@ import type { Said } from './chatLock';
 import { settings } from '../../lib/settings.svelte';
 import { CappedMap } from '../../lib/capped';
 import { errorText } from '../../lib/errors';
-import { markGone } from './gone';
+import { markGone, markOld } from './gone';
 import { nextPiece, prepend } from './historyDrip';
 
 /** V101-02 Lines kept on screen, as set; older ones drop off the top. Rust keeps as many
@@ -181,8 +181,9 @@ export class ChatRoom {
           this.said = { how: e.how, at: Date.now() };
           break;
         // V110-F88 A mod's /clear: the room sends the notice line right after as a 'message'; the
-        // lines on screen stay (only 'wipe' empties the list).
+        // lines on screen stay (only 'wipe' empties the list). V110-A24 They go grey like history lines.
         case 'cleared':
+          edit(markOld);
           break;
         default: {
           // A new RoomEvent variant fails to compile here until it is handled.

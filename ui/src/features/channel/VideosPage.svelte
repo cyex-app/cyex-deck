@@ -7,7 +7,7 @@
   import type { VideoSort } from '../../ipc/bindings/VideoSort';
   import type { VodProgress } from '../../ipc/bindings/VodProgress';
   import { channelIpc, playerIpc } from '../../ipc/player';
-  import { formatDate, formatShort } from '../../lib/format';
+  import { formatCount, formatDate } from '../../lib/format';
   import { clock } from '../player/time';
   import Card from './Card.svelte';
   import { errorText } from '../../lib/errors';
@@ -71,7 +71,7 @@
           title={v.title}
           sub={[v.game, formatDate(new Date(v.publishedAt))].filter(Boolean).join(' · ')}
           corner={clock(v.length)}
-          views={`${formatShort(v.views)} ${v.views === 1 ? 'view' : 'views'}`}
+          views={formatCount(v.views, 'view')}
           badge={v.recording ? 'LIVE' : v.restricted ? 'Subs' : null}
           progress={seen[v.id]?.part}
           watched={seen[v.id]?.watched}

@@ -3,6 +3,7 @@
      Earned ones fold away below. -->
 <script lang="ts">
   import Checkbox from '../../components/Checkbox.svelte';
+  import EmptyState from '../../components/EmptyState.svelte';
   import Icon from '../../components/Icon.svelte';
   import { tooltip } from '../../components/tooltip.svelte';
   import { minerIpc } from '../../ipc/miner';
@@ -54,7 +55,7 @@
       <span class="ends" use:tooltip={'Last day to earn it'}>{endDate(b.endsAt)}</span>
     </div>
   {:else}
-    <p class="empty">No badges to earn right now. The miner looks again every half hour.</p>
+    <div class="none"><EmptyState icon="badge" text="No badges to earn right now. The miner looks again every half hour." /></div>
   {/each}
 
   {#if earned.length}
@@ -183,9 +184,8 @@
   .fold:hover {
     background: var(--surface-hover);
   }
-  .empty {
-    margin: 6px 0;
-    color: var(--dim);
-    font-size: 0.82rem;
+  .none {
+    display: flex;
+    padding: 20px 0;
   }
 </style>

@@ -12,7 +12,7 @@ import { emoteMenu } from '../emotes/menus';
 import type { Word } from './completion';
 import { matchPeople, mentionName, type Person } from './people';
 import type { ChatRoom } from './room.svelte';
-import { commandItems, emoteItems, type EmoteName, type Item, viewerLevel } from './suggestions';
+import { commandItems, emoteList, type EmoteName, type Item, viewerLevel } from './suggestions';
 
 export class Sources {
   private menu: EmoteMenu | null = null;
@@ -73,19 +73,24 @@ export class Sources {
 
   /** Suggestions for the word at the caret. */
   items(word: Word): Item[] {
+    return this.list(word).items;
+  }
+
+  /** V110-A-idea The suggestions and how many more matched than they show. */
+  list(word: Word): { items: Item[]; more: number } {
     if (word.text.startsWith('@') && word.text.length >= 2) {
-      return matchPeople(word.text.slice(1), this.people()).map((n) => ({ value: `@${n}`, label: `@${n}` }));
+      return { items: matchPeople(word.text.slice(1), this.people()).map((n) => ({ value: `@${n}`, label: `@${n}` })), more: 0 };
     }
     if (word.text.startsWith(':') && word.text.length >= 3) {
       const q = word.text.slice(1).replace(/:$/, '');
       const found = this.emoji ? findEmoji(this.emoji, q, 8).map((e) => ({ char: e.char, name: e.names[0] })) : [];
-      return emoteItems(q, this.emotes(), found, 8, providerRank());
+      return emoteList(q, this.emotes(), found, 8, providerRank());
     }
     if (word.start === 0 && word.text.startsWith('!') && word.text.length >= 2 && this.commands) {
       const own = this.room.state.own;
       const sub = own?.badges.some((b) => b.set === 'subscriber' || b.set === 'founder') ?? false;
-      return commandItems(word.text, this.commands, viewerLevel(own ? { ...own, sub } : null));
+      return { items: commandItems(word.text, this.commands, viewerLevel(own ? { ...own, sub } : null)), more: 0 };
     }
-    return [];
+    return { items: [], more: 0 };
   }
 }

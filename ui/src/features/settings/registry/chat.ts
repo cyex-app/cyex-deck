@@ -165,6 +165,13 @@ export const CHAT: Entry[] = [
     description: 'Small ticks on the scrollbar for highlights, mentions and events. Click one to jump there.',
     keywords: ['scrollbar', 'highlight', 'mention', 'ticks', 'jump', 'event'],
   },
+  {
+    id: 'chat:reader',
+    page: 'chat',
+    label: 'Screen reader mode',
+    description: 'Tab reaches the chat, and new messages are read out a few at a time.',
+    keywords: ['screen reader', 'accessibility', 'narrator', 'nvda', 'keyboard', 'tab', 'live region'],
+  },
   ...(
     [
       ['plain', 'Click on a name', 'click'],

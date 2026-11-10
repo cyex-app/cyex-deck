@@ -13,6 +13,8 @@ export interface BarCtx {
   /** The "Tab bar position" submenu. */
   position: MenuEntry;
   reopen: { can: boolean; hint?: string; run(): void };
+  /** V110-A-idea Every tab and chat in its own window goes back. */
+  closePops: { can: boolean; note?: string; run(): void };
 }
 
 export const BAR_DEF: MenuDef<BarCtx> = {
@@ -25,8 +27,9 @@ export const BAR_DEF: MenuDef<BarCtx> = {
     row('lock', 'Lock tabs', 'lock', (c) => ({ label: 'Lock tabs', icon: 'lock', hint: c.lock.hint, checked: c.lock.on, run: c.lock.run })),
     row('position', 'Tab bar position', 'layout', (c) => c.position),
     row('reopen', 'Reopen closed tab', 'undo', (c) => ({ label: 'Reopen closed tab', icon: 'undo', hint: c.reopen.hint, disabled: !c.reopen.can, run: c.reopen.run })),
+    row('closePops', 'Close all pop-outs', 'popout', (c) => ({ label: 'Close all pop-outs', icon: 'popout', note: c.closePops.note, disabled: !c.closePops.can, run: c.closePops.run })),
   ],
-  defaults: [item('add'), item('onlyLive'), item('lock'), item('position'), SEP, item('reopen')],
+  defaults: [item('add'), item('onlyLive'), item('lock'), item('position'), SEP, item('reopen'), item('closePops')],
 };
 
 export function barSample(who: Who): BarCtx {
@@ -36,6 +39,7 @@ export function barSample(who: Who): BarCtx {
     lock: { on: false, run: noop },
     position: { label: 'Tab bar position', icon: 'layout', items: [{ label: 'Top', checked: true, run: noop }] },
     reopen: { can: who !== 'out', run: noop },
+    closePops: { can: who !== 'out', note: 'Puts 2 windows back in the main window.', run: noop },
   };
 }
 

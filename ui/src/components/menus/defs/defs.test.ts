@@ -94,7 +94,7 @@ test('the other menus keep their size', () => {
     'Reopen closed tab',
   ]);
   assert.deepEqual(names('tabs.tile', 'viewer'), ['Theatre', 'Sound here', 'Edit', 'Hide chat', 'Hide stream', 'Layout', 'Close']);
-  assert.deepEqual(names('tabs.bar', 'viewer'), ['Add a tab', 'Only live tabs', 'Lock tabs', 'Tab bar position', 'Reopen closed tab']);
+  assert.deepEqual(names('tabs.bar', 'viewer'), ['Add a tab', 'Only live tabs', 'Lock tabs', 'Tab bar position', 'Reopen closed tab', 'Close all pop-outs']);
   assert.deepEqual(names('tabs.group', 'viewer'), ['Rename', 'Color', 'Ungroup', 'Close 3 tabs']);
   assert.deepEqual(names('player', 'viewer'), [
     'Pause',

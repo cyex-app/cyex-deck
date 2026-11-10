@@ -23,6 +23,7 @@
   import { looks } from '../emotes/looks.svelte';
   import { toggleWatch, watched } from './watch';
   import { copy } from '../../lib/clipboard';
+  import { copied } from '../../lib/copied.svelte';
 
   interface Props {
     profile: Profile;
@@ -100,6 +101,9 @@
     void settings.patch('highlights', { users: toggleWatch(settings.v.highlights.users, profile.login) });
   }
 
+  // V110-A-idea A check mark on the button for a moment, not a toast.
+  const cp = copied();
+
   function copyId() {
     void copy(profile.id, 'User ID');
   }
@@ -134,18 +138,19 @@
     <!-- V107-R35 The name is text to select, not a handle for the window. -->
     <div class="name no-drag" style={colorVars}>
       <div class="names">
+        <span class="sr-only" aria-live="polite">{cp.said}</span>
         <!-- V108-C17 The login leads; the display name (or your nickname) sits under it in brackets. -->
         <span class="line">
           <strong class={paint ?? ''} class:painted={!!paint} class:colored={!!color}>{profile.login}</strong>
-          <button class="cp" aria-label="Copy name" use:tooltip={'Copy name'} onclick={() => copy(profile.login, 'Name')}
-            ><Icon name="copy" size={11} /></button
+          <button class="cp" aria-label="Copy name" use:tooltip={'Copy name'} onclick={() => cp.run(profile.login, 'Name', 'login')}
+            ><Icon name={cp.is('login') ? 'check' : 'copy'} size={11} /></button
           >
         </span>
         {#if second}
           <span class="line sub">
             <span class="display">({second})</span>
-            <button class="cp" aria-label="Copy name" use:tooltip={'Copy name'} onclick={() => copy(second, 'Name')}
-              ><Icon name="copy" size={11} /></button
+            <button class="cp" aria-label="Copy name" use:tooltip={'Copy name'} onclick={() => cp.run(second, 'Name', 'second')}
+              ><Icon name={cp.is('second') ? 'check' : 'copy'} size={11} /></button
             >
           </span>
         {/if}

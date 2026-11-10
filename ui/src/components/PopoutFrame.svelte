@@ -11,6 +11,7 @@
   import { currentWindow } from '../lib/window.svelte';
   import Icon from './Icon.svelte';
   import IconButton from './IconButton.svelte';
+  import { PIN_LABEL, pinHint } from './pinHint';
   import { tooltip } from './tooltip.svelte';
 
   interface Props {
@@ -42,8 +43,8 @@
   <div class="controls">
     <IconButton
       icon={currentWindow.pinned ? 'pinFilled' : 'pin'}
-      label="Pin on top"
-      hint={currentWindow.pinned ? 'Pinned. Click to let other windows cover it.' : 'Keeps this window above everything else.'}
+      label={PIN_LABEL}
+      hint={pinHint(currentWindow.pinned)}
       active={currentWindow.pinned}
       toggle
       size={variant === 'slim' ? 12 : 13}

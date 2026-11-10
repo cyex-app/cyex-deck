@@ -397,6 +397,7 @@
     white-space: nowrap;
   }
   .rm {
+    position: relative;
     display: inline-flex;
     padding: 1px;
     border: 0;
@@ -405,15 +406,28 @@
     color: var(--dim);
     cursor: pointer;
   }
+  /* V110-A18 25 px to hit, 15 px to see. */
+  .rm::before {
+    content: '';
+    position: absolute;
+    inset: -5px;
+  }
   .rm:hover:not(:disabled) {
     color: var(--red);
   }
   .chip.plus {
+    position: relative;
     padding: 0 5px;
     background: transparent;
     border-style: dashed;
     color: var(--muted);
     cursor: pointer;
+  }
+  /* V110-A18 24 px tall to hit. */
+  .chip.plus::before {
+    content: '';
+    position: absolute;
+    inset: -2px 0;
   }
   .chip.plus:hover:not(:disabled) {
     color: var(--text);

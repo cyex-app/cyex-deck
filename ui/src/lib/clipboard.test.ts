@@ -26,3 +26,12 @@ test('a failed copy says so', async () => {
   assert.equal(last?.text, 'Couldn’t copy that. Try again.');
   for (const t of [...toast.items]) toast.dismiss(t.id);
 });
+
+test('V110-A-idea a quiet copy works without a toast, a failed one still toasts', async () => {
+  const before = toast.items.length;
+  assert.equal(await copy('x', 'Link', async () => {}, true), true);
+  assert.equal(toast.items.length, before);
+  assert.equal(await copy('x', 'Link', () => Promise.reject(new Error('denied')), true), false);
+  assert.equal(toast.items.at(-1)?.kind, 'error');
+  for (const t of [...toast.items]) toast.dismiss(t.id);
+});

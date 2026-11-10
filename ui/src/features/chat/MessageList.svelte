@@ -4,7 +4,10 @@
      (C5); a dated line where chat crosses midnight (C25); a line picked with the keyboard (F54).
      Clicks and tooltips are delegated here instead of being set on every line. -->
 <script lang="ts">
-  import { onDestroy, setContext, tick, untrack } from 'svelte';
+  import { onDestroy, onMount, setContext, tick, untrack } from 'svelte';
+  import { onShown } from '../../lib/awake';
+  import { reader } from './readerMode.svelte';
+  import { READER_MS, readout } from './readerMode';
 
   import Icon from '../../components/Icon.svelte';
   import { menu, openMenu as showMenu, type MenuEntry } from '../../components/menu.svelte';
@@ -19,7 +22,7 @@
   import { windowsIpc } from '../../ipc/windows';
   import { formatDate, formatNumber } from '../../lib/format';
   import { composing } from '../../lib/keys';
-  import { reduced } from '../../lib/motion';
+  import { pillIn, reduced } from '../../lib/motion';
   import { EASE_OUT_CUBIC } from '../../lib/scrollMath';
   import { settings } from '../../lib/settings.svelte';
   import { stopScroll } from '../../lib/smoothScroll';
@@ -131,6 +134,19 @@
     untrack(pauseOpts),
   );
   onDestroy(() => scroll.dispose());
+  // V110-U6 Shown again: the drawn window shrinks on the first frame, not 1,5 s later.
+  onMount(() => {
+    let frame = 0;
+    const stop = onShown((hidden) => {
+      if (hidden) return;
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => scroll.shown());
+    });
+    return () => {
+      stop();
+      cancelAnimationFrame(frame);
+    };
+  });
   // Only the inputs are tracked: what the calls read inside ChatScroll stays out (V107-LH).
   $effect(() => {
     const opts = pauseOpts();
@@ -154,6 +170,8 @@
   });
   /** Messages that came in since the list stopped following (pause or scroll up). */
   const fresh = $derived(scroll.fresh);
+  /** V110-A-idea */
+  const cut = $derived(scroll.cut);
 
   /** V103-12 A line and where it showed, to slide the lines in from. */
   type Mark = { el: Element; top: number };
@@ -430,6 +448,29 @@
   setContext(HOVER_OWNER, owner);
   /** V108-F54 The line picked with Alt+Up / Alt+Down (hotkeys chat.lineUp, chat.lineDown). */
   let picked = $state<string | null>(null);
+  /** V110-A11 Reader mode: newest lines, read out at most every READER_MS through a polite live region. Off: no timer, no tracking. */
+  let announced = $state('');
+  /** undefined: reader mode is off. */
+  let readLast: string | null | undefined;
+  let readTimer: ReturnType<typeof setTimeout> | undefined;
+  $effect(() => {
+    if (!reader.on) {
+      readLast = undefined;
+      clearTimeout(readTimer);
+      readTimer = undefined;
+      announced = '';
+      return;
+    }
+    const list = room.messages;
+    readLast ??= list.at(-1)?.id ?? null;
+    readTimer ??= setTimeout(() => {
+      readTimer = undefined;
+      const r = readout(room.messages, readLast ?? null);
+      readLast = r.last;
+      if (r.text) announced = r.text;
+    }, READER_MS);
+  });
+  onDestroy(() => clearTimeout(readTimer));
   /** What a screen reader hears for the picked line. */
   const heard = $derived(picked !== null ? (room.find(picked) ? lineLabel(room.find(picked)!) : '') : '');
 
@@ -933,14 +974,19 @@
     onmouseenter={(e) => scroll.enter(e.clientX, e.clientY)}
     onmouseleave={() => scroll.exit()}
     role="log"
-    tabindex="-1"
+    tabindex={reader.on ? 0 : -1}
+    aria-label={reader.on ? 'Chat' : undefined}
     data-arrows
     aria-live="off"
   >
     <div bind:this={lines}>
       {#each drawn as m (m.id)}
         {#if dayStarts.has(m.id)}<DateRow label={formatDate(new Date(m.ts))} />{/if}
-        <Line {m} channel={room.login} {canReply} stripe={stripe?.get(m.id) ?? false} mod={lineMod} replyHidden={hideFor} />
+        <!-- V110-A-idea One line that throws shows a plain row; the rest of the chat keeps going. The boundary adds no element. -->
+        <svelte:boundary>
+          <Line {m} channel={room.login} {canReply} stripe={stripe?.get(m.id) ?? false} mod={lineMod} replyHidden={hideFor} />
+          {#snippet failed()}<div class="line broke" data-id={m.id}>Couldn’t show this line</div>{/snippet}
+        </svelte:boundary>
         {#if m.id === lastRead && m.id !== shown.at(-1)?.id}<hr class="last-read" />{/if}
       {/each}
     </div>
@@ -948,6 +994,7 @@
   {#if c.scrollMarks}<ScrollMarks bind:this={marks} {list} {lines} messages={drawn} />{/if}
   <!-- V108-F54 The picked line, read out once as it is picked. -->
   <div class="sr-only" aria-live="polite">{heard}</div>
+  {#if reader.on}<div class="sr-only" aria-live="polite" aria-atomic="true">{announced}</div>{/if}
   {#if warning}
     {#key warning}<WarnBox login={warning.login} anchor={warning.anchor} send={sendWarn} onclose={() => (warning = null)} />{/key}
   {/if}
@@ -955,9 +1002,9 @@
     {#key card}<EmoteCard target={card} login={room.login} account={room.account} onclose={() => (card = null)} />{/key}
   {/if}
   {#if scroll.pill}
-    <button class="more" onclick={jumpDown}>
+    <button class="more" in:pillIn onclick={jumpDown} title={cut > 0 ? `${formatNumber(cut)} older lines dropped` : undefined}>
       <Icon name="arrowDown" size={13} />
-      {fresh > 0 ? `${formatNumber(fresh)} new` : following ? 'Paused' : 'More messages'}
+      {fresh > 0 ? `${formatNumber(fresh)} new` : following ? 'Paused' : 'More messages'}{cut > 0 ? ` · ${formatNumber(cut)} dropped` : ''}
     </button>
   {/if}
 </div>
@@ -1012,6 +1059,12 @@
      position is kept when the strip comes or goes, so no line moves on screen. */
   .reserve {
     margin-bottom: 40px;
+  }
+  /* V110-A-idea The row that stands in for a line that failed to draw. */
+  .broke {
+    padding: 2px 10px;
+    color: var(--dim);
+    font: var(--chat-size) / 1.45 var(--chat-font);
   }
   .more {
     position: absolute;

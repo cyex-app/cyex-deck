@@ -190,10 +190,12 @@
     text-overflow: ellipsis;
     white-space: nowrap;
     padding: 0 7px;
-    height: 20px;
+    /* V110-A16 A chip: 3 px corners, 24 px tall. */
+    height: 24px;
+    line-height: 22px;
     background: var(--surface);
     border: 1px solid var(--border);
-    border-radius: var(--radius-pill);
+    border-radius: var(--radius);
     color: var(--muted);
     font-size: 0.72rem;
   }

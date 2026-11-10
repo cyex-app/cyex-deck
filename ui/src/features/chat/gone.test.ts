@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import type { ChatMessage } from '../../ipc/bindings/ChatMessage';
-import { goneNote, markGone, mergeGone } from './gone.ts';
+import { goneNote, markGone, markOld, mergeGone } from './gone.ts';
 
 const line = (extra: Partial<ChatMessage> = {}): ChatMessage => ({ id: 'a', ts: 0, body: [], flags: [], ...extra }) as ChatMessage;
 
@@ -38,4 +38,10 @@ test('V107-R34 marking: once, then again only with news', () => {
   const hidden = markGone(line(), undefined);
   assert.ok(hidden && hidden.flags.includes('deleted') && !hidden.gone);
   assert.equal(markGone(hidden, undefined), null);
+});
+
+test('V110-A24 a cleared line is marked as history once', () => {
+  const m = markOld(line());
+  assert.deepEqual(m?.flags, ['history']);
+  assert.equal(markOld(m!), null);
 });

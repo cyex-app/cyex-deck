@@ -30,3 +30,8 @@ export function markGone(m: ChatMessage, gone: Gone | undefined): ChatMessage | 
   if (was && g?.how === m.gone?.how && g?.by === m.gone?.by && g?.secs === m.gone?.secs) return null;
   return { ...m, flags: was ? m.flags : [...m.flags, 'deleted'], ...(g ? { gone: g } : {}) };
 }
+
+/** V110-A24 A mod's /clear: the lines on screen turn grey like the history shown on joining; null when already so. */
+export function markOld(m: ChatMessage): ChatMessage | null {
+  return m.flags.includes('history') ? null : { ...m, flags: [...m.flags, 'history'] };
+}

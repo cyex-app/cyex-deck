@@ -7,10 +7,14 @@
   import type { CustomTheme } from '../../ipc/bindings/CustomTheme';
   import { themeIpc } from '../../ipc/theme';
   import { copy } from '../../lib/clipboard';
+  import { copied } from '../../lib/copied.svelte';
   import { errorText } from '../../lib/errors';
   import { toast } from '../../lib/toast.svelte';
   import { isLink } from './themes';
   import { shareState } from './themeLink';
+
+  // V110-A-idea A check mark on the button for a moment, not a toast.
+  const cp = copied();
 
   interface Props {
     theme: CustomTheme;
@@ -79,7 +83,8 @@
   {#if s.kind === 'none'}
     <Button small icon="link" disabled={busy} onclick={share}>{busy ? 'Sharing…' : 'Share'}</Button>
   {:else}
-    <Button small icon="copy" onclick={() => void copy(s.link, 'Link')}>Copy link</Button>
+    <Button small icon={cp.is('link') ? 'check' : 'copy'} onclick={() => void cp.run(s.link, 'Link', 'link')}>Copy link</Button>
+    <span class="sr-only" aria-live="polite">{cp.said}</span>
     {#if canEdit}
       <Button small icon="upload" disabled={busy || !s.changed} onclick={update}>Update shared theme</Button>
       <ConfirmButton label="Stop sharing" confirm="Click to stop sharing" variant="ghost" disabled={busy} onconfirm={stop} />

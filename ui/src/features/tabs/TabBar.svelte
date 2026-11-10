@@ -5,7 +5,7 @@
      of rows and then a scrollbar, or all of them (F16); in the title bar the gaps between
      them still drag the window. "Only live tabs" leaves offline ones out (F17). -->
 <script lang="ts">
-  import { untrack } from 'svelte';
+  import { onDestroy, untrack } from 'svelte';
 
   import Icon from '../../components/Icon.svelte';
   import IconButton from '../../components/IconButton.svelte';
@@ -13,12 +13,14 @@
   import { tooltip } from '../../components/tooltip.svelte';
   import type { Tab } from '../../ipc/bindings/Tab';
   import type { TabGroup } from '../../ipc/bindings/TabGroup';
+  import { BASE, byKeyboard, EASE, reduced } from '../../lib/motion';
   import { settings } from '../../lib/settings.svelte';
   import { openAdd, openEdit } from './dialog.svelte';
   import GroupChip from './GroupChip.svelte';
   import { GROUP_COLORS } from './groupColors';
   import { barMaxHeight, plusFits } from './barLayout';
   import { stepTab, WheelSteps } from './cycle';
+  import { slideDeltas, type Spot } from './slide';
   import { inScrollbar, scrollBox, WHEEL_REACH } from './scrollZone';
   import { barMenu, groupMenu, tabMenu } from './menus';
   import TabItem from './TabItem.svelte';
@@ -183,8 +185,39 @@
     else openMenu(e, tabMenu(tab, targets));
   }
 
+  // V110-A-idea A close with the mouse: the tabs after it slide into the gap. A key close, and
+  // Reduce motion, move at once. The close can wait for a confirm, so the slide waits for the tab to go.
+  let slide: { id: string; spots: Map<string, Spot> } | null = null;
+  let slideTimer: ReturnType<typeof setTimeout> | undefined;
+  const spots = () => {
+    const out = new Map<string, Spot>();
+    for (const el of bar?.querySelectorAll<HTMLElement>('[data-tab-id]') ?? []) {
+      const r = el.getBoundingClientRect();
+      out.set(el.dataset.tabId!, { x: r.left, y: r.top });
+    }
+    return out;
+  };
+  $effect(() => {
+    void items;
+    if (!slide || !bar || bar.querySelector(`[data-tab-id="${CSS.escape(slide.id)}"]`)) return;
+    const moved = slideDeltas(slide.spots, spots());
+    slide = null;
+    clearTimeout(slideTimer);
+    for (const [id, d] of moved)
+      bar.querySelector<HTMLElement>(`[data-tab-id="${CSS.escape(id)}"]`)?.animate(
+        [{ transform: `translate(${d.x}px, ${d.y}px)` }, { transform: 'none' }],
+        { duration: BASE, easing: EASE },
+      );
+  });
+  onDestroy(() => clearTimeout(slideTimer));
+
   function close(tab: Tab) {
     if (selected.has(tab.id)) selected = new Set([...selected].filter((id) => id !== tab.id));
+    if (bar && !byKeyboard() && !reduced()) {
+      slide = { id: tab.id, spots: spots() };
+      clearTimeout(slideTimer);
+      slideTimer = setTimeout(() => (slide = null), 3000);
+    }
     tabs.close([tab.id]);
   }
 

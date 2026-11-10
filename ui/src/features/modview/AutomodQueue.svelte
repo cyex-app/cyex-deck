@@ -2,6 +2,7 @@
      live from EventSub; resolving drops the row. -->
 <script lang="ts">
   import { uniqueKeys } from '../../lib/keys';
+  import EmptyState from '../../components/EmptyState.svelte';
   import HeldRow from '../feeds/HeldRow.svelte';
   import type { HeldItem } from '../../ipc/bindings/HeldItem';
 
@@ -10,7 +11,7 @@
 </script>
 
 {#if held.length === 0}
-  <p class="empty">Nothing held.</p>
+  <div class="none"><EmptyState icon="shield" text="Nothing held." /></div>
 {:else}
   <ul>
     {#each held as h, i (keys[i])}
@@ -34,10 +35,8 @@
     border: 1px solid var(--border);
     border-radius: var(--radius);
   }
-  .empty {
-    margin: 0;
-    padding: 12px;
-    color: var(--muted);
-    font-size: 0.82rem;
+  .none {
+    display: flex;
+    padding: 20px 12px;
   }
 </style>

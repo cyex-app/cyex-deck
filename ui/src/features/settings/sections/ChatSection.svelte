@@ -24,6 +24,8 @@
   import { timeoutSecs } from '../../modview/timeoutLength';
   import ModePresets from './ModePresets.svelte';
   import { adSecs, followMinutes, slowSecs } from '../../modview/modePresets';
+  import { reader } from '../../chat/readerMode.svelte';
+  import { scrollbackHint } from '../scrollbackHint';
   import ResetSection from '../ResetSection.svelte';
   import Select from '../../../components/Select.svelte';
   import { choicesOf } from '../../../components/select.ts';
@@ -265,7 +267,7 @@
 <Row setting="chat.historyLines" label="History to load" hint="Up to this many. The history service keeps 800 per channel.">
   <NumberField label="History to load" steppers width="110px" min={50} max={2000} step={50} disabled={!c.history} value={c.historyLines} onchange={(n) => settings.patch('chat', { historyLines: n })} />
 </Row>
-<Row setting="chat.scrollback" label="Messages kept" hint="Per chat. Older ones drop off the top; more uses more memory.">
+<Row setting="chat.scrollback" label="Messages kept" hint={scrollbackHint(c.scrollback)}>
   <NumberField label="Messages kept" steppers width="110px" min={100} max={8000} step={100} value={c.scrollback} onchange={(n) => settings.patch('chat', { scrollback: n })} />
 </Row>
 
@@ -408,6 +410,9 @@
 </Row>
 <Row setting="chat.scrollMarks" label="Scrollbar marks" hint="Small ticks on the scrollbar for highlights, mentions and events. Click one to jump there.">
   <Toggle label="Scrollbar marks" checked={c.scrollMarks} onchange={(v) => settings.patch('chat', { scrollMarks: v })} />
+</Row>
+<Row setting="chat:reader" label="Screen reader mode" hint="Tab reaches the chat, and new messages are read out a few at a time.">
+  <Toggle label="Screen reader mode" checked={reader.on} onchange={(v) => reader.set(v)} />
 </Row>
 <Row setting="chat.delayTenths" label="Hold chat back" hint="Waits this long before showing messages, to match the stream’s delay.">
   <Select

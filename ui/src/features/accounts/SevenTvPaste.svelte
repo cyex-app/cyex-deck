@@ -8,10 +8,14 @@
   import { cosmeticsIpc } from '../../ipc/cosmetics';
   import type { AccountView } from '../../ipc/bindings/AccountView';
   import { copy } from '../../lib/clipboard';
+  import { copied } from '../../lib/copied.svelte';
   import { errorText } from '../../lib/errors';
   import { toast } from '../../lib/toast.svelte';
   import ConsentText from '../cosmetics/ConsentText.svelte';
   import { CONSOLE_LINE, looksLikeToken } from './sevenTvPaste';
+
+  // V110-A-idea A check mark on the button for a moment, not a toast.
+  const cp = copied();
 
   interface Props {
     account: AccountView;
@@ -129,7 +133,8 @@
         <span>On 7tv.app, open the browser console (F12) and run:</span>
         <div class="code">
           <code>{CONSOLE_LINE}</code>
-          <Button small variant="ghost" icon="copy" onclick={() => void copy(CONSOLE_LINE, 'Command')}>Copy</Button>
+          <Button small variant="ghost" icon={cp.is('line') ? 'check' : 'copy'} onclick={() => void cp.run(CONSOLE_LINE, 'Command', 'line')}>Copy</Button>
+          <span class="sr-only" aria-live="polite">{cp.said}</span>
         </div>
       </li>
       <li>

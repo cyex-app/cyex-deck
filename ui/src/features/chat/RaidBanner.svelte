@@ -23,7 +23,7 @@
   import { nowSecond } from '../../lib/clock.svelte';
   import { errorText } from '../../lib/errors';
   import { formatNumber } from '../../lib/format';
-  import { reduced } from '../../lib/motion';
+  import { bannerIn, reduced } from '../../lib/motion';
   import { toast } from '../../lib/toast.svelte';
   import { cancelShows, ownChannel, raidAbout, raidBar, raidFrac, raidLeft, tickShows, viewersText } from './raidBanner';
   import { raids } from './raids.svelte';
@@ -158,7 +158,7 @@
 
 {#if raid}
   <div class="wrap">
-    <div class="raid" role="status" aria-label="Raiding {raid.targetName}, {viewersText(raid.viewers, formatNumber)}">
+    <div class="raid" in:bannerIn role="status" aria-label="Raiding {raid.targetName}, {viewersText(raid.viewers, formatNumber)}">
       <span class="av" aria-hidden="true"><Avatar src={raid.targetAvatar} name={raid.targetName} size={32} /></span>
       <div class="body">
         <span class="l1">

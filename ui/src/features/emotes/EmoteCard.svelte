@@ -58,7 +58,10 @@
   import EditSection from './edit/EditSection.svelte';
   import { stayOpen } from './edit/stay';
   import { errorText } from '../../lib/errors';
-  import { copy } from '../../lib/clipboard';
+  import { copied } from '../../lib/copied.svelte';
+
+  // V110-A-idea A check mark on the button for a moment, not a toast.
+  const cp = copied();
 
   interface Props {
     target: CardTarget;
@@ -321,7 +324,8 @@
     <div class="title">
       <div class="name-row">
         <h2 class="name" class:quiet bind:this={heading} tabindex="-1">{shown.name}</h2>
-        <IconButton icon="copy" label="Copy name" size={13} onclick={() => void copy(shown.name, 'Emote name')} />
+        <IconButton icon={cp.is('name') ? 'check' : 'copy'} label="Copy name" size={13} onclick={() => void cp.run(shown.name, 'Emote name', 'name')} />
+        <span class="sr-only" aria-live="polite">{cp.said}</span>
       </div>
       {#if info?.original}<span class="sub">Originally {info.original}</span>{/if}
     </div>
@@ -447,7 +451,7 @@
     {/if}
     <span class="copies">
       {#if page}
-        <IconButton icon="link" label="Copy link" size={15} onclick={() => void copy(page, 'Link')} />
+        <IconButton icon={cp.is('link') ? 'check' : 'link'} label="Copy link" size={15} onclick={() => void cp.run(page, 'Link', 'link')} />
       {/if}
     </span>
     <span class="grow"></span>

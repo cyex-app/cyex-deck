@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { commandItems, emoteItems, viewerLevel } from './suggestions.ts';
+import { commandItems, emoteItems, emoteList, viewerLevel } from './suggestions.ts';
 
 test('emotes before emoji', () => {
   const items = emoteItems(
@@ -73,4 +73,13 @@ test('letters merely in order are no match for `:`, an acronym is (V110-F49)', (
     emoteItems('sob', emotes, []).map((i) => i.label),
     ['SoBayed', 'SmallOrangeBird'],
   );
+});
+
+test('V110-A-idea the list says how many more matched than it shows', () => {
+  const emotes = Array.from({ length: 12 }, (_, i) => ({ name: `Kappa${i}`, provider: 'twitch' as const, id: String(i) }));
+  const r = emoteList('Kappa', emotes, []);
+  assert.equal(r.items.length, 8);
+  assert.equal(r.more, 4);
+  assert.equal(emoteList('Kappa', emotes.slice(0, 3), []).more, 0);
+  assert.deepEqual(emoteList('Kappa', emotes, []).items, emoteItems('Kappa', emotes, []));
 });

@@ -3,6 +3,7 @@
 <script lang="ts">
   import { scrollBehavior } from '../../lib/motion';
   import { density } from '../../lib/density.svelte';
+  import { formatNumber } from '../../lib/format';
   import { floating } from '../../lib/place';
   import { settings } from '../../lib/settings.svelte';
   import type { SuggestStyle } from './suggestKeys';
@@ -15,6 +16,8 @@
     id: string;
     items: Item[];
     index: number;
+    /** V110-A-idea Matches not shown: "+N more". */
+    more?: number;
     onpick: (i: number) => void;
     /** The message box's row. */
     anchor: HTMLElement | undefined;
@@ -22,7 +25,7 @@
     style?: SuggestStyle;
   }
 
-  let { id, items, index, onpick, anchor, style = 'list' }: Props = $props();
+  let { id, items, index, more: rest = 0, onpick, anchor, style = 'list' }: Props = $props();
   const row = $derived(style === 'row');
 
   const theme = $derived(settings.v.appearance.theme);
@@ -85,6 +88,7 @@
       {#if item.hint}<span class="hint">{item.hint}</span>{/if}
     </button>
   {/each}
+  {#if rest > 0}<span class="rest" aria-hidden="true">+{formatNumber(rest)} more</span>{/if}
 {/snippet}
 
 <div {id} class="suggest" class:row bind:this={box} role="listbox" aria-orientation={row ? 'horizontal' : 'vertical'} use:floating={{ anchor, side: 'above', gap: 4, matchWidth: true }}>
@@ -131,6 +135,17 @@
   }
   .strip.fade-l.fade-r {
     mask-image: linear-gradient(to right, transparent, #000 24px, #000 calc(100% - 24px), transparent);
+  }
+  /* V110-A-idea */
+  .suggest:not(.row) .rest {
+    display: block;
+  }
+  .rest {
+    flex: none;
+    padding: 3px 8px;
+    color: var(--dim);
+    font-size: 0.75rem;
+    white-space: nowrap;
   }
   .row .item {
     flex: none;

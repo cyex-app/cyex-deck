@@ -102,6 +102,29 @@ test('back at the bottom, the window shrinks after SHRINK_MS', () => {
   assert.equal(shrinks(), 1);
 });
 
+test('V110-U6 shown() shrinks a window that waits for its timer, at once', () => {
+  const { s, add, shrinks } = setup();
+  s.scrolled(bottom());
+  s.leave();
+  add(40);
+  s.scrolled(bottom(8800));
+  assert.equal(s.drawn.length, WINDOW + 40);
+  s.shown();
+  assert.equal(s.drawn.length, WINDOW);
+  assert.equal(shrinks(), 1);
+  s.shown();
+  assert.equal(shrinks(), 1, 'nothing waiting: nothing to do');
+});
+
+test('V110-U6 shown() leaves a window that is still held (scrolled up)', () => {
+  const { s, add, shrinks } = setup();
+  s.leave();
+  add(10);
+  s.shown();
+  assert.equal(s.drawn.length, WINDOW + 10);
+  assert.equal(shrinks(), 0);
+});
+
 test('leaving the bottom again before SHRINK_MS keeps the window', () => {
   const { s, clock, add, shrinks } = setup();
   s.leave();
@@ -361,4 +384,24 @@ test('arrived: counts a burst bigger than the scrollback (V110-F93)', () => {
   assert.equal(mod.arrived(ids(1200, 1300), 'm99', 100, 1200), 1200);
   // No cut-off count: the list length is the floor.
   assert.equal(mod.arrived(ids(1200, 1300), 'm99', 100, 0), 100);
+});
+
+test('V110-A-idea cutSince: lines cut off the top count only once the reader\u2019s place is gone', () => {
+  const ids = (a: number, b: number) => Array.from({ length: b - a }, (_, i) => ({ id: `m${a + i}` }));
+  assert.equal(mod.cutSince(ids(0, 100), 'm5', 0, 0), 0, 'place still there');
+  assert.equal(mod.cutSince(ids(1100, 1200), 'm5', 0, 1100), 1100, 'place gone: what was cut since');
+  assert.equal(mod.cutSince(ids(1100, 1200), 'm5', 1000, 1100), 100);
+  assert.equal(mod.cutSince(ids(0, 10), '', 0, 50), 0, 'no anchor');
+});
+
+test('V110-A-idea cut: the pill knows the lines lost under a paused reader', () => {
+  const msgs = make(0, 100);
+  let dropped = 0;
+  const s = new ChatScroll({ lines: () => msgs, messages: () => msgs, dropped: () => dropped, onshrink: () => {} }, { pauseOnHover: true, pauseStillTenths: 0 }, new FakeClock());
+  s.widen();
+  s.leave();
+  assert.equal(s.cut, 0);
+  msgs.splice(0, msgs.length, ...make(1000, 100));
+  dropped = 1000;
+  assert.equal(s.cut, 1000);
 });

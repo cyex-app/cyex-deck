@@ -82,7 +82,7 @@
     />
     <input placeholder="User" aria-label="User" bind:value={user} />
   </div>
-  <FeedList {rows} date={filters.date} time={filters.time} empty={items.length ? 'Nothing matches the filters.' : 'No mod actions yet.'}>
+  <FeedList {rows} icon="gavel" date={filters.date} time={filters.time} empty={items.length ? 'Nothing matches the filters.' : 'No mod actions yet.'}>
     {#snippet row(l)}
       <span class="who">{l.moderator?.name ?? 'A mod'}</span>
       {l.action}

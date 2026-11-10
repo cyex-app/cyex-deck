@@ -5,9 +5,10 @@
   import Avatar from '../../components/Avatar.svelte';
   import { openMenu } from '../../components/menu.svelte';
   import type { ChannelCard } from '../../ipc/bindings/ChannelCard';
-  import { formatDate, formatShort } from '../../lib/format';
+  import { formatDate, formatNumber } from '../../lib/format';
   import { cardClick, cardMenu } from './cardMenu';
-  import { since, uptimeShort } from './lists';
+  import { uptime } from '../player/time';
+  import { since } from './lists';
   import { type Nav, picked } from './open.svelte';
   import { peekAt, unpeek, unpeekFrom } from './peeking.svelte';
   import QuickOpen from './QuickOpen.svelte';
@@ -45,8 +46,8 @@
     {#if stream}
       <span class="game">{stream.game?.name ?? ''}</span>
       <span class="title"><EmojiText text={stream.title} /></span>
-      <span class="num">{formatShort(stream.viewers)}</span>
-      <span class="num dim">{uptimeShort(stream.startedAt)}</span>
+      <span class="num">{formatNumber(stream.viewers)}</span>
+      <span class="num dim">{uptime(stream.startedAt)}</span>
     {:else}
       <span class="title dim" use:tooltip={{ label: offlineTip, when: () => !!offlineTip }}>{offline}</span>
     {/if}
@@ -85,7 +86,7 @@
     grid-template-columns: 30px max-content 1fr;
   }
   .main.live {
-    grid-template-columns: 30px minmax(90px, 170px) minmax(60px, 160px) 1fr 52px 64px;
+    grid-template-columns: 30px minmax(90px, 170px) minmax(60px, 160px) 1fr 64px 64px;
   }
   .av {
     position: relative;

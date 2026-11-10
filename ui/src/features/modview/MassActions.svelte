@@ -16,6 +16,7 @@
   import Select from '../../components/Select.svelte';
   import { formatNumber } from '../../lib/format.ts';
   import { DURATION_UNITS, type DurationUnit, durationError, timeoutSecs } from './massDuration.ts';
+  import { massConfirm } from './massConfirm.ts';
   import { massEnd, tallyDetail, tallyParts } from './massTally.ts';
 
   let { account, login, channelId }: { account: string; login: string; channelId: string | null } = $props();
@@ -67,6 +68,12 @@
 
   // V107-R21 Unban asks once, right here (a second click within 3 s).
   let confirmUnban = $state(false);
+  // V110-A2 The same ask for a ban / time out of more than one name.
+  let confirmGo = $state(false);
+  const goAsk = $derived(massConfirm(logins.length, amount > 0));
+  $effect(() => {
+    if (!goAsk) confirmGo = false;
+  });
 
   // V107-N12b Stop was pressed for the running job: its end says so.
   let stopping = false;
@@ -76,6 +83,7 @@
     job = null;
     stopping = false;
     confirmUnban = false;
+    confirmGo = false;
     const secs = unban ? null : timeoutSecs(amount, unit);
     kind = unban ? 'unban' : secs ? 'timeout' : 'ban';
     const total = logins.length;
@@ -112,14 +120,24 @@
     {#if running}
       <Button small variant="danger" onclick={stop}>Stop</Button>
     {:else}
-      <Button small disabled={logins.length === 0 || confirmUnban || !!err} onclick={() => go()}>
-        {amount > 0 ? 'Time out' : 'Ban'} {logins.length ? formatNumber(logins.length) : ''}
-      </Button>
+      {#if goAsk}
+        <ConfirmButton
+          label="{amount > 0 ? 'Time out' : 'Ban'} {formatNumber(logins.length)}"
+          confirm={goAsk}
+          disabled={confirmUnban || !!err}
+          bind:armed={confirmGo}
+          onconfirm={() => go()}
+        />
+      {:else}
+        <Button small disabled={logins.length === 0 || confirmUnban || !!err} onclick={() => go()}>
+          {amount > 0 ? 'Time out' : 'Ban'} {logins.length ? formatNumber(logins.length) : ''}
+        </Button>
+      {/if}
       <ConfirmButton
         label="Unban"
         confirm="Unban {formatNumber(logins.length)}?"
         variant="ghost"
-        disabled={logins.length === 0}
+        disabled={logins.length === 0 || confirmGo}
         bind:armed={confirmUnban}
         onconfirm={() => go(true)}
       />

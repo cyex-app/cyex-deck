@@ -14,7 +14,7 @@
   import type { StreamSort } from '../../ipc/bindings/StreamSort';
   import { discoverIpc } from '../../ipc/browse';
   import { accounts } from '../../lib/accounts.svelte';
-  import { formatShort } from '../../lib/format';
+  import { formatNumber } from '../../lib/format';
   import { settings } from '../../lib/settings.svelte';
   import type { Nav } from '../browse/open.svelte';
   import Peek from '../browse/Peek.svelte';
@@ -150,7 +150,7 @@
           <h1>{info?.slug === slug ? info.name : place.name}</h1>
           {#if info?.slug === slug}
             <span class="sub">
-              {formatShort(info.viewers)} viewers{info.followers ? ` · ${formatShort(info.followers)} followers` : ''}
+              {formatNumber(info.viewers)} viewers{info.followers ? ` · ${formatNumber(info.followers)} followers` : ''}
             </span>
           {/if}
         </div>
@@ -223,7 +223,7 @@
     padding: 0 8px 0 10px;
     background: var(--accent-dim);
     border: 1px solid var(--accent-border);
-    border-radius: var(--radius-pill);
+    border-radius: var(--radius); /* V110-A16 */
     color: var(--text);
     font-size: 0.8rem;
   }

@@ -39,3 +39,24 @@ if (typeof addEventListener === 'function') {
 export function byKeyboard(): boolean {
   return keyed;
 }
+
+/** V110-A-idea Banners that appear (raid, pinned, polls and predictions): 4 px down and a hair of
+ *  scale, BASE ms, like the hype train. Reduce motion: no movement, no wait. */
+export function bannerIn(_node: Element, o: { reduce?: boolean } = {}): {
+  duration: number;
+  easing: (t: number) => number;
+  css: (t: number) => string;
+} {
+  const none = o.reduce ?? reduced();
+  return {
+    duration: none ? 0 : BASE,
+    easing: (t) => 1 - Math.pow(1 - t, 3),
+    css: (t) => (none ? '' : `opacity:${t};transform:translateY(${(t - 1) * 4}px) scale(${0.98 + 0.02 * t})`),
+  };
+}
+
+/** V110-A-idea The "More below" pill fades in, FAST ms, no movement. */
+export function pillIn(_node: Element, o: { reduce?: boolean } = {}): { duration: number; css: (t: number) => string } {
+  const none = o.reduce ?? reduced();
+  return { duration: none ? 0 : FAST, css: (t) => (none ? '' : `opacity:${t}`) };
+}

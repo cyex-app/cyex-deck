@@ -9,6 +9,7 @@
   import { chatxIpc } from '../../ipc/chatx';
   import { everyShown } from '../../lib/awake';
   import { formatDecimal, formatDuration, formatNumber } from '../../lib/format';
+  import { bannerIn } from '../../lib/motion';
   import { toast } from '../../lib/toast.svelte';
   import { pollKey, pollLive, predictionKey, predictionLive, shows } from './eventStrip';
   import { eventStrip } from './eventStrip.svelte';
@@ -106,7 +107,7 @@
 {#if poll && shows(strip, pollKey(poll.id))}
   {@const left = pollLeft(v!, now)}
   {@const total = poll.totalVotes}
-  <div class="box" class:folded>
+  <div class="box" in:bannerIn class:folded>
     {@render head(
       'poll',
       poll.title,
@@ -151,7 +152,7 @@
   {@const total = pred.outcomes.reduce((s, o) => s + o.points, 0)}
   {@const open = pred.status === 'ACTIVE' && left > 0}
   {@const winner = pred.outcomes.find((o) => o.id === pred.winner)}
-  <div class="box" class:folded>
+  <div class="box" in:bannerIn class:folded>
     {@render head(
       'points',
       pred.title,

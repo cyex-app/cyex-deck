@@ -6,6 +6,7 @@
   import { uniqueKeys } from '../../lib/keys';
   import Avatar from '../../components/Avatar.svelte';
   import Button from '../../components/Button.svelte';
+  import ConfirmButton from '../../components/ConfirmButton.svelte';
   import IconButton from '../../components/IconButton.svelte';
   import type { SmRaidPick } from '../../ipc/bindings/SmRaidPick';
   import { smIpc } from '../../ipc/streammanager';
@@ -85,12 +86,13 @@
       </div>
     </div>
     <div class="line">
-      <Button small disabled={busy || !clock.ready} onclick={() => act(smIpc.raidNow(), () => {})}>Raid now</Button>
-      <Button small variant="danger" disabled={busy} onclick={cancel}>Cancel raid</Button>
+      <!-- V110-A4 Both ask first: a raid sends everyone over. -->
+      <ConfirmButton label="Raid now" confirm="Raid now?" disabled={busy || !clock.ready} onconfirm={() => act(smIpc.raidNow(), () => {})} />
+      <ConfirmButton label="Cancel raid" confirm="Cancel raid?" variant="danger" disabled={busy} onconfirm={cancel} />
     </div>
   {:else if starting}
     <p class="note">Raiding {starting}. Twitch sends everyone over in about 90 seconds.</p>
-    <div class="line"><Button small variant="danger" disabled={busy} onclick={cancel}>Cancel raid</Button></div>
+    <div class="line"><ConfirmButton label="Cancel raid" confirm="Cancel raid?" variant="danger" disabled={busy} onconfirm={cancel} /></div>
   {:else}
     <form
       class="line"

@@ -1,7 +1,7 @@
 <!-- The picture `peekAt` (peeking.svelte.ts) asks for. One per view. -->
 <script lang="ts">
   import EmojiText from '../../components/EmojiText.svelte';
-  import { formatShort } from '../../lib/format';
+  import { formatCount } from '../../lib/format';
   import { floating } from '../../lib/place';
   import { preview } from './lists';
   import { peek } from './peeking.svelte';
@@ -14,7 +14,7 @@
     <img src={preview(peek.card.login, 320, 180)} alt="" />
     <div class="text">
       <span class="title">{#if stream.title}<EmojiText text={stream.title} />{:else}Untitled{/if}</span>
-      <span class="sub">{[stream.game?.name, `${formatShort(stream.viewers)} ${stream.viewers === 1 ? 'viewer' : 'viewers'}`].filter(Boolean).join(' · ')}</span>
+      <span class="sub">{[stream.game?.name, formatCount(stream.viewers, 'viewer')].filter(Boolean).join(' · ')}</span>
     </div>
   </div>
 {/if}

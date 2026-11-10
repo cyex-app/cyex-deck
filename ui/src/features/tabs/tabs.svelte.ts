@@ -22,6 +22,7 @@ import { bumped, cleared, mentionNews, type FeedCounts } from './feedNews';
 import { markColor } from './markColor';
 import { muter } from './muter';
 import { dockRaid } from './raidTabs';
+import { popoutRefs } from './popoutClose';
 import { sounding } from './sounding.svelte';
 import { tabSoundMode, type TabSoundMode } from './tabSound';
 import { errorText } from '../../lib/errors';
@@ -278,6 +279,14 @@ class TabsStore {
   /** 3.14 The chat's window closes; it's back next to the stream. */
   dockChat(tileId: string): void {
     windowsIpc.closePanel(chatRoute(tileId)).catch((e) => toast.error(errorText(e)));
+  }
+
+  /** V110-A-idea Every tab and chat pop-out goes back to the main window. */
+  dockAll(): void {
+    for (const r of popoutRefs({ tabs: this.popped, chats: this.chats })) {
+      if (r.kind === 'tab') this.dock(r.id);
+      else this.dockChat(r.id);
+    }
   }
 
   private setLive(list: ChannelInfo[]): void {

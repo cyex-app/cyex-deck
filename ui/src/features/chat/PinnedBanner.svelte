@@ -17,7 +17,7 @@
   import { hideTip, showTip, tooltip } from '../../components/tooltip.svelte';
   import { systemIpc } from '../../ipc/system';
   import { errorText } from '../../lib/errors';
-  import { reduced } from '../../lib/motion';
+  import { bannerIn, reduced } from '../../lib/motion';
   import { toast } from '../../lib/toast.svelte';
   import { settings } from '../../lib/settings.svelte';
   import EmoteCard from '../emotes/EmoteCard.svelte';
@@ -273,7 +273,7 @@
 </script>
 
 {#if shows(eventStrip.of(channel), key)}
-  <div class="pin" class:paid={pin.paid} class:open={shown} class:short class:slim bind:this={el}>
+  <div class="pin" in:bannerIn class:paid={pin.paid} class:open={shown} class:short class:slim bind:this={el}>
     <Icon name="pin" size={14} />
     <div class="main">
       <!-- V107-R3 Folded in a short chat: the text's one line only. -->

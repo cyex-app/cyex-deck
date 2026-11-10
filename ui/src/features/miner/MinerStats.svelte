@@ -11,6 +11,7 @@
   import { uniqueKeys } from '../../lib/keys';
   import { miner } from './miner.svelte';
   import { errorText } from '../../lib/errors';
+  import EmptyState from '../../components/EmptyState.svelte';
   import Select from '../../components/Select.svelte';
   import ConfirmButton from '../../components/ConfirmButton.svelte';
 
@@ -110,7 +111,7 @@
   </div>
 
   {#if !stats?.since}
-    <p class="empty">Nothing yet. Stats fill in while the miner runs.</p>
+    <div class="none"><EmptyState icon="activity" text="Nothing yet. Stats fill in while the miner runs." /></div>
   {:else}
     <div class="cards">
       {#if stats.balance != null && channel}
@@ -173,8 +174,11 @@
   .grow {
     flex: 1;
   }
-  .note,
-  .empty {
+  .none {
+    display: flex;
+    padding: 24px 0;
+  }
+  .note {
     color: var(--dim);
     font-size: 0.82rem;
   }

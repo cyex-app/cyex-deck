@@ -63,6 +63,11 @@ export function formatBytes(bytes: number): string {
   return `${text} ${units[i]}`;
 }
 
+/** V110-A19 A full count with its noun: 1520 views → "1.520 views", 1 → "1 view". The short form (formatShort) is for tiles. */
+export function formatCount(n: number, noun: string): string {
+  return `${formatNumber(n)} ${n === 1 ? noun : `${noun}s`}`;
+}
+
 export function formatDate(d: Date): string {
   if (Number.isNaN(d.getTime())) return '-'; // V110-F89
   return `${d.getFullYear()}/${pad(d.getMonth() + 1)}/${pad(d.getDate())}`;

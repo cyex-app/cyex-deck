@@ -411,8 +411,20 @@
   .kind-bits,
   .kind-milestone,
   .kind-redemption {
-    border-left: 3px solid var(--twitch);
-    background: color-mix(in srgb, var(--twitch) 7%, transparent);
+    /* V110-A35 One colour for the event lines: the highlight setting's (--hl) when set, else the Twitch purple. */
+    border-left: 3px solid var(--hl, var(--twitch));
+    background: color-mix(in srgb, var(--hl, var(--twitch)) 7%, transparent);
+  }
+  /* The border is the rail: the highlight's own inset rail would sit beside it as a second stripe. */
+  .hl.kind-sub,
+  .hl.kind-gift,
+  .hl.kind-raid,
+  .hl.kind-announcement,
+  .hl.kind-bits,
+  .hl.kind-milestone,
+  .hl.kind-redemption {
+    box-shadow: none;
+    background: color-mix(in srgb, var(--hl) 18%, transparent);
   }
   .kind-sub .notice-text,
   .kind-gift .notice-text,

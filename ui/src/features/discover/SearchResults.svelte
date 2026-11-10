@@ -1,5 +1,6 @@
 <!-- 1.7 Channels and categories matching what's typed. Live channels first. -->
 <script lang="ts">
+  import EmptyState from '../../components/EmptyState.svelte';
   import type { Category } from '../../ipc/bindings/Category';
   import type { ChannelCard } from '../../ipc/bindings/ChannelCard';
   import { discoverIpc } from '../../ipc/browse';
@@ -73,7 +74,7 @@
 {#if error}
   <p class="note">{error}</p>
 {:else if !loading && !channels.length && !shownCategories.length}
-  <p class="note">Nothing found for “{text}”.</p>
+  <div class="none"><EmptyState icon="search" text="Nothing found for “{text}”." /></div>
 {/if}
 
 {#if shownCategories.length}
@@ -126,6 +127,10 @@
   }
   .more:hover:not(:disabled) {
     background: var(--surface-hover);
+  }
+  .none {
+    display: flex;
+    padding: 40px 0;
   }
   .note {
     margin: 0;

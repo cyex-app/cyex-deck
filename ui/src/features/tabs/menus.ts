@@ -28,6 +28,7 @@ import { takeSound } from './takeSound';
 import { dragged, layout } from './layout.svelte';
 import { CHAT_SIZES, EMOTE_SIZES, isDefaultLook, withLook } from './look';
 import { tabs, streamIds, tiles } from './tabs.svelte';
+import { popoutHint, popoutRefs } from './popoutClose';
 
 /** What a tab menu is opened with: what applies to these tabs, and what each row does.
  * `targets` are the selected tabs it acts on (`tab` included). */
@@ -194,6 +195,7 @@ export function barMenu(): MenuEntry[] {
     lock: lockSwitch(),
     position: positionEntry(),
     reopen: reopenPart(),
+    closePops: closePopsPart(),
   };
   return menuEntries(BAR_DEF, ctx);
 }
@@ -230,6 +232,12 @@ function onlyLiveSwitch(): Switch {
 function lockSwitch(): Switch {
   const on = settings.v.appearance.tabLock;
   return { on, hint: bindingOf('tabs.lock') || undefined, run: () => void settings.patch('appearance', { tabLock: !on }) };
+}
+
+/** V110-A-idea */
+function closePopsPart() {
+  const n = popoutRefs({ tabs: tabs.popped, chats: tabs.chats }).length;
+  return { can: n > 0, note: popoutHint(n), run: () => tabs.dockAll() };
 }
 
 /** U10 */

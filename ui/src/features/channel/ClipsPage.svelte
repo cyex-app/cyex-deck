@@ -12,7 +12,7 @@
   import type { ClipPeriod } from '../../ipc/bindings/ClipPeriod';
   import type { ClipSort } from '../../ipc/bindings/ClipSort';
   import { channelIpc } from '../../ipc/player';
-  import { formatDate, formatShort } from '../../lib/format';
+  import { formatCount, formatDate } from '../../lib/format';
   import { clipSaves } from '../player/clipSave.svelte';
   import { clock } from '../player/time';
   import { uniqueKeys } from '../../lib/keys';
@@ -109,7 +109,7 @@
             title={c.title}
             sub={[c.clippedBy && `by ${c.clippedBy}`, formatDate(new Date(c.createdAt))].filter(Boolean).join(' · ')}
             corner={clock(c.duration)}
-            views={`${formatShort(c.views)} ${c.views === 1 ? 'view' : 'views'}`}
+            views={formatCount(c.views, 'view')}
             onclick={() => onplay(c.slug)}
           />
           <button

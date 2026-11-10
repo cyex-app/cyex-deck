@@ -30,6 +30,7 @@
   </div>
   <FeedList
     {rows}
+    icon="history"
     empty={miner.log.length === 0
       ? 'Nothing yet. Chests, raids, bets and drops show up here as they happen.'
       : 'Nothing here with these filters.'}

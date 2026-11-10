@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { ago, formatBytes, formatDate, formatDuration, formatFactor, formatNumber, formatSecs, formatShort, formatStamp, formatTime, parseDuration, setAppClock, useClockSource } from './format.ts';
+import { ago, formatBytes, formatCount, formatDate, formatDuration, formatFactor, formatNumber, formatSecs, formatShort, formatStamp, formatTime, parseDuration, setAppClock, useClockSource } from './format.ts';
 
 const at = new Date(2026, 9, 9, 14, 3, 7);
 const morning = new Date(2026, 0, 2, 0, 5, 0);
@@ -157,4 +157,11 @@ test('V110-F84 a zero duration reads the same with or without a unit', () => {
   assert.equal(parseDuration('0'), 0);
   assert.equal(parseDuration('0s'), 0);
   assert.equal(parseDuration('0m'), 0);
+});
+
+test('V110-A19 formatCount gives the full grouped number and a singular for 1', () => {
+  assert.equal(formatCount(1520, 'view'), '1.520 views');
+  assert.equal(formatCount(1, 'view'), '1 view');
+  assert.equal(formatCount(0, 'viewer'), '0 viewers');
+  assert.equal(formatCount(1_300_000, 'viewer'), '1.300.000 viewers');
 });

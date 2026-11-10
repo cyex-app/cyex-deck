@@ -48,7 +48,7 @@
   import UploadConfirm from './UploadConfirm.svelte';
   import { useUploads } from './upload.svelte';
   import type { Item } from './suggestions';
-  import { draftKey, dropLoneHigh, loadDraft, saveDraft, syncRecall, upRecalls } from './inputState';
+  import { draftKey, dropLoneHigh, loadDraft, pasteCut, saveDraft, syncRecall, upRecalls } from './inputState';
   import { tabNames } from './people';
   import { pinText } from './pinSend';
   import { plainText } from './text';
@@ -81,7 +81,7 @@
     () => settings.v.chat.sendButton,
   );
   $effect(() => (canChat ? side.watch() : undefined));
-  // V110-F86 The draft and the Up lines stay with the chat while its tab is away (not across restarts).
+  // V110-F86 The draft and the Up lines stay with the chat while its tab is away and, as text, across restarts.
   // svelte-ignore state_referenced_locally
   const key = draftKey(room.account, room.login);
   const kept = loadDraft(key);
@@ -103,6 +103,8 @@
     index: number;
     /** V1051-05 A `/combo`, `/paint` or `/badge` argument: Enter sends, Tab or a click fills. */
     arg?: boolean;
+    /** V110-A-idea Matches the list doesn't show. */
+    more?: number;
   }
   let suggest = $state<Suggest | null>(null);
   /** V108-N09 */
@@ -124,7 +126,10 @@
   let pastedCheer = false;
   const isCheermote = (p: string) => !!catalogs.cheermote(room.login, p);
   function onpaste(e: ClipboardEvent) {
-    if (cheerTotal(e.clipboardData?.getData('text') ?? '', isCheermote) > 0) pastedCheer = true;
+    const pasted = e.clipboardData?.getData('text') ?? '';
+    if (cheerTotal(pasted, isCheermote) > 0) pastedCheer = true;
+    // V110-A-idea The box takes MAX_CHARS * 2 and cuts the rest without a word.
+    if (box && pasteCut(box.value.length, box.selectionEnd - box.selectionStart, pasted, MAX_CHARS * 2)) flash(`Cut to ${formatNumber(MAX_CHARS * 2)}.`);
     void up.onpaste(e);
   }
   $effect(() => {
@@ -263,8 +268,8 @@
     const word = wordAt(text, caret);
     const command = commandAt(text, word);
     if (command !== null) return void suggestCommand(word, command, seq);
-    const items = sources.items(word);
-    suggest = items.length ? { word, items, index: 0 } : null;
+    const { items, more } = sources.list(word);
+    suggest = items.length ? { word, items, index: 0, more } : null;
   }
 
   /** The commands this chat can run, asked once and kept (unless it failed or came back empty). */
@@ -621,7 +626,7 @@
   <!-- V108-N23 -->
   {#if canChat}<StreakShare account={room.account} login={room.login} channelId={room.state.channelId} />{/if}
   {#if suggest}
-    <SuggestList id={listId} items={suggest.items} index={suggest.index} onpick={accept} anchor={row} style={styleNow} />
+    <SuggestList id={listId} items={suggest.items} more={suggest.more ?? 0} index={suggest.index} onpick={accept} anchor={row} style={styleNow} />
   {/if}
   <span class="sr-only" role="status">{unlockNote}</span>
   <div class="row" class:locked={!!lock} bind:this={row}>

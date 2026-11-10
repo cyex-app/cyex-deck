@@ -6,6 +6,7 @@
   import { uniqueKeys } from '../../lib/keys';
   import Button from '../../components/Button.svelte';
   import DragList from '../../components/DragList.svelte';
+  import EmptyState from '../../components/EmptyState.svelte';
   import Icon from '../../components/Icon.svelte';
   import Segmented from '../../components/Segmented.svelte';
   import type { ChannelInfo } from '../../ipc/bindings/ChannelInfo';
@@ -154,7 +155,7 @@
         {/snippet}
       </DragList>
     {:else}
-      <p class="empty">Add channels here, or with “Add to the miner” when adding a tab.</p>
+      <div class="none"><EmptyState icon="users" text="Add channels here, or with “Add to the miner” when adding a tab." /></div>
     {/if}
   {:else}
     <h2>Your follows <span class="count">{follows.length}</span></h2>
@@ -168,7 +169,7 @@
         onskip={(on) => skip(c, on)}
       />
     {:else}
-      <p class="empty">{miner.status?.running ? 'Loading your follows…' : 'Your follows show once the miner runs.'}</p>
+      <div class="none"><EmptyState icon="heart" text={miner.status?.running ? 'Loading your follows…' : 'Your follows show once the miner runs.'} /></div>
     {/each}
     {#if s.skip.length}
       <h2>Skipped <span class="count">{s.skip.length}</span></h2>
@@ -218,13 +219,13 @@
     gap: 6px 14px;
     margin-bottom: 6px;
   }
-  .note,
-  .empty {
+  .none {
+    display: flex;
+    padding: 20px 0;
+  }
+  .note {
     color: var(--dim);
     font-size: 0.82rem;
-  }
-  .empty {
-    margin: 6px 0;
   }
   h2 {
     display: flex;

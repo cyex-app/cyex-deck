@@ -107,8 +107,8 @@
     position: relative;
     display: flex;
     flex-direction: column;
-    background: color-mix(in srgb, var(--elevated) 82%, transparent);
-    backdrop-filter: blur(14px) saturate(1.2);
+    /* V110-A9 Solid: only the toast blurs. */
+    background: var(--elevated);
     border: 1px solid var(--border-strong);
     border-radius: var(--radius);
     box-shadow: var(--shadow-pop);
@@ -177,11 +177,5 @@
   .x:hover {
     background: var(--surface-hover);
     color: inherit;
-  }
-  @media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
-    .card {
-      background: var(--elevated);
-      backdrop-filter: none;
-    }
   }
 </style>

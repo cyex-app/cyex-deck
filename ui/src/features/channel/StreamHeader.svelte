@@ -11,7 +11,7 @@
   import type { ChannelInfo } from '../../ipc/bindings/ChannelInfo';
   import type { Tile } from '../../ipc/bindings/Tile';
   import { nowSecond } from '../../lib/clock.svelte';
-  import { formatShort } from '../../lib/format';
+  import { formatNumber } from '../../lib/format';
   import type { Page } from '../player/players.svelte';
   import StoryRing from '../player/StoryRing.svelte';
   import { uptime } from '../player/time';
@@ -67,7 +67,7 @@
             class="watching"
             aria-expanded={chart}
             use:tooltip={'Viewers over time'}
-            onclick={() => (chart = !chart)}>{formatShort(stream.viewers)} watching</button><Popover bind:open={chart} align="start" label="Viewers over time"><ViewerChart channelId={tile.channel.id} /></Popover></span>{#if up}{' · '}<span class="up">{up}</span>{/if}
+            onclick={() => (chart = !chart)}>{formatNumber(stream.viewers)} watching</button><Popover bind:open={chart} align="start" label="Viewers over time"><ViewerChart channelId={tile.channel.id} /></Popover></span>{#if up}{' · '}<span class="up">{up}</span>{/if}
       </span>
     {:else}
       <!-- V110-F84 In its own span: ellipsis doesn't reach text straight inside a flex box. -->

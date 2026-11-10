@@ -21,6 +21,6 @@
   });
 </script>
 
-<FeedList {rows} empty="Nothing yet.">
+<FeedList {rows} icon="activity" empty="Nothing yet.">
   {#snippet row(r)}{r.text}{/snippet}
 </FeedList>

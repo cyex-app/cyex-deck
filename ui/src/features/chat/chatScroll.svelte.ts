@@ -68,6 +68,13 @@ export function arrived(ms: readonly { id: string }[], id: string, k: number, dr
   return Math.max(ms.length, dropped - k + ms.length);
 }
 
+/** V110-A-idea Lines cut off the top since the anchor was taken (`d0` = the cut-off total then),
+ *  counted only once the anchor itself is gone: the reader's place is lost, not just the oldest lines. */
+export function cutSince(ms: readonly { id: string }[], id: string, d0: number, dropped: number): number {
+  if (!id || ms.some((m) => m.id === id)) return 0;
+  return Math.max(0, dropped - d0);
+}
+
 /** What the list should do after a scroll. */
 export type Intent = 'bottom' | 'older' | null;
 
@@ -103,6 +110,9 @@ export class ChatScroll<T extends Item = Item> {
   /** V110-F93 `dropped + length` when each anchor was taken (see arrived()). */
   #leftK = 0;
   #pausedK = 0;
+  /** The cut-off total when each anchor was taken. */
+  #leftD = 0;
+  #pausedD = 0;
   #from = $state.raw<From>(null);
   /** V108-C01 Lines drawn when following: FIRST until the list widens it, then WINDOW. */
   #size = $state(FIRST);
@@ -149,6 +159,14 @@ export class ChatScroll<T extends Item = Item> {
     const id = !this.#following ? this.#leftAt : this.#pausedAt;
     if (!id) return 0;
     return arrived(this.#src.messages(), id, !this.#following ? this.#leftK : this.#pausedK, this.#src.dropped?.() ?? 0);
+  }
+
+  /** V110-A-idea Older lines dropped while you were away, once the line you left at is gone. */
+  get cut(): number {
+    const away = !this.#following;
+    const id = away ? this.#leftAt : this.#pausedAt;
+    if (!id) return 0;
+    return cutSince(this.#src.messages(), id, away ? this.#leftD : this.#pausedD, this.#src.dropped?.() ?? 0);
   }
 
   /** V101-31 The "new / Paused / More messages" pill shows. */
@@ -332,6 +350,17 @@ export class ChatScroll<T extends Item = Item> {
     return ms;
   }
 
+  /** V110-U6 The page is visible again: a window waiting out SHRINK_MS (its timer was held back
+   *  while hidden) shrinks now, on the first frame, instead of keeping the extra lines drawn. */
+  shown(): void {
+    if (this.#shrinkTimer === undefined) return;
+    this.#clock.clearTimeout(this.#shrinkTimer);
+    this.#shrinkTimer = undefined;
+    this.#from = null;
+    this.#settle();
+    this.#src.onshrink();
+  }
+
   dispose(): void {
     this.#clock.clearTimeout(this.#stillTimer);
     this.#clock.clearTimeout(this.#shrinkTimer);
@@ -353,6 +382,7 @@ export class ChatScroll<T extends Item = Item> {
     else if (this.#leftAt === undefined) {
       this.#leftAt = this.#src.messages().at(-1)?.id ?? '';
       this.#leftK = this.#mark();
+      this.#leftD = this.#src.dropped?.() ?? 0;
     }
     this.#settle();
   }
@@ -370,6 +400,7 @@ export class ChatScroll<T extends Item = Item> {
     else if (this.#pausedAt === undefined) {
       this.#pausedAt = this.#src.messages().at(-1)?.id ?? '';
       this.#pausedK = this.#mark();
+      this.#pausedD = this.#src.dropped?.() ?? 0;
     }
     // Scrolled up or paused: what's drawn stays put.
     if ((following !== last.following || (following && paused !== last.paused)) && (!following || paused))

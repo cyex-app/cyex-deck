@@ -9,11 +9,14 @@
   import Toggle from '../../../components/Toggle.svelte';
   import type { ObsFile } from '../../../ipc/bindings/ObsFile';
   import { smIpc } from '../../../ipc/streammanager';
-  import { copy } from '../../../lib/clipboard';
+  import { copied } from '../../../lib/copied.svelte';
   import { settings } from '../../../lib/settings.svelte';
   import { toast } from '../../../lib/toast.svelte';
   import { errorText } from '../../../lib/errors';
   import { tooltip } from '../../../components/tooltip.svelte';
+
+  // V110-A-idea A check mark on the button for a moment, not a toast.
+  const cp = copied();
 
   const obs = $derived(settings.v.streammanager.obs);
   let folder = $state<string | null>(null);
@@ -86,7 +89,7 @@
           <!-- b-3 One line: the buttons are blocks, so they sit in a row of their own. -->
           <div class="acts-row">
             <IconButton icon="popout" label="Open {f.name}" size={14} onclick={() => openFile(f.name)} />
-            <IconButton icon="copy" label="Copy the path of {f.name}" size={14} onclick={() => void copy(f.path, 'Path')} />
+            <IconButton icon={cp.is(f.name) ? 'check' : 'copy'} label="Copy the path of {f.name}" size={14} onclick={() => void cp.run(f.path, 'Path', f.name)} />
           </div>
         </td>
       </tr>

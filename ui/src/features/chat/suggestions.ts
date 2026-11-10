@@ -42,6 +42,17 @@ export function emoteItems(
   limit = 8,
   provider: (p: Provider) => number = () => 0,
 ): Item[] {
+  return emoteList(prefix, emotes, emoji, limit, provider).items;
+}
+
+/** V110-A-idea `emoteItems` plus how many more matched than the list shows (the "+N more"). */
+export function emoteList(
+  prefix: string,
+  emotes: EmoteName[],
+  emoji: EmojiName[],
+  limit = 8,
+  provider: (p: Provider) => number = () => 0,
+): { items: Item[]; more: number } {
   const byName = new Map<string, EmoteName>();
   for (const e of emotes) {
     const have = byName.get(e.name);
@@ -52,7 +63,8 @@ export function emoteItems(
   const ems = orderHits<Hit>(prefix, [...byName.values()].map((e) => ({ item: { emote: e }, name: e.name, tie: provider(e.provider) })), RANK.acronym);
   const ejs = orderHits<Hit>(prefix, emoji.map((e) => ({ item: { emoji: e }, name: e.name })), RANK.acronym);
   const exact = (h: Hit | undefined) => !!h && ('emote' in h ? h.emote.name : h.emoji.name).toLowerCase() === prefix.trim().toLowerCase();
-  const ranked = (exact(ejs[0]) && !exact(ems[0]) ? [ejs[0], ...ems, ...ejs.slice(1)] : [...ems, ...ejs]).slice(0, limit);
+  const all = exact(ejs[0]) && !exact(ems[0]) ? [ejs[0], ...ems, ...ejs.slice(1)] : [...ems, ...ejs];
+  const ranked = all.slice(0, limit);
   const items: Item[] = ranked.map((h) =>
     'emote' in h
       ? { value: h.emote.name, label: h.emote.name, emote: { provider: h.emote.provider, id: h.emote.id, animated: h.emote.animated } }
@@ -62,7 +74,7 @@ export function emoteItems(
     if (items.length >= limit) break;
     if (!items.some((i) => i.glyph === e.char)) items.push({ value: e.char, label: `:${e.name}:`, glyph: e.char });
   }
-  return items;
+  return { items, more: Math.max(0, all.length - ranked.length) };
 }
 
 /** C13 What a viewer may run: 0 everyone, 1 subs, 3 VIPs, 4 mods, 5 the streamer. */

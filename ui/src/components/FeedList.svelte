@@ -5,12 +5,16 @@
   import type { Snippet } from 'svelte';
 
   import { formatDate, formatTime } from '../lib/format';
+  import EmptyState from './EmptyState.svelte';
+  import type { IconName } from './icons';
   import { everyShown } from '../lib/awake';
 
   interface Props {
     rows: T[];
     row: Snippet<[T]>;
     empty: string;
+    /** V110-A17 The 28 px icon over the empty line. */
+    icon?: IconName;
     /** Under the last line, e.g. "Load older". */
     foot?: Snippet;
     /** V107-R30 Show every line's date, and its time. Unset: the time, with the date when
@@ -19,7 +23,7 @@
     time?: boolean;
   }
 
-  let { rows, row, empty, foot, date, time }: Props = $props();
+  let { rows, row, empty, icon = 'activity', foot, date, time }: Props = $props();
   const fixed = $derived(date !== undefined || time !== undefined);
   const stamped = $derived(!fixed || date || time);
 
@@ -38,7 +42,7 @@
 </script>
 
 {#if rows.length === 0}
-  <p class="empty">{empty}</p>
+  <div class="none"><EmptyState {icon} text={empty} /></div>
 {:else}
   <div class="feed">
     <ul>
@@ -144,10 +148,9 @@
     overflow-wrap: anywhere;
     user-select: text;
   }
-  .empty {
-    margin: 0;
-    padding: 12px;
-    color: var(--muted);
+  .none {
+    display: flex;
+    padding: 20px 12px;
     font-size: var(--text-sub);
   }
   .foot {
