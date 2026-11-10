@@ -52,14 +52,19 @@ pub(crate) fn lines(p: Partition, before: &[usize], after: &[usize]) -> Vec<Stri
 /// ("12 commands", "3 sound files"). Lists that are empty are left out.
 pub(crate) fn summary(p: Partition, raw: &Value) -> Vec<String> {
     let mut out = Vec::new();
+    for ((_, name, cap), n) in lists(p).iter().zip(counts(p, raw)) {
+        // V110-A43 Over the cap: said before Apply, not only in the toast after it.
+        if n > *cap {
+            out.push(format!("{} {name}, only the first {} come in", group(n), group(*cap)));
+        } else if n > 0 {
+            out.push(format!("{} {}", group(n), if n == 1 { singular(name) } else { (*name).to_owned() }));
+        }
+    }
     let mut add = |n: usize, one: &str, many: &str| {
         if n > 0 {
             out.push(format!("{} {}", group(n), if n == 1 { one } else { many }));
         }
     };
-    for ((.., name, _), n) in lists(p).iter().zip(counts(p, raw)) {
-        add(n, &singular(name), name);
-    }
     let len = |key: &str, object: bool| match raw.get(key) {
         Some(Value::Array(a)) if !object => a.len(),
         Some(Value::Object(o)) if object => o.len(),
@@ -149,6 +154,15 @@ mod tests {
             ["2 commands", "1 automation", "3 variables", "2 sound files"]
         );
         assert!(summary(Partition::General, &json!({})).is_empty());
+    }
+
+    #[test]
+    fn the_review_says_a_list_over_its_cap_is_cut() {
+        let raw = json!({ "lines": vec!["/a x"; MAX_LINES + 100], "automations": [{"name": "one"}] });
+        assert_eq!(
+            summary(Partition::Commands, &raw),
+            [format!("{} commands, only the first {} come in", group(MAX_LINES + 100), group(MAX_LINES)), "1 automation".to_owned()]
+        );
     }
 
     #[test]
