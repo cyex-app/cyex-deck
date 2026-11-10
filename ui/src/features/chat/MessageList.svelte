@@ -125,6 +125,7 @@
     {
       lines: () => shown,
       messages: () => room.messages,
+      dropped: () => room.dropped,
       onshrink: () => void tick().then(() => following && !paused && toBottom()),
     },
     untrack(pauseOpts),
@@ -655,6 +656,7 @@
       login,
       msgId: m.id,
       line,
+      deleted: m.flags.includes('deleted'),
       reply: canReply,
       translated: !!m.translation,
       search: !!onaction,
@@ -822,6 +824,8 @@
     if (!target) {
       // V107-M6 Not drawn yet: draw down from a little above it, then go there.
       if (scroll.drawAround(id)) void tick().then(() => jump(id));
+      // V110-F93 The parent is no longer in the chat: say so instead of doing nothing.
+      else if (!room.messages.some((x) => x.id === id)) toast.info('That message left the chat.');
       return;
     }
     scroll.jumped();

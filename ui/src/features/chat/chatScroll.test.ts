@@ -352,3 +352,13 @@ test('V108-C01 scrolled up before the widen: the held window starts at the FIRST
   s.widen();
   assert.equal(s.drawn[0].id, 'm300');
 });
+
+test('arrived: counts a burst bigger than the scrollback (V110-F93)', () => {
+  const ids = (a: number, b: number) => Array.from({ length: b - a }, (_, i) => ({ id: `m${a + i}` }));
+  // Anchor m99 taken with 100 lines and nothing cut yet: k = 100.
+  assert.equal(mod.arrived(ids(0, 150), 'm99', 100, 0), 50);
+  // 1.200 more arrived into a 100 line buffer: the anchor is gone, 1.100 were cut.
+  assert.equal(mod.arrived(ids(1200, 1300), 'm99', 100, 1200), 1200);
+  // No cut-off count: the list length is the floor.
+  assert.equal(mod.arrived(ids(1200, 1300), 'm99', 100, 0), 100);
+});

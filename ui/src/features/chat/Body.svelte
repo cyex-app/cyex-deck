@@ -164,6 +164,12 @@
     background: color-mix(in srgb, var(--hl, var(--accent-line)) 38%, transparent);
     border-radius: 2px;
   }
+  /* V110-F93 No tint in Windows contrast themes: an outline marks the word. */
+  @media (forced-colors: active) {
+    .word {
+      outline: 1px solid Highlight;
+    }
+  }
   .mention {
     font-weight: 700;
     cursor: pointer;

@@ -31,3 +31,9 @@ export function findHits(root: HTMLElement, terms: string[]): Range[] {
   }
   return ranges;
 }
+
+/** V110-F93 Newest hits the search keeps. Rust cuts at the same number (`MAX` in app/src/chat/search.rs). */
+export const MAX_HITS = 300;
+
+/** A full answer means more may exist: the result carries no total, so exactly the cap counts as cut. */
+export const searchCapped = (n: number): boolean => n >= MAX_HITS;

@@ -61,6 +61,10 @@ test('chat.message: top level as in the plan', () => {
   ]);
 });
 
+test('chat.message: a deleted line offers no Reply or Translate (V110-F93)', () => {
+  assert.deepEqual(names('chat.message', 'viewer', { deleted: true }), ['Copy message', 'More']);
+});
+
 test('the other menus keep their size', () => {
   assert.deepEqual(names('chat.emote', 'viewer'), ['Open emote card', 'Copy name', 'Hide Kappa', '7TV']);
   assert.deepEqual(names('chat.more', 'viewer'), [

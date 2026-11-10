@@ -82,6 +82,8 @@
   ]);
   /** The last tab, unless it isn't here (GIFs in another channel). GIFs wait for their answer. */
   const current = $derived<Tab>(tabs.includes(tab) || (tab === 'gifs' && gifInfo === undefined) ? tab : 'twitch');
+  /** V110-F93 A pasted wall of text is cut before it is echoed back. */
+  const echo = (q: string) => (q.trim().length > 40 ? `${q.trim().slice(0, 40)}…` : q.trim());
   const searchingEmotes = $derived(!!query.trim() && current !== 'gifs');
   const rank = $derived(usageRank(saved.usage));
   const found = $derived(menu && query.trim() ? searchCapped(menu, query, FOUND_CAP, rank) : { groups: [], cut: false });
@@ -375,7 +377,7 @@
         {/if}
         {#if found.cut}<p class="capped">Showing {FOUND_CAP}. Type more to narrow it.</p>{/if}
       {:else}
-        <p class="note">Nothing called “{query.trim()}”.</p>
+        <p class="note">Nothing called “{echo(query)}”.</p>
       {/if}
     {:else if current === 'favorites'}
       {#if favEmotes.length || favEmoji.length}
@@ -502,6 +504,15 @@
   .tabs .on:hover {
     color: var(--accent-text);
     background: var(--accent-dim);
+  }
+  /* V110-F93 In a 320 px window the row still scrolls, but the last tab no longer sits on the edge. */
+  @media (max-width: 360px) {
+    .tabs button {
+      padding: 0 6px;
+    }
+    .tabs .icon {
+      width: 24px;
+    }
   }
   .body {
     flex: 1;
@@ -660,6 +671,7 @@
     font-size: 0.75rem;
   }
   .note {
+    overflow-wrap: anywhere;
     margin: 16px 4px;
     color: var(--dim);
     font-size: 0.85rem;

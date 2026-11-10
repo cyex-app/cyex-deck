@@ -108,3 +108,15 @@ export function slimSizes(columns: readonly { size: number; tiles: readonly { id
   }
   return { rows: sizes.rows, columns: sizes.columns.map((s, i) => (slim[i] ? weight : s)) };
 }
+
+/** V110-F93 How far a key moves a divider, in px: arrows 16, with Shift 64, Home and End to the
+ *  limits (`-Infinity`, `Infinity`; the drag clamp stops them). A column divider (`vertical`)
+ *  answers Left and Right, a row divider Up and Down. `null`: not a resize key. */
+export function dividerKey(key: string, shift: boolean, vertical: boolean): number | null {
+  if (key === 'Home') return -Infinity;
+  if (key === 'End') return Infinity;
+  const step = shift ? 64 : 16;
+  if (key === (vertical ? 'ArrowLeft' : 'ArrowUp')) return -step;
+  if (key === (vertical ? 'ArrowRight' : 'ArrowDown')) return step;
+  return null;
+}

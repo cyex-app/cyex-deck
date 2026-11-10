@@ -16,7 +16,7 @@
   import type { CardTarget } from '../emotes/emotes';
   import EmoteCard from '../emotes/EmoteCard.svelte';
   import { emoteMenu, enterClicks, lineTips, notEmote, openPart, PARTS, type LineHost } from './lineEvents';
-  import { findHits, searchTerms } from './searchHits';
+  import { findHits, MAX_HITS, searchCapped, searchTerms } from './searchHits';
   import Line from './Line.svelte';
   import { scrollWithin } from '../../lib/scrollWithin';
   import { onDestroy } from 'svelte';
@@ -47,8 +47,6 @@
   /** A10 Where the text matched, and which hit Enter is on. */
   let hits = $state.raw<Range[]>([]);
   let cur = $state(-1);
-  /** Newest hits drawn; a longer list would be a wall of full lines. */
-  const MAX_HITS = 300;
 
   // Escape clears the text first, then closes; focus goes back to where the search was opened from.
   $effect(() => {
@@ -201,7 +199,7 @@
   {#if card}
     {#key card}<EmoteCard target={card.t} login={card.room} {account} onclose={() => (card = null)} />{/key}
   {/if}
-  {#if results.length}<p class="count">{formatNumber(results.length)} found</p>{/if}
+  {#if results.length}<p class="count">{searchCapped(results.length) ? `Newest ${formatNumber(results.length)}. Type more to narrow it.` : `${formatNumber(results.length)} found`}</p>{/if}
 </div>
 
 <style>

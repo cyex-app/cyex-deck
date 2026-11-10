@@ -429,6 +429,14 @@
     background: color-mix(in srgb, var(--hl) 18%, transparent);
     box-shadow: inset 3px 0 var(--hl);
   }
+  /* V110-F93 Windows contrast themes drop the tint and the inset rail: a real border keeps a
+     highlighted chat line apart (3px less padding, so the text stays where it is). Event lines have their own border. */
+  @media (forced-colors: active) {
+    .hl.kind-chat {
+      border-left: 3px solid Highlight;
+      padding-left: 7px;
+    }
+  }
   .hl-mention {
     --hl: var(--accent-line);
   }

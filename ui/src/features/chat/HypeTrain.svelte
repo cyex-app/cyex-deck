@@ -30,7 +30,9 @@
   import { everyShown } from '../../lib/awake';
   import { density } from '../../lib/density.svelte';
   import { formatNumber } from '../../lib/format';
+  import { nowSecond } from '../../lib/clock.svelte';
   import { latest } from '../../lib/latest';
+  import { reduced } from '../../lib/motion';
   import { settings } from '../../lib/settings.svelte';
   import { tabs } from '../tabs/tabs.svelte';
   import {
@@ -123,6 +125,17 @@
     return spanMs;
   }
   const timer = $derived(train?.expiresAt ? { expiresAt: train.expiresAt, span: spanOf(train.expiresAt) } : null);
+
+  /** V110-F93 Under Reduce motion the line steps once a second (like the raid bar) instead of draining. It can flip while a train shows. */
+  let still = $state(reduced());
+  $effect(() => {
+    if (typeof matchMedia !== 'function') return;
+    const q = matchMedia('(prefers-reduced-motion: reduce)');
+    const flip = () => (still = q.matches);
+    q.addEventListener('change', flip);
+    return () => q.removeEventListener('change', flip);
+  });
+  const stillLevel = (t: { expiresAt: string; span: number }) => timerFraction(msLeft(t.expiresAt, nowSecond()), t.span);
 
   /** V108-C35b Drains the timer line from what is left to nothing, linear, off the main
    * thread; started again only for a new end time. */
@@ -286,7 +299,7 @@
     <div class="bg" aria-hidden="true">
       <div class="fill" class:sweep={!!burst && parts.sweep} style:background={gradient(look)} style:clip-path="inset(0 {100 - fill}% 0 0)"></div>
       {#key burst?.n}{#if burst}<span class="flash"></span>{#if parts.sheen}<span class="sheen"></span>{/if}{/if}{/key}
-      {#if timer}<div class="timer" use:drain={timer}></div>{/if}
+      {#if timer && still}<div class="timer" style:transform="scaleX({stillLevel(timer)})"></div>{:else if timer}<div class="timer" use:drain={timer}></div>{/if}
     </div>
     {#key burst?.n}
       {#if burst}

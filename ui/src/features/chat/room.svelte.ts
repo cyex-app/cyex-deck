@@ -196,8 +196,12 @@ export class ChatRoom {
     if (history) this.drip();
   }
 
+  /** V110-F93 Lines cut off the front by the scrollback, a running total (the scroll pill counts with it). */
+  dropped = 0;
+
   private set(list: ChatMessage[]): void {
     const max = maxLines();
+    if (list.length > max) this.dropped += list.length - max;
     this.messages = list.length > max ? list.slice(-max) : list;
   }
 

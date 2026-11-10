@@ -25,6 +25,8 @@ export interface MessageCtx {
   msgId: string;
   /** A user's line (not a notice or a system line). */
   line: boolean;
+  /** V110-F93 The line was deleted: nothing that needs its text or answers it is offered. */
+  deleted?: boolean;
   /** The chat takes replies and the account may reply. */
   reply: boolean;
   /** Already translated: the row says "Translate again". */
@@ -69,8 +71,8 @@ export const MESSAGE_DEF: MenuDef<MessageCtx> = {
   label: 'Messages',
   where: 'Right-click a chat message',
   items: [
-    row('reply', 'Reply', 'reply', (c) => (c.line && c.reply ? { label: 'Reply', icon: 'reply', hint: 'Shift+R-click', run: c.act.reply } : null)),
-    row('translate', 'Translate', 'languages', line((c) => ({ label: c.translated ? 'Translate again' : 'Translate', icon: 'languages', run: c.act.translate })), {
+    row('reply', 'Reply', 'reply', (c) => (c.line && c.reply && !c.deleted ? { label: 'Reply', icon: 'reply', hint: 'Shift+R-click', run: c.act.reply } : null)),
+    row('translate', 'Translate', 'languages', (c) => (c.line && !c.deleted ? { label: c.translated ? 'Translate again' : 'Translate', icon: 'languages', run: c.act.translate } : null), {
       renamable: false,
     }),
     row('copy', 'Copy message', 'copy', (c) => ({ label: 'Copy message', icon: 'copy', run: c.act.copyMessage })),

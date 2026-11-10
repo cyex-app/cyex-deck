@@ -15,7 +15,7 @@
   import { drag } from './drag.svelte';
   import { theatre } from './theatre.svelte';
   import { fullBox } from './theatre';
-  import { clampGrid, dragGrid, gridLine, gridTree, resized, slimSizes } from './grid';
+  import { clampGrid, dividerKey, dragGrid, gridLine, gridTree, resized, slimSizes } from './grid';
   import { dragged, layout } from './layout.svelte';
   import TileView from './TileView.svelte';
   import { tabs, tiles } from './tabs.svelte';
@@ -156,6 +156,29 @@
     addEventListener('blur', up);
   }
 
+  /** V110-F93 Arrow keys, Home and End on a focused divider: the same split maths and save as a drag. */
+  function nudge(e: KeyboardEvent, d: Divider) {
+    if (!tree || stacked || e.altKey || e.ctrlKey || e.metaKey) return;
+    const by = dividerKey(e.key, e.shiftKey, d.dir === 'row');
+    if (by === null) return;
+    const s = nodeAt(tree, d.path) as Split | null;
+    if (!s || !('dir' in s)) return;
+    e.preventDefault();
+    const base: Sizes = { columns: [...sizes.columns], rows: sizes.rows.map((r) => [...r]) };
+    const sent = resized(base, gridLine(d, tab.columns.length), dragGrid(s, d, d.at + by, MIN_PX + LINE, need, LINE));
+    live = sent;
+    void tabs.apply({ op: 'resize', tab: tab.id, columns: sent.columns, rows: sent.rows }).finally(() => {
+      if (live === sent) live = null;
+    });
+  }
+
+  /** 0 to 100: how far along its split the divider sits. */
+  const along = (d: Divider) => {
+    const col = d.dir === 'row';
+    const len = col ? d.rect.w : d.rect.h;
+    return len > 0 ? Math.round(((d.at - (col ? d.rect.x : d.rect.y)) / len) * 100) : 0;
+  };
+
   let teardown: (() => void) | null = null;
   onDestroy(() => teardown?.());
 
@@ -190,9 +213,17 @@
     {/each}
     {#each laid.dividers as d (`${d.path.join('.')}:${d.index}`)}
       {@const col = d.dir === 'row'}
-      <!-- svelte-ignore a11y_no_static_element_interactions -->
+      <!-- V110-F93 A focusable separator is a window splitter (ARIA), which Svelte doesn't know. -->
+      <!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_noninteractive_element_interactions -->
       <div
         class="divider"
+        role="separator"
+        aria-orientation={col ? 'vertical' : 'horizontal'}
+        aria-label={col ? 'Resize columns' : 'Resize tiles'}
+        aria-valuenow={along(d)}
+        aria-valuemin={0}
+        aria-valuemax={100}
+        tabindex={stacked ? -1 : 0}
         class:col
         class:row={!col}
         style:left={px(col ? d.at - LINE / 2 : d.rect.x + LINE / 2)}
@@ -200,6 +231,7 @@
         style:width={px(col ? LINE : d.rect.w - LINE)}
         style:height={px(col ? d.rect.h - LINE : LINE)}
         onpointerdown={(e) => resize(e, d)}
+        onkeydown={(e) => nudge(e, d)}
       ></div>
     {/each}
   </div>

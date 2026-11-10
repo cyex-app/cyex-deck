@@ -52,8 +52,20 @@ export interface ScrollSource<T extends Item> {
   lines: () => readonly T[];
   /** Every message, to count what came in. */
   messages: () => readonly { id: string }[];
+  /** V110-F93 Lines the buffer has cut off its front so far (a running total), to count a burst bigger than the scrollback. */
+  dropped?: () => number;
   /** The window shrank: the list goes back to the bottom if it still follows. */
   onshrink: () => void;
+}
+
+/**
+ * V110-F93 Lines that arrived after the anchor line. While the anchor is still in the list that is
+ * its distance from the end; once the buffer cut it off, `k` (cut-off count plus list length when
+ * the anchor was taken) and the running cut-off total `dropped` give the real number.
+ */
+export function arrived(ms: readonly { id: string }[], id: string, k: number, dropped: number): number {
+  for (let i = ms.length - 1; i >= 0; i--) if (ms[i].id === id) return ms.length - 1 - i;
+  return Math.max(ms.length, dropped - k + ms.length);
 }
 
 /** What the list should do after a scroll. */
@@ -88,6 +100,9 @@ export class ChatScroll<T extends Item = Item> {
   #pausedAt = $state<string | undefined>();
   /** Last message when following ended. */
   #leftAt = $state<string | undefined>();
+  /** V110-F93 `dropped + length` when each anchor was taken (see arrived()). */
+  #leftK = 0;
+  #pausedK = 0;
   #from = $state.raw<From>(null);
   /** V108-C01 Lines drawn when following: FIRST until the list widens it, then WINDOW. */
   #size = $state(FIRST);
@@ -133,9 +148,7 @@ export class ChatScroll<T extends Item = Item> {
   get fresh(): number {
     const id = !this.#following ? this.#leftAt : this.#pausedAt;
     if (!id) return 0;
-    const ms = this.#src.messages();
-    for (let i = ms.length - 1; i >= 0; i--) if (ms[i].id === id) return ms.length - 1 - i;
-    return ms.length;
+    return arrived(this.#src.messages(), id, !this.#following ? this.#leftK : this.#pausedK, this.#src.dropped?.() ?? 0);
   }
 
   /** V101-31 The "new / Paused / More messages" pill shows. */
@@ -337,8 +350,15 @@ export class ChatScroll<T extends Item = Item> {
   #follow(on: boolean): void {
     this.#following = on;
     if (on) this.#leftAt = undefined;
-    else this.#leftAt ??= this.#src.messages().at(-1)?.id ?? '';
+    else if (this.#leftAt === undefined) {
+      this.#leftAt = this.#src.messages().at(-1)?.id ?? '';
+      this.#leftK = this.#mark();
+    }
     this.#settle();
+  }
+
+  #mark(): number {
+    return (this.#src.dropped?.() ?? 0) + this.#src.messages().length;
   }
 
   /** Keeps what hangs on following, paused and the window in step. */
@@ -347,7 +367,10 @@ export class ChatScroll<T extends Item = Item> {
     const paused = this.paused;
     const last = this.#seen;
     if (!paused) this.#pausedAt = undefined;
-    else this.#pausedAt ??= this.#src.messages().at(-1)?.id ?? '';
+    else if (this.#pausedAt === undefined) {
+      this.#pausedAt = this.#src.messages().at(-1)?.id ?? '';
+      this.#pausedK = this.#mark();
+    }
     // Scrolled up or paused: what's drawn stays put.
     if ((following !== last.following || (following && paused !== last.paused)) && (!following || paused))
       this.#from = hold(this.#src.lines(), this.#from, this.#size);

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import { dragSizes, layout, type Split } from '../../lib/panels.ts';
-import { clampGrid, dragGrid, gridLine, gridTree, resized } from './grid.ts';
+import { clampGrid, dividerKey, dragGrid, gridLine, gridTree, resized } from './grid.ts';
 
 const col = (...ids: string[]) => ({ tiles: ids.map((id) => ({ id })) });
 
@@ -118,4 +118,15 @@ test('V107-N6b too short for both tiles: each gets its part; one tile or no room
   const one = gridTree([col('a')], { columns: [1], rows: [[1]] }, false);
   assert.equal(clampGrid(one, { w: 10, h: 10 }, min), one);
   assert.equal(clampGrid(tree, { w: 0, h: 0 }, min), tree);
+});
+
+test('dividerKey: arrows 16, Shift 64, Home and End to the limits (V110-F93)', () => {
+  assert.equal(dividerKey('ArrowRight', false, true), 16);
+  assert.equal(dividerKey('ArrowLeft', true, true), -64);
+  assert.equal(dividerKey('ArrowDown', false, false), 16);
+  assert.equal(dividerKey('ArrowUp', true, false), -64);
+  assert.equal(dividerKey('ArrowUp', false, true), null);
+  assert.equal(dividerKey('Home', false, true), -Infinity);
+  assert.equal(dividerKey('End', false, false), Infinity);
+  assert.equal(dividerKey('a', false, true), null);
 });
