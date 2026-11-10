@@ -46,8 +46,8 @@ struct Item<T> {
 }
 
 impl<T> Section<T> {
-    fn items<U>(self, f: impl Fn(T) -> U) -> (Vec<U>, Option<String>) {
-        let items: Vec<U> = self.edges.into_iter().filter_map(|e| e.item).map(f).collect();
+    fn items<U>(self, f: impl Fn(T) -> Option<U>) -> (Vec<U>, Option<String>) {
+        let items: Vec<U> = self.edges.into_iter().filter_map(|e| e.item).filter_map(f).collect();
         // The last page still has a cursor; an empty one means there's nothing after.
         let cursor = if items.is_empty() {
             None
@@ -86,8 +86,8 @@ pub async fn search(http: &Http, auth: Auth<'_>, text: &str) -> Result<SearchRes
     };
     let (items, cursor) = found
         .channels
-        .map_or((Vec::new(), None), |s| s.items(ChannelCard::from));
-    let categories = found.games.map_or(Vec::new(), |s| s.items(Category::from).0);
+        .map_or((Vec::new(), None), |s| s.items(RawCard::into_card));
+    let categories = found.games.map_or(Vec::new(), |s| s.items(|g| Some(Category::from(g))).0);
     Ok(SearchResults {
         channels: Page { items, cursor },
         categories,
@@ -115,7 +115,7 @@ pub async fn search_channels(
     let (items, cursor) = data
         .search_for
         .and_then(|f| f.channels)
-        .map_or((Vec::new(), None), |s| s.items(ChannelCard::from));
+        .map_or((Vec::new(), None), |s| s.items(RawCard::into_card));
     Ok(Page { items, cursor })
 }
 
@@ -133,9 +133,9 @@ mod tests {
         )
         .unwrap();
         let f = d.search_for.unwrap();
-        let (channels, cursor) = f.channels.unwrap().items(ChannelCard::from);
+        let (channels, cursor) = f.channels.unwrap().items(RawCard::into_card);
         assert_eq!((channels.len(), cursor.as_deref()), (1, Some("MTA=")));
-        let (games, none) = f.games.unwrap().items(Category::from);
+        let (games, none) = f.games.unwrap().items(|g| Some(Category::from(g)));
         assert_eq!((games[0].slug.as_str(), none), ("chess", None));
     }
 }

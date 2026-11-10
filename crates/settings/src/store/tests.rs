@@ -1089,3 +1089,78 @@ fn a_bom_file_is_not_reset() {
     assert!(report.reset.is_empty());
     assert_eq!(store.read::<General>(Partition::General).chat_font_size, 17);
 }
+
+/// V110-A40 A command variable that comes in an import is flagged "from outside"; one this PC
+/// already holds with the same text, and a restore, keep what they have.
+#[test]
+fn imported_variables_are_flagged_from_outside() {
+    use crate::schema::Commands;
+    let tmp = TempDir::new("store-import-vars");
+    let clock = Arc::new(FakeClock::at(day(9)));
+    let (mut store, _) = open(tmp.path(), &clock);
+    store.patch(Partition::Commands, &json!({"vars": {"mine": "hello"}})).unwrap();
+    store
+        .import(commands_bundle(json!({"vars": {"mine": "hello", "evil": "/ban x", "empty": ""}})))
+        .unwrap();
+    let c: Commands = store.read(Partition::Commands);
+    assert_eq!(c.vars["mine"], "hello", "same text as here: left as it was");
+    assert_eq!(c.vars["evil"], flag_var("/ban x"));
+    assert!(c.vars["evil"].starts_with('\u{FDD0}'));
+    assert_eq!(c.vars["empty"], "");
+    // A mark already in the incoming text is not doubled.
+    assert_eq!(flag_var(&flag_var("a")), flag_var("a"));
+}
+
+/// V110-A43 A list over its cap is still imported (the first rows), and the result says so.
+#[test]
+fn an_import_over_a_cap_keeps_the_first_rows_and_says_so() {
+    use crate::schema::Commands;
+    let tmp = TempDir::new("store-import-caps");
+    let clock = Arc::new(FakeClock::at(day(9)));
+    let (mut store, _) = open(tmp.path(), &clock);
+    let rows: Vec<Value> = (0..503).map(|i| json!(format!("/c{i} hi"))).collect();
+    let (parts, notes) = store.import_noted(commands_bundle(json!({"lines": rows}))).unwrap();
+    assert_eq!(parts, [Partition::Commands]);
+    assert_eq!(notes, ["Kept the first 500 commands."]);
+    let c: Commands = store.read(Partition::Commands);
+    assert_eq!(c.lines.len(), 500);
+    assert_eq!(c.lines[0].text, "/c0 hi");
+    // Within the caps: nothing to say.
+    let (_, notes) = store.import_noted(commands_bundle(json!({"lines": ["/a b"]}))).unwrap();
+    assert!(notes.is_empty());
+}
+
+/// V110-A44 A cut-off tabs.json keeps every complete tab (before any backup is tried); its file
+/// is set aside and the start says how many were kept.
+#[test]
+fn a_cut_off_tabs_file_keeps_its_complete_tabs() {
+    use crate::schema::Tabs;
+    let tmp = TempDir::new("store-rescue-tabs");
+    let clock = Arc::new(FakeClock::at(day(9)));
+    let tab = |id: &str| json!({"id": id, "columns": [{"size": 1.0, "tiles": [{"id": format!("t{id}"), "channel": {"id": "1", "login": "a", "name": "A"}}]}]});
+    let full = serde_json::to_string_pretty(&json!({"tabs": [tab("a"), tab("b"), tab("c")]})).unwrap();
+    fs::write(tmp.path().join("tabs.json"), &full[..full.rfind("\"columns\"").unwrap()]).unwrap();
+    let (store, report) = open(tmp.path(), &clock);
+    assert_eq!(report.rescued, [(Partition::Tabs, 2)]);
+    assert!(report.reset.is_empty() && report.restored.is_empty());
+    let tabs: Tabs = store.read(Partition::Tabs);
+    assert_eq!(tabs.tabs.iter().map(|t| t.id.as_str()).collect::<Vec<_>>(), ["a", "b"]);
+    assert!(tmp.path().join("tabs.broken-20261009-120000.json").exists());
+    assert!(store.is_dirty());
+}
+
+/// V110-A44 `.broken-*` files older than 30 days go at start; newer ones stay.
+#[test]
+fn broken_files_older_than_thirty_days_are_removed_at_start() {
+    let tmp = TempDir::new("store-broken-age");
+    let clock = Arc::new(FakeClock::at(day(9)));
+    // The fake day is 2026/10/09: 30 days back is 2026/09/09.
+    for name in ["general.broken-20260908-120000.json", "tabs.broken-20260909-120000.json", "chat.broken-20261001-120000.json", "notes.broken-x.json"] {
+        fs::write(tmp.path().join(name), "x").unwrap();
+    }
+    let _ = open(tmp.path(), &clock);
+    assert!(!tmp.path().join("general.broken-20260908-120000.json").exists());
+    assert!(tmp.path().join("tabs.broken-20260909-120000.json").exists());
+    assert!(tmp.path().join("chat.broken-20261001-120000.json").exists());
+    assert!(tmp.path().join("notes.broken-x.json").exists());
+}

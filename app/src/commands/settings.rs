@@ -13,7 +13,7 @@ use time::Date;
 use time::macros::format_description;
 
 use crate::auth;
-use crate::settings::Settings;
+use crate::settings::{Imported, Settings};
 use crate::tabs::import as chatterino;
 
 use super::CmdResult;
@@ -110,12 +110,8 @@ pub async fn settings_export_file(
     Ok(true)
 }
 
-/// Opens a file picker and imports the file. Empty result = cancelled.
-#[tauri::command]
-pub async fn settings_import_file(
-    app: AppHandle,
-    settings: State<'_, Settings>,
-) -> CmdResult<Vec<Partition>> {
+/// Opens a file picker and reads the file. `None` = cancelled.
+async fn pick_bundle(app: &AppHandle) -> CmdResult<Option<Bundle>> {
     // V110-F85 The picker blocks: off the runtime's workers.
     let asked = app.clone();
     let picked = tokio::task::spawn_blocking(move || {
@@ -129,7 +125,7 @@ pub async fn settings_import_file(
     .await
     .map_err(|e| e.to_string())?;
     let Some(source) = picked else {
-        return Ok(Vec::new());
+        return Ok(None);
     };
     let path = source.into_path().map_err(|e| e.to_string())?;
     // V107-M0 Check the size before reading it all in.
@@ -138,8 +134,45 @@ pub async fn settings_import_file(
         return Err(cyex_settings::Error::TooBig.to_string());
     }
     let text = fs::read_to_string(path).map_err(|e| e.to_string())?;
-    let bundle = Bundle::from_json(&text).map_err(|e| e.to_string())?;
-    settings.import(&app, bundle)
+    Bundle::from_json(&text).map(Some).map_err(|e| e.to_string())
+}
+
+/// Opens a file picker and imports the file. Empty result = cancelled.
+#[tauri::command]
+pub async fn settings_import_file(app: AppHandle, settings: State<'_, Settings>) -> CmdResult<Imported> {
+    match pick_bundle(&app).await? {
+        Some(bundle) => settings.import(&app, bundle),
+        None => Ok(Imported::default()),
+    }
+}
+
+/// V110-A-idea The import review, file: picks a file and tells what it brings; nothing changes
+/// until `settings_import_apply`. `None` = cancelled.
+#[tauri::command]
+pub async fn settings_import_peek_file(
+    app: AppHandle,
+    settings: State<'_, Settings>,
+) -> CmdResult<Option<cyex_settings::Review>> {
+    Ok(pick_bundle(&app).await?.map(|bundle| settings.hold_import(bundle)))
+}
+
+/// V110-A-idea The import review, share code.
+#[tauri::command]
+pub fn settings_import_peek_code(settings: State<Settings>, code: String) -> CmdResult<cyex_settings::Review> {
+    let bundle = Bundle::from_share_code(&code).map_err(|e| e.to_string())?;
+    Ok(settings.hold_import(bundle))
+}
+
+/// V110-A-idea Apply in the review.
+#[tauri::command]
+pub fn settings_import_apply(app: AppHandle, settings: State<Settings>) -> CmdResult<Imported> {
+    settings.apply_held_import(&app)
+}
+
+/// V110-A-idea Cancel in the review.
+#[tauri::command]
+pub fn settings_import_cancel(settings: State<Settings>) {
+    settings.drop_held_import();
 }
 
 /// V1041-02 Picks a Chatterino layout and looks its channels up. `None` = cancelled.
@@ -200,7 +233,7 @@ pub fn settings_import_code(
     app: AppHandle,
     settings: State<Settings>,
     code: String,
-) -> CmdResult<Vec<Partition>> {
+) -> CmdResult<Imported> {
     let bundle = Bundle::from_share_code(&code).map_err(|e| e.to_string())?;
     settings.import(&app, bundle)
 }

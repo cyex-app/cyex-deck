@@ -60,6 +60,19 @@ impl Bundle {
         Ok(bundle)
     }
 
+    /// V110-A-idea What this file or code brings, for the review before it is applied: the
+    /// partitions that can come from another PC, and a line per kind of thing in them.
+    pub fn review(&self) -> Review {
+        let mut parts = Vec::new();
+        let mut lines = Vec::new();
+        for (key, value) in &self.partitions {
+            let Some(p) = Partition::from_key(key).filter(|p| p.is_portable()) else { continue };
+            parts.push(p);
+            lines.extend(crate::cuts::summary(p, value));
+        }
+        Review { partitions: parts, lines }
+    }
+
     pub fn to_share_code(&self) -> String {
         let compact = serde_json::to_vec(self).expect("bundle serializes");
         format!("{CODE_PREFIX}{}", URL_SAFE_NO_PAD.encode(compact))
@@ -80,6 +93,13 @@ impl Bundle {
             _ => Error::BadCode,
         })
     }
+}
+
+/// V110-A-idea See [`Bundle::review`].
+#[derive(Clone, Debug, PartialEq, Serialize)]
+pub struct Review {
+    pub partitions: Vec<Partition>,
+    pub lines: Vec<String>,
 }
 
 /// `cyex-general-2026-10-09.json` for one partition, `cyex-settings-2026-10-09.json` otherwise.
@@ -137,6 +157,22 @@ mod tests {
         let bundle = Bundle::new(BTreeMap::from([("menus".into(), menus.clone())]), day(9).with_time(Time::MIDNIGHT).assume_utc());
         let back = Bundle::from_json(&bundle.to_json()).unwrap();
         assert_eq!(back.partitions["menus"], menus);
+    }
+
+    #[test]
+    fn the_review_lists_what_a_bundle_brings() {
+        // V110-A-idea Accounts never come along, so they are not listed.
+        let bundle = Bundle::new(
+            BTreeMap::from([
+                ("commands".into(), json!({"lines": ["/a x"], "vars": {"k": "v"}})),
+                ("accounts".into(), json!({})),
+                ("general".into(), json!({"tooltips": false})),
+            ]),
+            day(9).with_time(Time::MIDNIGHT).assume_utc(),
+        );
+        let review = bundle.review();
+        assert_eq!(review.partitions, [Partition::Commands, Partition::General]);
+        assert_eq!(review.lines, ["1 command", "1 variable"]);
     }
 
     #[test]

@@ -5,6 +5,12 @@ import type { CustomTheme } from './bindings/CustomTheme';
 import type { LinkUpdate } from './bindings/LinkUpdate';
 import type { ThemeLook } from './bindings/ThemeLook';
 import type { ThemePreview } from './bindings/ThemePreview';
+
+/** V110-A7 `note` says why a theme from a code came without its wallpaper. */
+export interface AddedTheme {
+  id: string;
+  note: string | null;
+}
 import type { Theme } from './bindings/Theme';
 
 export const themeIpc = {
@@ -30,7 +36,7 @@ export const themeIpc = {
   canEdit: (id: string) => invoke<boolean>('theme_share_can_edit', { id }),
   /** A pasted link or old code, to show before adding. */
   preview: (text: string) => invoke<ThemePreview>('theme_preview', { text }),
-  addPreview: (preview: ThemePreview) => invoke<string>('theme_add_preview', { preview }),
+  addPreview: (preview: ThemePreview) => invoke<AddedTheme>('theme_add_preview', { preview }),
   report: (sourceId: string, reason: string) => invoke<void>('theme_report', { sourceId, reason }),
   linkUpdate: (id: string, replace: boolean) => invoke<LinkUpdate>('theme_link_update', { id, replace }),
   linkRestore: (id: string, index: number) => invoke<void>('theme_link_restore', { id, index }),

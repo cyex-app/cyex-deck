@@ -1,11 +1,19 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { recordingStopText } from './recordingStop.ts';
+import { recordingStopText, recordingWarnText } from './recordingStop.ts';
 
 test('V110-F92 only a size stop says so', () => {
-  assert.equal(recordingStopText({ recording: false, reason: 'size' }), 'Recording stopped at 500 MB.');
+  assert.equal(recordingStopText({ recording: false, reason: 'size' }), 'Stopped at 5 GB.');
   assert.equal(recordingStopText({ recording: false, reason: null }), null);
   assert.equal(recordingStopText({ recording: false }), null);
   assert.equal(recordingStopText({ recording: true, reason: 'size' }), null);
+  assert.equal(recordingStopText({ recording: true, reason: 'warn' }), null);
+});
+
+test('V110-A27 the warning past 500 MB is only for a recording that goes on', () => {
+  assert.equal(recordingWarnText({ recording: true, reason: 'warn' }), 'Recording is over 500 MB.');
+  assert.equal(recordingWarnText({ recording: false, reason: 'warn' }), null);
+  assert.equal(recordingWarnText({ recording: true }), null);
+  assert.equal(recordingWarnText({ recording: false, reason: 'size' }), null);
 });

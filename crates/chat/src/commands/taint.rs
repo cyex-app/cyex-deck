@@ -97,3 +97,16 @@ mod tests {
         assert_eq!(clean(&mark(&forged)), "/ban");
     }
 }
+
+#[cfg(test)]
+mod import_flag_tests {
+    use super::*;
+
+    /// V110-A40 The settings crate flags imported variables the way `/set var` does.
+    #[test]
+    fn imported_variables_carry_the_same_flag() {
+        assert_eq!(cyex_settings::flag_var("/ban x"), flag("/ban x"));
+        assert!(has(&cyex_settings::flag_var("x")));
+        assert_eq!(clean(&cyex_settings::flag_var("x")), "x");
+    }
+}

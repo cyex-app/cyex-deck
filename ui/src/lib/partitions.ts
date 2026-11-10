@@ -35,7 +35,9 @@ export function partitionList(partitions: Partition[]): string {
 }
 
 /** V110-F92 The import toast: an import with automations brings them in switched off. */
-export function importedText(partitions: Partition[]): string {
+export function importedText(partitions: Partition[], notes: string[] = []): string {
   const base = `Imported ${partitionList(partitions)}.`;
-  return partitions.includes('commands') ? `${base} Automations are off until you switch them on.` : base;
+  // V110-A43 A line for each list that was cut at its cap, V110-A7 and for a wallpaper that didn't come along.
+  const lines = [partitions.includes('commands') ? `${base} Automations are off until you switch them on.` : base, ...notes];
+  return lines.join(' ');
 }

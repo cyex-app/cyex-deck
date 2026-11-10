@@ -32,7 +32,12 @@ const WRITE_TIMEOUT: Duration = Duration::from_secs(10);
 const WRITE_TIMEOUT: Duration = Duration::from_millis(200);
 /// A send with no line back this long checks the link with a PING.
 const SEND_ANSWER: Duration = Duration::from_secs(5);
-const MAX_BACKOFF: Duration = Duration::from_secs(60);
+/// V110-A21 The shared reconnect backoff: 1 s (a quarter more at random), doubling to a minute.
+const BACKOFF: cyex_core::backoff::Backoff = cyex_core::backoff::Backoff::new(
+    Duration::from_secs(1),
+    Duration::from_millis(250),
+    Duration::from_secs(60),
+);
 /// A session that lasted this long resets the backoff.
 const STABLE: Duration = Duration::from_secs(60);
 /// Keeps JOIN lines well under IRC's 512 bytes.
@@ -178,11 +183,7 @@ fn next_backoff(prev: Duration, now: bool, stable: bool) -> Duration {
     if stable || (now && prev.is_zero()) {
         return Duration::ZERO;
     }
-    let base = (prev * 2).clamp(Duration::from_secs(1), MAX_BACKOFF);
-    let spread = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map_or(0, |d| u64::from(d.subsec_millis()));
-    base + base.mul_f64(spread as f64 / 4000.0)
+    BACKOFF.next(prev)
 }
 
 async fn run(
@@ -532,7 +533,7 @@ mod tests {
         assert!(first >= s(1) && first <= Duration::from_millis(1250));
         let again = next_backoff(first, true, false);
         assert!(again >= first * 2 && again <= (first * 2).mul_f64(1.25));
-        assert!(next_backoff(s(600), false, false) <= MAX_BACKOFF.mul_f64(1.25));
+        assert!(next_backoff(s(600), false, false) <= BACKOFF.cap.mul_f64(1.25));
     }
 
     /// The fake server's side of each connection the client opens.

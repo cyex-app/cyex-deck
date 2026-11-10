@@ -10,7 +10,7 @@ use super::Channel;
 // V107-R42 One role type for every role screen.
 pub use super::roles::Role;
 use super::roles::UNASSIGN;
-use crate::gql::connection::{GAP, Page, UserRef, page, paginate};
+use crate::gql::connection::{GAP, Page, UserRef, checked_page, page, paginate};
 use crate::{Error, Result};
 
 const FOLLOWERS: &str = "query($id: ID!, $first: Int!, $after: Cursor, $order: SortOrder) { user(id: $id) { \
@@ -59,15 +59,20 @@ pub struct Followers {
 pub async fn followers(ch: &Channel<'_>, cursor: Option<&str>, newest: bool) -> Result<Followers> {
     let vars = json!({ "id": ch.id, "first": PAGE, "after": cursor, "order": if newest { "DESC" } else { "ASC" } });
     let data: Value = ch.read(FOLLOWERS, vars).await?;
-    Ok(followers_from(&data))
+    followers_from(&data)
 }
 
-fn followers_from(data: &Value) -> Followers {
+/// V110-A36 A channel that is gone (`user: null`) has no followers; an answer without the list
+/// is an error.
+fn followers_from(data: &Value) -> Result<Followers> {
+    if data.get("user").is_some_and(Value::is_null) {
+        return Ok(Followers::default());
+    }
     let f = &data["user"]["followers"];
-    let p = page(f, |e| {
+    let p = checked_page(f, "followers", |e| {
         Some(Follower { user: UserRef::from_node(&e["node"])?, followed_at: e["followedAt"].as_str().map(str::to_owned) })
-    });
-    Followers { total: f["totalCount"].as_u64().unwrap_or(p.items.len() as u64), items: p.items, next: p.next }
+    })?;
+    Ok(Followers { total: f["totalCount"].as_u64().unwrap_or(p.items.len() as u64), items: p.items, next: p.next })
 }
 
 /// A channel where the account holds a role.
@@ -187,7 +192,7 @@ mod tests {
             { "cursor": "b", "followedAt": null, "node": { "id": "2", "login": "bob", "displayName": "", "profileImageURL": null } },
             { "cursor": "c", "node": null }
         ], "pageInfo": { "hasNextPage": true } } } });
-        let f = followers_from(&d);
+        let f = followers_from(&d).unwrap();
         assert_eq!(f.total, 1234);
         assert_eq!(f.items.len(), 2);
         assert_eq!(f.items[0].followed_at.as_deref(), Some("2026-10-20T21:05:00Z"));
@@ -200,8 +205,17 @@ mod tests {
         let d = json!({ "user": { "followers": { "totalCount": 1, "edges": [
             { "cursor": "a", "node": { "id": "1", "login": "ann", "displayName": "Ann" } }
         ], "pageInfo": { "hasNextPage": false } } } });
-        assert_eq!(followers_from(&d).next, None);
-        assert_eq!(followers_from(&json!({ "user": null })), Followers::default());
+        assert_eq!(followers_from(&d).unwrap().next, None);
+        assert_eq!(followers_from(&json!({ "user": null })).unwrap(), Followers::default());
+    }
+
+    #[test]
+    fn v110_a36_a_followers_answer_of_the_wrong_shape_is_an_error() {
+        for d in [json!({}), json!({ "user": {} }), json!({ "user": { "followers": null } }), json!({ "user": { "followers": { "edges": "x" } } })] {
+            assert!(matches!(followers_from(&d), Err(Error::Decode(_))), "{d}");
+        }
+        // An empty list is a list.
+        assert!(followers_from(&json!({ "user": { "followers": { "edges": [] } } })).unwrap().items.is_empty());
     }
 
     #[test]

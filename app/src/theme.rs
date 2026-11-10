@@ -164,6 +164,19 @@ pub fn add_wallpaper(app: &AppHandle, path: &Path) -> Result<String, String> {
     Ok(name)
 }
 
+/// V110-A7 Keeps a downloaded picture (already checked for kind and size) in the wallpapers
+/// folder; returns its new name.
+pub fn save_wallpaper(app: &AppHandle, bytes: &[u8], ext: &str) -> Result<String, String> {
+    if bytes.len() as u64 > MAX_WALLPAPER_BYTES || !matches!(ext, "png" | "jpg" | "webp" | "gif") {
+        return Err("That picture can’t be a wallpaper.".into());
+    }
+    let dir = wallpapers_dir(app).ok_or("Couldn’t find the app data folder.")?;
+    fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    let name = format!("{}.{ext}", cyex_settings::schema::random_id());
+    fs::write(dir.join(&name), bytes).map_err(|_| "Couldn’t save the picture.")?;
+    Ok(name)
+}
+
 /// `cyexpic://localhost/<file>`: a wallpaper file, nothing else.
 pub fn handle(ctx: UriSchemeContext<'_, Wry>, request: Request<Vec<u8>>) -> Response<Vec<u8>> {
     let name = request.uri().path().trim_start_matches('/').to_owned();

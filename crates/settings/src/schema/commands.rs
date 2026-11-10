@@ -9,11 +9,11 @@ use ts_rs::TS;
 
 use super::Schema;
 
-const MAX_LINES: usize = 500;
+pub(crate) const MAX_LINES: usize = 500;
 const MAX_LINE_CHARS: usize = 2000;
 const MAX_VARS: usize = 500;
 const MAX_TIMERS: usize = 50;
-const MAX_AUTOMATIONS: usize = 100;
+pub(crate) const MAX_AUTOMATIONS: usize = 100;
 
 /// V106-10 One row of a command or menu list: the line as typed, and whether it is used.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, TS)]

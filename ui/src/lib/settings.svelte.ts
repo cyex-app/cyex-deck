@@ -48,7 +48,7 @@ class SettingsStore {
     });
     // V110-F82 Rust sends it to the main window only, once per partition.
     await settingsIpc.onSaveFailing(() => toast.error('Settings aren’t saving. Check that the folder can be written to.'));
-    const { reset, restored, restoredFrom, blocked } = await settingsIpc.takeLoadReport();
+    const { reset, restored, restoredFrom, blocked, rescuedTabs } = await settingsIpc.takeLoadReport();
     if (blocked.length) {
       // V110-F82 A locked file or a folder in its place: the file is untouched, nothing is saved to it.
       toast.error(`Some settings couldn’t be opened and were left untouched: ${partitionList(blocked)}. They won’t be saved until the app restarts.`);
@@ -57,6 +57,12 @@ class SettingsStore {
       // t5 Names as in Backup and sharing; a file can also be only partly reset now.
       toast.error(`Some settings couldn’t be read and went back to default: ${partitionList(reset)}. The old files are kept in the settings folder.`, {
         // V110-F101 One click to the files.
+        action: { label: 'Open folder', run: () => void settingsIpc.openFolder().catch((e) => toast.error(errorText(e))) },
+      });
+    }
+    if (typeof rescuedTabs === 'number') {
+      // V110-A44 The tabs file was cut short: every tab that could be read is back.
+      toast.error(`Your tabs file was cut short. ${rescuedTabs === 1 ? '1 tab was' : `${rescuedTabs} tabs were`} kept. The old file is in the settings folder.`, {
         action: { label: 'Open folder', run: () => void settingsIpc.openFolder().catch((e) => toast.error(errorText(e))) },
       });
     }

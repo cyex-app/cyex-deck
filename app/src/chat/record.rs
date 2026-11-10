@@ -26,8 +26,10 @@ const MAX_ASSET: usize = 8 * 1024 * 1024;
 const EVENT: &str = "chat:recording";
 /// V107-R1 How long pictures may still come in after a recording stops.
 const LATE_ASSETS: std::time::Duration = std::time::Duration::from_secs(120);
-/// V110-F85 A recording stops by itself when its events file passes this.
-const MAX_EVENTS_BYTES: u64 = 500 * 1024 * 1024;
+/// V110-A27 Past this the UI is warned once per recording, with a quick Stop.
+const WARN_EVENTS_BYTES: u64 = 500 * 1024 * 1024;
+/// V110-F85 A recording stops by itself when its events file passes this (V110-A27: 5 GB).
+const MAX_EVENTS_BYTES: u64 = 5 * 1024 * 1024 * 1024;
 /// V110-F85 Pictures downloaded at the same time, over all recordings.
 static DOWNLOADS: Semaphore = Semaphore::const_new(4);
 /// V110-F85 `assets.json` is written at most this often (the pictures in between wait).
@@ -54,6 +56,8 @@ struct Rec {
     seen: HashSet<String>,
     /// V110-F85 Bytes written to `events.jsonl`.
     bytes: u64,
+    /// V110-A27 The warning at 500 MB went out.
+    warned: bool,
 }
 
 #[derive(Default)]
@@ -119,6 +123,7 @@ pub fn start(app: &AppHandle, key: &RoomKey) -> Result<String, String> {
         out,
         seen: HashSet::new(),
         bytes: 0,
+        warned: false,
     };
     app.state::<Recorder>()
         .live
@@ -178,6 +183,7 @@ fn write_meta(dir: &std::path::Path, meta: &RecordingMeta) -> Result<(), String>
 pub fn events(app: &AppHandle, key: &RoomKey, events: &[RoomEvent]) {
     let mut wanted: Vec<(String, String, PathBuf, String)> = Vec::new();
     let mut full = false;
+    let mut warn = false;
     {
         let recorder = app.state::<Recorder>();
         let mut live = recorder.live.lock().unwrap_or_else(|p| p.into_inner());
@@ -210,6 +216,9 @@ pub fn events(app: &AppHandle, key: &RoomKey, events: &[RoomEvent]) {
                 full = true;
                 break;
             }
+            if should_warn(rec.bytes, &mut rec.warned) {
+                warn = true;
+            }
         }
         // Every 50 messages; a batch of only edits or deletes on a round count writes nothing.
         if rec.meta.messages / 50 != before / 50 {
@@ -219,14 +228,27 @@ pub fn events(app: &AppHandle, key: &RoomKey, events: &[RoomEvent]) {
     }
     if full {
         // V110-F85 The UI hears it on the same event as any stop, with the reason.
-        eprintln!("chat recording of {} stopped: events.jsonl passed 500 MB", key.1);
+        eprintln!("chat recording of {} stopped: events.jsonl passed 5 GB", key.1);
         stop_for(app, key, Some("size"));
         return;
+    }
+    if warn {
+        // V110-A27 Still recording; the UI offers a quick Stop (reason "warn", once per recording).
+        let _ = app.emit(EVENT, json!({ "channel": key.1, "recording": true, "reason": "warn" }));
     }
     for (id, k, dir, url) in wanted {
         let app = app.clone();
         tauri::async_runtime::spawn(async move { save_asset(&app, &id, &k, &dir, &url).await });
     }
+}
+
+/// V110-A27 True once per recording, when its events file first passes the warning size.
+fn should_warn(bytes: u64, warned: &mut bool) -> bool {
+    if bytes < WARN_EVENTS_BYTES || *warned {
+        return false;
+    }
+    *warned = true;
+    true
 }
 
 /// V110-F85 The events file is as big as a recording may get.
@@ -453,6 +475,13 @@ mod tests {
     fn v110_f85_the_events_file_has_a_cap_and_asset_writes_are_batched() {
         assert!(!over_cap(MAX_EVENTS_BYTES - 1));
         assert!(over_cap(MAX_EVENTS_BYTES));
+        // V110-A27 No stop at 500 MB: the hard stop is 5 GB, and 500 MB warns once.
+        assert!(!over_cap(WARN_EVENTS_BYTES + 1));
+        assert_eq!(MAX_EVENTS_BYTES, 5 * 1024 * 1024 * 1024);
+        let mut warned = false;
+        assert!(!should_warn(WARN_EVENTS_BYTES - 1, &mut warned));
+        assert!(should_warn(WARN_EVENTS_BYTES, &mut warned));
+        assert!(!should_warn(WARN_EVENTS_BYTES + 1, &mut warned), "once per recording");
         let mut pending = HashSet::new();
         assert!(claim_flush(&mut pending, "a"));
         assert!(!claim_flush(&mut pending, "a"));

@@ -5,6 +5,7 @@
 mod api;
 mod form;
 mod keys;
+mod wallpaper;
 
 use std::fs;
 use std::sync::Arc;
@@ -213,6 +214,29 @@ pub fn from_preview(p: ThemePreview) -> CustomTheme {
         t.link_source(&p.source_id, p.version, &p.date);
     }
     t
+}
+
+/// V110-A7 A theme from a pasted code that points at a wallpaper link gets the picture kept
+/// here, once; the theme points at that file. A picture that can't be fetched leaves the theme
+/// without a wallpaper; the sentence says so. (A theme from a cyex.app link keeps its own.)
+pub async fn localize_wallpaper(app: &AppHandle, theme: &mut CustomTheme, from_code: bool) -> Option<String> {
+    if !from_code || !theme.wallpaper.is_link() {
+        return None;
+    }
+    let got = match wallpaper::download(&theme.wallpaper.source).await {
+        Ok((bytes, ext)) => crate::theme::save_wallpaper(app, &bytes, ext),
+        Err(e) => Err(e),
+    };
+    match got {
+        Ok(name) => {
+            theme.wallpaper.source = name;
+            None
+        }
+        Err(reason) => {
+            theme.wallpaper.source.clear();
+            Some(wallpaper::without(&reason))
+        }
+    }
 }
 
 pub async fn report(app: &AppHandle, source_id: &str, reason: &str) -> Result<(), String> {

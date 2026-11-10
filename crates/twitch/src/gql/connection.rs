@@ -90,6 +90,15 @@ pub(crate) fn page<T>(conn: &Value, item: impl FnMut(&Value) -> Option<T>) -> Pa
     }
 }
 
+/// V110-A36 Like [`page`], but a connection that isn't an object with an `edges` list is an
+/// error (`what` names it), not an empty page.
+pub(crate) fn checked_page<T>(conn: &Value, what: &str, item: impl FnMut(&Value) -> Option<T>) -> Result<Page<T>> {
+    if !conn.get("edges").is_some_and(Value::is_array) {
+        return Err(crate::Error::shape(what));
+    }
+    Ok(page(conn, item))
+}
+
 /// Everything a paged read found.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Paged<T> {

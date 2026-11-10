@@ -56,10 +56,12 @@
   const add = () =>
     work(async () => {
       if (!preview) return;
-      await themeIpc.addPreview(preview);
+      const added = await themeIpc.addPreview(preview);
       text = '';
       close();
-      toast.success('Theme added.');
+      // V110-A7 A wallpaper link that couldn't be fetched: the theme is added without it, and it says so.
+      if (added.note) toast.info(added.note);
+      else toast.success('Theme added.');
     });
 
   const report = () =>

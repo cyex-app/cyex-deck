@@ -65,6 +65,19 @@ export interface BackupLine {
   error: string | null;
 }
 
+/** V110-A43 What an import did: the parts it replaced, and lines to show ("Kept the first 500 commands."). */
+export interface Imported {
+  partitions: Partition[];
+  notes: string[];
+}
+
+/** V110-A-idea What a file or share code brings, shown before it is applied. */
+export interface ImportReview {
+  partitions: Partition[];
+  /** "12 commands", "3 sound files"… */
+  lines: string[];
+}
+
 export const settingsIpc = {
   all: () => invoke<SettingsValues>('settings_all'),
   patch: <P extends Partition>(partition: P, patch: DeepPartial<SettingsValues[P]>) =>
@@ -74,7 +87,7 @@ export const settingsIpc = {
   uploaderHeaders: () => invoke<string>('uploader_headers'),
   reset: <P extends Partition>(partition: P) => invoke<SettingsValues[P]>('settings_reset', { partition }),
   exportFile: (partitions: Partition[]) => invoke<boolean>('settings_export_file', { partitions }),
-  importFile: () => invoke<Partition[]>('settings_import_file'),
+  importFile: () => invoke<Imported>('settings_import_file'),
   /** V1041-02 Opens a file picker; `null` when cancelled. */
   chatterinoPreview: () => invoke<ImportReport | null>('settings_chatterino_preview'),
   /** V1041-02 Adds the previewed tabs, with the stream too if `player`. */
@@ -84,7 +97,12 @@ export const settingsIpc = {
   /** V105-16 Adds the picked highlights; duplicates keep yours or take Chatterino's. */
   highlightsImport: (keepMine: boolean) => invoke<HighlightImport>('highlights_chatterino_import', { keepMine }),
   shareCode: (partitions: Partition[]) => invoke<string>('settings_share_code', { partitions }),
-  importCode: (code: string) => invoke<Partition[]>('settings_import_code', { code }),
+  importCode: (code: string) => invoke<Imported>('settings_import_code', { code }),
+  /** V110-A-idea Picks a file and tells what it brings; nothing changes until `applyImport`. `null` when cancelled. */
+  peekFile: () => invoke<ImportReview | null>('settings_import_peek_file'),
+  peekCode: (code: string) => invoke<ImportReview>('settings_import_peek_code', { code }),
+  applyImport: () => invoke<Imported>('settings_import_apply'),
+  cancelImport: () => invoke<void>('settings_import_cancel'),
   backups: () => invoke<string[]>('settings_backups'),
   /** Saves the current settings on disk (no sign-ins); returns the folder name. */
   snapshotNow: () => invoke<string | null>('settings_snapshot_now'),
@@ -96,7 +114,14 @@ export const settingsIpc = {
   openFolder: () => invoke<void>('settings_open_folder'),
   /** V107-N10a Files that went back to default, and files that came back from a backup (day yyyy/mm/dd when all share one). */
   takeLoadReport: () =>
-    invoke<{ reset: Partition[]; restored: Partition[]; restoredFrom: string | null; blocked: Partition[] }>(
+    invoke<{
+      reset: Partition[];
+      restored: Partition[];
+      restoredFrom: string | null;
+      blocked: Partition[];
+      /** V110-A44 Tabs kept from a tabs file that was cut short. */
+      rescuedTabs: number | null;
+    }>(
       'settings_take_load_report',
     ),
   /** V110-F82 A partition has failed to save several times in a row. */

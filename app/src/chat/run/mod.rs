@@ -10,7 +10,7 @@ mod spam;
 pub use builtin::{block_user, reserved};
 pub mod complete;
 mod host;
-mod reach;
+pub(crate) mod reach;
 pub mod registry;
 pub mod timers;
 
@@ -47,7 +47,10 @@ pub struct CommandsState {
 }
 
 pub fn init(app: &AppHandle) {
-    app.manage(CommandsState::default());
+    let state = CommandsState::default();
+    // V110-A42 `/echo` and the other local answers don't count against the automation limit.
+    *state.autos.lock().unwrap_or_else(|p| p.into_inner()) = Automations::default().with_local(builtin::local_only);
+    app.manage(state);
     rebuild(app);
     timers::restore(app);
 }
@@ -529,7 +532,16 @@ pub fn automate(app: &AppHandle, key: &RoomKey, m: &ChatMessage) {
     }
     // Read without the automations lock held, so no new lock order.
     let live = crate::tabs::live::is_live(app, &key.1);
-    let fired = state.autos.lock().unwrap_or_else(|p| p.into_inner()).check(&key.1, m, live, super::now_ms());
+    let (fired, paused) = {
+        let now = super::now_ms();
+        let mut autos = state.autos.lock().unwrap_or_else(|p| p.into_inner());
+        let fired = autos.check(&key.1, m, live, now);
+        (fired, autos.take_paused(&key.1, now))
+    };
+    // V110-A42 One line per pause, not one per message held back.
+    if paused {
+        local(app, key, NoticeKind::Info, "Automations paused.");
+    }
     let Some(f) = fired else { return };
     let nick = m.sender.as_ref().map(|s| s.login.clone()).unwrap_or_default();
     let (app, key) = (app.clone(), key.clone());

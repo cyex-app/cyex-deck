@@ -1,6 +1,7 @@
 //! Shared types and helpers used across cyex crates.
 
 pub mod app;
+pub mod backoff;
 pub mod color;
 pub mod health;
 pub mod login;

@@ -329,6 +329,15 @@ pub(super) fn writes(name: &str) -> bool {
     !LOCAL.contains(&name)
 }
 
+/// V110-A42 An automation's response that only answers here (`/echo` and the other
+/// [`LOCAL`] commands): it never reaches IRC, so it doesn't count against the automation
+/// limit. `/chain`, `/foreach` and `/runin` run other lines, so they don't count as local.
+pub fn local_only(response: &str) -> bool {
+    let Some(rest) = response.trim_start().strip_prefix('/') else { return false };
+    let name = rest.split_whitespace().next().unwrap_or("").to_ascii_lowercase();
+    LOCAL.contains(&name.as_str()) && !matches!(name.as_str(), "chain" | "foreach" | "runin")
+}
+
 /// S5 Names plugins can't register: the app's commands and Twitch's.
 pub fn reserved(name: &str) -> bool {
     OWN.contains(&name) || is_mod_command(name)
@@ -570,6 +579,16 @@ mod tests {
         }
         assert!(LOCAL.iter().all(|n| OWN.contains(n)));
     }
+
+    #[test]
+    fn v110_a42_only_local_answers_skip_the_automation_limit() {
+        for r in ["/echo hi", "  /ECHO hi $(user)", "/help", "/set var a b", "/user $1"] {
+            assert!(local_only(r), "{r}");
+        }
+        // Chat lines, Twitch actions and commands that run other lines count.
+        for r in ["hello", "/me waves", "/ban x", "/chain /echo a | /me b", "/foreach a b > /echo $1", "/runin chan /me x", "/timer 5m /me x", "/nosuch", "", "/"] {
+            assert!(!local_only(r), "{r}");
+        }    }
 
     #[test]
     fn mod_commands_are_twitchs() {

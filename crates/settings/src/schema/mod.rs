@@ -43,7 +43,8 @@ pub use combos::{
 pub use commands::{Access, Automation, CommandRow, Commands, SavedTimer, TriggerMatch};
 pub use emotes::{BadgeSets, EmoteKey, EmoteSource, EmoteUse, Emotes};
 pub use general::{ChatPosition, FONTS, General, font_or_default, StreamerMode, StreamerWhen};
-pub(crate) use highlights::{MAX_GLOBAL, MAX_RULES, MAX_WORDS};
+pub(crate) use highlights::{MAX_FILTERS, MAX_GLOBAL, MAX_NEVER, MAX_RULES, MAX_WORDS};
+pub(crate) use commands::{MAX_AUTOMATIONS, MAX_LINES};
 pub use highlights::{
     Alert, AppRule, BadgeRule, Blocked, BlockedShow, BuiltIn, FilterDef, HiddenUser, Highlights, IgnoreRule, PhraseRule,
     RegexFlavor, SOUND_TYPES, SentFrom, Similarity, UserRule, is_sound_file,

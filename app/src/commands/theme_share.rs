@@ -36,10 +36,22 @@ pub async fn theme_preview(app: AppHandle, text: String) -> CmdResult<ThemePrevi
     theme_share::preview(&app, &text).await
 }
 
-/// Adds the previewed theme and switches to it; returns its id.
+/// V110-A7 A theme added from a preview: its id, and why it came without its wallpaper if it did.
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AddedTheme {
+    id: String,
+    note: Option<String>,
+}
+
+/// Adds the previewed theme and switches to it.
 #[tauri::command]
-pub fn theme_add_preview(app: AppHandle, settings: State<Settings>, preview: ThemePreview) -> CmdResult<String> {
-    super::theme::add(&app, &settings, theme_share::from_preview(preview))
+pub async fn theme_add_preview(app: AppHandle, settings: State<'_, Settings>, preview: ThemePreview) -> CmdResult<AddedTheme> {
+    let from_code = preview.source_id.is_empty();
+    let mut theme = theme_share::from_preview(preview);
+    let note = theme_share::localize_wallpaper(&app, &mut theme, from_code).await;
+    let id = super::theme::add(&app, &settings, theme)?;
+    Ok(AddedTheme { id, note })
 }
 
 #[tauri::command]

@@ -18,7 +18,12 @@ use crate::frame::{self, Frame};
 pub const URL: &str = "wss://eventsub.wss.twitch.tv/ws";
 /// Twitch may send a message twice; this many ids are remembered.
 const SEEN: usize = 300;
-const MAX_BACKOFF: Duration = Duration::from_secs(60);
+/// V110-A21 The shared reconnect backoff: 1-3 s at first, doubling to a minute.
+const BACKOFF: cyex_core::backoff::Backoff = cyex_core::backoff::Backoff::new(
+    Duration::from_secs(1),
+    Duration::from_secs(2),
+    Duration::from_secs(60),
+);
 /// Extra wait on top of the keepalive Twitch promised.
 const SLACK: Duration = Duration::from_secs(5);
 /// V110-F52 A session must live this long before its drop restarts the backoff.
@@ -172,15 +177,7 @@ fn keepalive_for(secs: u64) -> Duration {
 
 /// 1-3 s at first (jittered), then doubling with up to a quarter on top.
 fn next(backoff: Duration) -> Duration {
-    let ms = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map_or(0, |d| u64::from(d.subsec_millis()));
-    if backoff.is_zero() {
-        Duration::from_millis(1000 + ms % 2000)
-    } else {
-        let base = (backoff * 2).min(MAX_BACKOFF);
-        base + base / 4 * (ms % 1000) as u32 / 1000
-    }
+    BACKOFF.next(backoff)
 }
 
 #[cfg(test)]
@@ -201,7 +198,7 @@ mod tests {
         assert!((1000..3000).contains(&(first.as_millis() as u64)));
         let grown = next(Duration::from_secs(4));
         assert!(grown >= Duration::from_secs(8) && grown < Duration::from_secs(10));
-        assert!(next(Duration::from_secs(600)) <= MAX_BACKOFF + MAX_BACKOFF / 4);
+        assert!(next(Duration::from_secs(600)) <= BACKOFF.cap + BACKOFF.cap / 4);
     }
 
     #[tokio::test]

@@ -15,7 +15,13 @@ use tokio_tungstenite::connect_async_with_config;
 use tokio_tungstenite::tungstenite::Message;
 use tokio_tungstenite::tungstenite::protocol::WebSocketConfig;
 
-const MAX_BACKOFF: Duration = Duration::from_secs(120);
+/// V110-A21 The shared reconnect backoff: 1-5 s at first, doubling to two minutes, a quarter
+/// more at random (the growing waits were exact before).
+const BACKOFF: cyex_core::backoff::Backoff = cyex_core::backoff::Backoff::new(
+    Duration::from_secs(1),
+    Duration::from_secs(4),
+    Duration::from_secs(120),
+);
 /// How long a connection must live before its drop counts as a fresh start.
 const STABLE: Duration = Duration::from_secs(60);
 /// V107-A6 A connect (TCP, TLS, upgrade) that takes longer is given up and retried.
@@ -361,14 +367,7 @@ fn apply<T: Eq + Hash>(topics: &mut HashSet<T>, c: Cmd<T>, limit: usize) {
 
 /// 1-5 s at first (jittered, so clients don't all come back at once), then doubling.
 fn next_backoff(prev: Duration) -> Duration {
-    if prev.is_zero() {
-        let jitter = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map_or(0, |d| d.subsec_millis() % 4000);
-        Duration::from_millis(1000 + u64::from(jitter))
-    } else {
-        (prev * 2).min(MAX_BACKOFF)
-    }
+    BACKOFF.next(prev)
 }
 
 #[cfg(test)]
@@ -417,7 +416,7 @@ mod tests {
     #[test]
     fn short_sessions_keep_growing_the_backoff() {
         let grown = after_session(Duration::from_secs(8), Duration::from_secs(2));
-        assert_eq!(grown, Duration::from_secs(16));
+        assert!(grown >= Duration::from_secs(16) && grown < Duration::from_secs(20), "{grown:?}");
         let fresh = after_session(Duration::from_secs(8), STABLE);
         assert!((1000..5000).contains(&(fresh.as_millis() as u64)));
     }
@@ -426,7 +425,8 @@ mod tests {
     fn backoff_grows_to_a_cap() {
         let first = next_backoff(Duration::ZERO);
         assert!((1000..5000).contains(&(first.as_millis() as u64)));
-        assert_eq!(next_backoff(Duration::from_secs(100)), MAX_BACKOFF);
+        let capped = next_backoff(Duration::from_secs(100));
+        assert!(capped >= BACKOFF.cap && capped <= BACKOFF.cap + BACKOFF.cap / 4, "{capped:?}");
     }
 
     struct Dummy;

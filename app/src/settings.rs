@@ -35,6 +35,8 @@ pub struct Settings {
     save_watch: Mutex<SaveWatch>,
     /// V105-11 The uploader's headers live here, not in the settings files or their backups.
     secrets: Arc<dyn SecretStore>,
+    /// V110-A-idea A file or share code waiting for Apply in the import review.
+    pending_import: Mutex<Option<Bundle>>,
 }
 
 /// What the first window tells about loading: files that went back to default, and (V107-N10a)
@@ -47,6 +49,17 @@ pub struct LoadNotice {
     restored_from: Option<String>,
     /// V110-F82 Files that couldn't be opened: left as they are, not saved this session.
     blocked: Vec<Partition>,
+    /// V110-A44 How many tabs were kept from a tabs file that was cut short.
+    rescued_tabs: Option<usize>,
+}
+
+/// V110-A43 What an import did: the partitions it replaced, and lines to tell the user (lists
+/// cut at their cap, a wallpaper that didn't come along).
+#[derive(Default, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Imported {
+    pub partitions: Vec<Partition>,
+    pub notes: Vec<String>,
 }
 
 /// V110-F82 Counts failed saves per partition; tells once per partition per session when
@@ -82,6 +95,7 @@ impl LoadNotice {
             restored: report.restored.iter().map(|(p, _)| *p).collect(),
             restored_from: one_day(report.restored.iter().map(|(_, d)| *d)).and_then(|d| d.format(day).ok()),
             blocked: report.blocked.clone(),
+            rescued_tabs: report.rescued.iter().find(|(p, _)| *p == Partition::Tabs).map(|(_, n)| *n),
         }
     }
 }
@@ -186,6 +200,7 @@ pub fn init(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
         save_watch: Mutex::default(),
         appearance_untrusted: untrusted(&report, Partition::Appearance),
         secrets,
+        pending_import: Mutex::new(None),
     });
     Ok(())
 }
@@ -263,10 +278,28 @@ impl Settings {
         value
     }
 
-    pub fn import(&self, app: &AppHandle, bundle: Bundle) -> Result<Vec<Partition>, String> {
-        let changed = self.lock().import(bundle).map_err(|e| e.to_string())?;
+    pub fn import(&self, app: &AppHandle, bundle: Bundle) -> Result<Imported, String> {
+        let (changed, notes) = self.lock().import_noted(bundle).map_err(|e| e.to_string())?;
         self.broadcast(app, &changed);
-        Ok(changed)
+        Ok(Imported { partitions: changed, notes })
+    }
+
+    /// V110-A-idea Holds `bundle` for the review; what it brings. Replaces an earlier one.
+    pub fn hold_import(&self, bundle: Bundle) -> cyex_settings::Review {
+        let review = bundle.review();
+        *self.pending_import.lock().unwrap_or_else(|p| p.into_inner()) = Some(bundle);
+        review
+    }
+
+    /// V110-A-idea Applies the held file or code (Apply in the review).
+    pub fn apply_held_import(&self, app: &AppHandle) -> Result<Imported, String> {
+        let held = self.pending_import.lock().unwrap_or_else(|p| p.into_inner()).take();
+        self.import(app, held.ok_or("There is nothing to import.")?)
+    }
+
+    /// V110-A-idea Cancel in the review.
+    pub fn drop_held_import(&self) {
+        *self.pending_import.lock().unwrap_or_else(|p| p.into_inner()) = None;
     }
 
     pub fn restore_backup(&self, app: &AppHandle, date: Date) -> Result<Vec<Partition>, String> {

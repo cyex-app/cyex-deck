@@ -126,7 +126,8 @@ pub async fn followed_ids(http: &Http, auth: Auth<'_>) -> Result<Option<Vec<Stri
         let vars = json!({ "limit": 100, "order": "DESC", "cursor": cursor });
         let data: FollowsData = persisted(http, auth, CHANNEL_FOLLOWS.0, CHANNEL_FOLLOWS.1, vars).await?;
         let Some(user) = data.user else { return Ok(None) };
-        let Some(page) = user.follows.map(|c| c.into_page(|n| Some(n.id))) else { break };
+        // V110-A36 A user without its follows list is a wrong answer, not an empty list.
+        let page = user.follows.ok_or_else(|| Error::shape("follows"))?.into_page(|n| Some(n.id));
         out.extend(page.items);
         cursor = page.cursor;
         if cursor.is_none() {
@@ -147,9 +148,10 @@ pub async fn followed_live(http: &Http, auth: Auth<'_>) -> Result<Option<Vec<Cha
     for _ in 0..MAX_PAGES {
         let data: Me<LiveFollows> = query(http, auth, &q, json!({ "after": after })).await?;
         let Some(me) = data.current_user else { return Ok(None) };
-        let Some(page) = me.followed_live_users.map(|c| c.into_page(|n| Some(ChannelCard::from(n)))) else {
-            break;
-        };
+        let page = me
+            .followed_live_users
+            .ok_or_else(|| Error::shape("live follows"))?
+            .into_page(RawCard::into_card);
         out.extend(page.items);
         after = page.cursor;
         if after.is_none() {
@@ -209,21 +211,14 @@ pub async fn followed_live_alerts(http: &Http, auth: Auth<'_>) -> Result<Option<
     for _ in 0..MAX_PAGES {
         let data: Me<LiveBells> = query(http, auth, &q, json!({ "after": after })).await?;
         let Some(me) = data.current_user else { return Ok(None) };
-        let Some(page) = me.followed_live_users.map(|c| {
-            c.into_page(|n| {
-                let bell = n
-                    .me
-                    .and_then(|s| s.follower)
-                    .and_then(|f| f.notification_settings)
-                    .is_some_and(|s| s.is_enabled);
-                Some(LiveAlert {
-                    card: ChannelCard::from(n.card),
-                    bell,
-                })
-            })
-        }) else {
-            break;
-        };
+        let page = me.followed_live_users.ok_or_else(|| Error::shape("live follows"))?.into_page(|n| {
+            let bell = n
+                .me
+                .and_then(|s| s.follower)
+                .and_then(|f| f.notification_settings)
+                .is_some_and(|s| s.is_enabled);
+            n.card.into_card().map(|card| LiveAlert { card, bell })
+        });
         out.extend(page.items);
         after = page.cursor;
         if after.is_none() {

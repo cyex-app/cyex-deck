@@ -93,6 +93,12 @@ impl Error {
         }
     }
 
+    /// V110-A36 A 200 answer whose JSON isn't the shape asked for (a list missing, a field of
+    /// the wrong type). An error with Retry in the UI, not "nothing there".
+    pub(crate) fn shape(what: &str) -> Self {
+        Error::Decode(<serde_json::Error as serde::de::Error>::custom(format!("{what}: wrong shape")))
+    }
+
     /// Builds an API error from a status and body like `{"status":400,"message":"..."}`.
     pub(crate) fn api(status: u16, body: &[u8]) -> Self {
         #[derive(Deserialize)]

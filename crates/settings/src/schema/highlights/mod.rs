@@ -24,8 +24,8 @@ pub(crate) const MAX_RULES: usize = 200;
 pub(crate) const MAX_WORDS: usize = 300;
 /// V104-02
 pub(crate) const MAX_GLOBAL: usize = 100;
-const MAX_NEVER: usize = 500;
-const MAX_FILTERS: usize = 50;
+pub(crate) const MAX_NEVER: usize = 500;
+pub(crate) const MAX_FILTERS: usize = 50;
 const MAX_FILTER_CHARS: usize = 2000;
 const MAX_NAME_CHARS: usize = 40;
 const MAX_BADGE_CHARS: usize = 60;

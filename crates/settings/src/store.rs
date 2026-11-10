@@ -8,6 +8,7 @@ use time::Date;
 use time::macros::format_description;
 
 use crate::error::{Error, Result};
+use crate::{cuts, rescue};
 use crate::merge::merge_patch;
 use crate::transfer::Bundle;
 use crate::legacy::{self, MergeReport, Source, fold, needs_fold};
@@ -33,6 +34,9 @@ pub struct LoadReport {
     /// V110-F82 Partitions whose file couldn't be opened (held by a scanner, a folder in the
     /// way): left untouched, defaults in memory, never written this session.
     pub blocked: Vec<Partition>,
+    /// V110-A44 Partitions whose file was cut short but still held readable rows: those were
+    /// kept (the file is set aside as for `reset`), with how many.
+    pub rescued: Vec<(Partition, usize)>,
 }
 
 /// In-memory settings, written back to disk by [`Store::flush`].
@@ -130,8 +134,15 @@ impl Store {
             };
             // V107-N10a Nothing in it reads (cut short, empty, not JSON): the newest backup
             // that still reads, before defaults.
-            let recovered = match (&read, &salvaged) {
-                (Err(_), None) => from_backups(&dir, p, clock.today()),
+            // V110-A44 A cut-off tabs file keeps every complete tab before the backup is tried.
+            let rescued = match (&read, &salvaged) {
+                (Err(_), None) if p == Partition::Tabs => {
+                    fs::read_to_string(&path).ok().and_then(|text| rescue::tabs(&text))
+                }
+                _ => None,
+            };
+            let recovered = match (&read, &salvaged, &rescued) {
+                (Err(_), None, None) => from_backups(&dir, p, clock.today()),
                 _ => None,
             };
             let value = match read {
@@ -141,6 +152,13 @@ impl Store {
                     let v = salvaged.expect("checked above");
                     quarantine(&path, &*clock, &mut report);
                     report.reset.push(p);
+                    changed.push(p);
+                    v
+                }
+                Err(_) if rescued.is_some() => {
+                    let (v, kept) = rescued.expect("checked above");
+                    quarantine(&path, &*clock, &mut report);
+                    report.rescued.push((p, kept));
                     changed.push(p);
                     v
                 }
@@ -171,6 +189,8 @@ impl Store {
             };
             values.insert(p, value);
         }
+        // V110-A44 Files set aside more than 30 days ago go.
+        prune_old_broken(&dir, clock.today());
         let mut store = Self {
             dir,
             values,
@@ -349,10 +369,16 @@ impl Store {
     /// Applies every partition in the bundle, or none if any of them is invalid.
     /// Partitions that can't come from another machine (accounts) are ignored.
     pub fn import(&mut self, bundle: Bundle) -> Result<Vec<Partition>> {
+        Ok(self.apply(bundle, false)?.0)
+    }
+
+    /// V110-A43 Like [`Store::import`], and the lines for lists that were longer than their cap
+    /// ("Kept the first 500 commands."); those lists are imported up to the cap.
+    pub fn import_noted(&mut self, bundle: Bundle) -> Result<(Vec<Partition>, Vec<String>)> {
         self.apply(bundle, false)
     }
 
-    fn apply(&mut self, mut bundle: Bundle, local: bool) -> Result<Vec<Partition>> {
+    fn apply(&mut self, mut bundle: Bundle, local: bool) -> Result<(Vec<Partition>, Vec<String>)> {
         // V106-33 Old exports, share codes and backups: fold their mentions into Highlights.
         let old = bundle.partitions.remove(legacy::mentions::KEY);
         let raw = bundle.partitions.get(Partition::Highlights.key()).cloned();
@@ -378,6 +404,7 @@ impl Store {
             }
         }
         let mut checked = Vec::with_capacity(bundle.partitions.len());
+        let mut notes = Vec::new();
         for (key, value) in bundle.partitions {
             let p = Partition::from_key(&key).ok_or(Error::UnknownPartition(key))?;
             if local || p.is_portable() {
@@ -387,13 +414,18 @@ impl Store {
                                 let value = if local && p != Partition::General { value } else { keep_local(p, value, &self.values[&p]) };
                 // V110-F87 Nor arms anything that acts by itself (a restore keeps all of it).
                 let value = if !local && p == Partition::Commands { disarm(value, &self.values[&p]) } else { value };
-                checked.push((p, p.normalize(value)?));
+                let before = cuts::counts(p, &value);
+                let value = p.normalize(value)?;
+                if !local {
+                    notes.extend(cuts::lines(p, &before, &cuts::counts(p, &value)));
+                }
+                checked.push((p, value));
             }
         }
         for (p, value) in &checked {
             self.set(*p, value.clone())?;
         }
-        Ok(checked.into_iter().map(|(p, _)| p).collect())
+        Ok((checked.into_iter().map(|(p, _)| p).collect(), notes))
     }
 
     /// Snapshot dates, newest first.
@@ -456,7 +488,7 @@ impl Store {
             // R20 Flagged the same way `open` does.
             Err(_) => self.old_mentions_unreadable = true,
         }
-        self.apply(Bundle::new(restored, self.clock.now()), true)
+        Ok(self.apply(Bundle::new(restored, self.clock.now()), true)?.0)
     }
 }
 
@@ -587,7 +619,45 @@ fn disarm(mut incoming: Value, current: &Value) -> Value {
         rest(&Value::Object(map.clone())) == rest(current)
     };
     map.insert(AUTOMATIONS_ON.to_owned(), Value::Bool(keep_on));
+    flag_vars(map, current);
     incoming
+}
+
+/// V110-A40 The mark `/set var` puts in front of a value that came from someone else's message
+/// (`cyex_chat::commands::taint::flag`; a test in that crate holds the two together).
+const FOREIGN_MARK: char = '\u{FDD0}';
+
+/// V110-A40 `value` as a variable stored from outside: the flag, then the plain text.
+pub fn flag_var(value: &str) -> String {
+    let plain: String = value
+        .chars()
+        .filter_map(|c| match c {
+            FOREIGN_MARK => None,
+            '\u{FDD1}' => Some('|'),
+            '\u{FDD2}' => Some('>'),
+            c => Some(c),
+        })
+        .collect();
+    format!("{FOREIGN_MARK}{plain}")
+}
+
+/// V110-A40 A variable that arrives in an import is flagged "from outside", like one a chat
+/// message set, so no command of yours runs it as a command. One this PC already holds with the
+/// same text keeps what it has (your own export read back stays as it was).
+fn flag_vars(map: &mut serde_json::Map<String, Value>, current: &Value) {
+    let Some(Value::Object(vars)) = map.get_mut("vars") else { return };
+    let plain = |s: &str| s.chars().filter(|c| *c != FOREIGN_MARK).collect::<String>();
+    for (key, value) in vars.iter_mut() {
+        let Some(text) = value.as_str() else { continue };
+        if text.is_empty() {
+            continue;
+        }
+        let mine = current.get("vars").and_then(|v| v.get(key)).and_then(Value::as_str);
+        *value = match mine {
+            Some(mine) if plain(mine) == plain(text) => Value::String(mine.to_owned()),
+            _ => Value::String(flag_var(text)),
+        };
+    }
 }
 
 /// V107-R11 A broken or unreadable chat file never turns presence on (it shares which channel
@@ -612,6 +682,24 @@ fn quarantine(path: &Path, clock: &dyn Clock, report: &mut LoadReport) {
         report.io_errors.push(format!("setting {} aside: {e}", path.display()));
     }
     prune_broken(path, BROKEN_KEEP);
+}
+
+/// V110-A44 How many days a `<name>.broken-*.json` file is kept.
+const BROKEN_DAYS: i64 = 30;
+
+/// V110-A44 Removes the `*.broken-<yyyymmdd>-<hhmmss>.json` files in `dir` older than [`BROKEN_DAYS`].
+fn prune_old_broken(dir: &Path, today: Date) {
+    let Ok(entries) = fs::read_dir(dir) else { return };
+    let limit = today - time::Duration::days(BROKEN_DAYS);
+    for entry in entries.filter_map(|e| e.ok()) {
+        let name = entry.file_name().to_string_lossy().into_owned();
+        let Some(stamp) = name.rsplit_once(".broken-").and_then(|(_, s)| s.strip_suffix(".json")) else { continue };
+        let Some(day) = stamp.get(..8).filter(|d| d.bytes().all(|b| b.is_ascii_digit())) else { continue };
+        let parsed = Date::parse(day, format_description!("[year][month][day]"));
+        if parsed.is_ok_and(|d| d < limit) && entry.path().is_file() {
+            let _ = fs::remove_file(entry.path());
+        }
+    }
 }
 
 /// V110-F56 How many `<name>.broken-*.json` files stay per partition.

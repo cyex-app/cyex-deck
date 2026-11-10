@@ -84,9 +84,13 @@ pub struct Page<T> {
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct RawCard {
-    id: String,
-    login: String,
-    display_name: String,
+    // V110-A20 One odd card (null name, no login) must not fail a whole list.
+    #[serde(default)]
+    id: Option<String>,
+    #[serde(default)]
+    login: Option<String>,
+    #[serde(default)]
+    display_name: Option<String>,
     #[serde(rename = "profileImageURL")]
     profile_image_url: Option<String>,
     last_broadcast: Option<RawBroadcast>,
@@ -167,7 +171,7 @@ struct RawBroadcaster {
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct RawConnection<N> {
-    #[serde(default = "Vec::new")]
+    // V110-A36 A connection without `edges` is a wrong answer (an error), not an empty list.
     edges: Vec<RawEdge<N>>,
     page_info: Option<RawPageInfo>,
 }
@@ -236,8 +240,14 @@ impl From<RawGameRef> for GameRef {
     }
 }
 
-impl From<RawCard> for ChannelCard {
-    fn from(u: RawCard) -> Self {
+impl RawCard {
+    /// V110-A20 A null or empty display name falls back to the login; a card with no id or
+    /// login is left out (`None`).
+    pub(crate) fn into_card(self) -> Option<ChannelCard> {
+        let u = self;
+        let id = u.id.filter(|s| !s.is_empty())?;
+        let login = u.login.filter(|s| !s.trim().is_empty())?;
+        let name = u.display_name.filter(|s| !s.trim().is_empty()).unwrap_or_else(|| login.clone());
         let (last_live, last_game, last_title) = match u.last_broadcast {
             Some(b) => (
                 b.started_at,
@@ -246,16 +256,16 @@ impl From<RawCard> for ChannelCard {
             ),
             None => (None, None, None),
         };
-        Self {
-            id: u.id,
-            login: u.login,
-            name: u.display_name,
+        Some(ChannelCard {
+            id,
+            login,
+            name,
             avatar: u.profile_image_url,
             stream: u.stream.map(|s| s.into_live(None)),
             last_live,
             last_game,
             last_title,
-        }
+        })
     }
 }
 
@@ -315,7 +325,7 @@ pub async fn cards(http: &Http, ids: &[String]) -> Result<Vec<ChannelCard>> {
             Err(e) if e.api_message() == Some("server error") => query(http, Auth::PUBLIC, &q, vars).await?,
             other => other?,
         };
-        out.extend(data.users.into_iter().flatten().map(ChannelCard::from));
+        out.extend(data.users.into_iter().flatten().filter_map(RawCard::into_card));
     }
     Ok(out)
 }
@@ -332,7 +342,7 @@ mod tests {
               "game":{"id":"9","slug":"chess","displayName":"Chess"},"freeformTags":[{"name":"Rerun"}]}}"#,
         )
         .unwrap();
-        let card = ChannelCard::from(raw);
+        let card = raw.into_card().unwrap();
         let s = card.stream.unwrap();
         assert!(s.rerun);
         assert_eq!((s.viewers, s.game.unwrap().slug.as_str()), (5, "chess"));
@@ -346,7 +356,7 @@ mod tests {
             r#"{{"id":"1","login":"a","displayName":"A","profileImageURL":null,"stream":null{broadcast}}}"#
         ))
         .unwrap();
-        ChannelCard::from(raw)
+        raw.into_card().unwrap()
     }
 
     #[test]
@@ -393,5 +403,26 @@ mod tests {
         )
         .unwrap();
         assert!(last.into_page(|n| n.into_card(None)).cursor.is_none());
+    }
+
+    #[test]
+    fn v110_a20_one_odd_card_does_not_fail_the_list() {
+        let mut cards: Vec<String> = (0..300)
+            .map(|i| format!(r#"{{"id":"{i}","login":"u{i}","displayName":"U{i}","profileImageURL":null,"stream":null}}"#))
+            .collect();
+        cards[7] = r#"{"id":"7","login":"u7","displayName":null,"profileImageURL":null,"stream":null}"#.into();
+        cards[8] = r#"{"id":"8","displayName":"X","stream":null}"#.into();
+        cards[9] = r#"{"id":"9","login":"","displayName":"X"}"#.into();
+        let raw: Users = serde_json::from_str(&format!(r#"{{"users":[{},null]}}"#, cards.join(","))).unwrap();
+        let out: Vec<ChannelCard> = raw.users.into_iter().flatten().filter_map(RawCard::into_card).collect();
+        assert_eq!(out.len(), 298);
+        assert_eq!(out[7].name, "u7");
+        assert_eq!(out[6].name, "U6");
+    }
+
+    #[test]
+    fn v110_a36_a_connection_without_edges_does_not_decode() {
+        assert!(serde_json::from_str::<RawConnection<RawCard>>(r#"{"pageInfo":{"hasNextPage":false}}"#).is_err());
+        assert!(serde_json::from_str::<RawConnection<RawCard>>(r#"{"edges":[],"pageInfo":null}"#).is_ok());
     }
 }

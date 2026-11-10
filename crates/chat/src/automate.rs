@@ -37,6 +37,10 @@ struct Rule {
 #[derive(Default)]
 struct Chat {
     sent: VecDeque<i64>,
+    /// V110-A42 The limit held a rule back and the chat was told; cleared when a rule runs again.
+    told: Option<i64>,
+    /// V110-A42 A rule was held back at the limit and nobody was told yet.
+    pause: bool,
     rule_at: HashMap<usize, i64>,
     user_at: HashMap<(usize, String), i64>,
 }
@@ -46,6 +50,9 @@ pub struct Automations {
     rules: Vec<Rule>,
     limit: usize,
     chats: HashMap<String, Chat>,
+    /// V110-A42 Whether a response only answers locally (never reaches IRC). Those don't count
+    /// against the limit.
+    local: Option<fn(&str) -> bool>,
 }
 
 impl Automations {
@@ -67,7 +74,29 @@ impl Automations {
             rules,
             limit: usize::from(c.automation_limit.max(1)),
             chats: HashMap::new(),
+            local: None,
         }
+    }
+
+    /// V110-A42 Tells which responses only answer locally.
+    pub fn with_local(mut self, local: fn(&str) -> bool) -> Self {
+        self.local = Some(local);
+        self
+    }
+
+    /// V110-A42 True once per pause when the limit held a rule back in `channel`: the chat gets
+    /// one "Automations paused" line, not one per message held back.
+    pub fn take_paused(&mut self, channel: &str, now_ms: i64) -> bool {
+        let Some(chat) = self.chats.get_mut(channel) else { return false };
+        if !std::mem::take(&mut chat.pause) {
+            return false;
+        }
+        // A pause told within the last window stays told.
+        if chat.told.is_some_and(|t| now_ms.saturating_sub(t) <= WINDOW_MS) {
+            return false;
+        }
+        chat.told = Some(now_ms);
+        true
     }
 
     /// New rules; cooldowns and rate limits carry over for chats some rule is still for.
@@ -76,7 +105,9 @@ impl Automations {
     pub fn update(&mut self, c: &Commands) {
         let mut chats = std::mem::take(&mut self.chats);
         let old = std::mem::take(&mut self.rules);
+        let local = self.local;
         *self = Self::new(c);
+        self.local = local;
         for (rule, was) in self.rules.iter_mut().zip(&old) {
             if rule.cfg.trigger == was.cfg.trigger {
                 rule.cfg.count = rule.cfg.count.max(was.cfg.count);
@@ -151,13 +182,20 @@ impl Automations {
                 .user_at
                 .get(&user_key)
                 .is_some_and(|t| now_ms.saturating_sub(*t) < i64::from(a.user_cooldown_secs) * 1000);
-            let busy = chat.sent.len() >= self.limit || chat.sent.back().is_some_and(|t| now_ms.saturating_sub(*t) < GAP_MS);
+            // V110-A42 A response that only answers here never reaches IRC: no limit, no gap.
+            let local = self.local.is_some_and(|f| f(&a.response));
+            let at_limit = !local && chat.sent.len() >= self.limit;
+            let busy = at_limit || (!local && chat.sent.back().is_some_and(|t| now_ms.saturating_sub(*t) < GAP_MS));
             if rule_cool || user_cool || busy {
+                chat.pause |= at_limit && !rule_cool && !user_cool;
                 return None;
             }
             chat.rule_at.insert(i, now_ms);
             chat.user_at.insert(user_key, now_ms);
-            chat.sent.push_back(now_ms);
+            if !local {
+                chat.sent.push_back(now_ms);
+                chat.told = None;
+            }
             rule.cfg.count += 1;
             return Some(Fired {
                 rule: i,
@@ -411,5 +449,46 @@ mod tests {
         assert_eq!(after("!So", "!so  someone ").as_deref(), Some("someone"));
         assert_eq!(after("!so", "!s"), None);
         assert_eq!(after_lowered("abc", 9), "");
+    }
+
+    fn is_echo(r: &str) -> bool {
+        r.starts_with("/echo")
+    }
+
+    #[test]
+    fn v110_a42_local_answers_do_not_count_and_a_pause_is_told_once() {
+        let rule = |trigger: &str, response: &str| Automation {
+            channels: vec!["chan".into()],
+            trigger: trigger.into(),
+            response: response.into(),
+            matching: TriggerMatch::Exact,
+            cooldown_secs: 0,
+            user_cooldown_secs: 0,
+            ..Automation::default()
+        };
+        let list = vec![rule("local", "/echo hi"), rule("say", "hello")];
+        let mut a = rules(list.clone()).with_local(is_echo);
+        // The limit is 2 per 30 s: ten local answers 0.1 s apart all run.
+        for i in 0..10i64 {
+            assert!(a.check("chan", &msg("", "local"), false, i * 100).is_some(), "{i}");
+        }
+        assert!(!a.take_paused("chan", 1_000));
+        // Real messages use the limit: two run, the third is held back.
+        assert!(a.check("chan", &msg("", "say"), false, 2_000).is_some());
+        assert!(a.check("chan", &msg("", "say"), false, 4_000).is_some());
+        assert!(a.check("chan", &msg("", "say"), false, 6_000).is_none());
+        assert!(a.take_paused("chan", 6_000), "told once");
+        assert!(a.check("chan", &msg("", "say"), false, 8_000).is_none());
+        assert!(!a.take_paused("chan", 8_000), "not again in the same pause");
+        // The window passes, a rule runs again, the next pause is told again.
+        assert!(a.check("chan", &msg("", "say"), false, 40_000).is_some());
+        assert!(a.check("chan", &msg("", "say"), false, 42_000).is_some());
+        assert!(a.check("chan", &msg("", "say"), false, 44_000).is_none());
+        assert!(a.take_paused("chan", 44_000));
+        // Without the classifier a local answer counts like any other.
+        let mut b = rules(list);
+        assert!(b.check("chan", &msg("", "local"), false, 0).is_some());
+        assert!(b.check("chan", &msg("", "local"), false, 2_000).is_some());
+        assert!(b.check("chan", &msg("", "local"), false, 4_000).is_none());
     }
 }

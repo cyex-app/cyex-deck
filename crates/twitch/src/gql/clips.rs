@@ -118,8 +118,16 @@ pub async fn channel_clips(http: &Http, login: &str, period: ClipPeriod, sort: C
          sort: {sort}}}) {{ edges {{ node {{ ...C }} }} }} }} }} {FIELDS}"
     );
     let data: ListData = query(http, Auth::PUBLIC, &q, json!({ "login": login })).await?;
-    let edges = data.user.and_then(|u| u.clips).map(|c| c.edges).unwrap_or_default();
-    Ok(edges.into_iter().filter_map(|e| e.node).map(Clip::from).collect())
+    Ok(edges_of(data)?.into_iter().filter_map(|e| e.node).map(Clip::from).collect())
+}
+
+/// V110-A36 No such channel reads as no clips; a channel without its clip list (or one
+/// without `edges`) is an answer of the wrong shape, an error with Retry.
+fn edges_of(data: ListData) -> Result<Vec<Edge>> {
+    match data.user {
+        None => Ok(Vec::new()),
+        Some(u) => u.clips.and_then(|c| c.edges).ok_or_else(|| Error::shape("clips")),
+    }
 }
 
 /// `None` if the clip was deleted or isn't ready yet: a clip just made stays `CREATING`
@@ -277,8 +285,7 @@ struct ListUser {
 
 #[derive(Deserialize)]
 struct Connection {
-    #[serde(default)]
-    edges: Vec<Edge>,
+    edges: Option<Vec<Edge>>,
 }
 
 #[derive(Deserialize)]
@@ -518,7 +525,17 @@ mod tests {
               "durationSeconds":null,"thumbnailURL":"","broadcaster":null,"curator":null,"game":{"displayName":"Chess"}}}]}}}"#,
         )
         .unwrap();
-        let clip = Clip::from(l.user.unwrap().clips.unwrap().edges.remove(0).node.unwrap());
+        let clip = Clip::from(l.user.unwrap().clips.unwrap().edges.unwrap().remove(0).node.unwrap());
         assert_eq!((clip.thumbnail, clip.game.as_deref()), (None, Some("Chess")));
+    }
+
+    #[test]
+    fn v110_a36_a_clip_list_of_the_wrong_shape_is_an_error() {
+        let list = |s: &str| edges_of(serde_json::from_str::<ListData>(s).unwrap());
+        assert!(list(r#"{"user":null}"#).unwrap().is_empty(), "no such channel");
+        assert!(list(r#"{"user":{"clips":{"edges":[]}}}"#).unwrap().is_empty(), "a channel without clips");
+        for bad in [r#"{"user":{}}"#, r#"{"user":{"clips":null}}"#, r#"{"user":{"clips":{}}}"#] {
+            assert!(matches!(list(bad), Err(Error::Decode(_))), "{bad}");
+        }
     }
 }

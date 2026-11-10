@@ -6,7 +6,7 @@
   import type { Partition } from '../../../ipc/bindings/Partition';
   import { systemIpc } from '../../../ipc/system';
   import { settingsIpc } from '../../../ipc/settings';
-  import { PARTITION_LABELS, PORTABLE_PARTITIONS, importedText } from '../../../lib/partitions';
+  import { PARTITION_LABELS, PORTABLE_PARTITIONS, importedText, partitionList } from '../../../lib/partitions';
   import { settings } from '../../../lib/settings.svelte';
   import { toast } from '../../../lib/toast.svelte';
   import { errorText } from '../../../lib/errors';
@@ -16,7 +16,7 @@
   import ConfirmButton from '../../../components/ConfirmButton.svelte';
   import Checkbox from '../../../components/Checkbox.svelte';
   import { backupText } from '../backupLine';
-  import type { BackupLine } from '../../../ipc/settings';
+  import type { BackupLine, Imported, ImportReview } from '../../../ipc/settings';
 
   let picked = $state<Partition[]>(['general', 'appearance', 'chat', 'highlights', 'commands', 'hotkeys']);
   let code = $state('');
@@ -116,38 +116,52 @@
     return {
       label: 'Undo',
       run: () =>
-        void attempt(() => settingsIpc.importCode(before)).then(async (p) => {
-          if (!p) return;
+        void attempt(() => settingsIpc.importCode(before)).then(async (done) => {
+          if (!done) return;
+          const p = done.partitions;
           if (on && p.includes('commands')) await settings.patch('commands', { automationsOn: true });
           toast.success(on || !p.includes('commands') ? 'Put back.' : 'Put back. Automations are off until you switch them on.');
         }),
     };
   }
 
-  function imported(partitions: Partition[] | undefined, before?: string) {
-    if (partitions?.length)
-      toast.success(importedText(partitions), { action: before ? undoTo(before) : undefined });
+  function imported(done: Imported | undefined, before?: string) {
+    if (done?.partitions.length)
+      toast.success(importedText(done.partitions, done.notes), { action: before ? undoTo(before) : undefined });
   }
 
+  /** V110-A-idea What the picked file or pasted code brings, until Apply or Cancel. */
+  let review = $state<ImportReview | null>(null);
+
   async function importFile() {
-    const before = await keepCurrent();
-    if (before === null) return;
-    imported(await attempt(() => settingsIpc.importFile()), before);
+    const found = await attempt(() => settingsIpc.peekFile());
+    if (found) review = found;
   }
 
   async function importCode(e: SubmitEvent) {
     e.preventDefault();
     codeError = '';
-    const before = await keepCurrent();
-    if (before === null) return;
     try {
-      const result = await settingsIpc.importCode(code);
-      code = '';
-      imported(result, before);
+      review = await settingsIpc.peekCode(code);
     } catch (err) {
       // t5 Said once, under the field (it has role=alert); a toast too stacked up per try.
       codeError = errorText(err);
     }
+  }
+
+  async function applyImport() {
+    const before = await keepCurrent();
+    if (before === null) return;
+    const done = await attempt(() => settingsIpc.applyImport());
+    if (!done) return;
+    review = null;
+    code = '';
+    imported(done, before);
+  }
+
+  function cancelImport() {
+    review = null;
+    void settingsIpc.cancelImport().catch(() => {});
   }
 
   async function clearCache() {
@@ -232,6 +246,25 @@
   <Button type="submit" disabled={!code.trim()}>Import code</Button>
 </form>
 {#if codeError}<p class="problem" role="alert">{codeError}</p>{/if}
+{#if review}
+  <section class="review" aria-label="Review before importing" data-setting="data:review">
+    {#if review.partitions.length}
+      <p class="lead">This brings in {partitionList(review.partitions)}.</p>
+      {#if review.lines.length}
+        <ul>
+          {#each review.lines as line (line)}<li>{line}</li>{/each}
+        </ul>
+      {/if}
+      {#if review.partitions.includes('commands')}<p class="note">Automations come in switched off.</p>{/if}
+    {:else}
+      <p class="lead">There is nothing in it to import.</p>
+    {/if}
+    <div class="actions">
+      <Button variant="primary" disabled={!review.partitions.length} onclick={applyImport}>Apply</Button>
+      <Button onclick={cancelImport}>Cancel</Button>
+    </div>
+  </section>
+{/if}
 
 <ChatterinoImport />
 
@@ -306,6 +339,31 @@
   }
   .code .field[aria-invalid='true'] {
     border-color: var(--red);
+  }
+  .review {
+    margin-top: 10px;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--surface);
+  }
+  .review p {
+    margin: 0;
+  }
+  .review .lead {
+    font-size: var(--text-sub);
+  }
+  .review ul {
+    margin: 6px 0 0;
+    padding-left: 18px;
+    font-size: var(--text-hint);
+    color: var(--dim);
+  }
+  .review .note {
+    margin-top: 6px;
+  }
+  .review .actions {
+    margin-top: 10px;
   }
   .problem {
     margin: 6px 0 0;

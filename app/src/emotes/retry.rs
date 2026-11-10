@@ -1,5 +1,6 @@
 //! E1 A channel whose 7TV (E2), BTTV or FFZ emotes failed for now (429, 5xx, offline)
-//! asks again later, a few times with growing waits. The tab on screen asks sooner.
+//! asks again later with growing waits, then every 5 minutes, never giving up (V110-A37: the
+//! room closing is the only end). The tab on screen asks sooner.
 //! B4 The global sets (and BTTV's and FFZ's badges) too, each provider that failed.
 //! S2 These own background retries: background calls in `pace` give up early.
 
@@ -399,6 +400,23 @@ mod tests {
         })
         .await;
         assert_eq!((tries, left), (3, ffz));
+    }
+
+    /// V110-A37 The global sets never give up: a provider that keeps failing is asked on, and
+    /// the wait after the growing ones is the slow tail.
+    #[tokio::test]
+    async fn v110_a37_failed_globals_are_asked_for_ever() {
+        let ffz = Which { ffz: true, ..Which::default() };
+        let mut tries = 0;
+        let left = keep_asking(ffz, |_| 0, usize::MAX, |_, _| {
+            tries += 1;
+            let f = if tries < 200 { ffz } else { Which::default() };
+            async move { f }
+        })
+        .await;
+        assert_eq!(tries, 200);
+        assert!(!left.any());
+        assert!((240..=360).contains(&wait_secs(WAITS.len() + 40, jitter())));
     }
 
     #[test]

@@ -40,7 +40,7 @@
   import { bindingOf, useHotkeys } from '../../lib/hotkeys.svelte';
   import { settings } from '../../lib/settings.svelte';
   import { toast } from '../../lib/toast.svelte';
-  import { recordingStopText } from './recordingStop';
+  import { recordingStopText, recordingWarnText } from './recordingStop';
   import { editDone } from '../emotes/edit/run'; // I106-3
   import { catalogs } from './catalog.svelte';
   import ChatInput from './ChatInput.svelte';
@@ -200,6 +200,13 @@
         recording = e.recording;
         const why = recordingStopText(e);
         if (why) toast.info(why);
+        // V110-A27 Past 500 MB: a warning with a quick Stop, once per recording.
+        const warn = recordingWarnText(e);
+        if (warn)
+          toast.info(warn, {
+            key: `recording-warn-${login}`,
+            action: { label: 'Stop', run: () => void chatxIpc.record(room.view, false).catch(() => {}) },
+          });
       })
       .then((u) => (gone ? u() : (stop = u)));
     return () => {
