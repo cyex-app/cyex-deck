@@ -37,6 +37,9 @@ struct View {
     theme: CustomTheme,
     #[serde(default)]
     updated_at: String,
+    /// V110-G1 A moderator removed the wallpaper (absent otherwise).
+    #[serde(default)]
+    wallpaper_removed: bool,
 }
 
 #[derive(Deserialize)]
@@ -81,6 +84,7 @@ fn fetched(view: View) -> Fetched {
         version: version(view.version),
         date: date_of(&view.updated_at),
         theme,
+        wallpaper_removed: view.wallpaper_removed,
     }
 }
 
@@ -235,6 +239,16 @@ mod tests {
         assert_eq!(f.theme.colors["bg"], "#aabbcc");
         assert!(f.theme.wallpaper.is_link(), "the server's picture is a link wallpaper");
         assert!(f.theme.id.is_empty() && f.theme.link.is_empty());
+    }
+
+    #[test]
+    fn a_removed_wallpaper_is_read() {
+        let body = br##"{"id":"k3f9x2ab","version":4,"theme":{"name":"Neon","base":"dark","colors":{},"accent":"#ff00ff","wallpaper":{"source":"","area":"window","dim":70,"blur":0,"fit":"cover"}},"wallpaper":null,"wallpaperRemoved":true,"createdAt":"2026-11-01T00:00:00Z","updatedAt":"2026-11-10T08:00:00Z"}"##;
+        let f = fetched(serde_json::from_slice(body).unwrap());
+        assert!(f.wallpaper_removed);
+        assert!(f.theme.wallpaper.source.is_empty());
+        let plain = br##"{"id":"k3f9x2ab","version":4,"theme":{"name":"Neon","base":"dark","colors":{},"accent":"#ff00ff"},"wallpaper":null}"##;
+        assert!(!fetched(serde_json::from_slice(plain).unwrap()).wallpaper_removed);
     }
 
     #[test]

@@ -397,6 +397,7 @@ mod tests {
             version: 2,
             date: "2026/11/05".into(),
             theme: sent.content(),
+            wallpaper_removed: false,
         });
 
         let dir = std::env::temp_dir().join(format!("cyex-theme-share-{}", std::process::id()));

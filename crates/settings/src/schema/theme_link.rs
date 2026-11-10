@@ -78,7 +78,12 @@ pub struct Fetched {
     /// `yyyy/mm/dd`
     pub date: String,
     pub theme: CustomTheme,
+    /// V110-G1 A moderator took the wallpaper off this theme on cyex.app.
+    pub wallpaper_removed: bool,
 }
+
+/// Where cyex.app serves theme pictures (`/themes/v1/img/<file>`), whatever the host.
+const SERVER_PICTURE: &str = "/themes/v1/img/";
 
 impl ThemeLink {
     pub fn is_empty(&self) -> bool {
@@ -243,6 +248,20 @@ impl CustomTheme {
         l.latest_version = l.latest_version.max(f.version);
         l.removed = false;
         l.edited = false;
+        if f.wallpaper_removed {
+            self.drop_server_pictures();
+        }
+    }
+
+    /// V110-G1 Earlier copies lose a wallpaper served by cyex.app, so going back can't bring a
+    /// removed picture back. (The look and the other settings stay.)
+    fn drop_server_pictures(&mut self) {
+        for c in &mut self.link.history {
+            let w = &mut c.theme.wallpaper;
+            if w.is_link() && w.source.contains(SERVER_PICTURE) {
+                w.source.clear();
+            }
+        }
     }
 
     /// Go back to `history[index]`; what you had takes its place in the list. False when
@@ -304,6 +323,7 @@ mod tests {
             version,
             date: format!("2026/11/{version:02}"),
             theme,
+            wallpaper_removed: false,
         }
     }
 
@@ -388,6 +408,41 @@ mod tests {
         assert!(t.link.history[0].edited);
         assert!(t.restore_copy(0));
         assert!(t.link.edited, "your changes stay yours after going back");
+    }
+
+    #[test]
+    fn a_removed_wallpaper_leaves_the_copies_too() {
+        const PIC: &str = "https://api.cyex.app/themes/v1/img/0123456789abcdef0123456789abcdef.jpg";
+        let mut first = fetched(1, "#101010");
+        first.theme.wallpaper.source = PIC.into();
+        let mut t = first.theme.clone();
+        t.id = "mine1".into();
+        t.link_source("k3f9x2ab", 1, &first.date);
+        // v2 still has the picture, then v3 comes without it (a moderator removed it).
+        let mut second = fetched(2, "#000002");
+        second.theme.wallpaper.source = PIC.into();
+        t.apply_fetched(&second);
+        let mut third = fetched(3, "#000002");
+        third.wallpaper_removed = true;
+        t.apply_fetched(&third);
+        assert!(t.wallpaper.source.is_empty());
+        assert_eq!(t.link.history.len(), 2);
+        assert!(t.link.history.iter().all(|c| c.theme.wallpaper.source.is_empty()), "no copy keeps the picture");
+        assert!(t.restore_copy(1));
+        assert!(t.wallpaper.source.is_empty(), "going back doesn't bring it back");
+        assert_eq!(t.colors["bg"], "#101010", "the rest of the copy stays");
+    }
+
+    #[test]
+    fn other_wallpapers_stay_in_the_copies() {
+        let mut first = fetched(1, "#101010");
+        first.theme.wallpaper.source = "https://example.com/pic.jpg".into();
+        let mut t = first.theme.clone();
+        t.link_source("k3f9x2ab", 1, &first.date);
+        let mut next = fetched(2, "#000002");
+        next.wallpaper_removed = true;
+        t.apply_fetched(&next);
+        assert_eq!(t.link.history[0].theme.wallpaper.source, "https://example.com/pic.jpg");
     }
 
     #[test]
