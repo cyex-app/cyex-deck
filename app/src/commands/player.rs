@@ -192,6 +192,9 @@ pub fn player_set_proxy(app: AppHandle, url: Option<String>) -> CmdResult<()> {
 #[tauri::command]
 pub async fn channel_about(app: AppHandle, login: String) -> CmdResult<Option<About>> {
     let http = http(&app);
+    // V110-T06 Test builds: the About fixture of tools/mock/panels.mjs, when CYEX_USERS_MOCK is set.
+    #[cfg(feature = "mocks")]
+    let http = crate::mock_url::http_via(&app, http, &["CYEX_USERS_MOCK"], "user lookup");
     let mut about = gql::about(&http, &login).await.map_err(message)?;
     // V106-24
     if let Some(a) = about.as_mut() {

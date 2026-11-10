@@ -63,6 +63,14 @@ fn gql_auth(app: &AppHandle, account: Option<&str>) -> Option<(String, String)> 
     account.and_then(|a| crate::auth::gql_token(app, a))
 }
 
+/// Twitch, or in test builds the hype mock when it is set (V110-T06: polls, bets and votes).
+fn http(app: &AppHandle) -> cyex_twitch::Http {
+    let http = app.state::<crate::auth::Auth>().http.clone();
+    #[cfg(feature = "mocks")]
+    let http = super::hype_mock::http(app, http);
+    http
+}
+
 /// Something besides a chat view shows the channel's votes (the stream manager). Chat views
 /// count through `chat::open`; both go through the channel registry (V107-R16).
 pub fn watch(app: &AppHandle, login: &str, account: Option<String>) {
@@ -92,6 +100,8 @@ fn on_channel(app: &AppHandle, e: &super::channels::Event) {
                     },
                 },
             );
+            #[cfg(feature = "mocks")]
+            super::hype_mock::start(app);
             let (app, login, account) = (app.clone(), (*login).to_owned(), account.map(str::to_owned));
             tauri::async_runtime::spawn(async move { load(&app, &login, account.as_deref(), true).await });
         }
@@ -129,7 +139,7 @@ pub fn resync(app: &AppHandle) {
 
 /// Reads the poll and prediction; subscribes the first time.
 async fn load(app: &AppHandle, login: &str, account: Option<&str>, subscribe: bool) {
-    let http = app.state::<crate::auth::Auth>().http.clone();
+    let http = http(app);
     let token = gql_auth(app, account);
     let auth = crate::auth::gql_auth_or_public(token.as_ref());
     let (id, poll) = match gql::polls::poll(&http, auth, login).await {
@@ -238,7 +248,7 @@ pub async fn vote(app: &AppHandle, view: u32, choice: &str, points: Option<u32>)
         .and_then(|s| s.poll)
         .map(|p| p.id)
         .ok_or("There’s no poll right now.")?;
-    let http = app.state::<crate::auth::Auth>().http.clone();
+    let http = http(app);
     let auth = crate::auth::gql_auth(&token, &client_id);
     if let Some(code) = gql::polls::vote(&http, auth, &poll_id, choice, &account, points)
         .await
@@ -268,7 +278,7 @@ pub async fn predict(app: &AppHandle, view: u32, outcome: &str, points: u64) -> 
         .prediction
         .map(|p| p.id)
         .ok_or("There’s no prediction right now.")?;
-    let http = app.state::<crate::auth::Auth>().http.clone();
+    let http = http(app);
     let auth = crate::auth::gql_auth(&token, &client_id);
     if !s.accepted {
         gql::predictions::accept_terms(&http, auth)

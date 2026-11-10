@@ -301,8 +301,16 @@ async fn poll_pins(app: &AppHandle) {
     }
 }
 
-pub(super) async fn refresh_pin(app: &AppHandle, key: &RoomKey, channel_id: &str) {
+/// Twitch, or in test builds the hype mock when it is set (V110-T06: pins).
+fn pin_http(app: &AppHandle) -> cyex_twitch::Http {
     let http = app.state::<Auth>().http.clone();
+    #[cfg(feature = "mocks")]
+    let http = super::hype_mock::http(app, http);
+    http
+}
+
+pub(super) async fn refresh_pin(app: &AppHandle, key: &RoomKey, channel_id: &str) {
+    let http = pin_http(app);
     let Ok(pin) = gql::pinned(&http, channel_id).await else { return };
     let chat = app.state::<Chat>();
     let mut inner = chat.lock();
@@ -316,7 +324,7 @@ pub(super) async fn refresh_pin(app: &AppHandle, key: &RoomKey, channel_id: &str
 
 /// V107 The channel's pin, read once, into every room open on it (one per account).
 pub(super) async fn refresh_pins(app: &AppHandle, login: &str, channel_id: &str) {
-    let http = app.state::<Auth>().http.clone();
+    let http = pin_http(app);
     let Ok(mut pin) = gql::pinned(&http, channel_id).await else { return };
     let chat = app.state::<Chat>();
     let mut inner = chat.lock();
