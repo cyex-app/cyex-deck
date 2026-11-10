@@ -81,7 +81,9 @@ pub async fn run(
         "add" | "remove" | "rename" => super::seventv_edit::run(app, place, name, args).await,
         "set" => set_var(app, args).map(|()| None),
         // V110-C69 The same line up to 100 times, as fast as Twitch takes it.
-        "spam" => match super::spam::parse(args)? {
+        // V110-F99 A guarded line hands the text over with its marks (`guard::args`): the count and
+        // the checks read it plain, `guard::spam` reads the marks.
+        "spam" => match super::spam::parse(&if place.guarded() { guard::plain(args) } else { args.to_owned() })? {
             // V110-F46 A stop with nothing running says so.
             super::spam::Spam::Stop if super::spam::stop(&place.key) => done,
             super::spam::Spam::Stop => Err("Nothing to stop.".into()),
@@ -89,7 +91,7 @@ pub async fn run(
                 // Claimed here, so a stop right after finds it.
                 let claim = super::spam::begin(&place.key)?;
                 // V110-F94 Someone's message in it stays text to Twitch too (".ban x").
-                let text = if place.guarded() { guard::spam(text) } else { text };
+                let text = if place.guarded() { guard::spam(guard::after_first_word(args)) } else { text };
                 // Off the caller: a long run doesn't hold the box or a chain.
                 let (app, place) = (app.clone(), place.clone());
                 tauri::async_runtime::spawn(async move {
@@ -194,6 +196,8 @@ pub async fn run(
                 .split_once(char::is_whitespace)
                 .ok_or("Usage: /tl de your message")?;
             let out = translate_one(app, rest.trim(), lang).await?;
+            // V110-F99 A translation of someone's message is still their text: "/ban x" stays text.
+            let out = guard::sent(place.guarded(), out);
             send(app, place, &out, reply_to).await.map(|()| None)
         }
         "translate" => {

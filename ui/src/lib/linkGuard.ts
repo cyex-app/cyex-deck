@@ -10,12 +10,19 @@ export function guardLinks(): () => void {
   const on = (e: MouseEvent) => {
     const a = e.target instanceof Element ? e.target.closest('a[href]') : null;
     if (!(a instanceof HTMLAnchorElement) && !(a instanceof SVGAElement)) return;
-    const href = a instanceof HTMLAnchorElement ? a.href : a.href.baseVal;
-    const act = anchorAction(new URL(href, location.href).href, location.origin, e.defaultPrevented);
+    const raw = a instanceof HTMLAnchorElement ? a.href : a.href.baseVal;
+    // V110-F99 An href that can't be read is stopped like any other stray link, not thrown on.
+    let href = '';
+    try {
+      href = new URL(raw, location.href).href;
+    } catch {
+      /* stays '' : anchorAction stops it */
+    }
+    const act = anchorAction(href, location.origin, e.defaultPrevented);
     if (act === 'ignore') return;
     e.preventDefault();
     if (act === 'open' && !(e.type === 'auxclick' && e.button === 2)) {
-      systemIpc.openChatLink(new URL(href, location.href).href).catch((err) => toast.error(errorText(err)));
+      systemIpc.openChatLink(href).catch((err) => toast.error(errorText(err)));
     }
   };
   window.addEventListener('click', on);

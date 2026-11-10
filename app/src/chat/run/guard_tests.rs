@@ -125,7 +125,7 @@ fn line_at(text: &str, custom: bool, guarded: bool, did: &mut Vec<Did>) -> Resul
         // Like `builtin::run`'s "spam", after `spam::parse`.
         "spam" => {
             let text = args.split_once(' ').ok_or("usage")?.1.to_owned();
-            did.push(Did::Say(if guarded { spam(text) } else { text }));
+            did.push(Did::Say(if guarded { spam(after_first_word(&args)) } else { text }));
             Ok(())
         }
         _ => {
@@ -348,6 +348,9 @@ fn v110_f94_spam_and_set_keep_the_message_as_text() {
     assert_eq!(automation("/spam 3 $1-", ".mod evil"), Ok(vec![hidden(".mod evil")]));
     assert_eq!(menu("/spam 3 /me $(msg)", ".ban x"), Ok(vec![said("/me .ban x")]));
     assert_eq!(menu("/spam 3 hi $(nick)", ""), Ok(vec![said("hi evilname")]));
+    // V110-F99 The message's own "/me" is text; only the entry's /me makes an action.
+    assert_eq!(automation("/spam 3 $1-", "/me dances"), Ok(vec![hidden("/me dances")]));
+    assert_eq!(menu("/spam 3 $(msg)", "/me dances"), Ok(vec![hidden("/me dances")]));
     // What `/set var` takes from the message is stored flagged; the entry's own value isn't.
     assert_eq!(automation("/set var q $1-", "/ban x"), Ok(vec![Did::Set("var q /ban x".into(), true)]));
     assert_eq!(menu("/set var last $(nick)", ""), Ok(vec![Did::Set("var last evilname".into(), true)]));
@@ -375,4 +378,16 @@ fn v110_f94_a_typed_line_with_a_stored_value_is_guarded() {
     assert_eq!(typed("/say /ban x"), Ok(vec![ran("ban", "x")]));
     assert_eq!(typed("/timer 5s /raid x"), Ok(vec![Did::Timer("5s /raid x".into())]));
     assert_eq!(typed("/set var mode on"), Ok(vec![Did::Set("var mode on".into(), false)]));
+}
+
+/// V110-F99 What a built-in sends on someone's behalf (`/tl`'s translation) is text in a
+/// guarded line; a line you typed goes out as it is.
+#[test]
+fn v110_f99_a_translation_of_the_message_is_text() {
+    assert_eq!(sent(true, "/ban x".into()), format!("{INVISIBLE}/ban x"));
+    assert_eq!(sent(true, " .mod y".into()), format!("{INVISIBLE} .mod y"));
+    assert_eq!(sent(true, "hallo".into()), "hallo");
+    assert_eq!(sent(false, "/me typed".into()), "/me typed");
+    assert_eq!(after_first_word("3  /me hi"), "/me hi");
+    assert_eq!(after_first_word("3"), "");
 }

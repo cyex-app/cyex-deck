@@ -51,13 +51,28 @@ pub fn args(name: &str, marked: &str) -> Result<String, String> {
         return Err(TIMER.into());
     }
     // V110-F94 `/set` too: it stores the value with a flag when the message put it there.
-    Ok(if NESTS.contains(&name) || name == "set" { marked.to_owned() } else { plain(marked) })
+    // V110-F99 And `/spam`: it has to tell its own `/me` from the message's.
+    Ok(if NESTS.contains(&name) || matches!(name, "set" | "spam") { marked.to_owned() } else { plain(marked) })
 }
 
 /// V110-F94 `/spam`'s text in a guarded line: the entry may write `/me`, anything else that
 /// Twitch could read as a command goes behind `typed::INVISIBLE`.
-pub fn spam(text: String) -> String {
-    if text.starts_with("/me ") { text } else { say(&text) }
+/// V110-F99 `marked` is the text with its marks still on: only a `/me ` the entry wrote itself
+/// counts, a chatter's own "/me dances" is said as text.
+pub fn spam(marked: &str) -> String {
+    let plain = taint::clean(marked);
+    if marked.starts_with("/me ") { plain } else { say(&plain) }
+}
+
+/// V110-F99 `/spam 3 text` without its count, marks kept.
+pub fn after_first_word(marked: &str) -> &str {
+    marked.trim().split_once(char::is_whitespace).map_or("", |(_, rest)| rest.trim_start())
+}
+
+/// V110-F99 What a built-in is about to send that it got from elsewhere (a translation of the
+/// message): text, whatever it starts with.
+pub fn sent(place_guarded: bool, text: String) -> String {
+    if place_guarded { say(&text) } else { text }
 }
 
 /// Marked text for a reader that takes plain words (a custom command's `$1`, a plugin).
