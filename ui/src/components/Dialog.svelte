@@ -94,7 +94,8 @@
   .dialog {
     max-width: 100%;
     max-height: 100%;
-    animation: pop var(--fast) ease-out;
+    /* V110-F91 Moves, so --ease; the backdrop fade stays ease-out. */
+    animation: pop var(--fast) var(--ease);
     display: flex;
     flex-direction: column;
     background: var(--elevated);

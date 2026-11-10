@@ -23,6 +23,8 @@ export const FAST = 120;
 export const BASE = 200;
 /** Things that travel far: drawer height, panel moves. */
 export const SLOW = 360;
+/** V110-F91 The --ease curve of tokens.css, for script motion. */
+export const EASE = 'cubic-bezier(0.16, 1, 0.3, 1)';
 
 // V108-F55 What opened a menu: a key (the Menu key, Shift+F10, Enter on a button) opens it at
 // once; a click lets it scale in from its trigger. Keyboard use is fast and repeated, so it

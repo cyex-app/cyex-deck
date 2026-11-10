@@ -80,6 +80,11 @@
   button:hover {
     color: var(--text);
   }
+  /* V110-F91 Press feedback, at once; wins over .on. */
+  button:active:not(:disabled) {
+    opacity: 0.6;
+    transition: none;
+  }
   button.on {
     background: var(--accent-dim);
     color: var(--accent-text);

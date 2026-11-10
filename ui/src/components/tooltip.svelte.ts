@@ -50,6 +50,8 @@ export const tip = $state({
   anchor: null as Rect | null,
   side: 'below' as Side,
   visible: false,
+  /** V110-F91 Shown with no delay (another tip just closed): it appears without the fade. */
+  warm: false,
 });
 
 const SHOW_DELAY_MS = 150;
@@ -115,7 +117,8 @@ function show(node: HTMLElement, opts: TipOptions): void {
   owner = node;
   cards.claim(node, opts.card);
   titles.claim(node);
-  const delay = performance.now() - lastHidden < WARM_MS ? 0 : SHOW_DELAY_MS;
+  const warm = performance.now() - lastHidden < WARM_MS;
+  const delay = warm ? 0 : SHOW_DELAY_MS;
   timer = setTimeout(() => {
     // rb-1 A drag that started during the delay.
     if (dragging() || owner !== node) return;
@@ -127,6 +130,7 @@ function show(node: HTMLElement, opts: TipOptions): void {
     tip.actions = opts.actions ?? [];
     tip.anchor = node.getBoundingClientRect();
     tip.side = opts.side ?? 'below';
+    tip.warm = warm;
     tip.visible = true;
   }, delay);
 }

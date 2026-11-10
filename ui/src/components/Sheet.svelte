@@ -137,7 +137,8 @@
     border-radius: var(--radius);
     box-shadow: var(--shadow-dialog);
     overflow: hidden;
-    animation: pop var(--base) var(--ease);
+    /* V110-F91 Same entrance as the dialog. */
+    animation: pop var(--fast) var(--ease);
   }
   .sheet:focus {
     outline: none;
@@ -169,7 +170,7 @@
   @keyframes pop {
     from {
       opacity: 0;
-      transform: scale(0.98);
+      transform: scale(0.97);
     }
   }
   @media (prefers-reduced-motion: reduce) {

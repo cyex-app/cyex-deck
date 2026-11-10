@@ -830,7 +830,7 @@
     // Reduce motion: lit, then off, without the fade.
     target?.animate([{ background: 'var(--accent-wash)' }, { background: 'transparent' }], {
       duration: 1200,
-      easing: reduced() ? 'steps(1, end)' : 'linear',
+      easing: reduced() ? 'steps(1, end)' : 'ease-out',
     });
   }
 

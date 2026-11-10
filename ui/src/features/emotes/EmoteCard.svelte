@@ -44,7 +44,7 @@
   import { systemIpc } from '../../ipc/system';
   import { layer } from '../../lib/escape';
   import { focusScope } from '../../lib/focusScope';
-  import { BASE, FAST } from '../../lib/motion';
+  import { BASE, EASE, FAST } from '../../lib/motion';
   import { floating } from '../../lib/place';
   import { settings } from '../../lib/settings.svelte';
   import { toast } from '../../lib/toast.svelte';
@@ -204,7 +204,7 @@
             { translate: `0 ${d}px`, clipPath: clip(Math.max(0, d)) },
             { translate: '0 0', clipPath: clip(0) },
           ],
-          { duration: BASE, easing: 'ease-out' },
+          { duration: BASE, easing: EASE },
         );
       top = t;
     };
@@ -468,7 +468,8 @@
     font-size: 0.85rem;
     /* R12 Grows out of the emote it opened beside. */
     transform-origin: var(--ox, left) var(--oy, center);
-    animation: in var(--base) ease-out;
+    /* V110-F91 Enters like a popover. */
+    animation: in var(--fast) var(--ease);
   }
   .card:focus:not(:focus-visible) {
     outline: none;

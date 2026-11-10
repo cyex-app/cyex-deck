@@ -150,4 +150,9 @@
     background: var(--surface-hover);
     color: var(--text);
   }
+  /* V110-F91 Press feedback, at once. */
+  .clear:active:not(:disabled) {
+    opacity: 0.6;
+    transition: none;
+  }
 </style>

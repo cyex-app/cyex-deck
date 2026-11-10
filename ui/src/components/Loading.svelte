@@ -184,7 +184,8 @@
     background: linear-gradient(90deg, var(--surface-hover) 25%, var(--elevated-2) 50%, var(--surface-hover) 75%);
     background-size: 300% 100%;
     border-radius: var(--radius-sm);
-    animation: shimmer 1.4s ease-in-out infinite;
+    /* V110-F91 Six sweeps, then it rests: a skeleton that stays up doesn't repaint forever. */
+    animation: shimmer 1.4s ease-in-out 6;
   }
   .round {
     flex: none;

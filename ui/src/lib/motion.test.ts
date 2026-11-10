@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 
-import { BASE, FAST, SLOW } from './motion.ts';
+import { BASE, EASE, FAST, SLOW } from './motion.ts';
 
 const css = readFileSync(new URL('../design/tokens.css', import.meta.url), 'utf8');
 
@@ -17,4 +17,10 @@ test('script durations match the CSS motion tokens', () => {
   assert.equal(token('fast'), FAST);
   assert.equal(token('base'), BASE);
   assert.equal(token('slow'), SLOW);
+});
+
+test('script easing matches --ease', () => {
+  const m = css.match(/--ease:\s*([^;]+);/);
+  assert.ok(m, '--ease in tokens.css');
+  assert.equal(m[1].trim(), EASE);
 });

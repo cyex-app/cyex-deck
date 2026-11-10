@@ -74,6 +74,10 @@
     background: var(--accent);
     border-color: var(--accent-line);
   }
+  /* V110-F91 Press feedback on the box (not the label text), at once. */
+  .check:not(.disabled):active .box {
+    opacity: 0.6;
+  }
   input:focus-visible + .box {
     outline: 2px solid var(--focus-ring);
     outline-offset: 2px;

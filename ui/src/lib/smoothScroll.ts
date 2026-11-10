@@ -6,6 +6,7 @@
 // per window, and only while something glides. WebView2's own animation is always off
 // (`--disable-smooth-scrolling`), so keys and the scrollbar jump, as in Chatterino.
 
+import { reduced } from './motion';
 import { aim, carry, frame, type Glide, moves, NOTCH_PX, notches } from './scrollMath';
 
 /** `last`: where the view was put, to tell when something else moved it. */
@@ -28,7 +29,12 @@ const SCROLLS = new Set(['auto', 'scroll', 'overlay']);
 export function startSmoothScroll(): () => void {
   addEventListener('wheel', onwheel, { passive: false });
   addEventListener('pointerdown', stopAll, { capture: true, passive: true });
+  // V110-F91 Reduce motion turning on ends a glide in flight.
+  const mq = typeof matchMedia === 'function' ? matchMedia('(prefers-reduced-motion: reduce)') : null;
+  const calm = () => reduced() && stopAll();
+  mq?.addEventListener('change', calm);
   return () => {
+    mq?.removeEventListener('change', calm);
     removeEventListener('wheel', onwheel);
     removeEventListener('pointerdown', stopAll, { capture: true });
     stopAll();
@@ -50,6 +56,8 @@ function stopAll() {
 }
 
 function onwheel(e: WheelEvent) {
+  // V110-F91 With Reduce motion on the wheel scrolls natively, no glide.
+  if (reduced()) return;
   if (e.defaultPrevented || e.ctrlKey || e.shiftKey || Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
   const n = notches((e as WheelEvent & { wheelDeltaY?: number }).wheelDeltaY, e.deltaY, e.deltaMode);
   const target = e.target;

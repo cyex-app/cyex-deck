@@ -62,6 +62,11 @@
   .on:hover {
     background: var(--accent-wash);
   }
+  /* V110-F91 Press feedback, at once; wins over .on. */
+  .opt:active:not(:disabled) {
+    opacity: 0.6;
+    transition: none;
+  }
   .opt:focus-visible {
     outline: 2px solid var(--focus-ring);
     outline-offset: 1px;

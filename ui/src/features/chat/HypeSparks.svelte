@@ -4,7 +4,7 @@
      The parent keys this on its celebration, so a new one replaces the last. Nothing under
      reduced motion. -->
 <script lang="ts">
-  import { reduced } from '../../lib/motion';
+  import { EASE, reduced } from '../../lib/motion';
   import { sparks, type Look, type Spark, type SparkKind } from './hypeLook';
 
   interface Props {
@@ -16,8 +16,6 @@
 
   const list = $derived(reduced() ? [] : sparks(kind, look));
   const DURATION = { burst: 700, shower: 900, ring: 800 } as const;
-  /** --ease of tokens.css. */
-  const EASE = 'cubic-bezier(0.16, 1, 0.3, 1)';
 
   function fly(node: HTMLElement, s: Spark) {
     const twinkle = kind === 'shower';

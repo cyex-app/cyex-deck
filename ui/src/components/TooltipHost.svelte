@@ -12,6 +12,7 @@
     class="tip"
     class:pic={!!tip.image}
     class:acts={tip.actions.length > 0}
+    class:warm={tip.warm}
     role="tooltip"
     use:floating={{ anchor: tip.anchor, side: tip.side, align: 'center' }}
     onmouseenter={() => tip.actions.length && overTipNow(true)}
@@ -57,6 +58,10 @@
     box-shadow: var(--shadow-pop);
     pointer-events: none;
     animation: in var(--fast) ease-out;
+  }
+  /* V110-F91 Along a toolbar the next tip is just there. */
+  .tip.warm {
+    animation: none;
   }
   .tip.acts {
     pointer-events: auto;

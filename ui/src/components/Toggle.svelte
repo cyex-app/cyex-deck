@@ -86,6 +86,11 @@
   .toggle:disabled {
     opacity: 0.5;
   }
+  /* V110-F91 Press feedback on the track, at once. */
+  .toggle:active:not(:disabled) {
+    opacity: 0.6;
+    transition: none;
+  }
   /* F9 More contrast asked for: a solid ring in the text colour. */
   @media (prefers-contrast: more) {
     .toggle {
