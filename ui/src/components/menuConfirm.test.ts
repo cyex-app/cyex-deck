@@ -8,6 +8,8 @@ function fake(): Timers & { fire: () => void; live: number } {
   const runs = new Map<number, () => void>();
   let n = 0;
   return {
+    // A fixed clock: a real one made hold() see 1 ms pass on a busy machine.
+    now: () => 0,
     set: (run, ms) => {
       assert.equal(ms, CONFIRM_MS);
       runs.set(++n, run);
