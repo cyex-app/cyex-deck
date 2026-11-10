@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import { editRow } from '../rules/fields.ts';
-import { checkLines, commandRow, commandView, hiddenBySubmenu, menuRow, menuView } from './rows.ts';
+import { checkLines, commandName, commandProblem, commandRow, commandView, hiddenBySubmenu, menuProblem, menuRow, menuView, NAME_MAX } from './rows.ts';
 
 const on = (text: string) => ({ enabled: true, text });
 
@@ -88,4 +88,44 @@ test('name and sends edited in one tick both land (rb-2)', () => {
     lines = editRow(views(), 0, seen, { ...seen, sends: 'Bye' }).map(commandRow);
     assert.equal(lines[0].text, '/yo Bye');
   }
+});
+
+test('V110-F90 a typed command name gets its slash and a cap', () => {
+  assert.equal(commandName('hi'), '/hi');
+  assert.equal(commandName('/hi'), '/hi');
+  assert.equal(commandName(' h i '), '/hi');
+  assert.equal(commandName(''), '');
+  assert.equal(commandName('#'), '#');
+  assert.equal(commandName('x'.repeat(500)).length, NAME_MAX);
+  const v = commandView(on('/hi Hello'));
+  assert.equal(commandRow({ ...v, name: 'yo' }).text, '/yo Hello');
+  assert.equal(commandRow({ ...v, name: 'y'.repeat(500) }).text.split(' ')[0].length, NAME_MAX);
+  // A row nobody edited keeps its text.
+  assert.deepEqual(commandRow(commandView(on('_x y'))), on('_x y'));
+});
+
+test('V110-F90 a command needs something to send', () => {
+  const view = (name: string, sends: string) => ({ enabled: true, name, sends, raw: '' });
+  assert.equal(commandProblem(view('/hi', '')), 'Add what it sends.');
+  assert.equal(commandProblem(view('/hi', '   ')), 'Add what it sends.');
+  assert.equal(commandProblem(view('/hi', 'Hello')), null);
+  assert.equal(commandProblem(view('', '')), null);
+  assert.equal(commandProblem(view('', 'Hello')), 'Give it a name.');
+  assert.equal(commandProblem(view('#', 'a note')), null);
+  assert.equal(commandProblem(view('#', '')), null);
+});
+
+test('V110-F90 a line or submenu drops its command', () => {
+  const v = menuView(on('x=/cmd'));
+  assert.equal(menuRow({ ...v, label: '-' }).text, '-');
+  assert.equal(menuRow({ ...v, label: '@Group' }).text, '@Group');
+  assert.equal(menuRow({ ...v, label: '.In' }).text, '.In=/cmd');
+  assert.equal(menuRow({ ...v, label: '/Name' }).text, '/Name=/cmd');
+  assert.equal(menuRow({ ...menuView(on('-')), command: '/x' }).text, '-');
+  assert.equal(menuProblem(menuView(on('-=/x'))), 'A line or a submenu takes no command.');
+  assert.equal(menuProblem(menuView(on('@G=/x'))), 'A line or a submenu takes no command.');
+  assert.equal(menuProblem(menuView(on('-'))), null);
+  assert.equal(menuProblem(menuView(on('a=/x'))), null);
+  // Untouched loaded rows keep their text.
+  assert.deepEqual(menuRow(menuView(on('-=/x'))), on('-=/x'));
 });

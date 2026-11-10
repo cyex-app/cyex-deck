@@ -70,7 +70,7 @@
     <Icon name="login" size={18} />
     <div class="text">
       <strong>Sign in with Twitch</strong>
-      <span>Chat, mod tools, your follows, payment methods and subscriptions. The extra Twitch features can be added after.</span>
+      <span>Chat, mod tools, your follows, payment methods and subscriptions. Add a code sign-in later for the rest.</span>
     </div>
     <Button variant="primary" small disabled={signIn.kind !== null} onclick={() => signIn.start('helix')}>
       Sign in
@@ -80,7 +80,7 @@
     <Icon name="key" size={18} />
     <div class="text">
       <strong>Sign in with a code</strong>
-      <span>Approve a short code on Twitch. Chat and the extra Twitch features: the miner, following, channel points, GIFs and power-ups. Payment methods and subscriptions need Sign in with Twitch too.</span>
+      <span>Approve a short code on Twitch to add the miner, following, channel points, GIFs and power-ups.</span>
     </div>
     <Button small disabled={signIn.kind !== null} onclick={() => signIn.start('gql')}>Get a code</Button>
   </div>

@@ -21,9 +21,11 @@
     type CommandView,
     checkLines,
     commandRow,
+    commandProblem,
     commandView,
     hiddenBySubmenu,
     type MenuView,
+    menuProblem,
     menuRow,
     menuView,
   } from '../commands/rows';
@@ -100,6 +102,7 @@
     empty="Nothing added."
     emptyIcon="list"
     reorder={{ key: `commands.${key}`, label: (v, i) => v.label || `Row ${i + 1}` }}
+    problem={(v) => menuProblem(v)}
     note={(_, i) => (hiddenBySubmenu(rows, i) ? 'Hidden: the submenu above is off.' : null)}
   />
 {/snippet}
@@ -118,7 +121,7 @@
   empty="No commands yet."
   emptyIcon="terminal"
   reorder={{ key: 'commands.lines', label: (v, i) => v.name || `Row ${i + 1}` }}
-  problem={(_, i) => errors.find((e) => e.line === i)?.message ?? null}
+  problem={(v, i) => errors.find((e) => e.line === i)?.message ?? commandProblem(v)}
 />
 {#if failed}<p class="problem">Couldn’t check these lines.</p>{/if}
 

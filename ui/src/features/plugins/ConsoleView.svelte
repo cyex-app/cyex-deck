@@ -149,6 +149,9 @@
     display: flex;
     flex-direction: column;
     height: 100%;
+    /* V110-F90 fill the window; long lines wrap instead of widening it. */
+    flex: 1;
+    min-width: 0;
     background: var(--page);
   }
   .bar {

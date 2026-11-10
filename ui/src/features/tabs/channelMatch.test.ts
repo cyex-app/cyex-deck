@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { couldBeChannel, enterTarget, liveOrExact, loginFromLink, matchChannels, type Candidate } from './channelMatch.ts';
+import { couldBeChannel, enterTarget, manyNames, liveOrExact, loginFromLink, matchChannels, type Candidate } from './channelMatch.ts';
 
 const ch = (id: string, login: string, live = false, name = login): Candidate => ({
   id,
@@ -84,4 +84,14 @@ test('V110-F28 couldBeChannel: logins of 4 to 25 characters and twitch.tv links'
   assert.equal(couldBeChannel('https://www.twitch.tv/rvbdev'), true);
   assert.equal(couldBeChannel('twitch.tv/ab'), true);
   assert.equal(couldBeChannel('https://www.twitch.tv/videos/123'), false);
+});
+
+test('manyNames tells a pasted list from one name', () => {
+  assert.equal(manyNames('rvbdev'), false);
+  assert.equal(manyNames('  rvbdev  '), false);
+  assert.equal(manyNames(''), false);
+  assert.equal(manyNames('rvbdev xqc'), true);
+  assert.equal(manyNames('rvbdev,xqc'), true);
+  assert.equal(manyNames('rvbdev, xqc, shroud'), true);
+  assert.equal(manyNames('rvbdev,'), false);
 });

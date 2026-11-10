@@ -2,7 +2,7 @@
      V108-C27 A card in its own window, like the usercard: drag it anywhere that isn't a
      control, pin it on top from the frame; unpinned it closes on a click elsewhere. Any
      chat: mods and VIPs as Twitch shares them; your own channel shows every role, and there
-     + gives one and ⊖ takes one (the confirm bubble, V108-C21), as the Roles Manager does.
+     + gives one and ⊖ takes one (the confirm bubble, V108-C21), as the Roles manager does.
      Route: `roles/<channel>/<role or all>/<account>` (roleList.ts). -->
 <script lang="ts">
   import { onMount, tick } from 'svelte';
@@ -87,7 +87,7 @@
     chatIpc.openUsercard(channel, who).catch(() => {});
   }
 
-  /** One change through the Roles Manager's IPC (Rust picks the order and says the line):
+  /** One change through the Roles manager's IPC (Rust picks the order and says the line):
    *  the row shows busy until the list is read again; a toast says how it went. */
   async function change(who: string, give: ChannelRole[], take: ChannelRole[]): Promise<boolean> {
     if (!account) return false;

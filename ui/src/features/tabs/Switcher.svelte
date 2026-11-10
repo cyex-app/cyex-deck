@@ -25,7 +25,7 @@
   import { mods } from '../modview/moderation.svelte';
   import { modviewPlace } from '../modview/where.svelte';
   import { PAGES } from '../settings/registry/pages';
-  import { couldBeChannel, liveOrExact } from './channelMatch';
+  import { couldBeChannel, liveOrExact, manyNames } from './channelMatch';
   import { openAdd } from './dialog.svelte';
   import MentionCount from './MentionCount.svelte';
   import { label, tabs, tiles } from './tabs.svelte';
@@ -250,7 +250,7 @@
     try {
       const found = await tabsIpc.lookup(input);
       if (found.length !== 1) {
-        if (!found.length) toast.error('No channel by that name or id.');
+        if (!found.length) toast.error(manyNames(input) ? 'One channel at a time.' : 'No channel by that name or id.');
         else openAdd(undefined, input);
         return;
       }

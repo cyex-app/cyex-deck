@@ -14,7 +14,7 @@
   import { tabsIpc } from '../../ipc/tabs';
   import { formatNumber } from '../../lib/format';
   import { errorText } from '../../lib/errors';
-  import { enterTarget, loginFromLink, matchChannels } from './channelMatch';
+  import { enterTarget, loginFromLink, manyNames, matchChannels } from './channelMatch';
 
   interface Props {
     text: string;
@@ -137,7 +137,7 @@
 {:else if status === 'error'}
   <p class="note bad">{error}</p>
 {:else if status === 'done' && !results.length}
-  <p class="note bad">No channel by that name or id.</p>
+  <p class="note bad">{manyNames(text) ? 'One channel at a time.' : 'No channel by that name or id.'}</p>
 {:else if shown.length}
   {#if shown.length > 1}<p class="note">Pick one. Best match first.</p>{/if}
   <div class="results" role="radiogroup" aria-label="Channel">

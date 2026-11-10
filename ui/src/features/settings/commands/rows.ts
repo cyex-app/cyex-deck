@@ -38,12 +38,38 @@ export function commandView(r: CommandRow): CommandView {
   return { enabled: r.enabled, name, sends, raw: r.text };
 }
 
+/** V110-F90 Longest command name kept (with its "/"). */
+export const NAME_MAX = 32;
+
+/** V110-F90 A typed name: no spaces, a "/" in front (a "#" note keeps its mark), at most NAME_MAX. */
+export function commandName(typed: string): string {
+  const n = typed.replace(/\s+/g, '');
+  if (!n) return n;
+  return (n.startsWith('/') || n.startsWith('#') ? n : `/${n}`).slice(0, NAME_MAX);
+}
+
+/** V110-F90 What's wrong with a command row as written, or null. Blank rows and notes are fine. */
+export function commandProblem(v: CommandView): string | null {
+  const name = v.name.trim();
+  if (name.startsWith('#') || (!name && !v.sends.trim())) return null;
+  if (!name) return 'Give it a name.';
+  return v.sends.trim() ? null : 'Add what it sends.';
+}
+
 /** Unchanged name and sends: the old text. Else name (spaces removed) + " " + sends, or just the name. */
 export function commandRow(v: CommandView): CommandRow {
   const [name, sends] = splitSpace(v.raw);
   if (v.name === name && v.sends === sends) return { enabled: v.enabled, text: v.raw };
-  const n = v.name.replace(/\s+/g, '');
+  const n = commandName(v.name);
   return { enabled: v.enabled, text: v.sends ? `${n} ${v.sends}` : n };
+}
+
+/** V110-F90 "-" draws a line and "@Name" opens a submenu: neither runs a command. */
+const isStructural = (label: string) => label.trim() === '-' || label.trim().startsWith('@');
+
+/** V110-F90 A loaded "-=/x" or "@Group=/x" row: its command is never used. */
+export function menuProblem(v: MenuView): string | null {
+  return isStructural(v.label) && v.command.trim() ? 'A line or a submenu takes no command.' : null;
 }
 
 /** "Shoutout=/shoutout $(nick)" → label + command (split at the first "="). */
@@ -58,6 +84,8 @@ export function menuRow(v: MenuView): CommandRow {
   if (v.label === label && v.command === command) return { enabled: v.enabled, text: v.raw };
   if (isNote(v.label)) return { enabled: v.enabled, text: v.command ? `${v.label} ${v.command}` : v.label };
   const l = v.label.replaceAll('=', '');
+  // V110-F90 A line ("-") or a submenu ("@Group") takes no command: kept, it became an item named "-" or "Group".
+  if (isStructural(l)) return { enabled: v.enabled, text: l };
   return { enabled: v.enabled, text: v.command ? `${l}=${v.command}` : l };
 }
 

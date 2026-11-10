@@ -42,9 +42,10 @@
   <div class="controls">
     <IconButton
       icon={currentWindow.pinned ? 'pinFilled' : 'pin'}
-      label={currentWindow.pinned ? 'Pinned on top' : 'Pin on top'}
-      hint={currentWindow.pinned ? 'Click to let other windows cover it.' : 'Keeps this window above everything else.'}
+      label="Pin on top"
+      hint={currentWindow.pinned ? 'Pinned. Click to let other windows cover it.' : 'Keeps this window above everything else.'}
       active={currentWindow.pinned}
+      toggle
       size={variant === 'slim' ? 12 : 13}
       onclick={() => currentWindow.togglePin()}
     />

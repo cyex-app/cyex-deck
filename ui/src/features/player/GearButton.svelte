@@ -17,3 +17,12 @@
 >
   <Icon name="settings" size={17} />
 </button>
+
+<style>
+  /* V110-F90 Last of the secondary buttons to go; the right-click menu has the same entries. */
+  @container bar (max-width: 199px) {
+    button.ctl {
+      display: none;
+    }
+  }
+</style>

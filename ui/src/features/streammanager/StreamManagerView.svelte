@@ -102,7 +102,7 @@
     ads: { title: 'Ads', hint: 'Run an ad, snooze, schedule.', min: { w: 200, h: 150 }, tall: 260 },
     markers: { title: 'Markers', hint: 'Mark moments for your VOD.', min: { w: 200, h: 110 }, tall: 200 },
     together: { title: 'Stream Together', hint: 'Guests and join requests.', min: { w: 200, h: 110 }, tall: 260 },
-    rolesmgr: { title: 'Roles Manager', hint: 'Mods, VIPs, editors and more in your channel.', min: { w: 240, h: 180 }, tall: 380 },
+    rolesmgr: { title: 'Roles manager', hint: 'Mods, VIPs, editors and more in your channel.', min: { w: 240, h: 180 }, tall: 380 },
     roles: { title: 'My assigned roles', hint: 'Channels where you mod, edit or lead mods.', min: { w: 220, h: 160 }, tall: 320 },
     chat: { title: 'Chat', hint: 'Your chat, as you.', min: { w: 240, h: 200 }, tall: 460 },
   };

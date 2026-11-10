@@ -30,6 +30,8 @@
   let problems = $state<string[]>([]);
   /** Text in the cost box that isn't a number; the saved cost would be the old one. */
   let costBad = $state(false);
+  /** V110-F90 The name box was left once: a blank one then says why Create is off. */
+  let nameSeen = $state(false);
   /** BUG-08 Which check's answer `problems` is: only the newest counts, and a save before
    *  it came checks again first, so a slow answer for older fields can't let a bad edit through. */
   let asked = 0;
@@ -95,7 +97,7 @@
   }}
 >
   <div class="line">
-    <input class="field grow" placeholder="Name" maxlength={lim?.rewardTitleMax} bind:value={e.title} aria-label="Name" use:focusIn />
+    <input class="field grow" placeholder="Name" maxlength={lim?.rewardTitleMax} bind:value={e.title} aria-label="Name" onblur={() => (nameSeen = true)} use:focusIn />
     <NumberField label="Cost in points" min={1} max={lim?.rewardCostMax ?? Number.MAX_SAFE_INTEGER} width="110px" unit="pts" value={e.cost} onchange={(n) => (e.cost = n)} oninvalid={(b) => (costBad = b)} />
   </div>
   <textarea class="field area" placeholder="Description (optional)" maxlength={lim?.rewardPromptMax} rows="2" bind:value={e.prompt} aria-label="Description"></textarea>
@@ -117,13 +119,18 @@
     </label>
   </div>
   <div class="opts">
-    <Checkbox label="Viewer types a message" checked={e.inputRequired} onchange={(on) => (e.inputRequired = on)} />
-    <Checkbox
-      label="Skip the queue"
-      hint="Redemptions count as done right away and never wait for you."
-      checked={e.skipQueue}
-      onchange={(on) => (e.skipQueue = on)}
-    />
+    <!-- V110-F90 Every row is a .line, so they all keep one pitch (28 + the 6 px gap). -->
+    <div class="line">
+      <Checkbox label="Viewer types a message" checked={e.inputRequired} onchange={(on) => (e.inputRequired = on)} />
+    </div>
+    <div class="line">
+      <Checkbox
+        label="Skip the queue"
+        hint="Redemptions count as done right away and never wait for you."
+        checked={e.skipQueue}
+        onchange={(on) => (e.skipQueue = on)}
+      />
+    </div>
     <div class="line">
       <Checkbox label="Cooldown" checked={e.cooldown !== null} onchange={(on) => (e.cooldown = on ? (cooldownSecs ?? 300) : null)} />
       {#if e.cooldown !== null}
@@ -154,6 +161,8 @@
     <p class="note bad-text">Cost is a whole number from 1 to {formatNumber(lim?.rewardCostMax ?? 2147483647)}.</p>
   {:else if !cooldownOk}
     <p class="note bad-text">Cooldowns look like 30s, 5m or 1h.</p>
+  {:else if nameSeen && !e.title.trim()}
+    <p class="note bad-text">Give it a name.</p>
   {:else if problems.length && e.title.trim()}
     <p class="note bad-text">{problems[0]}</p>
   {/if}
@@ -232,6 +241,9 @@
     gap: 6px;
   }
   .opts .line {
+    display: flex;
+    align-items: center;
+    gap: 8px;
     min-height: 28px;
   }
 </style>

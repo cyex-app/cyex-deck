@@ -623,19 +623,19 @@
   <span class="grow"></span>
   {#if onclip}
     <!-- V108-F58 C7 Nothing plays after a failed load: nothing to clip (aria-disabled keeps the tip). -->
-    <button class="ctl" class:off={!!failure} class:armed={clipArm.armed} class:making={clipMaking.busy} disabled={clipMaking.busy} aria-label="Clip" aria-disabled={failure ? 'true' : undefined} aria-expanded={clipArm.armed} use:tooltip={{ label: 'Clip', hint: failure ? 'Nothing is playing to clip.' : rewind.inVod ? 'Clips the seconds up to here.' : 'Clips the last seconds of the stream.' }} onclick={(e) => !failure && clipArm.click(e)}>
+    <button class="ctl sec-clip" class:off={!!failure} class:armed={clipArm.armed} class:making={clipMaking.busy} disabled={clipMaking.busy} aria-label="Clip" aria-disabled={failure ? 'true' : undefined} aria-expanded={clipArm.armed} use:tooltip={{ label: 'Clip', hint: failure ? 'Nothing is playing to clip.' : rewind.inVod ? 'Clips the seconds up to here.' : 'Clips the last seconds of the stream.' }} onclick={(e) => !failure && clipArm.click(e)}>
       <Icon name="scissors" size={17} />
     </button>
     {#if clipArm.armed && clipArm.anchor}
       <ConfirmCallout anchor={clipArm.anchor} pressX={clipArm.pressX} label="Click to clip" onconfirm={clipArm.confirm} ondismiss={clipArm.disarm} />
     {/if}
   {:else if clipOff}
-    <button class="ctl off" aria-label="Clip" aria-disabled="true" use:tooltip={{ label: 'Clip', hint: clipOff }}>
+    <button class="ctl sec-clip off" aria-label="Clip" aria-disabled="true" use:tooltip={{ label: 'Clip', hint: clipOff }}>
       <Icon name="scissors" size={17} />
     </button>
   {/if}
   {#if onpopchat}
-    <button class="ctl" aria-label="Pop out chat" use:tooltip={{ label: 'Pop out chat', hint: 'Chat in its own window, the stream here.' }} onclick={onpopchat}>
+    <button class="ctl sec-pop" aria-label="Pop out chat" use:tooltip={{ label: 'Pop out chat', hint: 'Chat in its own window, the stream here.' }} onclick={onpopchat}>
       <Icon name="popout" size={16} />
     </button>
   {/if}
@@ -770,6 +770,17 @@
   }
   .grow {
     flex: 1;
+  }
+  /* V110-F90 The row gives up buttons by the bar's width so nothing leaves a 240 px tile: clip first, then pop out chat. Play, Live, volume and fullscreen stay. */
+  @container bar (max-width: 299px) {
+    .ctl.sec-clip {
+      display: none;
+    }
+  }
+  @container bar (max-width: 269px) {
+    .ctl.sec-pop {
+      display: none;
+    }
   }
   .mini-play {
     position: absolute;

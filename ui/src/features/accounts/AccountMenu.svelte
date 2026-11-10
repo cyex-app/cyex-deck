@@ -40,6 +40,8 @@
     streamer?: 'off' | 'on' | 'live';
   } = $props();
 
+  /** V110-F90 The tooltip's title is the button's name; the account goes in its hint. */
+  const name = $derived(streamer === 'off' ? 'Accounts' : 'Accounts, streamer mode on');
   const modeHint = $derived(
     streamer === 'live'
       ? 'Streamer mode is on. You’re live.\n'
@@ -112,9 +114,9 @@
   <button
     class="trigger"
     class:active
-    aria-label={streamer === 'off' ? 'Accounts' : 'Accounts, streamer mode on'}
+    aria-label={name}
     onclick={show}
-    use:tooltip={{ label: current.displayName, hint: modeHint + 'Switch the default account or manage accounts.' }}
+    use:tooltip={{ label: name, hint: `${current.displayName}\n${modeHint}Switch the default account or manage accounts.` }}
   >
     <Avatar src={current.avatar} name={current.displayName} size={22} />
     {#if attention}<span class="dot"></span>{/if}

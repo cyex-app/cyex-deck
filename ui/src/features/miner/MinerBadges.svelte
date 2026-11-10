@@ -88,6 +88,8 @@
     align-items: center;
     gap: 6px;
     margin: 4px 0 6px;
+    /* V110-F90 Same 8 px inset as the rows, so All ends where their dates end. */
+    padding: 0 8px;
     font-size: 0.85rem;
     font-weight: 700;
     color: var(--muted);

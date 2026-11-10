@@ -147,7 +147,7 @@
   const newHolds = $derived(holdsOf(cleanLogin(newLogin)));
 </script>
 
-<Card title="Roles Manager" flush>
+<Card title="Roles manager" flush>
   {#snippet tools()}
     <IconButton icon="refresh" label="Refresh" size={14} disabled={loading} onclick={() => void load()} />
     <IconButton icon="plus" label="Add" hint="Give someone a role." size={14} active={adding} toggle onclick={() => (adding = !adding)} />

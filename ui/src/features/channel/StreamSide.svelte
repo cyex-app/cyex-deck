@@ -204,6 +204,13 @@
     display: flex;
     flex-direction: column;
     background: var(--page);
+    container: side / size;
+  }
+  /* V110-F90 A slim column leaves the stream a sliver (chat under it): hide the half-cut header and body, not draw them over the chat. */
+  @container side (max-height: 59px) {
+    .side > :global(*) {
+      display: none;
+    }
   }
   .body {
     position: relative;

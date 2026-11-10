@@ -82,9 +82,10 @@
     display: flex;
     align-items: center;
     gap: 6px;
-    padding: 5px 10px;
+    padding: 4px 9px;
     background: color-mix(in srgb, var(--on-video) 8%, transparent);
-    border: 0;
+    /* V110-F90 Forced colours draws this edge; otherwise it's invisible. */
+    border: 1px solid transparent;
     border-radius: var(--radius);
     color: var(--on-video);
   }

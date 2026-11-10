@@ -243,7 +243,8 @@
   @container (max-width: 719px) {
     .picker:not(.compact) {
       /* Only the grids scroll; the page does only when the window is very short. */
-      grid-template-rows: repeat(2, minmax(150px, 1fr));
+      /* V110-F90 rows fit a pane (head ~100 + body 240) so the second never draws over the first. */
+      grid-template-rows: repeat(2, minmax(350px, 1fr));
       overflow-y: auto;
     }
   }

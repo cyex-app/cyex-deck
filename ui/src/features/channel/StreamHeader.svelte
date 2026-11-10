@@ -170,6 +170,8 @@
   nav {
     display: flex;
     gap: 2px;
+    /* V110-F90 The title gives way first; the page buttons are never cut. */
+    flex: none;
   }
   nav button {
     display: flex;
@@ -208,6 +210,14 @@
   @container (max-width: 560px) {
     .name {
       display: none;
+    }
+  }
+  @container (max-width: 320px) {
+    header {
+      gap: 4px;
+    }
+    nav button {
+      padding: 0 5px;
     }
   }
 </style>

@@ -14,14 +14,26 @@
   }
 
   let { label, hint, required = false, problem = null, setting, children }: Props = $props();
+
+  const uid = $props.id();
+
+  function wire(box: HTMLElement) {
+    const el = box.querySelector<HTMLElement>('input, textarea, select');
+    if (!el) return;
+    el.id = `${uid}-in`;
+    if (hint) el.setAttribute('aria-describedby', `${uid}-hint`);
+    if (required) el.setAttribute('aria-required', 'true');
+  }
 </script>
 
-<label class="ff" data-setting={setting}>
-  <span class="top"><span class="name">{label}</span>{#if required}<span class="req">Required</span>{/if}</span>
-  {@render children()}
-  {#if hint}<span class="hint">{hint}</span>{/if}
+<!-- V110-F90 Only the name labels the input; the hint describes it and "Required" is aria-required,
+     so the accessible name isn't the whole block. The input is found in the slot (callers pass any control). -->
+<div class="ff" data-setting={setting}>
+  <span class="top"><label class="name" for={`${uid}-in`}>{label}</label>{#if required}<span class="req">Required</span>{/if}</span>
+  <div class="slot" {@attach wire}>{@render children()}</div>
+  {#if hint}<span class="hint" id={`${uid}-hint`}>{hint}</span>{/if}
   <span class="problem" aria-live="polite">{problem ?? ''}</span>
-</label>
+</div>
 
 <style>
   .ff {
@@ -54,6 +66,9 @@
      and all fields in a group have the same height and gaps. */
   .problem {
     min-height: 1lh;
+  }
+  .slot {
+    display: contents;
   }
   .ff :global(.field) {
     width: 100%;

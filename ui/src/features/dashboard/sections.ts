@@ -13,7 +13,7 @@ export const GROUPS = [
     label: 'Community',
     sections: [
       { id: 'followers', label: 'Followers', icon: 'heart', hint: 'Who follows you, and since when.' },
-      { id: 'roles', label: 'Roles Manager', icon: 'users', hint: 'Mods, VIPs, editors and more in your channel.' },
+      { id: 'roles', label: 'Roles manager', icon: 'users', hint: 'Mods, VIPs, editors and more in your channel.' },
     ],
   },
   {

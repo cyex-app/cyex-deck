@@ -594,6 +594,8 @@
   {/snippet}
   {#snippet end()}
     {#if !theatreOn}
+    <!-- V110-F90 First in the group: when it appears the buttons to its right stay where they are. -->
+    <UpdateBadge />
     {#if streamer.active || streamer.state.forced}
       <IconButton
         icon="eyeOff"
@@ -632,7 +634,6 @@
     {/if}
     <ConnectionCounter />
     <AccountMenu onmanage={manageAccounts} onsubs={() => show('subs')} oncosmetics={() => openSheetPage('cosmetics')} oncyex={() => openSheetPage('cyex')} ondashboard={() => openSheetPage('dashboard')} active={sheetPage !== null} streamer={streamerDot} />
-    <UpdateBadge />
     <IconButton icon="settings" label="Settings" hint="Everything you can change (Ctrl+,)." active={settingsOpen} onclick={toggleSettings} />
     {/if}
   {/snippet}

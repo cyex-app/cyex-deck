@@ -120,7 +120,7 @@
     {#if can}<IconButton icon="refresh" label="Refresh" size={14} disabled={loading} onclick={load} />{/if}
   {/snippet}
   {#if !can}
-    <p class="gate"><GateFlag kind="helix" /><span>Blocked terms need Sign in with Twitch.</span></p>
+    <p class="gate"><GateFlag kind="helix" /><span>Sign in with Twitch to manage blocked terms.</span></p>
   {:else}
     <form
       class="add"

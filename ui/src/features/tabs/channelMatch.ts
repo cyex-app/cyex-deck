@@ -77,3 +77,8 @@ export function couldBeChannel(typed: string): boolean {
   if (loginFromLink(t)) return true;
   return /^[a-z0-9_]{4,25}$/.test(t.replace(/^[@#]+/, '').toLowerCase());
 }
+
+/** V110-F90 Several names pasted at once (spaces or commas between them): the field takes one. */
+export function manyNames(typed: string): boolean {
+  return typed.split(/[\s,]+/).filter(Boolean).length > 1;
+}
