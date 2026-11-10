@@ -142,6 +142,11 @@
       presetError = t.error;
       return;
     }
+    // V110-F101 Say so, and keep the field.
+    if (c.timeoutPresets.includes(t.secs)) {
+      presetError = 'Already in the list.';
+      return;
+    }
     void settings.patch('chat', { timeoutPresets: [...c.timeoutPresets, t.secs] });
     newPreset = '';
   }

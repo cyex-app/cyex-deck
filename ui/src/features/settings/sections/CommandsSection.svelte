@@ -31,6 +31,7 @@
   } from '../commands/rows';
   import type { Field } from '../rules/fields';
   import RuleList from '../rules/RuleList.svelte';
+  import { CAPS } from '../rules/caps';
   import SectionHead from '../SectionHead.svelte';
 
   const c = $derived(settings.v.commands);
@@ -93,6 +94,7 @@
   {@const rows: CommandRow[] = c[key]}
   <RuleList
     items={rows.map(menuView)}
+    max={CAPS.commandLines}
     fields={menuFields}
     layout="split"
     make={() => ({ enabled: true, label: '', command: '', raw: '' })}
@@ -112,6 +114,7 @@
 <SectionHead title={GUIDE.commands.title} setting="commands.lines"><GuideText entry={GUIDE.commands} /></SectionHead>
 <RuleList
   items={c.lines.map(commandView)}
+  max={CAPS.commandLines}
   fields={commandFields}
   layout="split"
   make={() => ({ enabled: true, name: '', sends: '', raw: '' })}

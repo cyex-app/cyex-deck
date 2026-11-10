@@ -33,7 +33,8 @@
 <style>
   .stack {
     position: fixed;
-    top: calc(var(--chrome-h) + 10px);
+    /* V110-F101 Under the whole bar, also when the tab row wraps; pop-outs have no --chrome-real-h. */
+    top: calc(var(--chrome-real-h, var(--chrome-h)) + 10px);
     left: 50%;
     transform: translateX(-50%);
     width: max-content;

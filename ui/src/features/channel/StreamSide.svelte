@@ -230,8 +230,9 @@
   }
   .popped {
     display: flex;
+    flex-wrap: wrap; /* V110-F101 stacks when narrow */
     align-items: center;
-    gap: 8px;
+    gap: 4px 8px;
     padding: 3px 12px;
     background: var(--surface);
     border-bottom: 1px solid var(--border);
@@ -239,6 +240,8 @@
     font-size: 0.8rem;
   }
   .popped button {
+    flex: none;
+    white-space: nowrap;
     padding: 1px 8px;
     background: var(--accent-dim);
     border: 0;

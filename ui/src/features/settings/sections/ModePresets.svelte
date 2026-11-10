@@ -41,6 +41,11 @@
       error = p.error;
       return;
     }
+    // V110-F101 Say so, and keep the field.
+    if (values.includes(p.value)) {
+      error = 'Already in the list.';
+      return;
+    }
     onsave(withPreset(values, p.value, max));
     text = '';
   }

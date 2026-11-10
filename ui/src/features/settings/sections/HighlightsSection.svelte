@@ -27,6 +27,7 @@
   import type { Field } from '../rules/fields';
   import { OPT } from '../rules/options';
   import RuleList from '../rules/RuleList.svelte';
+  import { CAPS } from '../rules/caps';
   import RuleRow from '../rules/RuleRow.svelte';
 
   const h = $derived(settings.v.highlights);
@@ -208,6 +209,7 @@
   setting="highlights.phrases"
   conditions
   items={h.phrases}
+  max={CAPS.phrases}
   fields={wordFields}
   layout="split"
   mainMin="110px"
@@ -226,6 +228,7 @@
   setting="highlights.users"
   conditions
   items={h.users}
+  max={CAPS.rules}
   fields={userFields}
   slots={2}
   layout="split"
@@ -241,6 +244,7 @@
   setting="highlights.badges"
   conditions
   items={h.badges}
+  max={CAPS.rules}
   fields={badgeFields}
   layout="split"
   make={() => ({ ...blank, badge: '' })}
@@ -255,6 +259,7 @@
   setting="highlights.apps"
   conditions
   items={h.apps}
+  max={CAPS.rules}
   fields={appFields}
   layout="split"
   make={(): AppRule => ({ ...blank, app: 'mobile' })}
@@ -290,6 +295,7 @@
   <RuleList
     setting="highlights.globalList"
     items={h.globalList}
+    max={CAPS.globalList}
     fields={globalFields}
     layout="split"
     mainMin="110px"
@@ -307,6 +313,7 @@
 <SectionHead title="Never highlight" setting="highlights.never">These names never light up or play sounds, e.g. bots.</SectionHead>
 <RuleList
   items={rows(h.never)}
+  max={CAPS.names}
   fields={neverFields}
   layout="split"
   make={() => ({ login: '' })}
@@ -319,6 +326,7 @@
 <SectionHead title="Silent chats" setting="highlights.muted">These chats never play sounds or flash. Also in a chat’s menu.</SectionHead>
 <RuleList
   items={rows(h.muted)}
+  max={CAPS.names}
   fields={mutedFields}
   layout="split"
   make={() => ({ login: '' })}

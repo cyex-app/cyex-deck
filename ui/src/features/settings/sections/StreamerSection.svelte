@@ -9,6 +9,8 @@
   import type { StreamerWhen } from '../../../ipc/bindings/StreamerWhen';
   import { settings } from '../../../lib/settings.svelte';
   import { streamer } from '../../../lib/streamer.svelte';
+  import { tooltip } from '../../../components/tooltip.svelte';
+  import { APP_NAME_PROBLEM, validAppName } from '../streamerApps';
 
   const s = $derived(settings.v.general.streamer);
 
@@ -43,9 +45,16 @@
   const patch = (p: Partial<StreamerMode>) => settings.patch('general', { streamer: p });
 
   let adding = $state('');
+  let badName = $state(false);
   function addApp() {
     const name = adding.trim();
+    badName = false;
     if (!name) return;
+    // V110-F101 Not a file name: say so and keep what was typed.
+    if (!validAppName(name)) {
+      badName = true;
+      return;
+    }
     void patch({ apps: [...s.apps, name.toLowerCase().endsWith('.exe') ? name : `${name}.exe`] });
     adding = '';
   }
@@ -61,8 +70,8 @@
   <Row setting="general.streamer.apps" label="Streaming apps" hint="Their program file names, like obs64.exe." stacked>
     <div class="apps">
       {#each s.apps as app (app)}
-        <span class="chip"
-          >{app}<button aria-label="Remove {app}" onclick={() => patch({ apps: s.apps.filter((a) => a !== app) })}
+        <span class="chip" use:tooltip={{ label: app, when: () => app.length > 20 }}
+          ><span class="name">{app}</span><button aria-label="Remove {app}" onclick={() => patch({ apps: s.apps.filter((a) => a !== app) })}
             >×</button
           ></span
         >
@@ -72,10 +81,13 @@
         placeholder="Add an app"
         aria-label="Add an app"
         bind:value={adding}
+        aria-invalid={badName}
+        oninput={() => (badName = false)}
         onkeydown={(e) => enterKey(e) && addApp()}
         onblur={addApp}
       />
     </div>
+    <p class="problem" aria-live="polite">{badName ? APP_NAME_PROBLEM : ''}</p>
   </Row>
 {/if}
 
@@ -92,8 +104,25 @@
     flex-wrap: wrap;
     align-items: center;
     gap: 6px;
+    min-width: 0;
+    max-width: 100%;
+  }
+  /* V110-F101 A long name cuts off inside the chip instead of widening the page. */
+  .name {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .problem {
+    margin: 4px 0 0;
+    min-height: 1lh;
+    color: var(--red);
+    font-size: var(--text-hint);
   }
   .chip {
+    max-width: 100%;
+    min-width: 0;
     display: inline-flex;
     align-items: center;
     gap: 4px;
@@ -105,6 +134,7 @@
     font: 0.78rem var(--font-mono);
   }
   .chip button {
+    flex: none;
     position: relative;
     padding: 0 4px;
     background: none;

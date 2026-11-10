@@ -11,6 +11,7 @@
   import SectionHead from '../SectionHead.svelte';
   import type { Field } from '../rules/fields';
   import RuleList from '../rules/RuleList.svelte';
+  import { CAPS } from '../rules/caps';
   import NumberField from '../../../components/NumberField.svelte';
   import { tooltip } from '../../../components/tooltip.svelte';
   import { untrack } from 'svelte';
@@ -73,6 +74,7 @@
 <RuleList
   setting="highlights.filters"
   items={h.filters}
+  max={CAPS.filters}
   {fields}
   layout="split"
   make={() => ({ id: id(), name: '', expr: '' })}

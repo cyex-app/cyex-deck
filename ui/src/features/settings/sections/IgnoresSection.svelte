@@ -14,6 +14,7 @@
   import type { Field } from '../rules/fields';
   import { OPT } from '../rules/options';
   import RuleList from '../rules/RuleList.svelte';
+  import { CAPS } from '../rules/caps';
 
   const h = $derived(settings.v.highlights);
   const save = (patch: Partial<Highlights>) => void settings.patch('highlights', patch);
@@ -50,6 +51,7 @@
   setting="highlights.ignores"
   conditions
   items={h.ignores}
+  max={CAPS.rules}
   {fields}
   layout="split"
   slots={2}

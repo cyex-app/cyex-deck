@@ -9,6 +9,7 @@
   import { focusAfterDelete, focusLast } from './focus';
   import RuleRow from './RuleRow.svelte';
   import { toast } from '../../../lib/toast.svelte';
+  import { formatNumber } from '../../../lib/format';
 
   interface Props {
     items: T[];
@@ -40,6 +41,8 @@
     slots?: number;
     /** V110-C59 Rows have conditions, see RuleRow. */
     conditions?: boolean;
+    /** V110-F101 Most rows the list keeps (see caps.ts): Add is off at the cap. */
+    max?: number;
   }
 
   let {
@@ -60,11 +63,13 @@
     layout,
     slots,
     conditions,
+    max,
   }: Props = $props();
 
   const fieldsOf = (item: T, i: number) => (typeof fields === 'function' ? fields(item, i) : fields);
 
   let el = $state<HTMLDivElement>();
+  const full = $derived(max !== undefined && items.length >= max);
 
   /** b-16 "Move row 3", not "Move Row 3": a fallback name reads mid-sentence. */
   const grip = (name: string) => `Move ${/^(Row|Rule|Automation) \d+$/.test(name) ? name[0].toLowerCase() + name.slice(1) : name}`;
@@ -127,11 +132,13 @@
     <Button
       small
       icon="plus"
+      disabled={full}
       onclick={() => {
         onchange([...items, make()]);
         void focusLast(el, '.rule');
       }}>{addLabel}</Button
     >
+    {#if full}<span class="cap">Limit is {formatNumber(max ?? 0)}.</span>{/if}
   </div>
 </div>
 
@@ -140,6 +147,13 @@
     margin-bottom: 8px;
   }
   .add {
+    display: flex;
+    align-items: center;
+    gap: 10px;
     padding-top: 8px;
+  }
+  .cap {
+    color: var(--dim);
+    font-size: var(--text-hint);
   }
 </style>

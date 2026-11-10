@@ -8,6 +8,7 @@
   import type { Field } from '../rules/fields';
   import { OPT } from '../rules/options';
   import RuleList from '../rules/RuleList.svelte';
+  import { CAPS } from '../rules/caps';
   import SectionHead from '../SectionHead.svelte';
   import NumberField from '../../../components/NumberField.svelte';
 
@@ -108,6 +109,7 @@
 <RuleList
   setting="commands.automations"
   items={c.automations}
+  max={CAPS.automations}
   {fields}
   layout="split"
   emptyIcon="zap"

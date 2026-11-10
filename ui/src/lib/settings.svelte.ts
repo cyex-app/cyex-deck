@@ -55,7 +55,10 @@ class SettingsStore {
     }
     if (reset.length) {
       // t5 Names as in Backup and sharing; a file can also be only partly reset now.
-      toast.error(`Some settings couldn’t be read and went back to default: ${partitionList(reset)}. The old files are kept in the settings folder.`);
+      toast.error(`Some settings couldn’t be read and went back to default: ${partitionList(reset)}. The old files are kept in the settings folder.`, {
+        // V110-F101 One click to the files.
+        action: { label: 'Open folder', run: () => void settingsIpc.openFolder().catch((e) => toast.error(errorText(e))) },
+      });
     }
     if (restored.length) {
       // V107-N10a Cut short or empty: the newest backup that still reads.

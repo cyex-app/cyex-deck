@@ -32,7 +32,7 @@
   // V108-C07 Set while the typed address isn't a web address.
   let badUrl = $state(false);
   const problem = (key: 'url' | 'formField' | 'link') => {
-    if (key === 'url' && (badUrl || (u.url.trim() !== '' && !validUploadUrl(u.url)))) return 'That isn’t a web address.';
+    if (key === 'url' && (badUrl || (u.url.trim() !== '' && !validUploadUrl(u.url)))) return 'Use an address like https://host/upload.';
     return loud && gone.includes(key) ? 'Fill this in.' : null;
   };
 
@@ -43,6 +43,8 @@
   function saveUrl(e: Event & { currentTarget: HTMLInputElement }) {
     const url = e.currentTarget.value.trim();
     badUrl = url !== '' && !validUploadUrl(url);
+    // V110-F101 A typed non-address is flagged but not kept: the last good one keeps working.
+    if (badUrl) return;
     save(!turnedOff && turnsOnWithUrl(u.url, url, u.enabled) ? { url, enabled: true } : { url });
   }
 

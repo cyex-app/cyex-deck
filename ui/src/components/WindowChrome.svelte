@@ -17,9 +17,17 @@
   }
 
   let { title = '', start, end }: Props = $props();
+
+  // V110-F101 The bar's real height (a wrapped tab row grows it), so the toasts sit under all of it.
+  let height = $state(0);
+  $effect(() => {
+    if (!currentWindow.isMain || !height) return;
+    document.documentElement.style.setProperty('--chrome-real-h', `${height}px`);
+    return () => document.documentElement.style.removeProperty('--chrome-real-h');
+  });
 </script>
 
-<header class="chrome" data-tauri-drag-region>
+<header class="chrome" data-tauri-drag-region bind:offsetHeight={height}>
   <div class="brand" data-tauri-drag-region><BrandMark /></div>
   {#if start}
     {@render start()}

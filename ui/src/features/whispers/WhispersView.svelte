@@ -217,12 +217,20 @@
   .whispers {
     flex: 1;
     display: grid;
-    grid-template-columns: minmax(220px, 300px) 1fr;
+    /* V110-F101 minmax(0, …): a long preview line must not widen the track past a 320 px window. */
+    grid-template-columns: minmax(220px, 300px) minmax(0, 1fr);
+    container-type: inline-size;
     min-height: 0;
     min-width: 0;
   }
   .whispers.narrow {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
+  }
+  /* V110-F101 The row date goes first when it gets tight. */
+  @container (max-width: 359px) {
+    .when {
+      display: none;
+    }
   }
   aside[hidden],
   section[hidden] {
@@ -249,6 +257,7 @@
     display: flex;
     flex-direction: column;
     min-height: 0;
+    min-width: 0;
     border-right: 1px solid var(--border);
     background: var(--page);
   }
@@ -264,6 +273,8 @@
   }
   .threads {
     flex: 1;
+    min-width: 0;
+    overflow-x: hidden;
     overflow-y: auto;
     padding: 0 6px 8px;
   }
@@ -272,6 +283,7 @@
     align-items: center;
     gap: 10px;
     width: 100%;
+    min-width: 0;
     padding: 7px 8px;
     background: none;
     border: 0;
