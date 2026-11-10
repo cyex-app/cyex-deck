@@ -2,6 +2,8 @@
 //! and a preview (1.52), the resolver's HTML turned into plain lines here so the UI
 //! never renders HTML.
 
+use std::time::{Duration, Instant};
+
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
@@ -99,11 +101,29 @@ pub fn proxied(url: &str) -> Option<String> {
     (url.starts_with("https://") && !url.contains(char::is_whitespace)).then(|| format!("{}/{}", thumb_base(), component(url)))
 }
 
-/// `None` if the resolver has nothing on it.
+/// V110-F96 Past this the resolver counts as down (the client's 20 s is for other users).
+const TIMEOUT: Duration = Duration::from_secs(6);
+
+/// V110-F96 Whether an error is the resolver being down rather than answering.
+pub fn is_down(e: &crate::Error) -> bool {
+    matches!(e, crate::Error::Api { status: 503, message } if message == PAUSED) || e.is_network()
+}
+const PAUSED: &str = "paused";
+
+/// `None` if the resolver has nothing on it. V110-F96 Two timeouts or failed connections in a
+/// row pause it for a minute; asks in that time fail at once (`is_down`).
 pub async fn resolve(http: &Http, url: &str) -> Result<Option<LinkInfo>> {
+    let breaker = &http.2.resolver;
+    if !breaker.allow(Instant::now()) {
+        return Err(crate::Error::Api {
+            status: 503,
+            message: PAUSED.into(),
+        });
+    }
     let encoded: String = url::form_urlencoded::byte_serialize(url.as_bytes()).collect();
-    let res: Response = json(http.0.get(format!("{}/{encoded}", base()))).await?;
-    Ok(info(res))
+    let got: Result<Response> = json(http.0.get(format!("{}/{encoded}", base())).timeout(TIMEOUT)).await;
+    breaker.report(!got.as_ref().is_err_and(crate::Error::is_network), Instant::now());
+    Ok(info(got?))
 }
 
 fn info(res: Response) -> Option<LinkInfo> {
@@ -237,6 +257,17 @@ fn entities(s: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn v110_f96_a_paused_resolver_fails_at_once_as_down() {
+        let http = Http::new().unwrap();
+        let t = Instant::now();
+        http.2.resolver.report(false, t);
+        http.2.resolver.report(false, t);
+        let e = resolve(&http, "https://example.com/").await.unwrap_err();
+        assert!(is_down(&e));
+        assert!(!is_down(&crate::Error::Api { status: 404, message: "x".into() }));
+    }
 
     #[test]
     fn the_test_hook_only_points_at_this_machine() {

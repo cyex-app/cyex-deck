@@ -4,6 +4,7 @@
 //! (1.36, its firehose V104-02).
 
 mod call;
+pub mod breaker;
 pub mod channel_input;
 pub mod clients;
 pub mod clock;

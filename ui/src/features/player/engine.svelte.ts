@@ -13,6 +13,7 @@ import { settings } from '../../lib/settings.svelte';
 import { Away, awayMs, outOfSight } from './away';
 import { GRAPH_EVENT, graphDelay } from './gain';
 import { behindLive, broadcastLatency, dvrConfig, liveConfig, liveState, maxLatency, needsLiveSeek, PAUSE_STOP_MS, pausedBehind, rangeEnd } from './liveEdge';
+import { MANIFEST_POLICY } from './recheck';
 import {
   askPause,
   begin,
@@ -567,6 +568,8 @@ export class Engine {
       enableID3MetadataCues: false,
       enableEmsgMetadataCues: false,
       enableDateRangeMetadataCues: false,
+      // V110-F96 A failing master playlist is not asked twice per start (see recheck.ts).
+      manifestLoadPolicy: MANIFEST_POLICY,
     };
     if (!this.live) {
       return { ...common, backBufferLength: 20, maxBufferLength: 30, maxMaxBufferLength: 40, startPosition: this.startAt };

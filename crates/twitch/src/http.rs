@@ -8,7 +8,12 @@ use crate::{Error, Result};
 /// Shared HTTP client. Cheap to clone; keep one per app. The second field is a local mock
 /// that gets every Helix and GQL call instead of Twitch (P4 #16, mocks builds only).
 #[derive(Clone)]
-pub struct Http(pub(crate) reqwest::Client, pub(crate) Option<std::sync::Arc<str>>);
+pub struct Http(
+    pub(crate) reqwest::Client,
+    pub(crate) Option<std::sync::Arc<str>>,
+    /// V110-F96 Which link services are paused (shared by every clone).
+    pub(crate) std::sync::Arc<crate::breaker::Breakers>,
+);
 
 /// V108-C10 A desktop browser, for picture hosts that refuse the app's own user agent.
 pub const BROWSER_AGENT: &str =
@@ -36,14 +41,14 @@ impl Http {
         if let Some(url) = proxy {
             builder = builder.proxy(reqwest::Proxy::all(url).map_err(Error::Network)?);
         }
-        builder.build().map(|c| Self(c, None)).map_err(Error::Network)
+        builder.build().map(|c| Self(c, None, Default::default())).map_err(Error::Network)
     }
 
     /// P4 #16 This client with every Helix and GQL call sent to `base`
     /// (`http://127.0.0.1:<port>`, checked by the caller) with a fake sign-in.
     #[cfg(any(test, feature = "mocks"))]
     pub fn mocked(&self, base: &str) -> Self {
-        Self(self.0.clone(), Some(base.trim_end_matches('/').into()))
+        Self(self.0.clone(), Some(base.trim_end_matches('/').into()), self.2.clone())
     }
 
     /// P4 #16 The mock this client talks to, if any.

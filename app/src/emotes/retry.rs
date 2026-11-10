@@ -15,8 +15,24 @@ use tauri::{AppHandle, Emitter, Manager};
 use super::providers::{self, Fetched, Which};
 use super::{Channel, Emotes, load};
 
-/// Waits before each later try, then it gives up (about 10 min in all).
+/// Waits before each of the first tries (about 10 min in all).
 const WAITS: [u64; 6] = [10, 20, 40, 80, 160, 300];
+/// V110-F96 Then it keeps trying at this pace until it works or the room closes.
+const TAIL: u64 = 300;
+
+/// V110-F96 Seconds to wait before try `n` (0 is the first retry): the growing waits, then the
+/// slow tail. `r` is 0..=255 and spreads the tail by up to a fifth either way, so many tabs
+/// that failed together don't all ask in the same second.
+fn wait_secs(n: usize, r: u8) -> u64 {
+    match WAITS.get(n) {
+        Some(w) => *w,
+        None => TAIL * (800 + u64::from(r) * 400 / 255) / 1000,
+    }
+}
+
+fn jitter() -> u8 {
+    u8::from_str_radix(&cyex_twitch::random::hex(1), 16).unwrap_or(128)
+}
 /// The tab on screen waits at least this before asking again.
 const TICK: Duration = Duration::from_secs(2);
 
@@ -32,8 +48,9 @@ pub(super) fn spawn(app: AppHandle, login: String, id: String, generation: u64, 
 }
 
 async fn run(app: AppHandle, login: String, id: String, generation: u64, mut failed: Which) {
-    for (n, wait) in WAITS.iter().enumerate() {
-        let lane = wait_turn(&app, &login, Duration::from_secs(*wait)).await;
+    // V110-F96 No end but the room's: leaving aborts this task, and `joined` is checked each lap.
+    for n in 0.. {
+        let lane = wait_turn(&app, &login, Duration::from_secs(wait_secs(n, jitter()))).await;
         if !joined(&app, &login, generation) {
             return;
         }
@@ -49,7 +66,6 @@ async fn run(app: AppHandle, login: String, id: String, generation: u64, mut fai
             return;
         }
     }
-    log_gave_up(failed, &format!("emotes for {id}"));
 }
 
 fn log_in(was: Which, still: Which, what: &str, tries: usize) {
@@ -170,7 +186,7 @@ fn put(c: &mut Channel, came: Which, got: Fetched) {
 /// later chat asks for what's still missing.
 pub(super) fn globals(app: AppHandle, want: Which) {
     tauri::async_runtime::spawn(async move {
-        let left = keep_asking(want, &WAITS, |ask, n| {
+        let left = keep_asking(want, |n| wait_secs(n, jitter()), usize::MAX, |ask, n| {
             let app = app.clone();
             async move {
                 let http = app.state::<crate::auth::Auth>().http.clone();
@@ -188,16 +204,17 @@ pub(super) fn globals(app: AppHandle, want: Which) {
     });
 }
 
-/// Asks for `want`, then again after each of `waits` for what failed (`ask` gives what
-/// failed, and gets the try's number). What still failed at the end.
-async fn keep_asking<F, Fut>(mut want: Which, waits: &[u64], mut ask: F) -> Which
+/// Asks for `want`, then again after `wait(n)` seconds (n counts retries from 0) for what
+/// failed, up to `retries` times (`ask` gives what failed, and gets the try's number). What
+/// still failed at the end.
+async fn keep_asking<F, Fut>(mut want: Which, wait: impl Fn(usize) -> u64, retries: usize, mut ask: F) -> Which
 where
     F: FnMut(Which, usize) -> Fut,
     Fut: Future<Output = Which>,
 {
-    for n in 0..=waits.len() {
+    for n in 0..=retries {
         if n > 0 {
-            tokio::time::sleep(Duration::from_secs(waits[n - 1])).await;
+            tokio::time::sleep(Duration::from_secs(wait(n - 1))).await;
         }
         want = want.minus(want.minus(ask(want, n).await));
         if !want.any() {
@@ -281,6 +298,21 @@ mod tests {
         assert!(WAITS.iter().sum::<u64>() <= 15 * 60);
     }
 
+    /// V110-F96 After the growing waits the retries go on every 5 min (spread a fifth), never
+    /// stop, and never go faster than the last growing wait.
+    #[test]
+    fn v110_f96_the_slow_tail_never_ends() {
+        for (n, w) in WAITS.iter().enumerate() {
+            assert_eq!(wait_secs(n, 0), *w);
+            assert_eq!(wait_secs(n, 255), *w);
+        }
+        for n in [WAITS.len(), WAITS.len() + 1, 1000, usize::MAX] {
+            assert_eq!(wait_secs(n, 0), 240);
+            assert_eq!(wait_secs(n, 255), 360);
+            assert!((298..=302).contains(&wait_secs(n, 127)), "{}", wait_secs(n, 127));
+        }
+    }
+
     #[test]
     fn replace_swaps_only_that_providers_channel_set() {
         let mut sets = vec![
@@ -351,7 +383,7 @@ mod tests {
         let ffz = Which { ffz: true, ..Which::default() };
         let bttv_ffz = Which { bttv: true, ffz: true, ..Which::default() };
         let mut fails = vec![bttv_ffz, ffz, Which::default()].into_iter();
-        let left = keep_asking(Which::ALL, &[0, 0, 0, 0], |w, n| {
+        let left = keep_asking(Which::ALL, |_| 0, 4, |w, n| {
             asked.push((w, n));
             let f = fails.next().unwrap();
             async move { f }
@@ -361,7 +393,7 @@ mod tests {
         assert!(!left.any());
         // Gives up after the last wait, with what still failed.
         let mut tries = 0;
-        let left = keep_asking(ffz, &[0, 0], |_, _| {
+        let left = keep_asking(ffz, |_| 0, 2, |_, _| {
             tries += 1;
             async move { ffz }
         })

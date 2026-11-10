@@ -31,6 +31,20 @@ fn ttl(p: &Option<LinkPreview>) -> Duration {
     }
 }
 
+/// V110-F96 What a lookup found, and whether a service was down while it looked: such a miss
+/// is kept for seconds, not minutes, so a link asked after the service heals is asked afresh.
+#[derive(Clone)]
+pub struct Found {
+    card: Option<LinkPreview>,
+    down: bool,
+}
+
+const DOWN_TTL: Duration = Duration::from_secs(15);
+
+fn found_ttl(f: &Found) -> Duration {
+    if f.down && f.card.is_none() { DOWN_TTL } else { ttl(&f.card) }
+}
+
 /// A Twitch link we look up ourselves.
 #[derive(Debug, PartialEq, Eq)]
 enum TwitchLink {
@@ -81,23 +95,30 @@ fn asks_worker(url: &str) -> bool {
 
 /// Twitch first, then our own resolver for trusted sites, Chatterino's after. `None` when
 /// none has anything.
-async fn load(http: &Http, url: &str) -> Option<LinkPreview> {
+async fn load(http: &Http, url: &str) -> Found {
+    let hit = |card| Found { card, down: false };
     if let Some(link) = twitch_link(url)
         && let Some(p) = twitch(http, &link).await
     {
-        return Some(p);
+        return hit(Some(p));
     }
+    let mut down = false;
     if asks_worker(url) {
         match embed::lookup(http, url).await {
-            Next::Use(p) => return Some(*p),
+            Next::Use(p) => return hit(Some(*p)),
             // "Nothing to show" is an answer, not a failure.
-            Next::Nothing => return None,
+            Next::Nothing => return hit(None),
             Next::Fallback => {}
+            Next::Down => down = true,
         }
     }
     match resolver::resolve(http, url).await {
-        Ok(Some(info)) => preview::from_resolver(url, info),
-        _ => None,
+        Ok(Some(info)) => hit(preview::from_resolver(url, info)),
+        Ok(None) => hit(None),
+        Err(e) => Found {
+            card: None,
+            down: down || resolver::is_down(&e),
+        },
     }
 }
 
@@ -174,9 +195,9 @@ impl<V: Clone> Cache<V> {
 
 /// The card for `url`, cached.
 pub async fn get(http: &Http, url: String) -> Option<LinkPreview> {
-    static CACHE: std::sync::OnceLock<Cache<Option<LinkPreview>>> = std::sync::OnceLock::new();
-    let cache = CACHE.get_or_init(|| Cache::new(CAP, ttl));
-    cache.get_at(&url, Instant::now(), || load(http, &url)).await
+    static CACHE: std::sync::OnceLock<Cache<Found>> = std::sync::OnceLock::new();
+    let cache = CACHE.get_or_init(|| Cache::new(CAP, found_ttl));
+    cache.get_at(&url, Instant::now(), || load(http, &url)).await.card
 }
 
 #[cfg(test)]
@@ -229,6 +250,14 @@ mod tests {
         ] {
             assert!(!asks_worker(u), "{u}");
         }
+    }
+
+    #[test]
+    fn v110_f96_a_miss_while_a_service_was_down_is_kept_briefly() {
+        let miss = |down| Found { card: None, down };
+        assert_eq!(found_ttl(&miss(false)), MISS_TTL);
+        assert_eq!(found_ttl(&miss(true)), DOWN_TTL);
+        assert!(DOWN_TTL < MISS_TTL && DOWN_TTL < cyex_twitch::breaker::PAUSE);
     }
 
     fn short(v: &u32) -> Duration {

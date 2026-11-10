@@ -48,6 +48,9 @@ pub enum Next {
     Nothing,
     /// Timeout, any other status, bad JSON or an empty card: ask Chatterino's resolver.
     Fallback,
+    /// V110-F96 The Worker did not answer in time or is paused after failing twice: the
+    /// fallback asks too, and the miss is not kept for long.
+    Down,
 }
 
 /// The decision, pure: `status` is `None` when the Worker could not be reached in time.
@@ -64,9 +67,17 @@ pub fn decide(status: Option<u16>, body: &str) -> Next {
 
 /// Ask the Worker for `url`'s card.
 pub async fn lookup(http: &Http, url: &str) -> Next {
-    match fetch(http, url).await {
+    let breaker = &http.2.embed;
+    if !breaker.allow(std::time::Instant::now()) {
+        return Next::Down;
+    }
+    // V110-F96 Any answer, even an error status, shows the Worker is up; only a timeout or no
+    // connection counts against it.
+    let got = fetch(http, url).await;
+    breaker.report(got.is_ok(), std::time::Instant::now());
+    match got {
         Ok((status, body)) => decide(Some(status), &body),
-        Err(_) => decide(None, ""),
+        Err(_) => Next::Down,
     }
 }
 
@@ -293,6 +304,19 @@ mod tests {
         assert!(card(&body(r#""thumbnail":"https://i.ytimg.com/a.jpg""#)).is_none());
         // A card with only a Worker picture is enough.
         assert!(card(&body(&format!(r#""thumbnail":"{IMG}""#))).is_some());
+    }
+
+    #[tokio::test]
+    async fn v110_f96_a_paused_worker_answers_at_once_and_clones_share_it() {
+        let http = Http::new().unwrap();
+        let t = std::time::Instant::now();
+        http.2.embed.report(false, t);
+        http.2.embed.report(false, t);
+        // No connection is made: this returns before any network, so it can't hang.
+        let clone = http.clone();
+        assert_eq!(lookup(&clone, "https://youtu.be/a").await, Next::Down);
+        // The resolver's breaker is its own.
+        assert!(http.2.resolver.allow(t));
     }
 
     #[test]

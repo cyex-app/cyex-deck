@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { QUICK_TRIES, RECHECK_MS, offlineDelay, recheckDelay } from './recheck.ts';
+import { MANIFEST_POLICY, QUICK_TRIES, RECHECK_MS, offlineDelay, recheckDelay } from './recheck.ts';
 
 const base = { failure: 'network', tries: QUICK_TRIES, listed: true, hidden: false };
 
@@ -29,4 +29,10 @@ test('V110-F83 offline rechecks back off 15, 30, 60 s and rest while hidden', ()
   assert.equal(offlineDelay(2, false), 60_000);
   assert.equal(offlineDelay(9, false), 60_000);
   assert.equal(offlineDelay(0, true), null);
+});
+
+test('V110-F96 a failed master playlist is not asked again by hls.js itself', () => {
+  const d = MANIFEST_POLICY!.default!;
+  assert.equal(d.errorRetry.maxNumRetry, 0);
+  assert.ok(d.timeoutRetry.maxNumRetry <= 1);
 });

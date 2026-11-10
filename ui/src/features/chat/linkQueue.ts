@@ -9,9 +9,13 @@ export interface LinkQueue<T> {
   stats(): { running: number };
 }
 
+/** V110-F96 Rust ends every ask in a few seconds; this is the safety net: past it the ask fails
+ *  (the card falls back to the plain link) and its place is free for the next one. */
+export const GIVE_UP_MS = 10_000;
+
 /** V110-C66 `limit`: at most this many asks run at once, the rest wait in order (the cards and
  *  asks ahead of a hover, so a fast chat can't start dozens of lookups). */
-export function linkQueue<T>(ask: (url: string) => Promise<T>, limit = Infinity): LinkQueue<T> {
+export function linkQueue<T>(ask: (url: string) => Promise<T>, limit = Infinity, giveUpMs = GIVE_UP_MS): LinkQueue<T> {
   const out = new Map<string, Promise<T>>();
   const waiting: (() => void)[] = [];
   let running = 0;
@@ -33,11 +37,18 @@ export function linkQueue<T>(ask: (url: string) => Promise<T>, limit = Infinity)
       const known = out.get(url);
       if (known) return known;
       const p = slot()
-        .then(() => ask(url).finally(free))
+        .then(() => withLimit(ask(url), giveUpMs).finally(free))
         .finally(() => out.delete(url));
       out.set(url, p);
       return p;
     },
     stats: () => ({ running: out.size }),
   };
+}
+
+function withLimit<T>(p: Promise<T>, ms: number): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const t = Number.isFinite(ms) ? setTimeout(() => reject(new Error('link ask timed out')), ms) : undefined;
+    p.then(resolve, reject).finally(() => clearTimeout(t));
+  });
 }
