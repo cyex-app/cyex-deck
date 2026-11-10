@@ -38,6 +38,12 @@ export function escLeaves(e: EscapeState, current: string | null): boolean {
   return e.sinceFullscreen > 300;
 }
 
+/** V110-B2 The stream page header (avatar, name, Stream / About / Clips / Videos) hides in theatre,
+ *  so the player takes the full height. Kept when the tile's chat isn't there to carry its buttons. */
+export function headerHidden(current: string | null, tile: string, chatCarriesButtons: boolean): boolean {
+  return current !== null && current === tile && chatCarriesButtons;
+}
+
 /** A tile's rect in the tab while in theatre: the whole tab. */
 export function fullBox(w: number, h: number): { x: number; y: number; w: number; h: number } {
   return { x: 0, y: 0, w, h };

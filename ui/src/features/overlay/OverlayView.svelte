@@ -18,6 +18,7 @@
   import Line from '../chat/Line.svelte';
   import { ChatRoom } from '../chat/room.svelte';
   import { lookVars } from '../tabs/look';
+  import { overlayShows } from './lines';
   import { tabs, tiles } from '../tabs/tabs.svelte';
   import { errorText } from '../../lib/errors';
 
@@ -75,6 +76,7 @@
   const shown = $derived(
     (room?.messages ?? []).filter(
       (m) =>
+        overlayShows(m) &&
         !m.flags.includes('similar') &&
         !(hideMod && (m.notice?.kind === 'moderation' || m.flags.includes('deleted'))) &&
         !(hideWhispers && m.flags.includes('whisper')),

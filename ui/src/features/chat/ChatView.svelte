@@ -481,8 +481,11 @@
   <!-- svelte-ignore a11y_no_static_element_interactions -->
   <header onpointerdown={onheaderdown}>
     <button class="channel" onclick={openChannelCard} onpointerenter={() => (hoverAt = Date.now())} use:tooltip={channelTip}>{name ?? login}</button>
+    <!-- V110-B3 Outside .modes (which clips): never cut; a dot when the chat is narrow. -->
+    {#if recording}
+      <span class="mode rec" role="img" aria-label="Recording this chat" use:tooltip={'Recording this chat'}><span class="rec-dot"></span><span class="rec-t">REC</span></span>
+    {/if}
     <div class="modes">
-      {#if recording}<span class="mode rec" use:tooltip={'Recording this chat'}>REC</span>{/if}
       {#if filters.length}<span class="mode" use:tooltip={{ label: 'Shown through filters', hint: 'Change them in ⋯ → Filters.' }}>Filtered</span>{/if}
       {#each modes as m (m.label)}
         <span class="mode room" use:tooltip={{ label: m.label, hint: m.hint }}>{m.label}</span>
@@ -678,7 +681,6 @@
      clip before the name is cut; only a very long name still gives way (…). */
   .channel {
     flex: 0 1 auto;
-    flex-shrink: 0;
     max-width: 55%;
     min-width: 3ch;
     overflow: hidden;
@@ -757,8 +759,30 @@
     }
   }
   .mode.rec {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
     color: var(--red);
     border-color: var(--red);
+  }
+  .rec-dot {
+    display: none;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--red);
+  }
+  /* V110-B3 The name gives way first; the chip is a dot from here down. */
+  @container chat (max-width: 360px) {
+    .mode.rec {
+      padding: 4px;
+    }
+    .rec-t {
+      display: none;
+    }
+    .rec-dot {
+      display: block;
+    }
   }
   .banners {
     flex: none;

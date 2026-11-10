@@ -1,8 +1,9 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 
 import { pictureScale, type Scale } from '../../lib/scale.ts';
-import { badgeSrc, cheerImg, cheerTier, emoteImg, emoteLarge } from './urls.ts';
+import { badgeLarge, badgeSet, badgeSrc,cheerImg, cheerTier, emoteImg, emoteLarge } from './urls.ts';
 
 const cheer = {
   prefix: 'Cheer',
@@ -40,6 +41,19 @@ test('one url per picture, from the screen density (V105-08)', () => {
   assert.ok(cheerImg(cheer, cheerTier(cheer, 150)!, 'dark', 2).src.endsWith('/2.gif'));
   const b = { image1x: 'a', image2x: 'b', image4x: 'c' };
   assert.deepEqual([1, 2, 4].map((s) => badgeSrc(b, s as Scale)), ['a', 'b', 'c']);
+});
+
+test('badges give a 1x/2x/4x srcset and the preview takes the largest (V110-B1)', () => {
+  const b = { image1x: 'a', image2x: 'b', image4x: 'c' };
+  assert.equal(badgeSet(b), 'a 1x, b 2x, c 4x');
+  assert.equal(badgeLarge(b), 'c');
+  // A badge with one picture for every size has nothing to choose from.
+  assert.equal(badgeSet({ image1x: 'a', image2x: 'a', image4x: 'a' }), undefined);
+  assert.equal(badgeSet({ image1x: 'a', image2x: '', image4x: 'c' }), 'a 1x, c 4x');
+  assert.equal(badgeLarge({ image1x: 'a', image2x: 'b', image4x: '' }), 'b');
+  const src = readFileSync(new URL('./Badges.svelte', import.meta.url), 'utf8');
+  assert.ok(!src.includes('data-tip-img={b.image4x}'));
+  assert.ok((src.match(/srcset=/g) ?? []).length >= 2);
 });
 
 test('still frames for moving emotes', () => {

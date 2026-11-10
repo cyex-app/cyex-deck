@@ -21,6 +21,8 @@
   import { rewound } from '../player/rewound.svelte';
   import StoryViewer from '../player/StoryViewer.svelte';
   import VodPlayer from '../player/VodPlayer.svelte';
+  import { headerHidden } from '../tabs/theatre';
+  import { theatre } from '../tabs/theatre.svelte';
   import { tabs } from '../tabs/tabs.svelte';
   import AboutPage from './AboutPage.svelte';
   import ClipsPage from './ClipsPage.svelte';
@@ -120,7 +122,7 @@
 </script>
 
 <section class="side">
-  {#if !bare}
+  {#if !bare && !headerHidden(theatre.tile, tile.id, !actions)}
     <StreamHeader {tile} {info} {page} onpage={go} onstories={() => (shared.stories = true)} {actions} {onheaderdown} />
   {/if}
   {#if onbringchat && !bare}

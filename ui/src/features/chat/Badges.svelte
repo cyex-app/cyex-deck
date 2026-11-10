@@ -17,7 +17,7 @@
   import { saved } from './saved';
   import { subHint } from './subTier';
   import type { BadgeRef } from './sharedBadges';
-  import { badgeSrc } from './urls';
+  import { badgeLarge, badgeSet, badgeSrc } from './urls';
 
   type Ref = BadgeRef;
 
@@ -103,9 +103,10 @@
     class:tile={!!b.color}
     style:background-color={b.color}
     src={still && b.still ? b.still : badgeSrc(b, density.scale)}
+    srcset={still && b.still ? undefined : badgeSet(b)}
     alt={b.title}
     data-tip={b.title}
-    data-tip-img={b.image4x}
+    data-tip-img={badgeLarge(b)}
     loading="lazy"
     decoding="async"
   />
@@ -121,14 +122,15 @@
       {@const b = ref.room ? catalogs.sourceBadge(ref.room, ref.set, ref.version) : catalogs.badge(channel, ref.set, ref.version)}
       {@const copy = ref.room ? undefined : saved(`badge:${ref.set}/${ref.version}`)}
       {#if copy}
-        <img class="badge pale-edge" src={copy} alt={b?.title ?? ref.set} data-tip={b?.title ?? ref.set} data-tip-img={b?.image4x} />
+        <img class="badge pale-edge" src={copy} alt={b?.title ?? ref.set} data-tip={b?.title ?? ref.set} data-tip-img={b ? badgeLarge(b) : undefined} />
       {:else if b}
         <img
           class="badge pale-edge"
           src={badgeSrc(b, density.scale)}
+          srcset={badgeSet(b)}
           alt={b.title}
           data-tip={b.title}
-          data-tip-img={b.image4x}
+          data-tip-img={badgeLarge(b)}
           data-hint={hint(ref, b)}
           loading="lazy"
           decoding="async"

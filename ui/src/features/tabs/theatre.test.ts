@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 
-import { escLeaves, stillHere, theatreTarget, toggled } from './theatre.ts';
+import { escLeaves, headerHidden,stillHere, theatreTarget, toggled } from './theatre.ts';
 
 const tiles = [
   { id: 'a', player: false },
@@ -41,4 +42,13 @@ test('V108-N14 Esc in fullscreen, in a menu or right after fullscreen ended stay
   assert.equal(escLeaves({ ...esc, taken: true }, 'b'), false);
   assert.equal(escLeaves({ ...esc, sinceFullscreen: 50 }, 'b'), false);
   assert.equal(escLeaves({ ...esc, composing: true }, 'b'), false);
+});
+
+test('V110-B2 the stream page header hides for the tile in theatre, unless it carries the buttons', () => {
+  assert.equal(headerHidden('a', 'a', true), true);
+  assert.equal(headerHidden('a', 'b', true), false);
+  assert.equal(headerHidden(null, 'a', true), false);
+  assert.equal(headerHidden('a', 'a', false), false);
+  const src = readFileSync(new URL('../channel/StreamSide.svelte', import.meta.url), 'utf8');
+  assert.match(src, /headerHidden\(theatre\.tile, tile\.id, !actions\)/);
 });

@@ -31,6 +31,25 @@ export function badgeSrc(b: { image1x: string; image2x: string; image4x: string 
   return scale === 1 ? b.image1x : scale === 2 ? b.image2x : b.image4x;
 }
 
+/** V110-B1 A badge's 1x/2x/4x pictures as a srcset: the screen picks the one that matches size
+ *  times density (also per screen, and fractional ones like 150 %), and a missing size is skipped. */
+export function badgeSet(b: { image1x: string; image2x: string; image4x: string }): string | undefined {
+  const parts: string[] = [];
+  const seen = new Set<string>();
+  for (const [url, d] of [[b.image1x, '1x'], [b.image2x, '2x'], [b.image4x, '4x']] as const) {
+    if (!url || seen.has(url)) continue;
+    seen.add(url);
+    parts.push(`${url} ${d}`);
+  }
+  // One picture only: no descriptor gain, the plain src does it.
+  return parts.length > 1 ? parts.join(', ') : undefined;
+}
+
+/** V110-B1 The picture for a badge's hover preview (112 px tall): the largest one there is. */
+export function badgeLarge(b: { image1x: string; image2x: string; image4x: string }): string {
+  return b.image4x || b.image2x || b.image1x;
+}
+
 /** Twitch's two `<3` hearts: their 3.0 picture is another drawing (an outlined heart, not the
  *  pixel heart of 1.0 and 2.0), so they stop at 2.0 and look the same on every screen (user). */
 const TWITCH_STOP_AT_2 = new Set(['9', '555555584']);

@@ -11,7 +11,7 @@
   import { density } from '../../lib/density.svelte';
   import { settings } from '../../lib/settings.svelte';
   import Badges from '../chat/Badges.svelte';
-  import { badgeSrc } from '../chat/urls';
+  import { badgeSet, badgeSrc } from '../chat/urls';
   import { cardBadges } from './badgeLine';
 
   interface Props {
@@ -65,6 +65,7 @@
       <img
         class="badge pale-edge"
         src={badgeSrc(b, density.scale)}
+        srcset={badgeSet(b)}
         alt={b.title}
         loading="lazy"
         decoding="async"

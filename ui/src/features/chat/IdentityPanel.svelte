@@ -25,7 +25,7 @@
   import { toast } from '../../lib/toast.svelte';
   import { DEFAULT_ACCENT } from '../settings/themes';
   import { gridMove, hexColor, NAMED, namedColor, STYLE_NAME } from './identity';
-  import { emoteImg } from './urls';
+  import { badgeSet, emoteImg } from './urls';
 
   interface Props {
     account: string;
@@ -193,7 +193,7 @@
         aria-label={b.title}
         onclick={() => wear(channel, b)}
       >
-        <img class="pale-edge" src={b.image2x} alt="" />
+        <img class="pale-edge" src={b.image2x} srcset={badgeSet(b)} alt="" />
       </button>
     {/each}
   </div>
@@ -205,7 +205,7 @@
 
 <div class="panel" aria-busy={busy}>
   <header class="head">
-    {#if shown}<img class="pale-edge" src={shown.image2x} alt="" />{/if}
+    {#if shown}<img class="pale-edge" src={shown.image2x} srcset={badgeSet(shown)} alt="" />{/if}
     <b class="name" style:color={me?.color ?? 'var(--text)'}>{display}</b>
     <span class="where" title={login}>in {login}</span>
   </header>
