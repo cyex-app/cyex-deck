@@ -14,7 +14,7 @@
   import { tabsIpc } from '../../ipc/tabs';
   import { formatNumber } from '../../lib/format';
   import { errorText } from '../../lib/errors';
-  import { enterTarget, loginFromLink, manyNames, matchChannels } from './channelMatch';
+  import { enterMayTakeFirst, enterTarget, loginFromLink, manyNames, matchChannels } from './channelMatch';
 
   interface Props {
     text: string;
@@ -30,12 +30,17 @@
   let status = $state<'idle' | 'looking' | 'done' | 'error'>('idle');
   let error = $state('');
   let asked = '';
+  /** V110-N5 R2-2 An arrow key moved to a hit. */
+  let arrowed = false;
+  let refused = $state(false);
   let pending: ReturnType<typeof setTimeout> | undefined;
 
   // Looks up what's typed; picking a result doesn't start a new lookup.
   $effect(() => {
     const input = text.trim();
     return untrack(() => {
+      arrowed = false;
+      refused = false;
       if (!input) {
         results = [];
         picked = null;
@@ -108,6 +113,11 @@
         if (text.trim() !== typed) return;
         t = enterTarget(text, asked, status, results, picked);
       }
+      // V110-N5 R2-2 Text that can't be a login doesn't take the first fuzzy hit; a hit picked by arrow or exact match does.
+      if (t && t !== 'wait' && !enterMayTakeFirst(text, arrowed, t)) {
+        refused = true;
+        return;
+      }
       if (t && t !== 'wait') {
         picked = t;
         onsubmit();
@@ -117,6 +127,8 @@
       const at = results.findIndex((c) => c.id === picked?.id);
       const step = e.key === 'ArrowDown' ? 1 : -1;
       picked = results[(at + step + results.length) % results.length];
+      arrowed = true;
+      refused = false;
     }
   }
 
@@ -139,7 +151,8 @@
 {:else if status === 'done' && !results.length}
   <p class="note bad">{manyNames(text) ? 'One channel at a time.' : 'No channel by that name or id.'}</p>
 {:else if shown.length}
-  {#if shown.length > 1}<p class="note">Pick one. Best match first.</p>{/if}
+  {#if refused}<p class="note bad">No channel called that. Pick one below.</p>
+  {:else if shown.length > 1}<p class="note">Pick one. Best match first.</p>{/if}
   <div class="results" role="radiogroup" aria-label="Channel">
     {#each shown as c (c.id)}
       <button
@@ -147,7 +160,7 @@
         class:on={picked?.id === c.id}
         role="radio"
         aria-checked={picked?.id === c.id}
-        onclick={() => (picked = c)}
+        onclick={() => ((picked = c), (arrowed = true), (refused = false))}
       >
         <Avatar src={c.avatar} name={c.name} size={32} />
         <span class="who">

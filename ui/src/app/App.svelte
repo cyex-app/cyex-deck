@@ -137,6 +137,8 @@
   const theatreBar = new TheatreBar();
   // V110-B10 The taskbar shows at the bottom edge; a window that stops being fullscreen leaves theatre.
   const theatreTaskbar = new TheatreTaskbar();
+  // V110-N5 R2-1 After a reload that caught the window fullscreen (theatre or a player held it), nobody here wants it: give it back.
+  if (currentWindow.isMain) void windowFullscreen.releaseStray();
   $effect(() => {
     windowFullscreen.theatre(theatreOn);
     if (!theatreOn) return;

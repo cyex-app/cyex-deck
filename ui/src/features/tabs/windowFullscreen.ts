@@ -5,7 +5,7 @@
 import { getCurrentWindow } from '@tauri-apps/api/window';
 
 import { windowsIpc } from '../../ipc/windows';
-import { fullscreenWatch, restorePlan, UNSEEN, wantFullscreen, type WindowBefore } from './theatreWindow';
+import { bootPlan, fullscreenWatch, restorePlan, UNSEEN, wantFullscreen, type WindowBefore } from './theatreWindow';
 
 let player = false;
 let theatre = false;
@@ -70,6 +70,19 @@ export const windowFullscreen = {
   taskbarRoomOff(): void {
     roomOff = true;
     sync();
+  },
+  /** V110-N5 R2-1 The window is fullscreen and nobody here wants it (a reload while theatre or a
+   *  player held it): give the taskbar room back and leave fullscreen, in the queue. Resolves
+   *  true when it did. At app start and from Maximize / Restore. */
+  async releaseStray(): Promise<boolean> {
+    try {
+      if (bootPlan(await getCurrentWindow().isFullscreen(), theatre, player) !== 'leave') return false;
+    } catch {
+      return false;
+    }
+    roomOff = true;
+    sync();
+    return true;
   },
   /** Theatre began or ended. */
   theatre(on: boolean): void {

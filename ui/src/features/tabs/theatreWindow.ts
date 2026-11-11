@@ -47,3 +47,9 @@ export function sizeButton(theatre: boolean, maximized: boolean): { icon: 'resto
   if (theatre) return { icon: 'restore', label: 'Restore', leavesTheatre: true };
   return maximized ? { icon: 'restore', label: 'Restore', leavesTheatre: false } : { icon: 'maximize', label: 'Maximize', leavesTheatre: false };
 }
+
+/** V110-N5 R2-1 A page that starts (or reloads) while the window is fullscreen: if neither theatre nor
+ *  a player wants it, the window is left over from the page before and goes back. */
+export function bootPlan(isFullscreen: boolean, wantsTheatre: boolean, wantsPlayer: boolean): 'leave' | null {
+  return isFullscreen && !wantFullscreen(wantsPlayer, wantsTheatre) ? 'leave' : null;
+}

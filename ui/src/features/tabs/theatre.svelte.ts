@@ -11,6 +11,8 @@ class Theatre {
   chatHidden = $state(false);
 
   enter(tile: string): void {
+    // V110-N5 R2-4 A focused text field (the chat box) would keep the first Esc: let go of it.
+    if (typeof document !== 'undefined' && document.activeElement?.matches?.('input, textarea, select, [contenteditable]')) (document.activeElement as HTMLElement).blur();
     this.tile = tile;
     this.chatHidden = false;
   }

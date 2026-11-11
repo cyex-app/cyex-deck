@@ -3,6 +3,7 @@
 
 import type { TokenKind } from '../../../ipc/bindings/TokenKind';
 import type { MenuEntry } from '../../menuItems.ts';
+import { filtersEntry } from '../filtersRow.ts';
 import { group, item, type MenuDef, SEP } from '../types.ts';
 import { lift, noop, row, slot, type Who } from './make.ts';
 import { TILE_ITEMS, type Act, type TileCtx, tileSample } from './tile.ts';
@@ -109,7 +110,7 @@ export function moreSample(who: Who): MoreCtx {
     overlay: { run: noop },
     translating: false,
     muted: false,
-    filters: { label: 'Filters', icon: 'filter', items: [{ label: 'Make filters in Settings → Filters', disabled: true }] },
+    filters: filtersEntry([], [], noop),
     popOut: { run: noop },
     entries: [],
     plugins: [],

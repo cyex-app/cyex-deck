@@ -82,3 +82,14 @@ export function couldBeChannel(typed: string): boolean {
 export function manyNames(typed: string): boolean {
   return typed.split(/[\s,]+/).filter(Boolean).length > 1;
 }
+
+/** V110-N5 R2-2 Whether Enter may take the first search hit for typed text: only when the text (or the
+ *  login of a pasted twitch.tv link) has the shape of a Twitch login, or an arrow already chose a hit. */
+export function enterMayTakeFirst(typed: string, arrowed: boolean, hit?: { login: string; name?: string }): boolean {
+  if (arrowed) return true;
+  const t = typed.trim();
+  // A hit whose login or name is exactly what was typed (a localized display name too) always counts.
+  const bare = t.replace(/^[@#]+/, '').toLocaleLowerCase();
+  if (hit && [hit.login, hit.name].some((x) => !!x && x.toLocaleLowerCase() === bare)) return true;
+  return /^[A-Za-z0-9_]{1,25}$/.test(loginFromLink(t) ?? t.replace(/^[@#]+/, ''));
+}

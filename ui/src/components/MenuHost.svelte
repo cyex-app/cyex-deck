@@ -18,6 +18,7 @@
   import Icon from './Icon.svelte';
   import './menu.css';
   import { back, closeMenu, menu, menuDisarm, menuHold, menuMoveTo, menuOpener, menuOwns, pick, showSub, trim, type MenuItem } from './menu.svelte';
+  import { menuMoveTarget } from './menus/keys.ts';
   import { createIntent, headingToward, type Pt } from './menus/intent.ts';
   import { tooltip } from './tooltip.svelte';
   import { matchTyped } from './select.ts';
@@ -85,12 +86,10 @@
   }
 
   /** Moves the keyboard focus through the items that can be picked. */
-  function move(step: number) {
+  function move(key: string) {
     const items = [...(panels[kd(activeDepth())]?.querySelectorAll<HTMLElement>('.cx-item:not(:disabled), .cx-menu-field input') ?? [])];
     if (!items.length) return;
-    const at = items.indexOf(document.activeElement as HTMLElement);
-    const next = at < 0 ? (step > 0 ? 0 : items.length - 1) : Math.min(Math.max(at + step, 0), items.length - 1);
-    items[next].focus();
+    items[menuMoveTarget(items.indexOf(document.activeElement as HTMLElement), items.length, key)]?.focus();
   }
 
   /** V108-F55 Type-ahead: letters jump to the next item that starts with them. */
@@ -234,8 +233,8 @@
     };
     const onKey = (e: KeyboardEvent) => {
       const typing = document.activeElement instanceof HTMLInputElement;
-      const steps: Record<string, number> = typing ? { ArrowDown: 1, ArrowUp: -1 } : { ArrowDown: 1, ArrowUp: -1, Home: -999, End: 999 };
-      if (e.key in steps) move(steps[e.key]);
+      const keys = typing ? ['ArrowDown', 'ArrowUp'] : ['ArrowDown', 'ArrowUp', 'Home', 'End'];
+      if (keys.includes(e.key)) move(e.key);
       else if (typing) return;
       // V108-F55 Tab leaves the menu: it closes and the focus goes back to what opened it.
       else if (e.key === 'Tab') closeMenu();

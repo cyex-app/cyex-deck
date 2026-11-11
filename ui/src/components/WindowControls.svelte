@@ -5,6 +5,7 @@
   import { currentWindow } from '../lib/window.svelte';
   import IconButton from './IconButton.svelte';
   import { PIN_LABEL, pinHint } from './pinHint';
+  import { windowFullscreen } from '../features/tabs/windowFullscreen';
   import { sizeButton } from '../features/tabs/theatreWindow';
 
   interface Props {
@@ -17,6 +18,10 @@
   }
 
   let { overlay = false, shown = false, theatre = false, onleavetheatre }: Props = $props();
+  // V110-N5 R2-1 A fullscreen nobody wants (left over from a reload) ends first; else toggle as usual.
+  async function sizeClick() {
+    if (!(await windowFullscreen.releaseStray())) await currentWindow.toggleMaximize();
+  }
   const size = $derived(sizeButton(theatre, currentWindow.maximized));
 </script>
 
@@ -37,7 +42,7 @@
       icon={size.icon}
       label={size.label}
       size={14}
-      onclick={size.leavesTheatre ? () => onleavetheatre?.() : currentWindow.toggleMaximize}
+      onclick={size.leavesTheatre ? () => onleavetheatre?.() : sizeClick}
     />
   {/if}
   <IconButton chrome danger icon="x" label="Close" onclick={currentWindow.close} />

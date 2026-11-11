@@ -44,6 +44,7 @@
   import { editDone } from '../emotes/edit/run'; // I106-3
   import { catalogs } from './catalog.svelte';
   import ChatInput from './ChatInput.svelte';
+  import { filtersEntry } from '../../components/menus/filtersRow';
   import CosmeticsPopup from '../cosmetics/CosmeticsPopup.svelte';
   import { rolesRoute } from './roleList';
   import { popOut } from '../../app/panels';
@@ -313,15 +314,7 @@
       overlay: onoverlay ? { run: onoverlay } : null,
       translating,
       muted,
-      filters: onfilters
-        ? {
-            label: 'Filters',
-            icon: 'filter',
-            items: defs.length
-              ? defs.map((d) => ({ label: d.name, checked: filters.includes(d.id), run: () => flip(d.id) }))
-              : [{ label: 'Make filters in Settings → Filters', disabled: true }],
-          }
-        : null,
+      filters: onfilters ? filtersEntry(defs, filters, flip) : null,
       popOut: onpopout ? { run: onpopout } : null,
       // S1 Your entries.
       entries: own.length ? toItems(own, (cmd) => runEntry(room.view, cmd, ctx, onaction)) : [],

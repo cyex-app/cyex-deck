@@ -16,6 +16,7 @@
   import ConfirmButton from '../../../components/ConfirmButton.svelte';
   import Checkbox from '../../../components/Checkbox.svelte';
   import { backupText } from '../backupLine';
+  import { putBackText } from '../putBack';
   import type { BackupLine, BrokenFile, Imported, ImportReview } from '../../../ipc/settings';
   import { brokenRestoredText, brokenRow } from '../brokenFiles';
 
@@ -150,7 +151,8 @@
           const p = done.partitions;
           // A2-3 A refused patch is a toast, not an unhandled rejection.
           if (on && p.includes('commands') && (await attempt(() => settings.patch('commands', { automationsOn: true }).then(() => true))) === undefined) return;
-          toast.success(on || !p.includes('commands') ? 'Put back.' : 'Put back. Automations are off until you switch them on.');
+          // V110-N5 R2-3 The note only when they were on and the undo left them off.
+          toast.success(putBackText(on, settings.v.commands.automationsOn));
         }),
     };
   }
