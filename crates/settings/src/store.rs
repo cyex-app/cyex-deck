@@ -137,7 +137,11 @@ impl Store {
             // V110-A44 A cut-off tabs file keeps every complete tab before the backup is tried.
             let rescued = match (&read, &salvaged) {
                 (Err(_), None) if p == Partition::Tabs => {
-                    fs::read_to_string(&path).ok().and_then(|text| rescue::tabs(&text))
+                    // V110-N1 Bytes, not a string: a cut inside é or an emoji still rescues.
+                    fs::read(&path).ok().and_then(|bytes| {
+                        let bytes = bytes.strip_prefix(&[0xEF, 0xBB, 0xBF]).unwrap_or(&bytes);
+                        rescue::tabs(&String::from_utf8_lossy(bytes))
+                    })
                 }
                 _ => None,
             };
@@ -421,6 +425,10 @@ impl Store {
                 }
                 checked.push((p, value));
             }
+        }
+        // V110-N1 A partition blocked at start is never saved: say so instead of reporting success.
+        if checked.iter().any(|(p, _)| self.blocked.contains(p)) {
+            return Err(Error::Blocked);
         }
         for (p, value) in &checked {
             self.set(*p, value.clone())?;

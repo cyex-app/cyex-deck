@@ -4,7 +4,10 @@
 type RecordingEvent = { recording: boolean; reason?: string | null };
 
 export function recordingStopText(e: RecordingEvent): string | null {
-  return !e.recording && e.reason === 'size' ? 'Stopped at 5 GB.' : null;
+  if (e.recording) return null;
+  // V110-N1 A write error (disk full, drive removed) ends the recording (Rust sends reason "write").
+  if (e.reason === 'write') return 'Recording stopped: the file can’t be written.';
+  return e.reason === 'size' ? 'Stopped at 5 GB.' : null;
 }
 
 /** The warning past 1 GB: still recording, with a Stop action in the toast. */

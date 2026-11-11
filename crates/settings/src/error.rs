@@ -21,6 +21,8 @@ pub enum Error {
     TooBig,
     #[error("that file can’t be read, so nothing was changed")]
     Unreadable,
+    #[error("That settings file couldn’t be opened when the app started, so it can’t be changed until you restart.")]
+    Blocked,
     #[error("there’s no backup from {0}")]
     NoBackup(String),
 }

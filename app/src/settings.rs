@@ -75,6 +75,8 @@ impl SaveWatch {
     /// partitions to tell the user about now.
     fn after_flush(&mut self, still_dirty: &[Partition]) -> Vec<Partition> {
         self.streak.retain(|p, _| still_dirty.contains(p));
+        // V110-N1 A partition that saved again may be told about next time it fails.
+        self.told.retain(|p| still_dirty.contains(p));
         let mut now = Vec::new();
         for &p in still_dirty {
             let n = self.streak.entry(p).or_insert(0);
@@ -507,6 +509,20 @@ mod tests {
         assert!(w.after_flush(&[Partition::Tabs]).is_empty());
         assert!(w.after_flush(&both).is_empty());
         assert!(w.after_flush(&[]).is_empty());
+    }
+
+    /// V110-N1 (A1-6) A second failure episode after a good save is told again.
+    #[test]
+    fn v110_n1_save_watch_tells_again_after_a_good_save() {
+        let mut w = SaveWatch::default();
+        let chat = [Partition::Chat];
+        w.after_flush(&chat);
+        w.after_flush(&chat);
+        assert_eq!(w.after_flush(&chat), chat);
+        assert!(w.after_flush(&[]).is_empty());
+        w.after_flush(&chat);
+        w.after_flush(&chat);
+        assert_eq!(w.after_flush(&chat), chat);
     }
 
     #[test]

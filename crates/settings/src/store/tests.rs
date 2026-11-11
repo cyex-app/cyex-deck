@@ -1149,6 +1149,42 @@ fn a_cut_off_tabs_file_keeps_its_complete_tabs() {
     assert!(store.is_dirty());
 }
 
+/// V110-N1 (A1-1) A tabs file cut inside a two-byte character still keeps its complete tabs.
+#[test]
+fn a_tabs_file_cut_inside_a_character_is_rescued() {
+    use crate::schema::Tabs;
+    let tmp = TempDir::new("store-rescue-tabs-utf8");
+    let clock = Arc::new(FakeClock::at(day(9)));
+    let tab = |id: &str, name: &str| json!({"id": id, "columns": [{"size": 1.0, "tiles": [{"id": format!("t{id}"), "channel": {"id": "1", "login": "a", "name": name}}]}]});
+    let full = serde_json::to_string_pretty(&json!({"tabs": [tab("a", "A"), tab("b", "Café")]})).unwrap();
+    let bytes = full.as_bytes();
+    let at = full.find("é").unwrap() + 1;
+    fs::write(tmp.path().join("tabs.json"), &bytes[..at]).unwrap();
+    let (store, report) = open(tmp.path(), &clock);
+    assert_eq!(report.rescued, [(Partition::Tabs, 1)]);
+    let tabs: Tabs = store.read(Partition::Tabs);
+    assert_eq!(tabs.tabs.iter().map(|t| t.id.as_str()).collect::<Vec<_>>(), ["a"]);
+}
+
+/// V110-N1 (A1-2) Import and restore_broken on a partition blocked at start fail with the
+/// restart sentence and change nothing.
+#[test]
+fn import_and_restore_broken_refuse_a_blocked_partition() {
+    let tmp = TempDir::new("store-blocked-apply");
+    let clock = Arc::new(FakeClock::at(day(9)));
+    fs::create_dir(tmp.path().join(Partition::Chat.file_name())).unwrap();
+    fs::write(tmp.path().join("chat.broken-20261001-090000.json"), r#"{"alternateLines": true}"#).unwrap();
+    let (mut store, report) = open(tmp.path(), &clock);
+    assert_eq!(report.blocked, vec![Partition::Chat]);
+    let before: Chat = store.read(Partition::Chat);
+    let bundle = Bundle::new(BTreeMap::from([("chat".to_owned(), json!({"alternateLines": true}))]), clock.now());
+    let err = store.import(bundle).unwrap_err();
+    assert!(matches!(err, Error::Blocked));
+    assert_eq!(err.to_string(), "That settings file couldn’t be opened when the app started, so it can’t be changed until you restart.");
+    assert!(matches!(store.restore_broken("chat.broken-20261001-090000.json"), Err(Error::Blocked)));
+    assert_eq!(store.read::<Chat>(Partition::Chat), before);
+}
+
 /// V110-A44 `.broken-*` files older than 30 days go at start; newer ones stay.
 #[test]
 fn broken_files_older_than_thirty_days_are_removed_at_start() {

@@ -3,6 +3,8 @@
 //! don't come back in the same second), later waits double up to `cap` with up to a quarter
 //! more at random.
 
+use std::collections::hash_map::RandomState;
+use std::hash::{BuildHasher, Hasher};
 use std::time::Duration;
 
 /// How long to wait before the next connection try.
@@ -20,9 +22,9 @@ impl Backoff {
 
     /// The wait after `prev` (zero: nothing failed yet), with a fresh random part.
     pub fn next(&self, prev: Duration) -> Duration {
-        let r = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map_or(0, |d| d.subsec_millis() % 1000);
+        // V110-N1 Not the clock: clients that dropped in the same millisecond got the same wait.
+        // `RandomState` keys differ per call.
+        let r = (RandomState::new().build_hasher().finish() % 1000) as u32;
         self.next_with(prev, r)
     }
 
@@ -55,5 +57,13 @@ mod tests {
         assert!(b.next_with(S(600), 999) < S(75));
         assert_eq!(b.next_with(Duration::MAX, 0), S(60), "no overflow");
         assert!((1000..3000).contains(&b.next(Duration::ZERO).as_millis()));
+    }
+
+    /// V110-N1 (A1-7) Calls in the same instant don't all get the same wait.
+    #[test]
+    fn v110_n1_the_random_part_does_not_follow_the_clock() {
+        let b = Backoff::new(S(1), S(2), S(60));
+        let waits: std::collections::BTreeSet<_> = (0..50).map(|_| b.next(Duration::ZERO)).collect();
+        assert!(waits.len() > 10, "{}", waits.len());
     }
 }

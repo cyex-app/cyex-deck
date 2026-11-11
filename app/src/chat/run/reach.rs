@@ -111,7 +111,8 @@ fn pick(addrs: &[SocketAddr]) -> Result<SocketAddr, String> {
     if addrs.iter().any(|a| !public(a.ip())) {
         return Err(REFUSED.into());
     }
-    addrs.first().copied().ok_or_else(|| "That address doesn’t exist.".to_owned())
+    // V110-N1 An IPv4 address first: a host with a dead IPv6 route still connects.
+    addrs.iter().find(|a| a.is_ipv4()).or(addrs.first()).copied().ok_or_else(|| "That address doesn’t exist.".to_owned())
 }
 
 /// Where a redirect leads, and whether your own headers go along: only to the same host,
@@ -131,6 +132,15 @@ mod tests {
 
     fn url(s: &str) -> Url {
         Url::parse(s).unwrap()
+    }
+
+    #[test]
+    fn v110_n1_pick_prefers_ipv4_and_still_refuses_private() {
+        let a = |s: &str| s.parse::<SocketAddr>().unwrap();
+        let both = [a("[2606:4700::1111]:443"), a("1.1.1.1:443")];
+        assert_eq!(pick(&both).unwrap(), a("1.1.1.1:443"));
+        assert_eq!(pick(&both[..1]).unwrap(), a("[2606:4700::1111]:443"));
+        assert!(pick(&[a("[2606:4700::1111]:443"), a("10.0.0.1:443")]).is_err());
     }
 
     #[test]

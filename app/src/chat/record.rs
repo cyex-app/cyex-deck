@@ -184,6 +184,7 @@ pub fn events(app: &AppHandle, key: &RoomKey, events: &[RoomEvent]) {
     let mut wanted: Vec<(String, String, PathBuf, String)> = Vec::new();
     let mut full = false;
     let mut warn = false;
+    let mut failed = false;
     {
         let recorder = app.state::<Recorder>();
         let mut live = recorder.live.lock().unwrap_or_else(|p| p.into_inner());
@@ -210,8 +211,11 @@ pub fn events(app: &AppHandle, key: &RoomKey, events: &[RoomEvent]) {
                 }
             }
             let line = json!({ "t": t, "e": e }).to_string();
-            let _ = writeln!(rec.out, "{line}");
-            rec.bytes += line.len() as u64 + 1;
+            // V110-N1 A write error (disk full, drive gone) ends the recording; bytes count only what was written.
+            if !write_line(&mut rec.out, &mut rec.bytes, &line) {
+                failed = true;
+                break;
+            }
             if over_cap(rec.bytes) {
                 full = true;
                 break;
@@ -222,9 +226,16 @@ pub fn events(app: &AppHandle, key: &RoomKey, events: &[RoomEvent]) {
         }
         // Every 50 messages; a batch of only edits or deletes on a round count writes nothing.
         if rec.meta.messages / 50 != before / 50 {
-            let _ = rec.out.flush();
+            if rec.out.flush().is_err() {
+                failed = true;
+            }
             let _ = write_meta(&rec.dir, &rec.meta);
         }
+    }
+    if failed {
+        eprintln!("chat recording of {} stopped: events.jsonl can't be written", key.1);
+        stop_for(app, key, Some("write"));
+        return;
     }
     if full {
         // V110-F85 The UI hears it on the same event as any stop, with the reason.
@@ -240,6 +251,15 @@ pub fn events(app: &AppHandle, key: &RoomKey, events: &[RoomEvent]) {
         let app = app.clone();
         tauri::async_runtime::spawn(async move { save_asset(&app, &id, &k, &dir, &url).await });
     }
+}
+
+/// V110-N1 One line plus newline; `bytes` grows only when the write worked.
+fn write_line<W: Write>(out: &mut W, bytes: &mut u64, line: &str) -> bool {
+    if writeln!(out, "{line}").is_err() {
+        return false;
+    }
+    *bytes += line.len() as u64 + 1;
+    true
 }
 
 /// V110-A27 True once per recording, when its events file first passes the warning size.
@@ -263,7 +283,8 @@ fn claim_flush(pending: &mut HashSet<String>, id: &str) -> bool {
 
 fn write_assets(dir: &std::path::Path, map: &HashMap<String, String>) {
     if let Ok(text) = serde_json::to_string(map) {
-        let _ = fs::write(dir.join("assets.json"), text);
+        // V110-N1 Atomic: a cut-off assets.json would drop every picture of the replay.
+        let _ = cyex_settings::write_atomic(&dir.join("assets.json"), text.as_bytes());
     }
 }
 
@@ -321,6 +342,11 @@ fn emote_asset(provider: Provider, id: &str, animated: bool) -> (String, String)
 async fn save_asset(app: &AppHandle, id: &str, key: &str, dir: &std::path::Path, url: &str) {
     // V110-F85 A busy chat has many new emotes at once: four downloads at a time.
     let Ok(_slot) = DOWNLOADS.acquire().await else { return };
+    // V110-N1 The recording may have ended while this waited for a slot.
+    let live = app.state::<Recorder>().assets.lock().unwrap_or_else(|p| p.into_inner()).contains_key(id);
+    if !live {
+        return;
+    }
     let http = app.state::<crate::auth::Auth>().http.clone();
     let Ok(bytes) = http.get_bytes(url, MAX_ASSET).await else {
         return;
@@ -469,6 +495,26 @@ mod tests {
             "https://cdn.frankerfacez.com/emote/1/animated/2"
         );
         assert_eq!(sniff(b"GIF89a"), "gif");
+    }
+
+    /// V110-N1 (A1-3) A failing writer is reported and its bytes aren't counted.
+    #[test]
+    fn v110_n1_a_failed_write_is_not_counted() {
+        struct Broken;
+        impl Write for Broken {
+            fn write(&mut self, _: &[u8]) -> std::io::Result<usize> {
+                Err(std::io::Error::other("disk full"))
+            }
+            fn flush(&mut self) -> std::io::Result<()> {
+                Err(std::io::Error::other("disk full"))
+            }
+        }
+        let mut bytes = 0;
+        assert!(!write_line(&mut Broken, &mut bytes, "abc"));
+        assert_eq!(bytes, 0);
+        let mut ok = Vec::new();
+        assert!(write_line(&mut ok, &mut bytes, "abc"));
+        assert_eq!(bytes, 4);
     }
 
     #[test]

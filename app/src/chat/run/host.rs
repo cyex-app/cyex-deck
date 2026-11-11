@@ -33,6 +33,8 @@ async fn fetch(mut url: url::Url, mut headers: Vec<(String, String)>) -> Result<
             .user_agent(cyex_core::app::user_agent())
             .timeout(REQUEST_TIMEOUT)
             .redirect(reqwest::redirect::Policy::none())
+            // V110-N1 No system proxy: the pinned public address must decide where the connection goes.
+            .no_proxy()
             .resolve(url.host_str().unwrap_or_default(), addr)
             .build()
             .map_err(|e| e.to_string())?;
