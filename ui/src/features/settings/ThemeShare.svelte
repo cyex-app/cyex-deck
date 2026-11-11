@@ -69,6 +69,11 @@
 
   /** Copy code on a theme with a wallpaper file: asks before the picture goes up. */
   let asking = $state(false);
+  // A2-9 ThemeEditor doesn't remount this when another theme is picked: the question belongs to one theme.
+  $effect(() => {
+    void theme.id;
+    asking = false;
+  });
 
   function copyCode() {
     flush();
@@ -102,7 +107,7 @@
   {/if}
   {#if asking}
     <ConfirmChoices
-      ask="The wallpaper is on this PC. To put it in the code, it’s uploaded to cyex.app and the theme gets a link anyone with it can open."
+      ask="Your wallpaper is on this PC. To put it in the code, it’s uploaded to cyex.app, and anyone with the code can open it."
       choices={[
         { label: 'Upload and copy', variant: 'primary', run: () => void doCopy(true) },
         { label: 'Copy without wallpaper', run: () => void doCopy(false) },

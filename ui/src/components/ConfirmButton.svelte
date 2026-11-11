@@ -48,6 +48,8 @@
     {pressX}
     label={confirm}
     onconfirm={() => {
+      // N3-2 The bubble fades out for a moment; a second click in that time does nothing.
+      if (!armed) return;
       armed = false;
       // V110-F81 The bubble held focus and is gone now: back to the button, not the page body.
       anchor?.focus({ preventScroll: true });

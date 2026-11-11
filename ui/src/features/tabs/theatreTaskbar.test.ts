@@ -37,3 +37,12 @@ test('V110-B10 dipping back near the bottom restarts the 400 ms', () => {
   assert.equal(r.on, true);
   assert.equal(roomStep(r, 200, 750).on, false);
 });
+
+test('A2-7 only a move into another band needs a step', async () => {
+  const { pointerChanged } = await import('./theatreTaskbar.ts');
+  assert.equal(pointerChanged(300, 400), false);
+  assert.equal(pointerChanged(30, 60), false);
+  assert.equal(pointerChanged(300, 30), true);
+  assert.equal(pointerChanged(30, 1), true);
+  assert.equal(pointerChanged(null, 400), true);
+});

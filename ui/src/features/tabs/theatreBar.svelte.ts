@@ -1,7 +1,7 @@
 // V110-B7 The hidden title bar of theatre: shown while the pointer is in the top 4 px or on
 // the bar, or focus is in it; hidden 600 ms after. One instance per window.
 
-import { HIDDEN, hideIn, type Reveal, revealStep } from './theatreBar';
+import { HIDDEN, hideIn, pointerNear, type Reveal, revealStep } from './theatreBar';
 
 const BAR = '.chrome, .controls';
 
@@ -11,6 +11,7 @@ export class TheatreBar {
   private y: number | null = null;
   private over = false;
   private timer = 0;
+  private near = false;
 
   private step(): void {
     clearTimeout(this.timer);
@@ -18,6 +19,7 @@ export class TheatreBar {
     const a = document.activeElement;
     // Keyboard focus only: a clicked button keeps focus without asking the bar to stay.
     const focusIn = !!a?.closest(BAR) && a.matches(':focus-visible');
+    this.near = pointerNear(this.y, this.over);
     this.reveal = revealStep(this.reveal, { y: this.y, overBar: this.over, focusIn, now });
     this.shown = this.reveal.shown;
     const wait = hideIn(this.reveal, now);
@@ -29,6 +31,8 @@ export class TheatreBar {
     const move = (e: PointerEvent) => {
       this.y = e.clientY;
       this.over = !!(e.target as Element | null)?.closest?.(BAR);
+      // A2-7 Same answer as last time: the hide timer, if any, is already running.
+      if (pointerNear(this.y, this.over) === this.near) return;
       this.step();
     };
     const leave = () => {
@@ -50,6 +54,7 @@ export class TheatreBar {
       this.reveal = HIDDEN;
       this.y = null;
       this.over = false;
+      this.near = false;
       this.shown = false;
     };
   }

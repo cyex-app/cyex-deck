@@ -99,6 +99,10 @@
     clearTimeout(restTimer);
     resting = false;
   }
+  // A2-4 The button went away (theatre ended): it starts shown the next time.
+  $effect(() => {
+    if (!chatButton) still();
+  });
   onDestroy(() => clearTimeout(restTimer));
 
   function go(p: Page) {

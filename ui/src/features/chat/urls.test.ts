@@ -90,3 +90,10 @@ test('cyex badges pick their picture by screen density like every badge (V109-F8
   const custom = at('u/1294600497/h', 'png');
   assert.ok(badgeSrc(custom, pictureScale(1.5)).endsWith('/2x.png'));
 });
+
+test('A2-11 a badge URL with a space or comma gets no srcset', () => {
+  const ok = { image1x: 'https://x/1', image2x: 'https://x/2', image4x: 'https://x/4' };
+  assert.ok(badgeSet(ok));
+  assert.equal(badgeSet({ ...ok, image2x: 'https://x/a b/2' }), undefined);
+  assert.equal(badgeSet({ ...ok, image4x: 'https://x/a,b/4' }), undefined);
+});

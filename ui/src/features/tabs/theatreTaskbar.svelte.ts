@@ -2,8 +2,9 @@
 // area so the taskbar shows (`window_taskbar_room`), and covers the screen again after the
 // pointer stays clear of the bottom. One instance per window.
 
+import { windowFullscreen } from './windowFullscreen';
 import { windowsIpc } from '../../ipc/windows';
-import { backIn, OFF, type Room, roomStep } from './theatreTaskbar';
+import { backIn, OFF, pointerChanged, type Room, roomStep } from './theatreTaskbar';
 
 export class TheatreTaskbar {
   private room: Room = OFF;
@@ -23,7 +24,10 @@ export class TheatreTaskbar {
   /** Starts listening; the returned function stops and gives the screen back. */
   start(): () => void {
     const move = (e: PointerEvent) => {
-      this.fromBottom = window.innerHeight - e.clientY;
+      const from = window.innerHeight - e.clientY;
+      // A2-7 Nothing to do when the pointer is in the same band and no timer waits.
+      if (!pointerChanged(this.fromBottom, from)) return;
+      this.fromBottom = from;
       this.step();
     };
     const leave = () => {
@@ -36,7 +40,8 @@ export class TheatreTaskbar {
       window.removeEventListener('pointermove', move, true);
       document.documentElement.removeEventListener('pointerleave', leave);
       clearTimeout(this.timer);
-      if (this.room.on) void windowsIpc.taskbarRoom(false).catch(() => {});
+      // A2-5 Through the fullscreen queue, so it can't land after the window has left fullscreen.
+      if (this.room.on) windowFullscreen.taskbarRoomOff();
       this.room = OFF;
       this.fromBottom = null;
     };

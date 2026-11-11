@@ -30,8 +30,13 @@ export const ALL_PARTITIONS = Object.keys(PARTITION_LABELS) as Partition[];
  * keys) stay on this PC. */
 export const PORTABLE_PARTITIONS = ALL_PARTITIONS.filter((p) => p !== 'accounts' && p !== 'plugins' && p !== 'uploader');
 
+/** N3-5 Parts in the app's menu order, whatever order the file lists them in. */
+export function inMenuOrder(partitions: Partition[]): Partition[] {
+  return [...partitions].sort((a, b) => ALL_PARTITIONS.indexOf(a) - ALL_PARTITIONS.indexOf(b));
+}
+
 export function partitionList(partitions: Partition[]): string {
-  return partitions.map((p) => PARTITION_LABELS[p]).join(', ');
+  return inMenuOrder(partitions).map((p) => PARTITION_LABELS[p]).join(', ');
 }
 
 /** V110-F92 The import toast: an import with automations brings them in switched off. */

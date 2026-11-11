@@ -34,6 +34,8 @@ export function badgeSrc(b: { image1x: string; image2x: string; image4x: string 
 /** V110-B1 A badge's 1x/2x/4x pictures as a srcset: the screen picks the one that matches size
  *  times density (also per screen, and fractional ones like 150 %), and a missing size is skipped. */
 export function badgeSet(b: { image1x: string; image2x: string; image4x: string }): string | undefined {
+  // A2-11 A URL with a space or comma would split into more candidates; the plain src does it.
+  if ([b.image1x, b.image2x, b.image4x].some((u) => /[\s,]/.test(u ?? ''))) return undefined;
   const parts: string[] = [];
   const seen = new Set<string>();
   for (const [url, d] of [[b.image1x, '1x'], [b.image2x, '2x'], [b.image4x, '4x']] as const) {

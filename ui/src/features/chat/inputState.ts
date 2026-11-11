@@ -32,6 +32,8 @@ export interface Draft {
 const CHATS = 50;
 const LINES = 50;
 const drafts = new CappedMap<string, Draft>(CHATS);
+/** A2-8 Chats this window saved or cleared since it started; a stored draft of any other chat is another window's. */
+const touched = new Set<string>();
 
 /** The draft and sent lines of a chat (`account:login`). V110-A-idea The draft text (not the sent lines) also
  *  comes back after a restart, from this viewer's storage. */
@@ -43,6 +45,7 @@ export function loadDraft(key: string): Draft {
 
 export function saveDraft(key: string, text: string, sent: readonly string[]): void {
   restore();
+  touched.add(key);
   if (!text && !sent.length) drafts.delete(key);
   else drafts.set(key, { text, sent: sent.slice(0, LINES) });
   later();
@@ -84,13 +87,33 @@ function restore(): void {
   }
 }
 
+/** A2-8 This window's drafts after the stored ones it doesn't know about (another window's), capped at the newest. */
+export function mergeDrafts(stored: unknown, own: [string, string][], mine: ReadonlySet<string>): [string, string][] {
+  const ownKeys = new Set(own.map(([k]) => k));
+  const others: [string, string][] = [];
+  if (Array.isArray(stored)) {
+    for (const e of stored) {
+      if (!Array.isArray(e) || typeof e[0] !== 'string' || typeof e[1] !== 'string' || !e[1]) continue;
+      if (!ownKeys.has(e[0]) && !mine.has(e[0])) others.push([e[0], e[1]]);
+    }
+  }
+  return [...others, ...own].slice(-CHATS);
+}
+
 /** Writes the drafts that have text; none left removes the key. */
 export function persistDrafts(): void {
   clearTimeout(timer);
   timer = undefined;
   try {
-    const list = [...drafts].filter(([, d]) => d.text).map(([k, d]) => [k, d.text.slice(0, DRAFT_CHARS)]);
-    if (list.length) disk()?.setItem(DRAFTS_KEY, JSON.stringify(list.slice(-CHATS)));
+    const own = [...drafts].filter(([, d]) => d.text).map(([k, d]): [string, string] => [k, d.text.slice(0, DRAFT_CHARS)]);
+    let stored: unknown = [];
+    try {
+      stored = JSON.parse(disk()?.getItem(DRAFTS_KEY) ?? '[]');
+    } catch {
+      // A broken value is replaced.
+    }
+    const list = mergeDrafts(stored, own, touched);
+    if (list.length) disk()?.setItem(DRAFTS_KEY, JSON.stringify(list));
     else disk()?.removeItem(DRAFTS_KEY);
   } catch {
     // Blocked or full storage: drafts last until the window closes.
@@ -109,6 +132,7 @@ export function resetDrafts(next?: Store | null): void {
   clearTimeout(timer);
   timer = undefined;
   drafts.clear();
+  touched.clear();
   store = next;
   restored = false;
 }
@@ -119,5 +143,6 @@ export function draftKey(account: string | null, login: string): string {
 
 /** Test hook. */
 export function clearDrafts(): void {
+  for (const [k] of drafts) touched.add(k);
   drafts.clear();
 }

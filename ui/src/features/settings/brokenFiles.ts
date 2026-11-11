@@ -9,7 +9,7 @@ export function brokenRow(file: BrokenFile): { label: string; hint: string } {
   return { label: PARTITION_LABELS[file.partition], hint: `${file.when} · ${formatBytes(file.size)}` };
 }
 
-/** The toast after a restore. */
+/** The toast after a restore. N3-4 The section keeps its own case ("Restored General …", "7TV combos"). */
 export function brokenRestoredText(file: BrokenFile): string {
-  return `Restored ${PARTITION_LABELS[file.partition].toLowerCase()} from the broken file.`;
+  return `Restored ${PARTITION_LABELS[file.partition]} from the broken file.`;
 }

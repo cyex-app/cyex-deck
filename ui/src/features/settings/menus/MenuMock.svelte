@@ -157,6 +157,9 @@
   }
 
   let swallow = false;
+  /** A2-10 Ends a drag in flight without dropping; run on unmount. */
+  let stopDrag: (() => void) | null = null;
+  $effect(() => () => stopDrag?.());
 
   function press(e: PointerEvent, row: RowView) {
     if (e.button !== 0 || renaming) return;
@@ -186,6 +189,9 @@
       removeEventListener('pointerup', up);
       removeEventListener('pointercancel', cancel);
       removeEventListener('keydown', esc, true);
+      // A2-10 Also gone when the window loses focus mid-drag.
+      removeEventListener('blur', blur);
+      stopDrag = null;
       document.body.classList.remove('dragging');
       if (!began) return;
       swallow = true;
@@ -199,6 +205,8 @@
       else if (drop.panel) open = drop.panel;
       oncommit(next, moveNote(nodes, next, row.id, row.label || 'Line'), row.key);
     };
+    const blur = () => finish(false);
+    stopDrag = blur;
     const up = (ev: PointerEvent) => ev.pointerId === id && finish(true);
     const cancel = (ev: PointerEvent) => ev.pointerId === id && finish(false);
     const esc = (ev: KeyboardEvent) => {
@@ -211,6 +219,7 @@
     addEventListener('pointerup', up);
     addEventListener('pointercancel', cancel);
     addEventListener('keydown', esc, true);
+    addEventListener('blur', blur);
   }
 
   const lineOf = (row: RowView): 'before' | 'after' | null =>

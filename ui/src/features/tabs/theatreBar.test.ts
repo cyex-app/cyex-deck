@@ -38,3 +38,11 @@ test('V110-B7 coming back before the 600 ms keeps it and restarts the wait', () 
 test('V110-B7 focus staying in the bar keeps it', () => {
   assert.deepEqual(revealStep({ shown: true, since: 1000 }, { ...away, focusIn: true, now: 5000 }), { shown: true, since: null });
 });
+
+test('A2-7 a pointer move inside the same answer needs no step', async () => {
+  const { pointerNear } = await import('./theatreBar.ts');
+  assert.equal(pointerNear(2, false), true);
+  assert.equal(pointerNear(300, false), false);
+  assert.equal(pointerNear(300, true), true);
+  assert.equal(pointerNear(null, false), false);
+});

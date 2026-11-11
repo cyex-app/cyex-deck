@@ -4,15 +4,22 @@
 
 import { getCurrentWindow } from '@tauri-apps/api/window';
 
+import { windowsIpc } from '../../ipc/windows';
 import { fullscreenWatch, restorePlan, UNSEEN, wantFullscreen, type WindowBefore } from './theatreWindow';
 
 let player = false;
 let theatre = false;
 let before: WindowBefore | null = null;
+/** A2-5 Theatre's taskbar room is to be given back; done in the queue, ahead of leaving fullscreen. */
+let roomOff = false;
 let queue: Promise<void> = Promise.resolve();
 
 async function apply(): Promise<void> {
   const win = getCurrentWindow();
+  if (roomOff) {
+    roomOff = false;
+    await windowsIpc.taskbarRoom(false).catch(() => {});
+  }
   const want = wantFullscreen(player, theatre);
   const now = await win.isFullscreen();
   if (want && !now) {
@@ -26,7 +33,8 @@ async function apply(): Promise<void> {
       else if (plan === 'unmaximize') await win.unmaximize();
     }
   }
-  if (!theatre) before = null;
+  // A2-6 Kept while either theatre or a player still wants fullscreen.
+  if (!want) before = null;
 }
 
 function sync(): void {
@@ -57,6 +65,11 @@ export const windowFullscreen = {
       live = false;
       void off.then((f) => f());
     };
+  },
+  /** A2-5 Theatre's taskbar room ends: runs in the same queue, before `setFullscreen(false)`. */
+  taskbarRoomOff(): void {
+    roomOff = true;
+    sync();
   },
   /** Theatre began or ended. */
   theatre(on: boolean): void {

@@ -23,6 +23,11 @@ export interface RevealInput {
   now: number;
 }
 
+/** A2-7 Whether the pointer alone asks for the bar; a move that doesn't change this needs no step. */
+export function pointerNear(y: number | null, overBar: boolean): boolean {
+  return (y !== null && y <= EDGE_PX) || overBar;
+}
+
 export const HIDDEN: Reveal = { shown: false, since: null };
 
 /** The next state. Touching the top edge, the bar or focus shows it at once; leaving starts the 600 ms. */

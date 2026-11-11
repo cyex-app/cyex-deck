@@ -71,12 +71,18 @@
 
   /** Same safety copy and Undo as a backup restore; the file itself stays where it is. */
   async function restoreBroken(file: BrokenFile) {
-    const before = await keepCurrent(true);
-    if (before === null) return;
-    const result = await attempt(() => settingsIpc.restoreBroken(file.name));
-    void refreshBroken();
-    if (!result) return;
-    toast.success(brokenRestoredText(file), { action: undoTo(before) });
+    if (busy) return;
+    busy = true;
+    try {
+      const kept = await keepCurrent(true);
+      if (kept === null) return;
+      const result = await attempt(() => settingsIpc.restoreBroken(file.name));
+      void refreshBroken();
+      if (!result) return;
+      toast.success(brokenRestoredText(file), { action: undoTo(kept) });
+    } finally {
+      busy = false;
+    }
   }
 
   async function refreshBackups() {
@@ -113,38 +119,43 @@
   /** V110-F84 What is there now, kept before anything overwrites it: a share code (Undo imports it again)
    *  and, for a restore (V1052-03), a snapshot on disk (no sign-ins). An import keeps the code only, so a
    *  cancelled file pick or a mistyped code leaves no snapshot behind. Null, with a toast, when it failed. */
-  async function keepCurrent(snapshot = false): Promise<string | null> {
+  async function keepCurrent(snapshot = false): Promise<Kept | null> {
     try {
-      const before = await settingsIpc.shareCode([...PORTABLE_PARTITIONS]);
-      keptOn = settings.v.commands.automationsOn;
+      const code = await settingsIpc.shareCode([...PORTABLE_PARTITIONS]);
+      // A2-1 The flag travels with the code, so a second call can't overwrite it.
+      const kept = { code, automationsOn: settings.v.commands.automationsOn };
       if (snapshot) await settingsIpc.snapshotNow();
-      return before;
+      return kept;
     } catch {
       toast.error('Couldn’t keep your current settings first, so nothing was changed.');
       return null;
     }
   }
 
-  /** V110-F97 Whether automations were on when the safety copy was taken: an import switches them off,
-   *  and Undo is an import too, so it switches them back on itself. */
-  let keptOn = false;
+  /** V110-F97 The safety copy and whether automations were on when it was taken: an import switches them
+   *  off, and Undo is an import too, so it switches them back on itself. */
+  interface Kept {
+    code: string;
+    automationsOn: boolean;
+  }
 
   /** The Undo that puts the kept settings back. */
-  function undoTo(before: string) {
-    const on = keptOn;
+  function undoTo(kept: Kept) {
+    const on = kept.automationsOn;
     return {
       label: 'Undo',
       run: () =>
-        void attempt(() => settingsIpc.importCode(before)).then(async (done) => {
+        void attempt(() => settingsIpc.importCode(kept.code)).then(async (done) => {
           if (!done) return;
           const p = done.partitions;
-          if (on && p.includes('commands')) await settings.patch('commands', { automationsOn: true });
+          // A2-3 A refused patch is a toast, not an unhandled rejection.
+          if (on && p.includes('commands') && (await attempt(() => settings.patch('commands', { automationsOn: true }).then(() => true))) === undefined) return;
           toast.success(on || !p.includes('commands') ? 'Put back.' : 'Put back. Automations are off until you switch them on.');
         }),
     };
   }
 
-  function imported(done: Imported | undefined, before?: string) {
+  function imported(done: Imported | undefined, before?: Kept) {
     if (done?.partitions.length)
       toast.success(importedText(done.partitions, done.notes), { action: before ? undoTo(before) : undefined });
   }
@@ -169,14 +180,25 @@
   }
 
   async function applyImport() {
-    const before = await keepCurrent();
-    if (before === null) return;
-    const done = await attempt(() => settingsIpc.applyImport());
-    if (!done) return;
-    review = null;
-    code = '';
-    imported(done, before);
+    if (busy) return;
+    busy = true;
+    try {
+      const before = await keepCurrent();
+      if (before === null) return;
+      const done = await attempt(() => settingsIpc.applyImport());
+      if (!done) return;
+      review = null;
+      code = '';
+      imported(done, before);
+    } finally {
+      busy = false;
+    }
   }
+
+  // A2-2 A review still open when the section goes away is dropped on the Rust side too.
+  $effect(() => () => {
+    if (review) void settingsIpc.cancelImport().catch(() => {});
+  });
 
   function cancelImport() {
     review = null;
@@ -194,12 +216,18 @@
    *  V1052-03, as a snapshot on disk (no sign-ins). */
   async function restore(date: string) {
     // V110-F84 No safety copy, no restore.
-    const before = await keepCurrent(true);
-    if (before === null) return;
-    const result = await attempt(() => settingsIpc.restoreBackup(date));
-    void refreshBackups();
-    if (!result) return;
-    toast.success(restoredText(date), { action: undoTo(before) });
+    if (busy) return;
+    busy = true;
+    try {
+      const kept = await keepCurrent(true);
+      if (kept === null) return;
+      const result = await attempt(() => settingsIpc.restoreBackup(date));
+      void refreshBackups();
+      if (!result) return;
+      toast.success(restoredText(date), { action: undoTo(kept) });
+    } finally {
+      busy = false;
+    }
   }
 
   /** t5 A snapshot by its time, not its folder name ("before-restore-2026-10-20-021030"). */
@@ -279,8 +307,8 @@
       <p class="lead">There is nothing in it to import.</p>
     {/if}
     <div class="actions">
-      <Button variant="primary" disabled={!review.partitions.length} onclick={applyImport}>Apply</Button>
-      <Button onclick={cancelImport}>Cancel</Button>
+      <Button variant="primary" disabled={!review.partitions.length || busy} onclick={applyImport}>Apply</Button>
+      <Button disabled={busy} onclick={cancelImport}>Cancel</Button>
     </div>
   </section>
 {/if}
@@ -299,7 +327,7 @@
 {/if}
 {#each backups as date, i (date)}
   <Row label={labels[i]}>
-    <ConfirmButton label="Restore" confirm="Click to restore" onconfirm={() => restore(date)} />
+    <ConfirmButton label="Restore" confirm="Click to restore" disabled={busy} onconfirm={() => restore(date)} />
   </Row>
 {:else}
   <p class="note">No backups yet. One is made each day you use cyex deck.</p>
@@ -311,7 +339,7 @@
   {#each broken as file (file.name)}
     {@const row = brokenRow(file)}
     <Row label={row.label} hint={row.hint}>
-      <ConfirmButton label="Restore" confirm="Click to restore" onconfirm={() => restoreBroken(file)} />
+      <ConfirmButton label="Restore" confirm="Click to restore" disabled={busy} onconfirm={() => restoreBroken(file)} />
     </Row>
   {/each}
   <div class="actions">

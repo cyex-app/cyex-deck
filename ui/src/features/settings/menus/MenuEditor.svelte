@@ -8,7 +8,6 @@
   import { type MenuEntry, openMenu } from '../../../components/menu.svelte';
   import { menuProblems } from '../../../components/menuItems';
   import Segmented from '../../../components/Segmented.svelte';
-  import { placeholdersFor } from '../../../components/menus/custom.ts';
   import {
     addCustom,
     addGroup,
@@ -37,6 +36,7 @@
   import CustomForm from './CustomForm.svelte';
   import { addGroupOf, addPlace } from './menuDrag.ts';
   import MenuMock from './MenuMock.svelte';
+  import { placeholdersFor } from '../../../components/menus/custom.ts';
   import { addList, moveNote, type RowView, type SampleOf, WHO, type Who } from './model.ts';
 
   interface Props {
@@ -51,6 +51,8 @@
 
   let nodes = $state.raw<Node[]>(untrack(() => startEditing(def, stored)));
   let who = $state<Who>('viewer');
+  /** What your own entries in this menu can fill in. */
+  const chips = $derived(placeholdersFor(def.id));
   /** The group whose flyout is drawn: the first one to begin with. */
   let open = $state<string | null>(untrack(() => nodes.find((n) => n.t === 'group')?.id ?? null));
   let focusKey = $state('');
@@ -266,8 +268,6 @@
     }
   });
 
-  const slotNames = $derived(def.items.filter((i) => i.slot).map((i) => i.name));
-  const chips = $derived(placeholdersFor(def.id));
 </script>
 
 <div class="top">
@@ -314,10 +314,10 @@
     ontoggle={toggle}
   />
   <ul class="help">
-    <li>Drag a row to move it. Drop it on a group to put it inside, or pull it out of the flyout to the left.</li>
-    <li>Double-click or F2 renames. Space hides, Delete removes. Alt with the arrows moves the selected row.</li>
-    <li>Dim rows only show up in some cases ({who === 'viewer' ? 'switch the preview to see them' : 'the preview hides what does not apply'}).</li>
-    {#if slotNames.length}<li>Dashed rows are filled in by the app: {slotNames.join(', ').toLowerCase()}. Move them, not rename.</li>{/if}
+    <!-- N3-6 Three short lines. -->
+    <li>Drag to move; drop on a group to put it inside.</li>
+    <li>F2 renames, Space hides, Delete removes, Alt with the arrows moves.</li>
+    <li>Dim rows show only in some previews; dashed rows are filled in by the app.</li>
     {#if chips.length}<li>Your own entries can use {chips.map((c) => `$(${c})`).join(' ')}.</li>{/if}
   </ul>
 </div>

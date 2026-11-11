@@ -98,3 +98,14 @@ test('V110-A-idea a paste past the box limit is a cut; the selection it replaces
   assert.equal(pasteCut(900, 50, 'a'.repeat(150), 1000), false);
   assert.equal(pasteCut(0, 0, 'a\r\n'.repeat(500), 1000), false, 'CR LF is one character in the box');
 });
+
+test('A2-8 saving drafts keeps another window\'s stored drafts and drops the ones this window cleared', () => {
+  const mem = new Map<string, string>();
+  resetDrafts({ getItem: (k) => mem.get(k) ?? null, setItem: (k, v) => void mem.set(k, v), removeItem: (k) => void mem.delete(k) });
+  mem.set(DRAFTS_KEY, JSON.stringify([['Me:other', 'from window two'], ['Me:sent', 'old']]));
+  saveDraft('Me:mine', 'hello', []);
+  saveDraft('Me:sent', '', []);
+  persistDrafts();
+  assert.deepEqual(JSON.parse(mem.get(DRAFTS_KEY) ?? '[]'), [['Me:other', 'from window two'], ['Me:mine', 'hello']]);
+  resetDrafts();
+});
