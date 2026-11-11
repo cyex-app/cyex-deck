@@ -14,6 +14,7 @@
   import { toast } from '../../lib/toast.svelte';
   import { accountName, accountNeedsAttention } from './status';
   import { unlock } from '../unlock/unlock.svelte';
+  import { accountRows } from './accountMenu';
   import { twitchPages } from './twitchPages.svelte';
 
   twitchPages.watch();
@@ -71,10 +72,6 @@
     if (current) unlock.ask('twitch', current.userId);
   }
 
-  function connectItem(userId: string): MenuEntry {
-    return { label: 'Connect Twitch pages', icon: 'login', note: 'Log in once for the wallet, subscriptions and Bits', run: () => void twitchPages.connect(userId) };
-  }
-
   function show(e: MouseEvent) {
     const items: MenuEntry[] = [
       ...accounts.list.map((a) => ({
@@ -87,24 +84,19 @@
         note: a.isDefault ? 'Default account' : 'Make this the default account',
         run: () => pick(a.userId),
       })),
-      'separator',
-      // V109-C04 Your channel's clips, videos, followers, roles, rewards and moderation.
-      { label: 'Creator dashboard', icon: 'layout', run: ondashboard },
-      'separator',
-      // V102-20 Only with Twitch's own sign-in.
-      { label: 'Subscriptions', icon: 'star', lock: walletLock, unlock: ask, run: onsubs },
-      { label: 'Get Bits', icon: 'bits', lock: walletLock, unlock: ask, run: bits },
-      { label: 'Payment methods', icon: 'card', lock: walletLock, unlock: ask, run: wallet },
-      // V108-04 These pages keep their own Twitch login.
-      ...(current && !walletLock && !twitchPages.has(current.userId)
-        ? [connectItem(current.userId)]
-        : []),
-      // V1051-02 No lock: the view explains itself.
-      { label: '7TV paint and badge', icon: 'seventv', run: oncosmetics },
-      // V109-B14
-      { label: 'cyex cosmetics', icon: 'cyex', run: oncyex },
-      'separator',
-      { label: 'Manage accounts', icon: 'user', run: onmanage },
+      ...accountRows({
+        walletLock,
+        // V108-04 These pages keep their own Twitch login.
+        connect: current && !walletLock && !twitchPages.has(current.userId) ? () => void twitchPages.connect(current.userId) : null,
+        ask,
+        onmanage,
+        onsubs,
+        bits,
+        wallet,
+        ondashboard,
+        oncosmetics,
+        oncyex,
+      }),
     ];
     openMenuAt(e, items);
   }

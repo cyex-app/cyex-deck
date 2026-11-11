@@ -143,7 +143,13 @@ function branch<C>(
     } else if (n.t === 'group') {
       if (n.hidden) continue;
       const items = tidy(branch(n.children, byId, ctx, opts));
-      if (!items.some((e) => e !== 'separator')) continue;
+      const rows = items.filter((e) => e !== 'separator');
+      if (!rows.length) continue;
+      // V111-N1 A group left with one visible row shows that row itself, not a submenu of one.
+      if (rows.length === 1) {
+        out.push(rows[0]);
+        continue;
+      }
       out.push({ id: n.id, label: n.label, ...(n.icon ? { icon: n.icon as IconName } : {}), items });
     } else {
       if (n.hidden || !opts.custom) continue;

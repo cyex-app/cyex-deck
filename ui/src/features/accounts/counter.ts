@@ -16,6 +16,8 @@ export interface CounterView {
 }
 
 const SHOWN = 5;
+/** V111-N1 */
+const LIMIT = 'Twitch caps how many chats one account can join.';
 /** Up to five channels, then how many more. */
 const listed = (logins: string[]) =>
   logins.slice(0, SHOWN).map((l) => `#${l}`).join(', ') +
@@ -43,8 +45,9 @@ export function counterView(counts: ConnectionCount[], current: string, name: (i
     text,
     warn: false,
     hidden,
-    label: 'Joined chats',
-    aria: `${text} joined chats`,
-    hint: counts.length > 1 ? counts.map((c) => `${name(c.userId)} ${formatNumber(c.joined)}`).join(', ') : undefined,
+    label: 'Chats you’re in',
+    aria: own?.joined === 1 ? '1 chat joined' : `${text} chats joined`,
+    hint: counts.length > 1 ? `${LIMIT}
+${counts.map((c) => `${name(c.userId)} ${formatNumber(c.joined)}`).join(', ')}` : LIMIT,
   };
 }

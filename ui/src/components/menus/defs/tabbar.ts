@@ -29,7 +29,7 @@ export const BAR_DEF: MenuDef<BarCtx> = {
     row('reopen', 'Reopen closed tab', 'undo', (c) => ({ label: 'Reopen closed tab', icon: 'undo', hint: c.reopen.hint, disabled: !c.reopen.can, run: c.reopen.run })),
     row('closePops', 'Close all pop-outs', 'popout', (c) => ({ label: 'Close all pop-outs', icon: 'popout', note: c.closePops.note, disabled: !c.closePops.can, run: c.closePops.run })),
   ],
-  defaults: [item('add'), item('onlyLive'), item('lock'), item('position'), SEP, item('reopen'), item('closePops')],
+  defaults: [item('add'), item('onlyLive'), item('lock'), item('position'), SEP, item('reopen'), SEP, item('closePops')],
 };
 
 export function barSample(who: Who): BarCtx {

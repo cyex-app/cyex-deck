@@ -39,10 +39,28 @@ export const ACTIONS = {
   'zoom.in': { label: 'Zoom in', default: 'Ctrl+=' },
   'zoom.out': { label: 'Zoom out', default: 'Ctrl+-' },
   'zoom.reset': { label: 'Reset zoom', default: 'Ctrl+0' },
+  // V111-N1 WebView2's own Ctrl+F5 never reached the app while Settings was open; this binds it.
+  'app.reload': { label: 'Reload the app', default: 'Ctrl+F5' },
   'global.show': { label: 'Show or hide cyex deck', default: '', global: true },
   'global.streamer': { label: 'Streamer mode on or off', default: '', global: true },
   'global.clickThrough': { label: 'Overlay click-through on or off', default: '', global: true },
 } as const satisfies Record<string, { label: string; default: string; global?: boolean }>;
+
+/** V108-S1 The settings sheet is open: only these keys reach the tabs and players behind it. */
+export const OVER_SHEET: ReadonlySet<string> = new Set(['settings.open', 'tabs.switcher', 'zoom.in', 'zoom.out', 'zoom.reset', 'app.reload']);
+
+/** V111-N1 The headings of the Hotkeys page, in order. */
+export const HOTKEY_GROUPS = ['Navigation', 'Tabs', 'Player', 'Chat', 'View'] as const;
+export type HotkeyGroup = (typeof HOTKEY_GROUPS)[number];
+
+export function hotkeyGroup(id: string): HotkeyGroup {
+  const head = id.split('.')[0];
+  if (head === 'nav' || id === 'settings.open') return 'Navigation';
+  if (head === 'tabs') return 'Tabs';
+  if (head === 'player') return 'Player';
+  if (head === 'chat') return 'Chat';
+  return 'View';
+}
 
 /** S2 An action's combo: its override, else its default. Empty = unbound. A default that
  * another action was rebound to stays with that action, so a new default (V106-06) never

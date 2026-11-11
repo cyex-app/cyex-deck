@@ -83,7 +83,7 @@ test('the defaults are not shared with the result', () => {
 
 test('conditions drop rows, and groups and lines that end up empty', () => {
   const viewer = resolveMenu(DEF, undefined, { mod: false, signedIn: false });
-  assert.deepEqual(labels(viewer), ['Usercard', 'Mention', 'Copy name', '-', 'Hide or block>Hide', '-', 'Mine']);
+  assert.deepEqual(labels(viewer), ['Usercard', 'Mention', 'Copy name', '-', 'Hide', '-', 'Mine']);
   assert.equal(menuProblems(viewer).length, 0);
 });
 
@@ -218,3 +218,15 @@ test('custom entries show through the hook only', () => {
 function idsAll(nodes: ReturnType<typeof effectiveNodes>): string[] {
   return nodes.flatMap((n) => (n.t === 'sep' ? [] : n.t === 'group' ? [n.id, ...idsAll(n.children)] : [n.id]));
 }
+
+test('V111-N1 a group with one visible row shows that row, not a submenu of one', () => {
+  const def: MenuDef<Ctx> = {
+    ...DEF,
+    defaults: [item('usercard'), group('moderate', 'Moderate', [item('warn'), item('unban')], 'shield'), group('hideblock', 'Hide or block', [item('hide'), item('block')], 'ban')],
+  };
+  // Signed out: Block drops, so "Hide or block" holds Hide only; the mod group holds nothing.
+  assert.deepEqual(labels(resolveMenu(def, undefined, { mod: false, signedIn: false })), ['Usercard', 'Hide']);
+  assert.deepEqual(labels(resolveMenu(def, undefined, { mod: true, signedIn: true })), ['Usercard', 'Moderate>Warn,Unban', 'Hide or block>Hide,Block']);
+  // Signed in, not a mod: both rows stay a submenu.
+  assert.deepEqual(labels(resolveMenu(def, undefined, { mod: false, signedIn: true })), ['Usercard', 'Hide or block>Hide,Block']);
+});

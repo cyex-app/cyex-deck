@@ -9,14 +9,14 @@ const count = (userId: string, joined: number, refused: string[] = []): Connecti
 
 test('one account shows its open chats', () => {
   const v = counterView([count('a', 12)], 'a', name);
-  assert.deepEqual(v, { text: '12', warn: false, hidden: false, label: 'Joined chats', aria: '12 joined chats', hint: undefined });
+  assert.deepEqual(v, { text: '12', warn: false, hidden: false, label: 'Chats you’re in', aria: '12 chats joined', hint: 'Twitch caps how many chats one account can join.' });
 });
 
 test('several accounts: the number is the current one, the label lists all', () => {
   const v = counterView([count('a', 12), count('b', 3)], 'b', name);
   assert.equal(v.text, '3');
-  assert.equal(v.label, 'Joined chats');
-  assert.equal(v.hint, 'Bot 12, Main 3');
+  assert.equal(v.label, 'Chats you’re in');
+  assert.equal(v.hint, 'Twitch caps how many chats one account can join.\nBot 12, Main 3');
   assert.equal(v.warn, false);
 });
 
@@ -53,4 +53,9 @@ test('a long refused list is cut after five channels', () => {
   const v = counterView([{ userId: '1', joined: 3, refused }], '1', () => 'x');
   assert.match(v.hint ?? '', /#a, #b, #c, #d, #e and 2 more: not joined/);
   assert.doesNotMatch(v.hint ?? '', /#f/);
+});
+
+test('V111-N1 one chat reads "1 chat joined"', () => {
+  const v = counterView([{ userId: 'me', joined: 1, refused: [] }], 'me', (id) => id);
+  assert.equal(v.aria, '1 chat joined');
 });

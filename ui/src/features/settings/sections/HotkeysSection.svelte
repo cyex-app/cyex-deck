@@ -13,7 +13,7 @@
     recording,
     resetBinding,
   } from '../../../lib/hotkeys.svelte';
-  import { keyLabel } from '../../../lib/hotkeyActions';
+  import { HOTKEY_GROUPS, hotkeyGroup, keyLabel } from '../../../lib/hotkeyActions';
   import { modesIpc } from '../../../ipc/modes';
   import { toast } from '../../../lib/toast.svelte';
   import ResetSection from '../ResetSection.svelte';
@@ -115,7 +115,10 @@
   </Row>
 {/snippet}
 
-{#each local as id (id)}{@render binding(id)}{/each}
+{#each HOTKEY_GROUPS as heading (heading)}
+  <SectionHead title={heading} />
+  {#each local.filter((id) => hotkeyGroup(id) === heading) as id (id)}{@render binding(id)}{/each}
+{/each}
 
 <SectionHead title="Work everywhere">These work even while a game or another app is in front.</SectionHead>
 {#each everywhere as id (id)}{@render binding(id)}{/each}

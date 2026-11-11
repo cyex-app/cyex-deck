@@ -197,11 +197,6 @@
         <ShowPicker bind:show />
       </section>
 
-      <section>
-        <span class="label">Account</span>
-        <AccountPicker bind:account bind:anon noAnon={mine} />
-      </section>
-
       {#if canMine}
         <section>
           {#if mined}
@@ -212,6 +207,11 @@
           {/if}
         </section>
       {/if}
+
+      <section>
+        <span class="label">Account</span>
+        <AccountPicker bind:account bind:anon noAnon={mine} />
+      </section>
 
       {#if named}
         <section>
@@ -225,6 +225,7 @@
         </section>
       {/if}
       {#if !editing && !into}
+        <p class="note">Or make a feed tab: mentions, live alerts, AutoMod or whispers in one list, no stream.</p>
         <Button hit variant="link" small onclick={() => (feedMode = true)}>Make a feed tab instead</Button>
       {/if}
     </div>

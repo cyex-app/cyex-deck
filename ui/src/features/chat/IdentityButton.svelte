@@ -15,15 +15,15 @@
   <button
     class="trigger"
     class:on={open}
-    aria-label="Chat identity"
+    aria-label="Badge and color"
     aria-haspopup="dialog"
     aria-expanded={open}
-    use:tooltip={{ label: 'Chat identity', hint: 'Badge, name color and smileys.' }}
+    use:tooltip={{ label: 'Badge and color', hint: 'Badge, name color and smileys.' }}
     onclick={() => (open = !open)}
   >
     <Icon name="badge" size={16} />
   </button>
-  <Popover bind:open align="end" side="above" flush label="Chat identity">
+  <Popover bind:open align="end" side="above" flush label="Badge and color">
     <IdentityPanel {account} {login} />
   </Popover>
 </div>

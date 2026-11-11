@@ -110,10 +110,8 @@ test('a video clips at the current time, on top', () => {
 
 test('a clip saves as MP4 (under Tools) and a running save can be stopped', () => {
   const idle = playerMenu({ ...base('clip'), save: { saving: null, start: noop, stop: noop } });
-  assert.deepEqual(labels(idle), ['Pause', 'Mute', 'Quality', 'Fullscreen', '—', 'Share[Copy clip link, Open on Twitch]', '—', 'Tools[Save as MP4]']);
-  const tools = playerMenu({ ...base('clip'), save: { saving: 'Saving 42 %', start: noop, stop: noop } }).at(-1);
-  assert.ok(tools && tools !== 'separator');
-  const busy = tools.items?.[0];
+  assert.deepEqual(labels(idle), ['Pause', 'Mute', 'Quality', 'Fullscreen', '—', 'Share[Copy clip link, Open on Twitch]', '—', 'Save as MP4']);
+  const busy = playerMenu({ ...base('clip'), save: { saving: 'Saving 42 %', start: noop, stop: noop } }).at(-1);
   assert.ok(busy && busy !== 'separator');
   assert.equal(busy.label, 'Stop saving');
   assert.equal(busy.hint, 'Saving 42 %');

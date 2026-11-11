@@ -10,8 +10,6 @@
   import { type MenuEntry, openMenuAt } from '../../components/menu.svelte';
   import type { ChannelCard } from '../../ipc/bindings/ChannelCard';
   import type { GameRef } from '../../ipc/bindings/GameRef';
-  import type { LiveSort } from '../../ipc/bindings/LiveSort';
-  import type { OfflineSort } from '../../ipc/bindings/OfflineSort';
   import { accounts } from '../../lib/accounts.svelte';
   import { settings } from '../../lib/settings.svelte';
   import ChannelRow from '../browse/ChannelRow.svelte';
@@ -25,6 +23,7 @@
   import { discover } from '../discover/discover.svelte';
   import { visibleCards } from '../discover/hidden';
   import { home } from './home.svelte';
+  import { sortEntries } from './sortMenu';
   import Loading from '../../components/Loading.svelte';
   import SearchField from '../../components/SearchField.svelte';
   import { keepScroll } from '../../lib/keepScroll';
@@ -87,33 +86,7 @@
   }
 
   function sortMenu(e: MouseEvent) {
-    const live: [LiveSort, string][] = [
-      ['viewers', 'Most viewers'],
-      ['uptime', 'Live the longest'],
-      ['name', 'Name'],
-    ];
-    const offline: [OfflineSort, string][] = [
-      ['lastLive', 'Live most recently'],
-      ['name', 'Name'],
-    ];
-    openMenuAt(e, [
-      {
-        label: 'Live channels',
-        items: live.map(([v, label]) => ({
-          label,
-          checked: prefs.liveSort === v,
-          run: () => void settings.patch('browse', { liveSort: v }),
-        })),
-      },
-      {
-        label: 'Offline channels',
-        items: offline.map(([v, label]) => ({
-          label,
-          checked: prefs.offlineSort === v,
-          run: () => void settings.patch('browse', { offlineSort: v }),
-        })),
-      },
-    ]);
+    openMenuAt(e, sortEntries(prefs, (patch) => void settings.patch('browse', patch)));
   }
 
   const setLayout = (layout: 'grid' | 'list') => void settings.patch('browse', { layout });
@@ -194,7 +167,7 @@
       {#if !lists.live.length && lists.offline.length && !query.trim()}
         <div class="quiet">
           <span>No one you follow is live.</span>
-          <Button small onclick={ondiscover}>Find streams</Button>
+          <Button small onclick={ondiscover}>Discover streams</Button>
         </div>
       {/if}
       {#if lists.offline.length}
@@ -214,7 +187,7 @@
             Nothing matches “{query.trim()}”.
           {:else}
             <span>You don’t follow anyone yet.</span>
-            <Button onclick={ondiscover}>Find streams</Button>
+            <Button onclick={ondiscover}>Discover streams</Button>
           {/if}
         </div>
       {/if}

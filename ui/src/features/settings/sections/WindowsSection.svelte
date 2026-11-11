@@ -49,7 +49,7 @@
   }
 </script>
 
-<SectionHead title="Windows" level={2}>A layout remembers where the main window and every pop-out sit, and whether they’re pinned.</SectionHead>
+<SectionHead title="Window layouts" level={2}>A layout remembers where the main window and every pop-out sit, and whether they’re pinned.</SectionHead>
 
 <form class="save" data-setting="windows.layouts" onsubmit={save}>
   <input class="field" aria-label="Layout name" placeholder="Layout name" maxlength="40" bind:value={drafts.layoutName} />

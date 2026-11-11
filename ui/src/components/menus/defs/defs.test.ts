@@ -44,7 +44,7 @@ for (const { def, sample } of MENUS) {
 test('chat.name: top level as in the plan', () => {
   assert.deepEqual(names('chat.name', 'viewer'), ['Open usercard', 'Mention', 'Whisper', 'Copy name', 'Look up', 'Hide or block']);
   assert.deepEqual(names('chat.name', 'mod'), ['Open usercard', 'Mention', 'Whisper', 'Copy name', 'Look up', 'Hide or block', 'Moderator']);
-  assert.deepEqual(names('chat.name', 'out'), ['Open usercard', 'Mention', 'Copy name', 'Look up', 'Hide or block']);
+  assert.deepEqual(names('chat.name', 'out'), ['Open usercard', 'Mention', 'Copy name', 'Look up', 'Hide user for me']);
 });
 
 test('chat.message: top level as in the plan', () => {
@@ -58,7 +58,7 @@ test('chat.message: top level as in the plan', () => {
     'Copy with name and time',
     'Delete message',
     'Look up',
-    'Moderator',
+    'Pin message',
   ]);
 });
 
@@ -67,34 +67,53 @@ test('chat.message: a deleted line offers no Reply or Translate (V110-F93)', () 
 });
 
 test('the other menus keep their size', () => {
-  assert.deepEqual(names('chat.emote', 'viewer'), ['Open emote card', 'Copy emote name', 'Hide Kappa', '7TV']);
+  assert.deepEqual(names('chat.emote', 'viewer'), ['Open emote card', 'Copy emote name', 'Hide Kappa', 'Add to 7TV channel']);
   assert.deepEqual(names('chat.more', 'viewer'), [
     'Search',
     'Viewers',
-    'Record chat',
-    'Subscribe',
-    'Overlay',
     'Translate messages',
     'Mute alerts',
     'Filters',
-    'Layout',
+    'Record chat',
+    'Overlay',
+    'Theatre',
+    'Sound here',
+    'Edit',
+    'Move to its own tab',
+    'View',
+    'Subscribe',
     'Close',
   ]);
-  assert.deepEqual(names('chat.more', 'out'), ['Search', 'Viewers', 'Record chat', 'Overlay', 'Translate messages', 'Mute alerts', 'Filters', 'Layout', 'Close']);
+  assert.deepEqual(names('chat.more', 'out'), [
+    'Search',
+    'Viewers',
+    'Translate messages',
+    'Mute alerts',
+    'Filters',
+    'Record chat',
+    'Overlay',
+    'Theatre',
+    'Edit',
+    'Move to its own tab',
+    'View',
+    'Close',
+  ]);
   assert.deepEqual(names('tabs.tab', 'viewer'), [
     'Edit',
     'Add a channel here',
     'Pop out tab',
     'Mute stream',
     'Stop playing',
+    'Mute alerts',
+    'Mine first',
     'View',
     'Group',
-    'More',
     'Close',
-    'Close more',
+    'Close other tabs',
+    'Close tabs after this',
     'Reopen closed tab',
   ]);
-  assert.deepEqual(names('tabs.tile', 'viewer'), ['Theatre', 'Sound here', 'Edit', 'Hide chat', 'Hide stream', 'Layout', 'Close']);
+  assert.deepEqual(names('tabs.tile', 'viewer'), ['Theatre', 'Sound here', 'Edit', 'Move to its own tab', 'View', 'Close']);
   assert.deepEqual(names('tabs.bar', 'viewer'), ['Add a tab', 'Only live tabs', 'Lock tabs', 'Tab bar position', 'Reopen closed tab', 'Close all pop-outs']);
   assert.deepEqual(names('tabs.group', 'viewer'), ['Rename', 'Color', 'Ungroup', 'Close 3 tabs']);
   assert.deepEqual(names('player', 'viewer'), [

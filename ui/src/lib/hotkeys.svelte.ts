@@ -5,7 +5,7 @@ import { keyTaken, layers } from './escape';
 import { settings } from './settings.svelte';
 import { zoomHotkeys } from './zoom';
 
-import { ACTIONS, comboAlias, repeatAllowed, resolveBinding, typesChar } from './hotkeyActions';
+import { ACTIONS, comboAlias, OVER_SHEET, repeatAllowed, resolveBinding, typesChar } from './hotkeyActions';
 export { ACTIONS };
 
 export type ActionId = keyof typeof ACTIONS;
@@ -75,14 +75,16 @@ function isTyping(target: EventTarget | null): boolean {
   return target instanceof HTMLElement && (target.isContentEditable || /^(INPUT|TEXTAREA)$/.test(target.tagName));
 }
 
-/** V108-S1 The settings sheet is open: only these keys reach the tabs and players behind it. */
+/** V108-S1 The settings sheet is open: only the OVER_SHEET keys reach the tabs and players behind it. */
 export const keyHold = $state({ sheet: false });
-const OVER_SHEET: ReadonlySet<string> = new Set(['settings.open', 'tabs.switcher', 'zoom.in', 'zoom.out', 'zoom.reset']);
+
+/** V111-N1 Reload the app (Ctrl+F5), also over the settings sheet. */
+export const appHotkeys = { 'app.reload': () => location.reload() };
 
 /** Runs the handlers for their bound combos while the calling component is mounted. A
  *  handler that returns `false` leaves the key to the page, e.g. Space on a button. */
 export function useHotkeys(own: Partial<Record<ActionId, (e: KeyboardEvent) => unknown>>): void {
-  const handlers = { ...zoomHotkeys, ...own };
+  const handlers = { ...zoomHotkeys, ...appHotkeys, ...own };
   $effect(() => {
     let consumed: ActionId | undefined;
     const onKey = (e: KeyboardEvent) => {

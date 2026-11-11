@@ -9,8 +9,9 @@ export const GROUPS = [
     pages: [
       { id: 'general', label: 'General', icon: 'sliders' },
       { id: 'appearance', label: 'Appearance', icon: 'palette' },
-      { id: 'windows', label: 'Windows', icon: 'layout' },
+      { id: 'windows', label: 'Window layouts', icon: 'layout' },
       { id: 'sound', label: 'Sound', icon: 'volume' },
+      { id: 'notifications', label: 'Notifications', icon: 'bell' },
       { id: 'hotkeys', label: 'Hotkeys', icon: 'keyboard' },
       { id: 'menus', label: 'Menus', icon: 'list' },
       { id: 'plugins', label: 'Plugins', icon: 'puzzle' },
@@ -21,7 +22,6 @@ export const GROUPS = [
     label: 'Account',
     pages: [
       { id: 'accounts', label: 'Accounts', icon: 'user' },
-      { id: 'notifications', label: 'Notifications', icon: 'bell' },
     ],
   },
   {

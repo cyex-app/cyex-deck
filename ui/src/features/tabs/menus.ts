@@ -62,7 +62,7 @@ export function tabCtx(tab: Tab, targets: Tab[]): TabCtx {
     layout: one && !popped ? layoutPart(tab) : null,
     look: one && !feed ? lookEntry(tab) : null,
     mineFirst: one && !feed ? mineFirstEntry(list.map((t) => t.channel)) : null,
-    group: { label: one ? 'Group' : `Group ${targets.length} tabs`, icon: 'tag', items: groupItems(targets) },
+    group: groupEntry(one ? 'Group' : `Group ${targets.length} tabs`, targets),
     onlyLive: onlyLiveSwitch(),
     lock: lockSwitch(),
     closeLabel: one ? 'Close' : `Close ${targets.length} tabs`,
@@ -243,6 +243,12 @@ function closePopsPart() {
 /** U10 */
 function reopenPart() {
   return { can: tabs.reopenable, hint: bindingOf('tabs.reopen') || undefined, run: () => void tabs.reopen() };
+}
+
+/** V111-N1 No groups yet: the one row (New group) itself, not a submenu of one. */
+function groupEntry(label: string, targets: Tab[]): MenuEntry {
+  const items = groupItems(targets);
+  return items.length === 1 ? items[0] : { label, icon: 'tag', items };
 }
 
 function groupItems(targets: Tab[]): MenuEntry[] {

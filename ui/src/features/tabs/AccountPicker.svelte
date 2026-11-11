@@ -58,7 +58,7 @@
   <div class="row">
     {#if list.length === 1 && chosen}
       <span class="as" class:off={anon}>
-        Joins as <Avatar src={chosen.avatar} name={chosen.displayName} size={18} />
+        Chatting as <Avatar src={chosen.avatar} name={chosen.displayName} size={18} />
         <b>{chosen.displayName}</b>
       </span>
     {:else if chosen}
