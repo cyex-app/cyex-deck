@@ -255,8 +255,9 @@
   .row {
     position: relative;
     display: flex;
+    flex-wrap: wrap; /* N2-3 */
     align-items: center;
-    gap: 6px;
+    gap: 2px 6px;
     min-height: 26px;
     padding: 2px 6px;
     background: linear-gradient(to right, var(--accent-wash) var(--fill), transparent var(--fill));
@@ -300,12 +301,19 @@
     color: var(--dim);
     font-variant-numeric: tabular-nums;
   }
+  /* N2-3 The label keeps at least 40 % of the row (two lines, then an ellipsis); the numbers drop under it. */
   .label {
-    flex: 1;
-    min-width: 0;
+    flex: 1 1 40%;
+    min-width: 40%;
     overflow-wrap: anywhere;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    overflow: hidden;
   }
   .num {
+    margin-left: auto;
     color: var(--muted);
     font-variant-numeric: tabular-nums;
     white-space: nowrap;

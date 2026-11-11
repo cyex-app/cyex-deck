@@ -217,6 +217,7 @@
         class="chat-toggle"
         class:resting
         onpointerenter={() => { clearTimeout(restTimer); resting = false; }}
+        onpointermove={(e) => e.stopPropagation()}
         onpointerleave={stir}
         aria-label={chatButton}
         onclick={() => theatre.toggleChat()}
@@ -293,6 +294,8 @@
     transition: opacity calc(var(--slow) * 2) ease-in-out;
   }
   .body:hover .chat-toggle:not(.resting),
+  /* N2-1 Hovered or focused, it stays: a move on the button doesn't reach .body's stir(). */
+  .chat-toggle:hover,
   .chat-toggle:focus-visible {
     opacity: 1;
     transition-duration: var(--fast);

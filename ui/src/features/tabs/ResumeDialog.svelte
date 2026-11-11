@@ -10,6 +10,7 @@
 
   // svelte-ignore state_referenced_locally
   const list = tabs.list.map((t) => ({ id: t.id, name: label(t) || 'Tab' }));
+  const SCROLL_AFTER = 8;
   const all = list.map((t) => t.id);
   let off = $state(new Set<string>());
   const keep = $derived(picked(all, off));
@@ -39,7 +40,7 @@
 {#if list.length > 1}
 <Dialog title="Reopen your tabs?" width={380} onclose={() => go(all)} onsubmit={() => keep.length && go(keep)}>
   <p class="lead">cyex deck closed unexpectedly. Pick the tabs to bring back.</p>
-  <div class="list">
+  <div class="list" class:scroll={list.length > SCROLL_AFTER}>
     {#each list as t (t.id)}
       <Checkbox checked={!off.has(t.id)} label={t.name} hint={t.name} ellipsis onchange={(c) => toggle(t.id, c)} />
     {/each}
@@ -61,6 +62,9 @@
     display: flex;
     flex-direction: column;
     gap: 8px;
+  }
+  /* N2-8 No scroll box (and no thumb) for a short list; only a long one scrolls. */
+  .list.scroll {
     max-height: 280px;
     overflow-x: hidden; /* V110-F39 */
     overflow-y: auto;

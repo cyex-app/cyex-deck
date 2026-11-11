@@ -1003,7 +1003,7 @@
   {#if scroll.pill}
     <button class="more" in:pillIn onclick={jumpDown} title={cut > 0 ? `${formatNumber(cut)} older lines dropped` : undefined}>
       <Icon name="arrowDown" size={13} />
-      {fresh > 0 ? `${formatNumber(fresh)} new` : following ? 'Paused' : 'More messages'}{cut > 0 ? ` · ${formatNumber(cut)} dropped` : ''}
+      <span class="more-text">{fresh > 0 ? `${formatNumber(fresh)} new` : following ? 'Paused' : 'More messages'}{cut > 0 ? ` · ${formatNumber(cut)} dropped` : ''}</span>
     </button>
   {/if}
 </div>
@@ -1074,6 +1074,10 @@
     align-items: center;
     gap: 6px;
     height: 26px;
+    /* N2-4 One line always; a long "dropped" part gets the ellipsis. */
+    max-width: calc(100% - 16px);
+    white-space: nowrap;
+    overflow: hidden;
     padding: 0 12px;
     background: var(--elevated);
     border: 1px solid var(--border-strong);
@@ -1081,6 +1085,11 @@
     box-shadow: var(--shadow-pop);
     font-size: 0.8rem;
     font-weight: 600;
+  }
+  .more-text {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis; /* N2-4 */
   }
   .more:hover {
     background: var(--elevated-2);

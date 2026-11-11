@@ -40,7 +40,9 @@ export class TheatreBar {
       this.over = false;
       this.step();
     };
-    const focus = () => this.step();
+    // N2-2 Deferred: focusout fires inside Svelte's effect flush when the chat input unmounts,
+    // and step() writes $state (state_unsafe_mutation).
+    const focus = () => queueMicrotask(() => this.step());
     window.addEventListener('pointermove', move, true);
     document.documentElement.addEventListener('pointerleave', leave);
     document.addEventListener('focusin', focus);
