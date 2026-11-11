@@ -7,6 +7,7 @@ import { KIND_ICONS, KIND_LABELS } from '../../../components/menus/custom.ts';
 import { isDefault, type Path } from '../../../components/menus/ops.ts';
 import { effectiveNodes } from '../../../components/menus/resolve.ts';
 import type { ItemDef, MenuDef, MenuEntry, MenuLayout, Node } from '../../../components/menus/types.ts';
+import { tidy } from '../../../components/menuItems.ts';
 
 export type Who = 'viewer' | 'mod' | 'out';
 export const WHO: { value: Who; label: string }[] = [
@@ -45,6 +46,19 @@ export interface RowView {
   renamed: boolean;
   /** Rows inside a group. */
   count: number;
+  /** V110-B8 A moderator action, or a group of nothing else: only drawn when previewing as a Mod. */
+  modOnly: boolean;
+}
+
+/** V110-B8 The tip under the Moderator section of the Add item list. */
+export const MOD_HINT = 'Shown in chats you moderate.';
+
+/** A moderator action, or a group holding only those (and lines). */
+export function isModNode<C>(def: MenuDef<C>, node: Node): boolean {
+  if (node.t === 'item') return def.items.find((i) => i.id === node.id)?.mod === true;
+  if (node.t !== 'group') return false;
+  const rows = node.children.filter((c) => c.t !== 'sep');
+  return rows.length > 0 && rows.every((c) => isModNode(def, c));
 }
 
 const rowsOf = (built: MenuEntry | MenuEntry[] | null): MenuEntry[] => (built == null ? [] : Array.isArray(built) ? built : [built]);
@@ -81,6 +95,7 @@ export function rowView<C>(def: MenuDef<C>, node: Node, path: Path, who: Who, sa
     renamable: false,
     renamed: false,
     count: 0,
+    modOnly: node.t !== 'sep' && isModNode(def, node),
   };
   if (node.t === 'sep') return base;
   if (node.t === 'group') {
@@ -121,9 +136,22 @@ export function rowView<C>(def: MenuDef<C>, node: Node, path: Path, who: Who, sa
   };
 }
 
+/** V110-B8 Moderator actions are drawn for a Mod preview only; the lines around them go with them. */
+function visible(rows: RowView[], who: Who): RowView[] {
+  if (who === 'mod') return rows;
+  const out: RowView[] = [];
+  for (const r of rows) {
+    if (r.modOnly) continue;
+    if (r.kind === 'sep' && (out.length === 0 || out.at(-1)!.kind === 'sep')) continue;
+    out.push(r);
+  }
+  if (out.at(-1)?.kind === 'sep') out.pop();
+  return out;
+}
+
 /** The rows of the menu itself. */
 export function rootRows<C>(def: MenuDef<C>, nodes: Node[], who: Who, sample?: SampleOf): RowView[] {
-  return nodes.map((n, i) => rowView(def, n, [i], who, sample));
+  return visible(nodes.map((n, i) => rowView(def, n, [i], who, sample)), who);
 }
 
 /** The rows of a group's flyout. */
@@ -131,7 +159,7 @@ export function childRows<C>(def: MenuDef<C>, nodes: Node[], groupId: string | n
   const at = nodes.findIndex((n) => n.t === 'group' && n.id === groupId);
   const g = nodes[at];
   if (g?.t !== 'group') return [];
-  return g.children.map((n, i) => rowView(def, n, [at, i], who, sample));
+  return visible(g.children.map((n, i) => rowView(def, n, [at, i], who, sample)), who);
 }
 
 /** Tree order: each group is followed by its rows, whether or not its flyout is drawn open. */
@@ -167,4 +195,20 @@ export function moveNote(before: Node[], after: Node[], id: string, label: strin
   if (now.group && now.group !== was?.group) return `Moved ${label} into ${now.group}`;
   if (!now.group && was?.group) return `Moved ${label} out of ${was.group}`;
   return `Moved ${label} to ${now.at + 1} of ${now.of}`;
+}
+
+/**
+ * V110-B8 The Add item list: viewer rows first, then a Moderator submenu with its hint, so a
+ * moderator action never sits among the viewer ones. `pick` adds the item.
+ */
+export function addList<C>(items: ItemDef<C>[], pick: (it: ItemDef<C>) => void): MenuEntry[] {
+  const entry = (it: ItemDef<C>): MenuEntry => ({ label: it.name, icon: it.icon, tag: it.when, run: () => pick(it) });
+  const viewer = items.filter((i) => !i.mod).map(entry);
+  const mod = items.filter((i) => i.mod).map(entry);
+  if (!mod.length) return viewer;
+  return tidy([
+    ...viewer,
+    'separator',
+    { label: 'Moderator', icon: 'shield', note: MOD_HINT, items: [{ label: MOD_HINT, disabled: true }, 'separator', ...mod] },
+  ]);
 }

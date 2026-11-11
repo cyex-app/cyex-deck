@@ -57,6 +57,8 @@
   import { streamIds, tabs, tiles } from '../features/tabs/tabs.svelte';
   import { theatre } from '../features/tabs/theatre.svelte';
   import { stillHere, theatreTarget } from '../features/tabs/theatre';
+  import { TheatreBar } from '../features/tabs/theatreBar.svelte';
+  import { windowFullscreen } from '../features/tabs/windowFullscreen';
   import type { Tab } from '../ipc/bindings/Tab';
   import type { LinkTarget } from '../ipc/bindings/LinkTarget';
   import { accountsIpc } from '../ipc/accounts';
@@ -129,6 +131,13 @@
   const theatreOn = $derived(!!shownTab && !!tab && stillHere(theatre.tile, tiles(tab).map((t) => t.id)) !== null);
   $effect(() => {
     if (theatre.tile && !theatreOn) untrack(() => theatre.leave());
+  });
+  // V110-B7 Theatre is fullscreen; the window controls show on hover at the top of the screen.
+  const theatreBar = new TheatreBar();
+  $effect(() => {
+    windowFullscreen.theatre(theatreOn);
+    if (!theatreOn) return;
+    return theatreBar.start();
   });
 
   // V102-15 Which tab plays out of sight, worked out before the old tab leaves the page. It
@@ -551,7 +560,7 @@
   />
 {/if}
 
-<WindowChrome>
+<WindowChrome overlay={theatreOn} shown={theatreBar.shown}>
   {#snippet start()}
     {#if !theatreOn}
     <nav class="fixed-tabs" bind:this={menus}>
@@ -739,7 +748,7 @@
 <TabOverlays onopen={open} />
 {#if resumeDialog.open}<ResumeDialog />{/if}
 <!-- V110-F50 Last in Tab order, drawn in the title bar. -->
-<WindowControls />
+<WindowControls overlay={theatreOn} shown={theatreBar.shown} />
 <!-- V101-26 Kept on screen in fullscreen. -->
 <div class="layers" use:followFullscreen>
   <MenuHost />

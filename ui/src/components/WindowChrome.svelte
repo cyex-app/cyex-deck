@@ -14,20 +14,24 @@
     start?: Snippet;
     /** Content right before the window controls. */
     end?: Snippet;
+    /** V110-B7 Theatre: the bar floats over the content, out of sight until `shown`. */
+    overlay?: boolean;
+    shown?: boolean;
   }
 
-  let { title = '', start, end }: Props = $props();
+  let { title = '', start, end, overlay = false, shown = false }: Props = $props();
 
   // V110-F101 The bar's real height (a wrapped tab row grows it), so the toasts sit under all of it.
   let height = $state(0);
   $effect(() => {
     if (!currentWindow.isMain || !height) return;
-    document.documentElement.style.setProperty('--chrome-real-h', `${height}px`);
+    // V110-B7 A bar over the content takes no room, so toasts sit at the top.
+    document.documentElement.style.setProperty('--chrome-real-h', overlay ? '0px' : `${height}px`);
     return () => document.documentElement.style.removeProperty('--chrome-real-h');
   });
 </script>
 
-<header class="chrome" data-tauri-drag-region bind:offsetHeight={height}>
+<header class="chrome" class:overlay class:shown data-tauri-drag-region bind:offsetHeight={height}>
   <div class="brand" data-tauri-drag-region><BrandMark /></div>
   {#if start}
     {@render start()}
@@ -50,6 +54,24 @@
     flex: none;
     background: var(--page);
     border-bottom: 1px solid var(--border);
+  }
+  /* V110-B7 Theatre: out of the layout, above the content, slid up out of sight; it keeps
+     its place in the tab order, and focus inside it brings it down. */
+  .chrome.overlay {
+    position: fixed;
+    inset: 0 0 auto;
+    z-index: calc(var(--z-popover) - 2);
+    transform: translateY(-100%);
+    transition: transform var(--base) var(--ease);
+  }
+  .chrome.overlay.shown {
+    transform: none;
+    box-shadow: var(--shadow-pop);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .chrome.overlay {
+      transition: none;
+    }
   }
   .brand {
     display: grid;

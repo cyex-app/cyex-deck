@@ -47,18 +47,18 @@ export function timeoutItems(login: string, run: Run, presets: { label: string; 
 }
 
 export const timeoutEntry = (m: ModUser): MenuItem | null =>
-  m.onMod.offered ? { label: 'Time out', icon: 'clock', note: m.onMod.note, items: timeoutItems(m.login, m.run, m.presets) } : null;
+  m.onMod.offered ? { label: 'Time out user', icon: 'clock', note: m.onMod.note, items: timeoutItems(m.login, m.run, m.presets) } : null;
 
-export const warnEntry = (m: ModUser): MenuItem => ({ label: 'Warn', icon: 'alert', run: m.warn });
+export const warnEntry = (m: ModUser): MenuItem => ({ label: 'Warn user', icon: 'alert', run: m.warn });
 
-export const unbanEntry = (m: ModUser): MenuItem => ({ label: 'Unban', icon: 'undo', run: () => m.run(`/unban ${m.login}`) });
+export const unbanEntry = (m: ModUser): MenuItem => ({ label: 'Unban user', icon: 'undo', run: () => m.run(`/unban ${m.login}`) });
 
 export const banEntry = (m: ModUser): MenuItem | null =>
-  m.onMod.offered ? { label: 'Ban', icon: 'gavel', danger: true, note: m.onMod.note, confirm: 'Click to ban', run: () => m.run(`/ban ${m.login}`) } : null;
+  m.onMod.offered ? { label: 'Ban user', icon: 'gavel', danger: true, note: m.onMod.note, confirm: 'Click to ban', run: () => m.run(`/ban ${m.login}`) } : null;
 
-export const monitorEntry = (m: ModUser): MenuItem => ({ label: 'Monitor', icon: 'eye', run: () => m.run(`/monitor ${m.login}`) });
+export const monitorEntry = (m: ModUser): MenuItem => ({ label: 'Monitor user', icon: 'eye', run: () => m.run(`/monitor ${m.login}`) });
 
-export const restrictEntry = (m: ModUser): MenuItem => ({ label: 'Restrict', icon: 'eyeOff', run: () => m.run(`/restrict ${m.login}`) });
+export const restrictEntry = (m: ModUser): MenuItem => ({ label: 'Restrict user', icon: 'eyeOff', run: () => m.run(`/restrict ${m.login}`) });
 
 /** Mod or Unmod. */
 export const modRoleEntry = (m: ModUser): MenuEntry | null => (m.roles ? (roleItems(m.login, m.run, m.standing)[0] as MenuItem) : null);

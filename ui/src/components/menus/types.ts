@@ -48,6 +48,8 @@ export interface ItemDef<C> {
   tags?: string[];
   /** A place where other code fills in rows (your entries, plugins, async 7TV edits): never renamed. */
   slot?: true;
+  /** V110-B8 A moderator action (ban, timeout, delete, pin…). It builds nothing for an account that may not moderate the chat, and the manager keeps it in its own Moderator group, out of a Viewer or Signed out preview. */
+  mod?: true;
   /** Shown dim in the manager when it only appears sometimes, e.g. "mods", "signed in". */
   when?: string;
 }

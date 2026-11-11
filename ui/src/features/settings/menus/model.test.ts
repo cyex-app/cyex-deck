@@ -3,7 +3,7 @@ import { test } from 'node:test';
 
 import { group, item, type MenuDef, SEP } from '../../../components/menus/types.ts';
 import { effectiveNodes } from '../../../components/menus/resolve.ts';
-import { childRows, isChanged, moveNote, rootRows, type SampleOf, treeOrder } from './model.ts';
+import { addList, childRows, isChanged, MOD_HINT, moveNote, rootRows, type SampleOf, treeOrder } from './model.ts';
 
 type Ctx = { mod: boolean };
 
@@ -13,8 +13,8 @@ const def: MenuDef<Ctx> = {
   where: 'x',
   items: [
     { id: 'copy', name: 'Copy name', icon: 'copy', build: () => ({ label: 'Copy name', icon: 'copy', run() {} }) },
-    { id: 'ban', name: 'Ban', icon: 'ban', when: 'mods', build: (c) => (c.mod ? { label: 'Ban', icon: 'ban', danger: true, run() {} } : null) },
-    { id: 'time', name: 'Time out', when: 'mods', build: (c) => (c.mod ? { label: 'Time out', items: [] } : null) },
+    { id: 'ban', name: 'Ban', icon: 'ban', when: 'mods', mod: true, build: (c) => (c.mod ? { label: 'Ban', icon: 'ban', danger: true, run() {} } : null) },
+    { id: 'time', name: 'Time out', when: 'mods', mod: true, build: (c) => (c.mod ? { label: 'Time out', items: [] } : null) },
     { id: 'mine', name: 'Your entries', slot: true, build: () => null },
     { id: 'fix', name: 'Pause', renamable: false, build: () => ({ label: 'Pause', hint: 'K' }) },
   ],
@@ -23,7 +23,7 @@ const def: MenuDef<Ctx> = {
 const sample: SampleOf = (_id, who) => ({ mod: who === 'mod' });
 
 test('rows carry the built-in name, icon, hint and the dim tag', () => {
-  const rows = rootRows(def, def.defaults, 'viewer', sample);
+  const rows = rootRows(def, def.defaults, 'mod', sample);
   assert.deepEqual(rows.map((r) => r.kind), ['item', 'group', 'sep', 'item', 'item']);
   assert.equal(rows[0].label, 'Copy name');
   assert.equal(rows[0].icon, 'copy');
@@ -33,13 +33,34 @@ test('rows carry the built-in name, icon, hint and the dim tag', () => {
   assert.equal(rows[4].slot, true);
 });
 
-test('a row whose condition fails is absent for that viewer, present for a mod', () => {
-  const viewer = childRows(def, def.defaults, 'g', 'viewer', sample);
-  assert.deepEqual(viewer.map((r) => [r.id, r.absent, r.tag]), [['ban', true, 'mods'], ['time', true, 'mods']]);
+test('V110-B8 mod rows and a group of them are drawn for a Mod preview only', () => {
+  assert.deepEqual(childRows(def, def.defaults, 'g', 'viewer', sample), []);
+  assert.deepEqual(rootRows(def, def.defaults, 'viewer', sample).map((r) => r.id), ['copy', '', 'fix', 'mine']);
+  assert.deepEqual(rootRows(def, def.defaults, 'out', sample).map((r) => r.id), ['copy', '', 'fix', 'mine']);
+  assert.equal(rootRows(def, def.defaults, 'mod', sample)[1].modOnly, true);
   const mod = childRows(def, def.defaults, 'g', 'mod', sample);
-  assert.deepEqual(mod.map((r) => [r.id, r.absent, r.danger, r.sub]), [['ban', false, true, false], ['time', false, false, true]]);
-  // Without a sample nothing is marked absent, the tag still shows.
-  assert.equal(childRows(def, def.defaults, 'g', 'viewer')[0].absent, false);
+  assert.deepEqual(mod.map((r) => [r.id, r.absent, r.danger, r.sub, r.tag]), [['ban', false, true, false, 'mods'], ['time', false, false, true, 'mods']]);
+  // Without a sample nothing is marked absent.
+  assert.equal(childRows(def, def.defaults, 'g', 'mod')[0].absent, false);
+});
+
+test('V110-B8 a viewer row still shows as absent when only its condition fails', () => {
+  const one: MenuDef<Ctx> = { ...def, items: [...def.items, { id: 'solo', name: 'Solo', when: 'signed in', build: () => null }], defaults: [item('solo')] };
+  assert.deepEqual(rootRows(one, one.defaults, 'viewer', sample).map((r) => [r.id, r.absent, r.modOnly]), [['solo', true, false]]);
+});
+
+test('V110-B8 the Add item list keeps mod rows in a Moderator group with its hint', () => {
+  const list = addList(def.items, () => {});
+  const labels = list.map((e) => (e === 'separator' ? '-' : e.label));
+  assert.deepEqual(labels, ['Copy name', 'Your entries', 'Pause', '-', 'Moderator']);
+  const mod = list.at(-1);
+  assert.ok(mod !== 'separator' && mod?.items);
+  assert.equal(mod.note, MOD_HINT);
+  assert.deepEqual(mod.items!.map((e) => (e === 'separator' ? '-' : e.label)), [MOD_HINT, '-', 'Ban', 'Time out']);
+  assert.equal(MOD_HINT, 'Shown in chats you moderate.');
+  assert.equal((mod.items![0] as { disabled?: boolean }).disabled, true);
+  // A menu with no mod rows has no Moderator entry.
+  assert.deepEqual(addList(def.items.filter((i) => !i.mod), () => {}).map((e) => (e === 'separator' ? '-' : e.label)), ['Copy name', 'Your entries', 'Pause']);
 });
 
 test('own names show, except on slots and fixed labels', () => {
@@ -47,7 +68,7 @@ test('own names show, except on slots and fixed labels', () => {
   (nodes[0] as { label: string | null }).label = 'Copy it';
   (nodes[3] as { label: string | null }).label = 'Nope';
   (nodes[4] as { label: string | null }).label = 'Nope';
-  const rows = rootRows(def, nodes, 'viewer', sample);
+  const rows = rootRows(def, nodes, 'mod', sample);
   assert.equal(rows[0].label, 'Copy it');
   assert.equal(rows[0].renamed, true);
   assert.equal(rows[0].builtIn, 'Copy name');

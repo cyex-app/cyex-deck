@@ -5,9 +5,17 @@
   import { currentWindow } from '../lib/window.svelte';
   import IconButton from './IconButton.svelte';
   import { PIN_LABEL, pinHint } from './pinHint';
+
+  interface Props {
+    /** V110-B7 Theatre: slid up out of sight until `shown`, with the title bar. */
+    overlay?: boolean;
+    shown?: boolean;
+  }
+
+  let { overlay = false, shown = false }: Props = $props();
 </script>
 
-<div class="controls">
+<div class="controls" class:overlay class:shown>
   <IconButton
     chrome
     icon={currentWindow.pinned ? 'pinFilled' : 'pin'}
@@ -38,6 +46,18 @@
     z-index: calc(var(--z-popover) - 2);
     display: flex;
     height: calc(var(--chrome-h) - 1px);
+  }
+  .controls.overlay {
+    transform: translateY(-100%);
+    transition: transform var(--base) var(--ease);
+  }
+  .controls.overlay.shown {
+    transform: none;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .controls.overlay {
+      transition: none;
+    }
   }
   /* V110-F26 Narrow: smaller, so they stay on screen; WindowChrome's gap shrinks the same. */
   @media (max-width: 600px) {

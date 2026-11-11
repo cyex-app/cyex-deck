@@ -3,13 +3,12 @@
 // pages (1.21), a clip over the stream (1.20), a clip or VOD beside a chat-only tile
 // (1.19, P7), the VOD the chat replays (P8).
 
-import { getCurrentWindow } from '@tauri-apps/api/window';
-
 import type { LinkTarget } from '../../ipc/bindings/LinkTarget';
 import type { TileShow } from '../../ipc/bindings/TileShow';
 import { CappedMap, useCapped } from '../../lib/capped';
 import { keyTaken } from '../../lib/escape';
 import { settings } from '../../lib/settings.svelte';
+import { windowFullscreen } from '../tabs/windowFullscreen';
 import { pickShown } from './pickPlayer';
 import { barKeepsKey, liveKeyAction, ownsKey, type SeekResult, seekText, stepChoice, Steps } from './liveKeys';
 
@@ -208,7 +207,8 @@ export const playerFullscreen = $state({ on: false });
 document.addEventListener('fullscreenchange', () => {
   playerFullscreen.on = Boolean(document.fullscreenElement);
   // V107-R46 Pop-outs maximize instead of going fullscreen, so only the player decides here.
-  getCurrentWindow().setFullscreen(Boolean(document.fullscreenElement)).catch(() => {});
+  // V110-B7 Theatre keeps the window fullscreen when the player's own ends.
+  windowFullscreen.player(Boolean(document.fullscreenElement));
 });
 
 // rd-5 Escape leaves a player's fullscreen when WebView2 doesn't. Layers (menus, popovers)

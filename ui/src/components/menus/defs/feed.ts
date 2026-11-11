@@ -15,7 +15,7 @@ export const FEED_NAME_DEF: MenuDef<FeedNameCtx> = {
   label: 'Names in feeds',
   where: 'Right-click a name in a feed tab',
   items: [
-    row('usercard', 'Usercard', 'user', (c) => ({ label: 'Usercard', icon: 'user', run: c.act.usercard })),
+    row('usercard', 'Open usercard', 'user', (c) => ({ label: 'Open usercard', icon: 'user', run: c.act.usercard })),
     row('whisper', 'Whisper', 'whisper', (c) => (c.whispers ? { label: 'Whisper', icon: 'whisper', run: c.act.whisper } : null), { when: 'signed in' }),
     row('openChat', 'Open this chat', 'list', (c) => ({ label: 'Open this chat', icon: 'list', run: c.act.openChat })),
     row('copy', 'Copy name', 'copy', (c) => ({ label: 'Copy name', icon: 'copy', run: c.act.copyName })),
@@ -39,9 +39,9 @@ export const FEED_MESSAGE_DEF: MenuDef<FeedMessageCtx> = {
   where: 'Right-click a message in a feed tab',
   items: [
     row('openChat', 'Open this chat', 'list', (c) => ({ label: 'Open this chat', icon: 'list', run: c.act.openChat })),
-    row('showInLogs', 'Show in logs', 'scroll', (c) => (c.logsLink ? { label: 'Show in logs', icon: 'scroll', run: c.act.showInLogs } : null)),
+    row('showInLogs', 'Show message in logs', 'scroll', (c) => (c.logsLink ? { label: 'Show message in logs', icon: 'scroll', run: c.act.showInLogs } : null)),
     row('copy', 'Copy message', 'copy', (c) => ({ label: 'Copy message', icon: 'copy', run: c.act.copyMessage })),
-    row('copyFull', 'Copy full message', 'copy', (c) => ({ label: 'Copy full message', icon: 'copy', run: c.act.copyFull })),
+    row('copyFull', 'Copy with name and time', 'copy', (c) => ({ label: 'Copy with name and time', icon: 'copy', run: c.act.copyFull })),
   ],
   defaults: [item('openChat'), item('showInLogs'), item('copy'), item('copyFull')],
 };

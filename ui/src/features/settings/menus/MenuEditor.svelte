@@ -37,7 +37,7 @@
   import CustomForm from './CustomForm.svelte';
   import { addGroupOf, addPlace } from './menuDrag.ts';
   import MenuMock from './MenuMock.svelte';
-  import { moveNote, type RowView, type SampleOf, WHO, type Who } from './model.ts';
+  import { addList, moveNote, type RowView, type SampleOf, WHO, type Who } from './model.ts';
 
   interface Props {
     def: MenuDef<unknown>;
@@ -193,13 +193,10 @@
   const place = () => addPlace(def, nodes, addGroupOf(nodes, open, focusKey));
 
   function addRows(el: Element) {
-    const items: MenuEntry[] = unusedItems.map((it) => ({
-      label: it.name,
-      icon: it.icon,
-      tag: it.when,
-      run: () => commit(addItem(nodes, it.id, place()), `Added ${it.name}`, it.id),
-    }));
-    openMenu(el, items);
+    openMenu(
+      el,
+      addList(unusedItems, (it) => commit(addItem(nodes, it.id, place()), `Added ${it.name}`, it.id)),
+    );
   }
 
   function newGroup() {

@@ -23,7 +23,7 @@ export const EMOTE_DEF: MenuDef<EmoteCtx> = {
   where: 'Right-click an emote in chat',
   items: [
     row('card', 'Open emote card', 'smile', (c) => ({ label: 'Open emote card', icon: 'smile', run: c.act.card })),
-    row('copy', 'Copy name', 'copy', (c) => ({ label: 'Copy name', icon: 'copy', run: c.act.copyName })),
+    row('copy', 'Copy emote name', 'copy', (c) => ({ label: 'Copy emote name', icon: 'copy', run: c.act.copyName })),
     row('hide', 'Hide emote', 'eyeOff', (c) => ({ label: `Hide ${c.name}`, icon: 'eyeOff', run: c.act.hide }), { renamable: false }),
     slot('edits', '7TV edits', (c) => c.edits),
     row('blur', 'Blur unlisted emotes', 'eye', (c) => (c.unlisted ? { label: 'Blur unlisted emotes', icon: 'eye', checked: c.blurred, run: c.act.blur } : null), {
