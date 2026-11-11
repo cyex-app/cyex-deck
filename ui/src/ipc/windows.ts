@@ -8,6 +8,8 @@ export const windowsIpc = {
   info: () => invoke<WindowInfo>('window_info'),
   setPinned: (pinned: boolean) => invoke<boolean>('window_set_pinned', { pinned }),
   setTitle: (title: string) => invoke<void>('window_set_title', { title }),
+  /** V110-B10 Theatre: the fullscreen window leaves room for the taskbar. */
+  taskbarRoom: (on: boolean) => invoke<void>('window_taskbar_room', { on }),
   openPanel: (route: string, title: string, width?: number, height?: number) =>
     invoke<void>('window_open_panel', { route, title, width, height }),
   /** 3.14 Closing a pop-out docks its panel back. */

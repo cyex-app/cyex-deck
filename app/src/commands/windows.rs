@@ -35,6 +35,13 @@ pub fn window_set_pinned(app: AppHandle, window: WebviewWindow, pinned: bool) ->
     Ok(pinned)
 }
 
+/// V110-B10 Theatre at the bottom edge: the fullscreen window shrinks to the work area so the
+/// taskbar shows (`on`), or covers the whole monitor again.
+#[tauri::command]
+pub fn window_taskbar_room(window: WebviewWindow, on: bool) {
+    crate::sys::workarea::set(&window, on);
+}
+
 /// The calling window's title, as the taskbar shows it.
 #[tauri::command]
 pub fn window_set_title(window: WebviewWindow, title: String) -> CmdResult<()> {

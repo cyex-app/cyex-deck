@@ -48,3 +48,15 @@ export function headerHidden(current: string | null, tile: string, chatCarriesBu
 export function fullBox(w: number, h: number): { x: number; y: number; w: number; h: number } {
   return { x: 0, y: 0, w, h };
 }
+
+/** V110-B10 The chat is folded away in this tile for the length of theatre. */
+export function chatHiddenIn(current: string | null, tile: string, hidden: boolean): boolean {
+  return current !== null && current === tile && hidden;
+}
+
+/** V110-B10 The button in the player: only in theatre, for the theatre tile, with a chat to hide
+ *  (or one hidden by this button). Its label says what a click does. */
+export function chatToggle(current: string | null, tile: string, chatOn: boolean, hidden: boolean): 'Hide chat' | 'Show chat' | null {
+  if (current === null || current !== tile || !chatOn) return null;
+  return hidden ? 'Show chat' : 'Hide chat';
+}

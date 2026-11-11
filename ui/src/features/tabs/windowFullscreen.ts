@@ -4,7 +4,7 @@
 
 import { getCurrentWindow } from '@tauri-apps/api/window';
 
-import { restorePlan, wantFullscreen, type WindowBefore } from './theatreWindow';
+import { fullscreenWatch, restorePlan, UNSEEN, wantFullscreen, type WindowBefore } from './theatreWindow';
 
 let player = false;
 let theatre = false;
@@ -38,6 +38,25 @@ export const windowFullscreen = {
   player(on: boolean): void {
     player = on;
     sync();
+  },
+  /** V110-B10 While theatre is on: `onLeave` runs when the window stops being fullscreen by
+   *  itself (Restore, Win+Down, a monitor change). Returns the stop function. */
+  watch(onLeave: () => void): () => void {
+    const win = getCurrentWindow();
+    let state = UNSEEN;
+    let live = true;
+    const check = async () => {
+      const [fullscreen, minimized] = await Promise.all([win.isFullscreen(), win.isMinimized()]);
+      if (!live) return;
+      const { next, leave } = fullscreenWatch(state, { theatre: true, fullscreen, minimized });
+      state = next;
+      if (leave) onLeave();
+    };
+    const off = win.onResized(() => void check().catch(() => {}));
+    return () => {
+      live = false;
+      void off.then((f) => f());
+    };
   },
   /** Theatre began or ended. */
   theatre(on: boolean): void {

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 
-import { escLeaves, headerHidden,stillHere, theatreTarget, toggled } from './theatre.ts';
+import { chatHiddenIn, chatToggle, escLeaves, headerHidden, stillHere, theatreTarget, toggled } from './theatre.ts';
 
 const tiles = [
   { id: 'a', player: false },
@@ -51,4 +51,19 @@ test('V110-B2 the stream page header hides for the tile in theatre, unless it ca
   assert.equal(headerHidden('a', 'a', false), false);
   const src = readFileSync(new URL('../channel/StreamSide.svelte', import.meta.url), 'utf8');
   assert.match(src, /headerHidden\(theatre\.tile, tile\.id, !actions\)/);
+});
+
+test('V110-B10 the chat button exists only in theatre, for its tile, and says what a click does', () => {
+  assert.equal(chatToggle(null, 'a', true, false), null);
+  assert.equal(chatToggle('b', 'a', true, false), null);
+  assert.equal(chatToggle('a', 'a', false, false), null);
+  assert.equal(chatToggle('a', 'a', true, false), 'Hide chat');
+  assert.equal(chatToggle('a', 'a', true, true), 'Show chat');
+});
+
+test('V110-B10 a hidden chat is hidden only in the theatre tile', () => {
+  assert.equal(chatHiddenIn('a', 'a', true), true);
+  assert.equal(chatHiddenIn('a', 'a', false), false);
+  assert.equal(chatHiddenIn('a', 'b', true), false);
+  assert.equal(chatHiddenIn(null, 'a', true), false);
 });

@@ -458,6 +458,7 @@ pub fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static 
         windows::window_info,
         windows::window_set_pinned,
         windows::window_set_title,
+        windows::window_taskbar_room,
         windows::window_open_panel,
         windows::window_close_panel,
         windows::window_panels,

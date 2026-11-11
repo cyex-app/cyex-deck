@@ -7,13 +7,21 @@ import { keyTaken } from '../../lib/escape';
 
 class Theatre {
   tile = $state<string | null>(null);
+  /** V110-B10 The tile's chat is folded away by the player's button; lasts as long as theatre. */
+  chatHidden = $state(false);
 
   enter(tile: string): void {
     this.tile = tile;
+    this.chatHidden = false;
   }
 
   leave(): void {
     this.tile = null;
+    this.chatHidden = false;
+  }
+
+  toggleChat(): void {
+    this.chatHidden = !this.chatHidden;
   }
 }
 

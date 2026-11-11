@@ -52,6 +52,8 @@
   import { claimsOnClick, isControl } from './audioFocus';
   import { takeSound } from './takeSound';
   import { drag } from './drag.svelte';
+  import { chatHiddenIn } from './theatre';
+  import { theatre } from './theatre.svelte';
   import { aboveChat, BAR_SLOT, type BarSlots } from './aboveChat.svelte';
   import { chatSide, layout } from './layout.svelte';
   import { tileCtx } from './menus';
@@ -75,7 +77,8 @@
   const shared = $derived(tileState(tile.id));
   const chatPopped = $derived(tabs.chats.has(tile.id));
   /** The chat shows here unless the mod view needs its room (V102-26). */
-  const chatWanted = $derived(tile.show.chat && !chatPopped && !background);
+  // V110-B10 The player's Hide chat button folds it away for the length of theatre.
+  const chatWanted = $derived(tile.show.chat && !chatPopped && !background && !chatHiddenIn(theatre.tile, tile.id, theatre.chatHidden));
   /** 1.19, P7 Only beside a chat-only tile. */
   const side = $derived(tile.show.player ? null : shared.side);
   const replay = $derived(shared.replay ? shared.vod : null);

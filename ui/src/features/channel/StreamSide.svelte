@@ -12,6 +12,8 @@
   import type { Tile } from '../../ipc/bindings/Tile';
   import { playerIpc } from '../../ipc/player';
   import { accounts } from '../../lib/accounts.svelte';
+  import Icon from '../../components/Icon.svelte';
+  import { tooltip } from '../../components/tooltip.svelte';
   import { toast } from '../../lib/toast.svelte';
   import ClipOverlay from '../player/ClipOverlay.svelte';
   import { clipMaking } from '../player/clipMake.svelte';
@@ -21,7 +23,7 @@
   import { rewound } from '../player/rewound.svelte';
   import StoryViewer from '../player/StoryViewer.svelte';
   import VodPlayer from '../player/VodPlayer.svelte';
-  import { headerHidden } from '../tabs/theatre';
+  import { chatToggle, headerHidden } from '../tabs/theatre';
   import { theatre } from '../tabs/theatre.svelte';
   import { tabs } from '../tabs/tabs.svelte';
   import AboutPage from './AboutPage.svelte';
@@ -77,6 +79,12 @@
     account === null ? 'Open this tab signed in to clip.' : canClip ? null : 'This account can’t clip. Check Settings → Accounts.',
   );
   const hushed = $derived(shared.overlay !== null || shared.stories);
+  /** V110-B10 Theatre: the button in the player that folds this tile's chat away and back. */
+  const chatButton = $derived(
+    !bare && page.kind === 'stream' && tile.show.player
+      ? chatToggle(theatre.tile, tile.id, tile.show.chat && !tabs.chats.has(tile.id), theatre.chatHidden)
+      : null,
+  );
 
   function go(p: Page) {
     // V107-Mv Videos while the VOD plays small: the VOD, where it is.
@@ -184,6 +192,16 @@
         <ClipOverlay slug={shared.overlay} {tile} {made} onclose={closeOverlay} />
       {/key}
     {/if}
+    {#if chatButton}
+      <button
+        class="chat-toggle"
+        aria-label={chatButton}
+        onclick={() => theatre.toggleChat()}
+        use:tooltip={{ label: chatButton }}
+      >
+        <Icon name={chatButton === 'Hide chat' ? 'arrowRightToBar' : 'arrowLeftToBar'} size={16} />
+      </button>
+    {/if}
     {#if shared.stories && account}
       <StoryViewer
         channelId={tile.channel.id}
@@ -229,6 +247,37 @@
   }
   .body:fullscreen {
     background: #000;
+  }
+  /* V110-B10 Theatre: at the player's right edge, there while the pointer is over it or the button has the keys. */
+  .chat-toggle {
+    position: absolute;
+    top: 50%;
+    right: 12px;
+    z-index: 4;
+    display: grid;
+    place-items: center;
+    width: 36px;
+    height: 36px;
+    margin-top: -18px;
+    padding: 0;
+    background: var(--elevated);
+    border: 1px solid var(--border-strong);
+    border-radius: 50%;
+    color: var(--text);
+    opacity: 0;
+    transition: opacity var(--fast) var(--ease);
+  }
+  .body:hover .chat-toggle,
+  .chat-toggle:focus-visible {
+    opacity: 1;
+  }
+  .body:fullscreen .chat-toggle {
+    display: none;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .chat-toggle {
+      transition: none;
+    }
   }
   .popped {
     display: flex;

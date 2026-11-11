@@ -5,14 +5,19 @@
   import { currentWindow } from '../lib/window.svelte';
   import IconButton from './IconButton.svelte';
   import { PIN_LABEL, pinHint } from './pinHint';
+  import { sizeButton } from '../features/tabs/theatreWindow';
 
   interface Props {
     /** V110-B7 Theatre: slid up out of sight until `shown`, with the title bar. */
     overlay?: boolean;
     shown?: boolean;
+    /** V110-B10 Theatre is on: Restore leaves it (and fullscreen) instead of toggling maximized. */
+    theatre?: boolean;
+    onleavetheatre?: () => void;
   }
 
-  let { overlay = false, shown = false }: Props = $props();
+  let { overlay = false, shown = false, theatre = false, onleavetheatre }: Props = $props();
+  const size = $derived(sizeButton(theatre, currentWindow.maximized));
 </script>
 
 <div class="controls" class:overlay class:shown>
@@ -29,10 +34,10 @@
   {#if currentWindow.isMain}
     <IconButton
       chrome
-      icon={currentWindow.maximized ? 'restore' : 'maximize'}
-      label={currentWindow.maximized ? 'Restore' : 'Maximize'}
+      icon={size.icon}
+      label={size.label}
       size={14}
-      onclick={currentWindow.toggleMaximize}
+      onclick={size.leavesTheatre ? () => onleavetheatre?.() : currentWindow.toggleMaximize}
     />
   {/if}
   <IconButton chrome danger icon="x" label="Close" onclick={currentWindow.close} />

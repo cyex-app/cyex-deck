@@ -47,6 +47,9 @@ export const ICONS = {
   /** V106-29 A reply's "Replying to" line in chat: ⤵️ mirrored. */
   replied: '<path d="M20 4h-7a4 4 0 0 0-4 4v12"/><path d="m14 15-5 5-5-5"/>',
   arrowDown: '<path d="M12 5v14"/><path d="m19 12-7 7-7-7"/>',
+  /** V110-B10 Hide chat (the arrow runs into the bar), and its mirror, Show chat. */
+  arrowRightToBar: '<path d="M17 12H3"/><path d="m11 18 6-6-6-6"/><path d="M21 5v14"/>',
+  arrowLeftToBar: '<path d="M7 12h14"/><path d="m13 18-6-6 6-6"/><path d="M3 5v14"/>',
   arrowUp: '<path d="m5 12 7-7 7 7"/><path d="M12 19V5"/>',
   points: '<circle cx="12" cy="12" r="9"/><path d="M12 7a5 5 0 0 1 5 5"/>',
   gift: '<rect x="3" y="8" width="18" height="4" rx="1"/><path d="M12 8v13"/><path d="M19 12v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-7"/><path d="M7.5 8a2.5 2.5 0 0 1 0-5C9.5 3 11 5 12 8c1-3 2.5-5 4.5-5a2.5 2.5 0 0 1 0 5"/>',

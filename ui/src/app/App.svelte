@@ -58,6 +58,7 @@
   import { theatre } from '../features/tabs/theatre.svelte';
   import { stillHere, theatreTarget } from '../features/tabs/theatre';
   import { TheatreBar } from '../features/tabs/theatreBar.svelte';
+  import { TheatreTaskbar } from '../features/tabs/theatreTaskbar.svelte';
   import { windowFullscreen } from '../features/tabs/windowFullscreen';
   import type { Tab } from '../ipc/bindings/Tab';
   import type { LinkTarget } from '../ipc/bindings/LinkTarget';
@@ -134,10 +135,19 @@
   });
   // V110-B7 Theatre is fullscreen; the window controls show on hover at the top of the screen.
   const theatreBar = new TheatreBar();
+  // V110-B10 The taskbar shows at the bottom edge; a window that stops being fullscreen leaves theatre.
+  const theatreTaskbar = new TheatreTaskbar();
   $effect(() => {
     windowFullscreen.theatre(theatreOn);
     if (!theatreOn) return;
-    return theatreBar.start();
+    const stopBar = theatreBar.start();
+    const stopTaskbar = theatreTaskbar.start();
+    const stopWatch = windowFullscreen.watch(() => theatre.leave());
+    return () => {
+      stopBar();
+      stopTaskbar();
+      stopWatch();
+    };
   });
 
   // V102-15 Which tab plays out of sight, worked out before the old tab leaves the page. It
@@ -748,7 +758,7 @@
 <TabOverlays onopen={open} />
 {#if resumeDialog.open}<ResumeDialog />{/if}
 <!-- V110-F50 Last in Tab order, drawn in the title bar. -->
-<WindowControls overlay={theatreOn} shown={theatreBar.shown} />
+<WindowControls overlay={theatreOn} shown={theatreBar.shown} theatre={theatreOn} onleavetheatre={() => theatre.leave()} />
 <!-- V101-26 Kept on screen in fullscreen. -->
 <div class="layers" use:followFullscreen>
   <MenuHost />
