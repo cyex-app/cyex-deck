@@ -16,7 +16,7 @@ export interface CounterView {
 }
 
 const SHOWN = 5;
-/** V111-N1 */
+/** V110-N4 */
 const LIMIT = 'Twitch caps how many chats one account can join.';
 /** Up to five channels, then how many more. */
 const listed = (logins: string[]) =>

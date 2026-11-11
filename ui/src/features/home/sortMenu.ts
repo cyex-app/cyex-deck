@@ -1,4 +1,4 @@
-// V111-N1 The Sort menu on Home: one flat list, the live sorts and then the offline ones. The
+// V110-N4 The Sort menu on Home: one flat list, the live sorts and then the offline ones. The
 // row hint says which part a row sorts ("Name" is in both).
 
 import type { MenuEntry } from '../../components/menuItems';

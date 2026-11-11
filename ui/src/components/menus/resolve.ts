@@ -145,7 +145,7 @@ function branch<C>(
       const items = tidy(branch(n.children, byId, ctx, opts));
       const rows = items.filter((e) => e !== 'separator');
       if (!rows.length) continue;
-      // V111-N1 A group left with one visible row shows that row itself, not a submenu of one.
+      // V110-N4 A group left with one visible row shows that row itself, not a submenu of one.
       if (rows.length === 1) {
         out.push(rows[0]);
         continue;

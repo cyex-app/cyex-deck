@@ -9,7 +9,7 @@ const rows = (walletLock: 'helix' | null, connect: (() => void) | null) =>
   accountRows({ walletLock, connect, ask: noop, onmanage: noop, onsubs: noop, bits: noop, wallet: noop, ondashboard: noop, oncosmetics: noop, oncyex: noop });
 const names = (l: MenuEntry[]): string[] => l.map((e) => (e === 'separator' ? '-' : e.items ? `${e.label}>${names(e.items).join(',')}` : e.lock ? `${e.label}!` : e.label));
 
-test('V111-N1 account menu: Twitch pages sit in one submenu', () => {
+test('V110-N4 account menu: Twitch pages sit in one submenu', () => {
   assert.deepEqual(names(rows(null, null)), [
     'Manage accounts',
     '-',
@@ -23,7 +23,7 @@ test('V111-N1 account menu: Twitch pages sit in one submenu', () => {
   assert.deepEqual(menuProblems(rows(null, noop)), ['label "cyex cosmetics"']);
 });
 
-test('V111-N1 account menu: locked, the Twitch row carries the lock and no greyed rows show', () => {
+test('V110-N4 account menu: locked, the Twitch row carries the lock and no greyed rows show', () => {
   const list = rows('helix', null);
   assert.deepEqual(names(list).slice(2, 4), ['Creator dashboard', 'Twitch!']);
   const t = list[3];

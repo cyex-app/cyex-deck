@@ -55,7 +55,7 @@ test('a long refused list is cut after five channels', () => {
   assert.doesNotMatch(v.hint ?? '', /#f/);
 });
 
-test('V111-N1 one chat reads "1 chat joined"', () => {
+test('V110-N4 one chat reads "1 chat joined"', () => {
   const v = counterView([{ userId: 'me', joined: 1, refused: [] }], 'me', (id) => id);
   assert.equal(v.aria, '1 chat joined');
 });

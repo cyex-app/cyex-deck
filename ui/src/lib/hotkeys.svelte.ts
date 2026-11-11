@@ -78,7 +78,7 @@ function isTyping(target: EventTarget | null): boolean {
 /** V108-S1 The settings sheet is open: only the OVER_SHEET keys reach the tabs and players behind it. */
 export const keyHold = $state({ sheet: false });
 
-/** V111-N1 Reload the app (Ctrl+F5), also over the settings sheet. */
+/** V110-N4 Reload the app (Ctrl+F5), also over the settings sheet. */
 export const appHotkeys = { 'app.reload': () => location.reload() };
 
 /** Runs the handlers for their bound combos while the calling component is mounted. A

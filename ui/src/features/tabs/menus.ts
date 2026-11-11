@@ -245,7 +245,7 @@ function reopenPart() {
   return { can: tabs.reopenable, hint: bindingOf('tabs.reopen') || undefined, run: () => void tabs.reopen() };
 }
 
-/** V111-N1 No groups yet: the one row (New group) itself, not a submenu of one. */
+/** V110-N4 No groups yet: the one row (New group) itself, not a submenu of one. */
 function groupEntry(label: string, targets: Tab[]): MenuEntry {
   const items = groupItems(targets);
   return items.length === 1 ? items[0] : { label, icon: 'tag', items };

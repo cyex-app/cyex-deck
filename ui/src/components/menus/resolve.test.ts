@@ -219,7 +219,7 @@ function idsAll(nodes: ReturnType<typeof effectiveNodes>): string[] {
   return nodes.flatMap((n) => (n.t === 'sep' ? [] : n.t === 'group' ? [n.id, ...idsAll(n.children)] : [n.id]));
 }
 
-test('V111-N1 a group with one visible row shows that row, not a submenu of one', () => {
+test('V110-N4 a group with one visible row shows that row, not a submenu of one', () => {
   const def: MenuDef<Ctx> = {
     ...DEF,
     defaults: [item('usercard'), group('moderate', 'Moderate', [item('warn'), item('unban')], 'shield'), group('hideblock', 'Hide or block', [item('hide'), item('block')], 'ban')],

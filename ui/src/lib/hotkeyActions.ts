@@ -39,7 +39,7 @@ export const ACTIONS = {
   'zoom.in': { label: 'Zoom in', default: 'Ctrl+=' },
   'zoom.out': { label: 'Zoom out', default: 'Ctrl+-' },
   'zoom.reset': { label: 'Reset zoom', default: 'Ctrl+0' },
-  // V111-N1 WebView2's own Ctrl+F5 never reached the app while Settings was open; this binds it.
+  // V110-N4 WebView2's own Ctrl+F5 never reached the app while Settings was open; this binds it.
   'app.reload': { label: 'Reload the app', default: 'Ctrl+F5' },
   'global.show': { label: 'Show or hide cyex deck', default: '', global: true },
   'global.streamer': { label: 'Streamer mode on or off', default: '', global: true },
@@ -49,7 +49,7 @@ export const ACTIONS = {
 /** V108-S1 The settings sheet is open: only these keys reach the tabs and players behind it. */
 export const OVER_SHEET: ReadonlySet<string> = new Set(['settings.open', 'tabs.switcher', 'zoom.in', 'zoom.out', 'zoom.reset', 'app.reload']);
 
-/** V111-N1 The headings of the Hotkeys page, in order. */
+/** V110-N4 The headings of the Hotkeys page, in order. */
 export const HOTKEY_GROUPS = ['Navigation', 'Tabs', 'Player', 'Chat', 'View'] as const;
 export type HotkeyGroup = (typeof HOTKEY_GROUPS)[number];
 

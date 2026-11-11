@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import { menuProblems } from '../../components/menuItems.ts';
 import { sortEntries } from './sortMenu.ts';
 
-test('V111-N1 Home sort is one flat list: live sorts, a line, offline sorts', () => {
+test('V110-N4 Home sort is one flat list: live sorts, a line, offline sorts', () => {
   const set: unknown[] = [];
   const list = sortEntries({ liveSort: 'uptime', offlineSort: 'name' }, (p) => set.push(p));
   assert.deepEqual(

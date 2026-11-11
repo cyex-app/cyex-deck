@@ -70,7 +70,7 @@ test('V110-F81 key labels read as words and arrows', async () => {
   assert.equal(keyLabel('Ctrl'), 'Ctrl');
 });
 
-test('V111-N1 Ctrl+F5 reloads the app, also over the settings sheet', async () => {
+test('V110-N4 Ctrl+F5 reloads the app, also over the settings sheet', async () => {
   const { OVER_SHEET, HOTKEY_GROUPS, hotkeyGroup } = await import('./hotkeyActions.ts');
   assert.equal(ACTIONS['app.reload'].default, 'Ctrl+F5');
   assert.equal(resolveBinding('app.reload'), 'Ctrl+F5');
