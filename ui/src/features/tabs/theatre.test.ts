@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 
-import { chatHiddenIn, chatToggle, escLeaves, headerHidden, stillHere, theatreTarget, toggled } from './theatre.ts';
+import { chatHiddenIn, chatToggle, escLeaves, headerHidden, REST_MS, stillHere, theatreTarget, toggled } from './theatre.ts';
 
 const tiles = [
   { id: 'a', player: false },
@@ -66,4 +66,12 @@ test('V110-B10 a hidden chat is hidden only in the theatre tile', () => {
   assert.equal(chatHiddenIn('a', 'a', false), false);
   assert.equal(chatHiddenIn('a', 'b', true), false);
   assert.equal(chatHiddenIn(null, 'a', true), false);
+});
+
+test('V110-B11 the chat button fades after 3 s of rest and is square and see-through', () => {
+  assert.equal(REST_MS, 3000);
+  const src = readFileSync(new URL('../channel/StreamSide.svelte', import.meta.url), 'utf8');
+  assert.ok(src.includes('setTimeout(() => (resting = true), REST_MS)'), 'rests after REST_MS');
+  assert.ok(src.includes('.body:hover .chat-toggle:not(.resting)'), 'hidden while resting');
+  assert.ok(src.includes('border-radius: var(--radius);'), 'square corners');
 });

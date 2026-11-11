@@ -7,7 +7,7 @@
      P4 #18 Over a mod view's Stream panel (`bare`) it is the player only: no header, and
      About, Clips and Videos show the stream instead. -->
 <script lang="ts">
-  import type { Snippet } from 'svelte';
+  import { onDestroy, type Snippet } from 'svelte';
 
   import type { Tile } from '../../ipc/bindings/Tile';
   import { playerIpc } from '../../ipc/player';
@@ -23,7 +23,7 @@
   import { rewound } from '../player/rewound.svelte';
   import StoryViewer from '../player/StoryViewer.svelte';
   import VodPlayer from '../player/VodPlayer.svelte';
-  import { chatToggle, headerHidden } from '../tabs/theatre';
+  import { chatToggle, headerHidden, REST_MS } from '../tabs/theatre';
   import { theatre } from '../tabs/theatre.svelte';
   import { tabs } from '../tabs/tabs.svelte';
   import AboutPage from './AboutPage.svelte';
@@ -86,6 +86,21 @@
       : null,
   );
 
+  /** V110-B11 The button fades out after the pointer has rested on the player for 3 s; a move brings it back. */
+  let restTimer: ReturnType<typeof setTimeout> | undefined;
+  let resting = $state(false);
+  function stir() {
+    if (!chatButton) return;
+    resting = false;
+    clearTimeout(restTimer);
+    restTimer = setTimeout(() => (resting = true), REST_MS);
+  }
+  function still() {
+    clearTimeout(restTimer);
+    resting = false;
+  }
+  onDestroy(() => clearTimeout(restTimer));
+
   function go(p: Page) {
     // V107-Mv Videos while the VOD plays small: the VOD, where it is.
     // Videos again while it plays big: the list, the VOD closed.
@@ -143,7 +158,8 @@
 </section>
 
 {#snippet body()}
-  <div class="body" data-fullscreen>
+  <!-- svelte-ignore a11y_no_static_element_interactions (V110-B11: pointer rest only, nothing to operate) -->
+  <div class="body" data-fullscreen onpointermove={stir} onpointerleave={still}>
     {#if page.kind === 'about'}
       <AboutPage login={tile.channel.login} {account} live={!!info?.stream} onstories={() => (shared.stories = true)} />
     {:else if page.kind === 'clips'}
@@ -195,6 +211,9 @@
     {#if chatButton}
       <button
         class="chat-toggle"
+        class:resting
+        onpointerenter={() => { clearTimeout(restTimer); resting = false; }}
+        onpointerleave={stir}
         aria-label={chatButton}
         onclick={() => theatre.toggleChat()}
         use:tooltip={{ label: chatButton }}
@@ -256,20 +275,24 @@
     z-index: 4;
     display: grid;
     place-items: center;
-    width: 36px;
-    height: 36px;
-    margin-top: -18px;
+    width: 32px;
+    height: 40px;
+    margin-top: -20px;
     padding: 0;
-    background: var(--elevated);
-    border: 1px solid var(--border-strong);
-    border-radius: 50%;
+    /* V110-B11 Square and see-through: the stream stays visible behind it. */
+    background: color-mix(in srgb, var(--elevated) 65%, transparent);
+    border: 1px solid color-mix(in srgb, var(--border-strong) 70%, transparent);
+    border-radius: var(--radius);
     color: var(--text);
     opacity: 0;
     transition: opacity var(--fast) var(--ease);
   }
-  .body:hover .chat-toggle,
+  .body:hover .chat-toggle:not(.resting),
   .chat-toggle:focus-visible {
     opacity: 1;
+  }
+  .chat-toggle:hover {
+    background: color-mix(in srgb, var(--elevated) 90%, transparent);
   }
   .body:fullscreen .chat-toggle {
     display: none;
