@@ -225,6 +225,17 @@ mod tests {
     use cyex_settings::Schema;
     use std::collections::BTreeMap;
 
+    /// V110-G2 A wallpaper file is drawn from `http://cyexpic.localhost/`: the page's
+    /// policy has to allow images from there, or a picked file never shows.
+    #[test]
+    fn v110_g2_the_page_may_draw_wallpaper_files() {
+        let conf = include_str!("../tauri.conf.json");
+        let img = conf.split("img-src").nth(1).and_then(|r| r.split(';').next()).unwrap();
+        let origin = picture_url("a.png");
+        let origin = origin.trim_end_matches("/a.png");
+        assert!(img.split_whitespace().any(|s| s == origin), "{img}");
+    }
+
     #[test]
     fn plain_themes_have_no_palette() {
         let look = look_of(&Appearance::default());

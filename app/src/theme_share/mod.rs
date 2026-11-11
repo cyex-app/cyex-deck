@@ -175,6 +175,58 @@ pub fn can_edit(app: &AppHandle, id: &str) -> bool {
     theme(app, id).is_ok_and(|t| keys(app).get(&t.link.shared_id).is_some())
 }
 
+/// V110-G2 A copied theme code and a sentence for what it couldn't carry (or did).
+#[derive(Clone, Debug, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct CodeCopy {
+    pub code: String,
+    pub note: Option<String>,
+}
+
+/// V110-G2 `t`'s code with its wallpaper as the https link `url` (a file stays on this PC).
+fn code_with_link(t: &CustomTheme, url: &str) -> String {
+    let mut s = t.shareable();
+    s.wallpaper.source = url.to_owned();
+    theme_code::to_code(&s)
+}
+
+/// V110-G2 The code of one of your themes. A wallpaper file can't travel in it, so it goes up
+/// to cyex.app the way a link share sends it (the theme gets shared as a link first) and the
+/// code carries the picture's https address. If that fails the code has no wallpaper, and the
+/// note says why.
+pub async fn code(app: &AppHandle, id: &str) -> Result<CodeCopy, String> {
+    let t = theme(app, id)?;
+    if !t.wallpaper.is_file() {
+        return Ok(CodeCopy { code: theme_code::to_code(&t), note: None });
+    }
+    match hosted_wallpaper(app, id).await {
+        Ok(url) => Ok(CodeCopy {
+            code: code_with_link(&t, &url),
+            note: Some("Wallpaper uploaded to cyex.app so the code carries it.".into()),
+        }),
+        Err(why) => Ok(CodeCopy {
+            code: theme_code::to_code(&t),
+            note: Some(format!("The code has no wallpaper. {why}")),
+        }),
+    }
+}
+
+/// V110-G2 The https address cyex.app serves the theme's wallpaper from, after sharing the
+/// theme (or sending its changed picture, where this PC has the key).
+async fn hosted_wallpaper(app: &AppHandle, id: &str) -> Result<String, String> {
+    let t = theme(app, id)?;
+    if t.link.shared_id.is_empty() {
+        share(app, id).await?;
+    } else if t.wallpaper.source != t.link.shared_wallpaper && can_edit(app, id) {
+        update_share(app, id).await?;
+    }
+    let sid = theme(app, id)?.link.shared_id;
+    let got = api(app).get(&sid).await?;
+    let w = got.theme.wallpaper;
+    if w.is_link() { Ok(w.source) } else { Err("cyex.app didn’t keep the picture.".into()) }
+}
+
 /// A theme someone pasted, shown before it's added.
 #[derive(Clone, Debug, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
@@ -363,6 +415,21 @@ mod tests {
             date: String::new(),
         });
         assert!(code.link.is_empty(), "a code has no link");
+    }
+
+    /// V110-G2 A code of a theme with a wallpaper file carries the picture's https address,
+    /// and the stored theme keeps its file.
+    #[test]
+    fn v110_g2_a_code_carries_the_hosted_wallpaper() {
+        let mut t = CustomTheme { name: "Pic".into(), ..CustomTheme::default() };
+        t.wallpaper.source = "abc123.png".into();
+        let plain = theme_code::from_code(&theme_code::to_code(&t)).unwrap();
+        assert!(plain.wallpaper.source.is_empty(), "a file alone can't travel");
+        let url = "https://api.cyex.app/themes/v1/img/k3f9x2ab.png";
+        let got = theme_code::from_code(&code_with_link(&t, url)).unwrap();
+        assert_eq!(got.wallpaper.source, url);
+        assert!(got.wallpaper.is_link());
+        assert_eq!(t.wallpaper.source, "abc123.png");
     }
 
     #[test]

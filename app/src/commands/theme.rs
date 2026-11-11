@@ -3,7 +3,6 @@
 use cyex_core::color::{AccentTokens, Theme, accent_tokens};
 use cyex_settings::Partition;
 use cyex_settings::schema::{Appearance, CustomTheme, MAX_THEMES, builtin_themes};
-use cyex_settings::theme_code;
 use tauri::{AppHandle, State};
 use tauri_plugin_dialog::DialogExt;
 
@@ -49,16 +48,10 @@ pub(super) fn add(app: &AppHandle, settings: &Settings, theme: CustomTheme) -> C
     Ok(id)
 }
 
-/// U8 The share code of one of your themes.
+/// U8 The share code of one of your themes. V110-G2 A wallpaper file goes up to cyex.app first.
 #[tauri::command]
-pub fn theme_code(settings: State<Settings>, id: String) -> CmdResult<String> {
-    let a: Appearance = settings.read(Partition::Appearance);
-    let t = a
-        .themes
-        .iter()
-        .find(|t| t.id == id)
-        .ok_or("That theme is gone.")?;
-    Ok(theme_code::to_code(t))
+pub async fn theme_code(app: AppHandle, id: String) -> CmdResult<crate::theme_share::CodeCopy> {
+    crate::theme_share::code(&app, &id).await
 }
 
 /// U8 Picks a picture for a theme's wallpaper; returns its name in the app's folder,

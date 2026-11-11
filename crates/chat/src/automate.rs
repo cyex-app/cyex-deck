@@ -286,6 +286,24 @@ mod tests {
         })
     }
 
+    /// V110-G2 `!say /me`, `!say /me hi` and `!say /ban x` from another chatter reach the rule
+    /// with the words after the trigger, however much they look like a command.
+    #[test]
+    fn v110_g2_a_command_word_after_the_trigger_is_the_args() {
+        for (said, args) in [("!say /me", "/me"), ("!say /me hi", "/me hi"), ("!say /ban x", "/ban x")] {
+            let mut a = rules(vec![Automation {
+                channels: vec!["chan".into()],
+                trigger: "!say".into(),
+                response: "$1-".into(),
+                cooldown_secs: 30,
+                user_cooldown_secs: 0,
+                ..Automation::default()
+            }]);
+            let f = a.check("chan", &msg("", said), false, 0).expect(said);
+            assert_eq!(f.args, args);
+        }
+    }
+
     #[test]
     fn triggers_cooldowns_and_limits() {
         let mut a = rules(vec![

@@ -10,7 +10,6 @@
   import { copied } from '../../lib/copied.svelte';
   import { errorText } from '../../lib/errors';
   import { toast } from '../../lib/toast.svelte';
-  import { isLink } from './themes';
   import { shareState } from './themeLink';
 
   // V110-A-idea A check mark on the button for a moment, not a toast.
@@ -70,9 +69,9 @@
   async function copyCode() {
     flush();
     try {
-      const ok = await copy(await themeIpc.code(theme.id), 'Theme code');
-      const w = theme.wallpaper.source;
-      if (ok && w && !isLink(w)) toast.info('Your wallpaper file stays on this PC.');
+      const { code, note } = await themeIpc.code(theme.id);
+      const ok = await copy(code, 'Theme code');
+      if (ok && note) toast.info(note);
     } catch (e) {
       toast.error(errorText(e));
     }

@@ -27,7 +27,7 @@ const EVENT: &str = "chat:recording";
 /// V107-R1 How long pictures may still come in after a recording stops.
 const LATE_ASSETS: std::time::Duration = std::time::Duration::from_secs(120);
 /// V110-A27 Past this the UI is warned once per recording, with a quick Stop.
-const WARN_EVENTS_BYTES: u64 = 500 * 1024 * 1024;
+const WARN_EVENTS_BYTES: u64 = 1024 * 1024 * 1024;
 /// V110-F85 A recording stops by itself when its events file passes this (V110-A27: 5 GB).
 const MAX_EVENTS_BYTES: u64 = 5 * 1024 * 1024 * 1024;
 /// V110-F85 Pictures downloaded at the same time, over all recordings.
@@ -56,7 +56,7 @@ struct Rec {
     seen: HashSet<String>,
     /// V110-F85 Bytes written to `events.jsonl`.
     bytes: u64,
-    /// V110-A27 The warning at 500 MB went out.
+    /// V110-A27 The warning at 1 GB went out.
     warned: bool,
 }
 
@@ -475,7 +475,7 @@ mod tests {
     fn v110_f85_the_events_file_has_a_cap_and_asset_writes_are_batched() {
         assert!(!over_cap(MAX_EVENTS_BYTES - 1));
         assert!(over_cap(MAX_EVENTS_BYTES));
-        // V110-A27 No stop at 500 MB: the hard stop is 5 GB, and 500 MB warns once.
+        // V110-A27 No stop at 1 GB: the hard stop is 5 GB, and 1 GB warns once.
         assert!(!over_cap(WARN_EVENTS_BYTES + 1));
         assert_eq!(MAX_EVENTS_BYTES, 5 * 1024 * 1024 * 1024);
         let mut warned = false;

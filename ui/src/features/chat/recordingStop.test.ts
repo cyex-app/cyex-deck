@@ -11,8 +11,8 @@ test('V110-F92 only a size stop says so', () => {
   assert.equal(recordingStopText({ recording: true, reason: 'warn' }), null);
 });
 
-test('V110-A27 the warning past 500 MB is only for a recording that goes on', () => {
-  assert.equal(recordingWarnText({ recording: true, reason: 'warn' }), 'Recording is over 500 MB.');
+test('V110-A27 the warning past 1 GB is only for a recording that goes on', () => {
+  assert.equal(recordingWarnText({ recording: true, reason: 'warn' }), 'Recording is over 1 GB.');
   assert.equal(recordingWarnText({ recording: false, reason: 'warn' }), null);
   assert.equal(recordingWarnText({ recording: true }), null);
   assert.equal(recordingWarnText({ recording: false, reason: 'size' }), null);

@@ -183,6 +183,8 @@ fn menu(entry: &str, msg: &str) -> Result<Vec<Did>, String> {
 #[test]
 fn the_chatters_words_are_said_never_run() {
     // "!say /ban victim" on a rule that answers "$1-".
+    assert_eq!(automation("$1-", "/me"), Ok(vec![hidden("/me")]));
+    assert_eq!(automation("$1-", "/me hi"), Ok(vec![hidden("/me hi")]));
     assert_eq!(automation("$1-", "/ban victim"), Ok(vec![hidden("/ban victim")]));
     assert_eq!(automation("$1 $2", "/mod evil"), Ok(vec![hidden("/mod evil")]));
     assert_eq!(automation("$(nick): $1-", "/ban x"), Ok(vec![said("chatter: /ban x")]));

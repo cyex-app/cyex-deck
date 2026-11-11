@@ -5,6 +5,7 @@
 mod builtin;
 mod cosmetics;
 mod guard;
+mod refused;
 mod seventv_edit;
 mod spam;
 pub use builtin::{block_user, reserved};
@@ -17,7 +18,7 @@ pub mod timers;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
-use cyex_chat::automate::Automations;
+use cyex_chat::automate::{Automations, Fired};
 use cyex_chat::commands::{self, CommandList, Params};
 use cyex_chat::model::{ChatMessage, NoticeKind};
 use cyex_settings::Partition;
@@ -199,15 +200,9 @@ async fn menu_at(
 }
 
 /// S4 An automation went off in a room.
-pub async fn automation(
-    app: &AppHandle,
-    key: RoomKey,
-    response: &str,
-    args: &str,
-    nick: &str,
-    count: u64,
-    reply_to: Option<String>,
-) {
+pub async fn automation(app: &AppHandle, key: RoomKey, f: Fired, nick: &str) {
+    let Fired { rule, response, args, count, reply_to } = f;
+    let (response, args) = (response.as_str(), args.as_str());
     let place = Place {
         view: None,
         key,
@@ -227,8 +222,11 @@ pub async fn automation(
     };
     if let Err(e) = result {
         // V110-F87 An error can quote the line: without the marks.
+        // V110-G2 Every refusal shows, whoever wrote the trigger; once per rule in 30 s.
         let e = commands::taint::clean(&e);
-        local(app, &place.key, NoticeKind::Error, &format!("Automation: {e}"));
+        if refused::due(place.channel(), rule, super::now_ms()) {
+            local(app, &place.key, NoticeKind::Error, &format!("Automation: {e}"));
+        }
     }
 }
 
@@ -553,6 +551,6 @@ pub fn automate(app: &AppHandle, key: &RoomKey, m: &ChatMessage) {
         });
     }
     tauri::async_runtime::spawn(async move {
-        automation(&app, key, &f.response, &f.args, &nick, f.count, f.reply_to).await;
+        automation(&app, key, f, &nick).await;
     });
 }

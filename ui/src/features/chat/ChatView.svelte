@@ -200,7 +200,7 @@
         recording = e.recording;
         const why = recordingStopText(e);
         if (why) toast.info(why);
-        // V110-A27 Past 500 MB: a warning with a quick Stop, once per recording.
+        // V110-A27 Past 1 GB: a warning with a quick Stop, once per recording.
         const warn = recordingWarnText(e);
         if (warn)
           toast.info(warn, {

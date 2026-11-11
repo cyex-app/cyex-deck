@@ -6,6 +6,12 @@ import type { LinkUpdate } from './bindings/LinkUpdate';
 import type { ThemeLook } from './bindings/ThemeLook';
 import type { ThemePreview } from './bindings/ThemePreview';
 
+/** V110-G2 A copied theme code; `note` says what happened to a wallpaper file. */
+export interface CodeCopy {
+  code: string;
+  note: string | null;
+}
+
 /** V110-A7 `note` says why a theme from a code came without its wallpaper. */
 export interface AddedTheme {
   id: string;
@@ -22,7 +28,7 @@ export const themeIpc = {
   /** U8 Adds a theme with a fresh id and switches to it; returns the id. */
   add: (theme: CustomTheme) => invoke<string>('theme_add', { theme }),
   /** U8 The old offline share code. */
-  code: (id: string) => invoke<string>('theme_code', { id }),
+  code: (id: string) => invoke<CodeCopy>('theme_code', { id }),
   /** File name in the app's wallpapers folder, or null when cancelled. */
   pickWallpaper: () => invoke<string | null>('theme_pick_wallpaper'),
 
