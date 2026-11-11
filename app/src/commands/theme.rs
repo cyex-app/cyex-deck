@@ -48,10 +48,11 @@ pub(super) fn add(app: &AppHandle, settings: &Settings, theme: CustomTheme) -> C
     Ok(id)
 }
 
-/// U8 The share code of one of your themes. V110-G2 A wallpaper file goes up to cyex.app first.
+/// U8 The share code of one of your themes. V110-G2 A wallpaper file goes up to cyex.app first,
+/// but only with `with_wallpaper` (the user said yes); without it the code has no wallpaper file.
 #[tauri::command]
-pub async fn theme_code(app: AppHandle, id: String) -> CmdResult<crate::theme_share::CodeCopy> {
-    crate::theme_share::code(&app, &id).await
+pub async fn theme_code(app: AppHandle, id: String, with_wallpaper: bool) -> CmdResult<crate::theme_share::CodeCopy> {
+    crate::theme_share::code(&app, &id, with_wallpaper).await
 }
 
 /// U8 Picks a picture for a theme's wallpaper; returns its name in the app's folder,

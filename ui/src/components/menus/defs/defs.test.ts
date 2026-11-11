@@ -49,13 +49,14 @@ test('chat.name: top level as in the plan', () => {
 
 test('chat.message: top level as in the plan', () => {
   assert.deepEqual(names('chat.message', 'viewer'), ['Reply', 'Translate', 'Copy message', 'Copy with name and time', 'Look up']);
-  assert.deepEqual(names('chat.message', 'mod'), ['Reply', 'Translate', 'Copy message', 'Copy with name and time', 'Look up', 'Moderator']);
-  // The broadcaster's line: Pin and Delete are in the Moderator group.
+  assert.deepEqual(names('chat.message', 'mod'), ['Reply', 'Translate', 'Copy message', 'Copy with name and time', 'Time out user', 'Delete message', 'Look up', 'Moderator']);
+  // The broadcaster's line: Pin is in the Moderator group; Delete stays on top.
   assert.deepEqual(names('chat.message', 'viewer', { pinLine: true, del: true }), [
     'Reply',
     'Translate',
     'Copy message',
     'Copy with name and time',
+    'Delete message',
     'Look up',
     'Moderator',
   ]);
@@ -188,6 +189,9 @@ test('V110-B8 every row marked "mods" is a moderator row, and no mod row builds 
   }
 });
 
+// Time out and Delete stay at the top level of the message menu (still mod-only rows).
+const TOP_MOD: Record<string, string[]> = { 'chat.message': ['timeout', 'delete'] };
+
 test('V110-B8 the Moderator group holds all and only the mod rows of the built-in layout', () => {
   for (const id of ['chat.name', 'chat.message']) {
     const def = MENU_DEFS.find((d) => d.id === id)!;
@@ -195,7 +199,9 @@ test('V110-B8 the Moderator group holds all and only the mod rows of the built-i
     const g = def.defaults.find((n) => n.t === 'group' && n.id === 'moderate');
     assert.equal(g?.t === 'group' && g.label, 'Moderator');
     const inGroup = idsOf(g && g.t === 'group' ? g.children : []);
-    const outside = idsOf(def.defaults.filter((n) => n !== g)).filter((x) => modIds.includes(x));
+    const outside = idsOf(def.defaults.filter((n) => n !== g))
+      .filter((x) => modIds.includes(x))
+      .filter((x) => !(TOP_MOD[id] ?? []).includes(x));
     assert.deepEqual(outside, [], `${id}: mod rows outside the group`);
     for (const x of inGroup) assert.ok(modIds.includes(x), `${id}.${x} is a viewer row in the Moderator group`);
   }

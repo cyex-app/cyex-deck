@@ -184,6 +184,19 @@ pub struct CodeCopy {
     pub note: Option<String>,
 }
 
+/// How a code is made. Only `Upload` touches the network, and only when the user agreed to it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum CodePlan {
+    /// The code as it is: a file wallpaper isn't in it, a link or none is.
+    Plain,
+    /// The wallpaper file goes up to cyex.app and the code carries its link.
+    Upload,
+}
+
+fn code_plan(t: &CustomTheme, with_wallpaper: bool) -> CodePlan {
+    if with_wallpaper && t.wallpaper.is_file() { CodePlan::Upload } else { CodePlan::Plain }
+}
+
 /// V110-G2 `t`'s code with its wallpaper as the https link `url` (a file stays on this PC).
 fn code_with_link(t: &CustomTheme, url: &str) -> String {
     let mut s = t.shareable();
@@ -195,9 +208,9 @@ fn code_with_link(t: &CustomTheme, url: &str) -> String {
 /// to cyex.app the way a link share sends it (the theme gets shared as a link first) and the
 /// code carries the picture's https address. If that fails the code has no wallpaper, and the
 /// note says why.
-pub async fn code(app: &AppHandle, id: &str) -> Result<CodeCopy, String> {
+pub async fn code(app: &AppHandle, id: &str, with_wallpaper: bool) -> Result<CodeCopy, String> {
     let t = theme(app, id)?;
-    if !t.wallpaper.is_file() {
+    if code_plan(&t, with_wallpaper) == CodePlan::Plain {
         return Ok(CodeCopy { code: theme_code::to_code(&t), note: None });
     }
     match hosted_wallpaper(app, id).await {
@@ -430,6 +443,21 @@ mod tests {
         assert_eq!(got.wallpaper.source, url);
         assert!(got.wallpaper.is_link());
         assert_eq!(t.wallpaper.source, "abc123.png");
+    }
+
+    /// Without the user's yes a wallpaper file never goes up: the plan is Plain, and the code
+    /// has no wallpaper. A link or no wallpaper needs no upload either way.
+    #[test]
+    fn a_wallpaper_file_goes_up_only_with_consent() {
+        let mut t = CustomTheme { name: "Pic".into(), ..CustomTheme::default() };
+        assert_eq!(code_plan(&t, true), CodePlan::Plain);
+        t.wallpaper.source = "https://example.com/a.png".into();
+        assert_eq!(code_plan(&t, true), CodePlan::Plain);
+        t.wallpaper.source = "abc123.png".into();
+        assert_eq!(code_plan(&t, false), CodePlan::Plain);
+        assert_eq!(code_plan(&t, true), CodePlan::Upload);
+        let got = theme_code::from_code(&theme_code::to_code(&t)).unwrap();
+        assert!(got.wallpaper.source.is_empty());
     }
 
     #[test]

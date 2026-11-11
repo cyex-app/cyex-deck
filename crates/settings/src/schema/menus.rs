@@ -99,8 +99,9 @@ impl Schema for MenuLayouts {
         while self.layouts.len() > MAX_LAYOUTS {
             self.layouts.pop_last();
         }
-        for layout in self.layouts.values_mut() {
+        for (menu, layout) in &mut self.layouts {
             layout.sanitize();
+            layout.rename_old_groups(menu);
         }
     }
 }
@@ -115,6 +116,22 @@ impl MenuLayout {
         let mut known_seen = HashSet::new();
         self.known.retain(|id| valid_id(id) && known_seen.insert(id.clone()));
         self.known.truncate(MAX_KNOWN);
+    }
+}
+
+impl MenuLayout {
+    /// V110-B8 The built-in groups were renamed: "Moderate" is now "Moderator", and the message
+    /// menu's "More" is now "Look up". A saved layout gets the new name only where it still
+    /// has the exact old default label (a name the user typed stays); the order is untouched.
+    fn rename_old_groups(&mut self, menu: &str) {
+        for node in &mut self.nodes {
+            let MenuNode::Group { id, label, .. } = node else { continue };
+            match (id.as_str(), label.as_str()) {
+                ("moderate", "Moderate") => *label = "Moderator".into(),
+                ("more", "More") if menu == "chat.message" => *label = "Look up".into(),
+                _ => {}
+            }
+        }
     }
 }
 
@@ -339,6 +356,25 @@ mod tests {
         }
         m.sanitize();
         assert_eq!(m.layouts.len(), MAX_LAYOUTS);
+    }
+
+    #[test]
+    fn old_default_group_names_become_the_new_ones() {
+        let named = |id: &str, l: &str| MenuNode::Group { id: id.into(), label: l.into(), icon: None, hidden: false, children: vec![item(&format!("{id}-x"))] };
+        let mut m = MenuLayouts::default();
+        m.layouts.insert("chat.message".into(), MenuLayout { nodes: vec![item("reply"), named("moderate", "Moderate"), named("more", "More")], known: vec![] });
+        m.layouts.insert("chat.name".into(), MenuLayout { nodes: vec![named("moderate", "Mine"), named("more", "More")], known: vec![] });
+        m.sanitize();
+        let labels = |menu: &str| -> Vec<String> {
+            m.layouts[menu].nodes.iter().filter_map(|n| if let MenuNode::Group { label, .. } = n { Some(label.clone()) } else { None }).collect()
+        };
+        assert_eq!(labels("chat.message"), ["Moderator", "Look up"]);
+        // A name the user typed stays; "More" is only the message menu's old default.
+        assert_eq!(labels("chat.name"), ["Mine", "More"]);
+        assert!(matches!(&m.layouts["chat.message"].nodes[0], MenuNode::Item { id, .. } if id == "reply"));
+        let again = m.clone();
+        m.sanitize();
+        assert_eq!(m, again);
     }
 
     #[test]

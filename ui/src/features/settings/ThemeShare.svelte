@@ -3,6 +3,7 @@
      sharing without the server. -->
 <script lang="ts">
   import Button from '../../components/Button.svelte';
+  import ConfirmChoices from '../../components/ConfirmChoices.svelte';
   import ConfirmButton from '../../components/ConfirmButton.svelte';
   import type { CustomTheme } from '../../ipc/bindings/CustomTheme';
   import { themeIpc } from '../../ipc/theme';
@@ -10,7 +11,7 @@
   import { copied } from '../../lib/copied.svelte';
   import { errorText } from '../../lib/errors';
   import { toast } from '../../lib/toast.svelte';
-  import { shareState } from './themeLink';
+  import { asksBeforeUpload, shareState } from './themeLink';
 
   // V110-A-idea A check mark on the button for a moment, not a toast.
   const cp = copied();
@@ -66,10 +67,19 @@
       toast.success('Sharing stopped. The link no longer works.');
     });
 
-  async function copyCode() {
+  /** Copy code on a theme with a wallpaper file: asks before the picture goes up. */
+  let asking = $state(false);
+
+  function copyCode() {
     flush();
+    if (asksBeforeUpload(theme)) asking = true;
+    else void doCopy(true);
+  }
+
+  async function doCopy(withWallpaper: boolean) {
+    asking = false;
     try {
-      const { code, note } = await themeIpc.code(theme.id);
+      const { code, note } = await themeIpc.code(theme.id, withWallpaper);
       const ok = await copy(code, 'Theme code');
       if (ok && note) toast.info(note);
     } catch (e) {
@@ -90,7 +100,18 @@
     {/if}
     <span class="state">{s.changed ? 'Changed since you shared it' : `Shared · v${s.version}`}</span>
   {/if}
-  <Button small variant="ghost" onclick={copyCode}>Copy code</Button>
+  {#if asking}
+    <ConfirmChoices
+      ask="The wallpaper is on this PC. To put it in the code, it’s uploaded to cyex.app and the theme gets a link anyone with it can open."
+      choices={[
+        { label: 'Upload and copy', variant: 'primary', run: () => void doCopy(true) },
+        { label: 'Copy without wallpaper', run: () => void doCopy(false) },
+      ]}
+      oncancel={() => (asking = false)}
+    />
+  {:else}
+    <Button small variant="ghost" onclick={copyCode}>Copy code</Button>
+  {/if}
 </div>
 
 <style>

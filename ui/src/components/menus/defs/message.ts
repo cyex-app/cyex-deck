@@ -1,6 +1,6 @@
 // V110-U66 Right-click a chat message. The built-in layout, in a fixed order: reply and copy,
 // Look up, your own entries and plugins, then the Moderator group (V110-B8: only for an account
-// that moderates the chat).
+// that moderates the chat). Time out and Delete stay on top, after the copy rows.
 
 import {
   banEntry,
@@ -109,6 +109,9 @@ export const MESSAGE_DEF: MenuDef<MessageCtx> = {
     item('translate'),
     item('copy'),
     item('copyFull'),
+    // Time out and Delete stay on top for a moderator (both are mod-only rows).
+    item('timeout'),
+    item('delete'),
     SEP,
     group('lookup', 'Look up', [item('search'), item('logs'), item('showInLogs')], 'search'),
     SEP,
@@ -118,7 +121,7 @@ export const MESSAGE_DEF: MenuDef<MessageCtx> = {
     group(
       'moderate',
       'Moderator',
-      [item('timeout'), item('pin'), item('pinLine'), item('warn'), item('unban'), item('monitor'), item('restrict'), SEP, item('mod'), item('vip'), SEP, item('delete'), item('ban')],
+      [item('pin'), item('pinLine'), item('warn'), item('unban'), item('monitor'), item('restrict'), SEP, item('mod'), item('vip'), SEP, item('ban')],
       'shield',
     ),
   ],

@@ -3,7 +3,7 @@ import { test } from 'node:test';
 
 import type { CustomTheme } from '../../ipc/bindings/CustomTheme';
 import type { ThemeLink } from '../../ipc/bindings/ThemeLink';
-import { copyLabel, linkOf, shareState, updateAvailable, updateLabel, withLink } from './themeLink.ts';
+import { asksBeforeUpload, copyLabel, linkOf, shareState, updateAvailable, updateLabel, withLink } from './themeLink.ts';
 
 const blank: ThemeLink = {
   sharedId: '',
@@ -70,4 +70,17 @@ test('V109-T01 editor saves keep the saved link', () => {
   assert.equal(out.accent, '#ff0000');
   assert.equal(out.link?.latestVersion, 4);
   assert.equal(withLink(stale, []).link, undefined, 'a theme without a saved link has none');
+});
+
+test('Copy code asks only before a local wallpaper goes up', () => {
+  const wp = (source: string, link?: Partial<ThemeLink>): CustomTheme => ({
+    ...theme(link),
+    wallpaper: { source, area: 'window', dim: 70, blur: 0, fit: 'cover' },
+  });
+  assert.equal(asksBeforeUpload(wp('')), false, 'no wallpaper');
+  assert.equal(asksBeforeUpload(wp('https://example.com/a.png')), false, 'a link');
+  assert.equal(asksBeforeUpload(wp('abc123.png')), true, 'a local file');
+  assert.equal(asksBeforeUpload(wp('abc123.png', { sharedId: 'k3f9x2ab', sharedWallpaper: 'abc123.png' })), false, 'shared with this picture');
+  assert.equal(asksBeforeUpload(wp('abc123.png', { sharedId: 'k3f9x2ab', sharedWallpaper: 'old999.png' })), true, 'shared with another picture');
+  assert.equal(asksBeforeUpload(wp('abc123.png', { sharedId: '', sharedWallpaper: 'abc123.png' })), true, 'not shared');
 });

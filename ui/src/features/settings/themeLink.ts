@@ -39,6 +39,19 @@ export function shareState(t: CustomTheme): ShareState {
   return { kind: 'shared', id: l.sharedId, link: linkOf(l.sharedId), version: l.sharedVersion, changed: l.sharedChanged };
 }
 
+/** A wallpaper kept in the app's folder (the same shape Rust's `Wallpaper::is_file` takes). */
+const FILE_WALLPAPER = /^[A-Za-z0-9]+\.(png|jpg|jpeg|webp|gif)$/;
+
+/**
+ * Copy code puts a local wallpaper on cyex.app, so it asks first. Not for a link or no wallpaper,
+ * nor when the theme is already shared with this very picture.
+ */
+export function asksBeforeUpload(t: CustomTheme): boolean {
+  const src = t.wallpaper?.source ?? '';
+  if (!FILE_WALLPAPER.test(src)) return false;
+  return !(t.link?.sharedId && t.link.sharedWallpaper === src);
+}
+
 /** A save from the editor keeps the link as Rust last wrote it: the editor never changes it,
  *  and its copy may be older than an update check that ran meanwhile. */
 export function withLink(next: CustomTheme, saved: readonly CustomTheme[]): CustomTheme {

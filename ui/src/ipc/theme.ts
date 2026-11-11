@@ -27,8 +27,8 @@ export const themeIpc = {
   builtins: () => invoke<CustomTheme[]>('theme_builtins'),
   /** U8 Adds a theme with a fresh id and switches to it; returns the id. */
   add: (theme: CustomTheme) => invoke<string>('theme_add', { theme }),
-  /** U8 The old offline share code. */
-  code: (id: string) => invoke<CodeCopy>('theme_code', { id }),
+  /** U8 The old offline share code. A wallpaper file goes up to cyex.app only with `withWallpaper`. */
+  code: (id: string, withWallpaper: boolean) => invoke<CodeCopy>('theme_code', { id, withWallpaper }),
   /** File name in the app's wallpapers folder, or null when cancelled. */
   pickWallpaper: () => invoke<string | null>('theme_pick_wallpaper'),
 
