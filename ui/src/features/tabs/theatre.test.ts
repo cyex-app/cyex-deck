@@ -68,8 +68,8 @@ test('V110-B10 a hidden chat is hidden only in the theatre tile', () => {
   assert.equal(chatHiddenIn(null, 'a', true), false);
 });
 
-test('V110-B11 the chat button fades after 3 s of rest and is square and see-through', () => {
-  assert.equal(REST_MS, 3000);
+test('V110-B11 the chat button fades after 1 s of rest and is square and see-through', () => {
+  assert.equal(REST_MS, 1000);
   const src = readFileSync(new URL('../channel/StreamSide.svelte', import.meta.url), 'utf8');
   assert.ok(src.includes('setTimeout(() => (resting = true), REST_MS)'), 'rests after REST_MS');
   assert.ok(src.includes('.body:hover .chat-toggle:not(.resting)'), 'hidden while resting');

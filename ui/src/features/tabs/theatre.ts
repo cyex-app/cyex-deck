@@ -62,4 +62,4 @@ export function chatToggle(current: string | null, tile: string, chatOn: boolean
 }
 
 /** V110-B11 How long the pointer may rest on the player before the Hide chat / Show chat button fades out. */
-export const REST_MS = 3000;
+export const REST_MS = 1000;

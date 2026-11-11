@@ -86,7 +86,7 @@
       : null,
   );
 
-  /** V110-B11 The button fades out after the pointer has rested on the player for 3 s; a move brings it back. */
+  /** V110-B11 The button fades out after the pointer has rested on the player for 1 s; a move brings it back. */
   let restTimer: ReturnType<typeof setTimeout> | undefined;
   let resting = $state(false);
   function stir() {
@@ -285,11 +285,13 @@
     border-radius: var(--radius);
     color: var(--text);
     opacity: 0;
-    transition: opacity var(--fast) var(--ease);
+    /* V110-B11 Fades out slowly (going away is never urgent), comes back quickly. */
+    transition: opacity calc(var(--slow) * 2) ease-in-out;
   }
   .body:hover .chat-toggle:not(.resting),
   .chat-toggle:focus-visible {
     opacity: 1;
+    transition-duration: var(--fast);
   }
   .chat-toggle:hover {
     background: color-mix(in srgb, var(--elevated) 90%, transparent);
