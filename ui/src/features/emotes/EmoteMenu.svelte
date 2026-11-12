@@ -18,6 +18,7 @@
   import { settings } from '../../lib/settings.svelte';
   import { emoteImg, emoteLarge } from '../chat/urls';
   import { emojiGroups, emojiLabel, findEmoji, type Emoji, type EmojiGroup } from './emoji';
+  import EmojiImg from '../chat/EmojiImg.svelte';
   import { type CardTarget, PROVIDER_NAMES, emoteKey, emoteRatio } from './emotes';
   import { PROVIDER_TABS, type ProviderTab, cellHint, cellKey, pick, searchCapped, tierMark, usable, usageRank } from './menu';
   import EmoteCard from './EmoteCard.svelte';
@@ -315,7 +316,7 @@
     class="cell emoji"
     data-tip={'char' in e ? emojiLabel(e) : name}
     onclick={() => oninsert(char)}
-    oncontextmenu={(ev) => openEmoteMenu(ev, { source: 'emoji', id: char, name })}>{char}</button
+    oncontextmenu={(ev) => openEmoteMenu(ev, { source: 'emoji', id: char, name })}><EmojiImg {char} /></button
   >
 {/snippet}
 

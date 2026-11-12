@@ -5,6 +5,7 @@
   import { density } from '../../lib/density.svelte';
   import { formatNumber } from '../../lib/format';
   import { floating } from '../../lib/place';
+  import EmojiImg from './EmojiImg.svelte';
   import { settings } from '../../lib/settings.svelte';
   import type { SuggestStyle } from './suggestKeys';
   import type { Item } from './suggestions';
@@ -83,7 +84,7 @@
     >
       {#if item.emote}
         <img src={emoteImg(item.emote.provider, item.emote.id, theme, { animated: item.emote.animated, scale: density.scale }).src} alt="" />
-      {:else if item.glyph}<span class="glyph">{item.glyph}</span>{/if}
+      {:else if item.glyph}<span class="glyph"><EmojiImg char={item.glyph} /></span>{/if}
       {item.label}
       {#if item.hint}<span class="hint">{item.hint}</span>{/if}
     </button>
@@ -179,6 +180,11 @@
     width: 28px;
     font-size: 18px;
     text-align: center;
+  }
+  /* V110-N17 Twemoji like chat, so country flags draw as flags. */
+  .glyph :global(.emoji-img) {
+    height: 20px;
+    vertical-align: middle;
   }
   .hint {
     min-width: 0;

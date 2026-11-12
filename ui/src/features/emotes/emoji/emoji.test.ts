@@ -77,3 +77,14 @@ test('V110-F84 (c), (r) and TM stay text unless they carry the emoji selector', 
   }
   assert.equal(splitEmoji('\u{1F440}')[0].emoji, true);
 });
+
+test('V110-N17 country flags answer to flag and flag_<country>', () => {
+  const list = parseGroups([['Flags', '🏁 checkered_flag|race\n🇨🇭 switzerland\n🇩🇪 de|flag germany\n🏴󠁧󠁢󠁥󠁮󠁧󠁿 england']]);
+  const found = findEmoji(list, 'flag').map((e) => e.char);
+  assert.ok(found.includes('🇨🇭') && found.includes('🇩🇪') && found.includes('🏴󠁧󠁢󠁥󠁮󠁧󠁿'));
+  assert.deepEqual(findEmoji(list, 'flag_sw').map((e) => e.char), ['🇨🇭']);
+  assert.deepEqual(findEmoji(list, 'switz').map((e) => e.char), ['🇨🇭'], 'the country name still works');
+  assert.equal(nameMap(list).get(emojiKey('🇨🇭')), 'switzerland');
+  assert.equal(nameMap(list).get(emojiKey('🇩🇪')), 'flag_germany');
+  assert.deepEqual(list[0].emoji[0].names, ['checkered_flag'], 'other flags stay as they are');
+});

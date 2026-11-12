@@ -32,9 +32,26 @@ export function parseGroups(raw: [string, string][]): EmojiGroup[] {
     emoji: lines.split('\n').map((line) => {
       const space = line.indexOf(' ');
       const [names, words = ''] = line.slice(space + 1).split('|');
-      return { char: line.slice(0, space), names: names.split(' '), words };
+      const e = { char: line.slice(0, space), names: names.split(' '), words };
+      return category === 'Flags' ? countryFlag(e) : e;
     }),
   }));
+}
+
+/** A country or region flag: two regional letters, or the black flag with tag letters (England). */
+const COUNTRY = /^(?:[\u{1F1E6}-\u{1F1FF}]{2}|\u{1F3F4}[\u{E0061}-\u{E007A}]+\u{E007F})$/u;
+
+/** V110-N17 Country flags are listed by country ("switzerland"), so `flag` found none of them:
+ *  each also answers to `flag_<country>` and the word flag. */
+function countryFlag(e: Emoji): Emoji {
+  if (!COUNTRY.test(e.char)) return e;
+  const country = e.names.find((n) => /[a-z]{3}/.test(n)) ?? e.words.replace(/^flag /, '').replaceAll(' ', '_');
+  const alias = country.startsWith('flag_') ? country : `flag_${country}`;
+  return {
+    char: e.char,
+    names: e.names.includes(alias) ? e.names : [...e.names, alias],
+    words: /\bflag\b/.test(e.words) ? e.words : `${e.words} flag`.trim(),
+  };
 }
 
 export function emojiGroups(): Promise<EmojiGroup[]> {
