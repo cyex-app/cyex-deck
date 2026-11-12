@@ -9,7 +9,7 @@
   import MenuEditor from '../menus/MenuEditor.svelte';
   import { isChanged } from '../menus/model.ts';
   import { menusView } from '../menus/place.svelte.ts';
-  import { DEFS, defOf, sampleOf } from '../menus/source.ts';
+  import { BY_GROUP, defOf, sampleOf } from '../menus/source.ts';
   import ResetSection from '../ResetSection.svelte';
   import SectionHead from '../SectionHead.svelte';
 
@@ -29,18 +29,20 @@
 {#if def}
   <MenuEditor {def} sample={sampleOf} onback={() => void back()} />
 {:else}
-  <SectionHead title="Menus" level={2} setting="menus.layouts">
-    Right-click menus. Open one to rearrange it, rename or hide rows, and add groups or entries of your own.
-  </SectionHead>
+  <SectionHead title="Menus" level={2} setting="menus.layouts" page="menus" />
   <div class="menus" bind:this={list}>
-    {#each DEFS as d (d.id)}
-      <button class="menu-row" data-menu={d.id} data-setting="menus:{d.id}" onclick={() => (menusView.id = d.id)}>
-        <span class="text">
-          <span class="title">{d.label}{#if isChanged(d, layouts[d.id])}<span class="tag">Changed</span>{/if}</span>
-          <span class="hint">{d.where}</span>
-        </span>
-        <Icon name="chevronRight" size={14} />
-      </button>
+    {#each BY_GROUP as g (g.group)}
+      <!-- V110-N9 Small headings; each menu goes by its short name under them. -->
+      <h3 class="heading">{g.group}</h3>
+      {#each g.menus as { def: d, short } (d.id)}
+        <button class="menu-row" data-menu={d.id} data-setting="menus:{d.id}" aria-label="{d.label}. {d.where}" onclick={() => (menusView.id = d.id)}>
+          <span class="text">
+            <span class="title">{short}{#if isChanged(d, layouts[d.id])}<span class="tag">Changed</span>{/if}</span>
+            <span class="hint">{d.where}</span>
+          </span>
+          <Icon name="chevronRight" size={14} />
+        </button>
+      {/each}
     {/each}
   </div>
   <OwnEntries />
@@ -52,6 +54,20 @@
     display: flex;
     flex-direction: column;
     max-width: 720px;
+  }
+  .heading {
+    margin: 16px 0 4px;
+    padding: 0 4px;
+    color: var(--dim);
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+  .heading:first-child {
+    margin-top: 0;
+  }
+  .heading + .menu-row {
     border-top: 1px solid var(--border);
   }
   .menu-row {

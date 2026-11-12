@@ -369,14 +369,19 @@
     }
   }
 
-  function reload() {
+  function reload(visible = false) {
     tries = 0;
     offlineMisses = 0;
+    // V110-N8 F5 / Ctrl+R: the spinner shows at once, not after the quiet 300 ms, so it reads as a reload.
+    if (engine && visible) {
+      engine.waiting = true;
+      slow = true;
+    }
     if (engine) void start(engine, engine.choice, login, account);
   }
   // V110-N7 F5 / Ctrl+R reload this player like its menu's Reload player.
   // svelte-ignore state_referenced_locally
-  const offReload = playerReloads.add({ tile: tile.id, run: () => reload() });
+  const offReload = playerReloads.add({ tile: tile.id, run: () => reload(true) });
   onDestroy(offReload);
 
   /** The video plays in its own small window (picture in picture). */
@@ -423,7 +428,7 @@
       },
       pip: pipFor(video),
       stats: { on: stats, toggle: () => setStats(!stats) },
-      reload,
+      reload: () => reload(),
       moments: mini ? undefined : momentRows(),
       link: `https://www.twitch.tv/${login}`,
       copy: copyText,

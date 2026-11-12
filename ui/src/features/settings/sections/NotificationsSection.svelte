@@ -146,7 +146,7 @@
   }
 </script>
 
-<SectionHead title="Alerts" level={2}>Pop-ups and sounds when channels go live or you get a whisper.</SectionHead>
+<SectionHead title="Alerts" level={2} page="notifications" />
 
 <SectionHead title="When channels go live">Tell me when a channel starts.</SectionHead>
 <Row setting="notifications.live.enabled" label="Live alerts" hint={account ? 'For channels the default account follows. Each one follows its Twitch bell unless you pick below.' : 'For channels the default account follows. Sign in to get them.'}>

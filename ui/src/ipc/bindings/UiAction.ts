@@ -6,4 +6,4 @@ import type { EditOp } from "./EditOp";
 /**
  * What the window should do after a line ran.
  */
-export type UiAction = { "type": "search", query: string, } | { "type": "popout" } | { "type": "roles", role?: ChannelRole | null, channel?: string | null, } | { "type": "cosmetics" } | { "type": "sevenTvSignIn", command: string, again: boolean, } | { "type": "sevenTvEdited", op: EditOp, done: EditDone, };
+export type UiAction = { "type": "search", query: string, } | { "type": "popout" } | { "type": "roles", role?: ChannelRole | null, channel?: string | null, } | { "type": "cosmetics" } | { "type": "sevenTvSignIn", command: string, again: boolean, } | { "type": "sevenTvEdited", op: EditOp, done: EditDone, } | { "type": "poll", question: string, } | { "type": "prediction", question: string, };

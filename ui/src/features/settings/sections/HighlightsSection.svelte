@@ -178,8 +178,7 @@
     );
 </script>
 
-<SectionHead title="Highlights" level={2} setting="highlights:import">
-  Make messages stand out, ping you, or copy them to the Mentions tab or a feed. For a feed, type its name.
+<SectionHead title="Highlights" level={2} setting="highlights:import" page="highlights">
   {#snippet actions()}
     <Button small icon="list" onclick={() => mentionsTab.open()}>Open the Mentions tab</Button>
     <HighlightImport />

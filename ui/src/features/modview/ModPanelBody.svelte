@@ -16,6 +16,8 @@
   import ModActions from './ModActions.svelte';
   import ModRewards from './ModRewards.svelte';
   import ModStream from './ModStream.svelte';
+  import PollCard from '../streammanager/PollCard.svelte';
+  import PredictionCard from '../streammanager/PredictionCard.svelte';
   import UnbanQueue from './UnbanQueue.svelte';
 
   interface Props {
@@ -77,6 +79,11 @@
   <BlockedTerms {account} {login} actions={board.actions} />
 {:else if id === 'rewards'}
   <ModRewards {account} {login} />
+{:else if id === 'poll'}
+  <!-- V110-N13 The stream manager's cards, as a mod of this channel. -->
+  {#key `${account}:${login}`}<PollCard {login} {account} />{/key}
+{:else if id === 'prediction'}
+  {#key `${account}:${login}`}<PredictionCard {login} {account} />{/key}
 {:else if id === 'mass'}
   <Card title="Mass actions" flush><MassActions {account} {login} channelId={data.channelId} /></Card>
 {:else if id === 'stream'}

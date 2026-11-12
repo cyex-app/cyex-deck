@@ -1,6 +1,7 @@
 // Hotkeys (S2). Each action declares its default combo here; settings only store overrides.
 // `global` ones work while another app is in front; Rust registers those (app/src/hotkeys.rs).
 
+import { markAppReload } from '../features/tabs/reload';
 import { keyTaken, layers } from './escape';
 import { settings } from './settings.svelte';
 import { zoomHotkeys } from './zoom';
@@ -79,7 +80,12 @@ function isTyping(target: EventTarget | null): boolean {
 export const keyHold = $state({ sheet: false });
 
 /** V110-N4 Reload the app (Ctrl+F5), also over the settings sheet. */
-export const appHotkeys = { 'app.reload': () => location.reload() };
+export const appHotkeys = {
+  'app.reload': () => {
+    markAppReload(); // V110-N8 the page that comes back says "App reloaded."
+    location.reload();
+  },
+};
 
 /** Runs the handlers for their bound combos while the calling component is mounted. A
  *  handler that returns `false` leaves the key to the page, e.g. Space on a button. */

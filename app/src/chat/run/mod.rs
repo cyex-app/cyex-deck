@@ -136,6 +136,10 @@ pub enum UiAction {
     SevenTvSignIn { command: String, again: bool },
     /// I106-3 /add, /remove or /rename worked: the chat view shows the Undo toast.
     SevenTvEdited { op: EditOp, done: EditDone },
+    /// V110-N13 `/poll`, `/prediction`: the floating panel for this chat's channel, the
+    /// question (maybe empty) filled in.
+    Poll { question: String },
+    Prediction { question: String },
 }
 
 /// S1 Who and what a menu entry was picked on.

@@ -35,8 +35,8 @@ pub fn window_set_pinned(app: AppHandle, window: WebviewWindow, pinned: bool) ->
     Ok(pinned)
 }
 
-/// V110-B10 Theatre at the bottom edge: the fullscreen window shrinks to the work area so the
-/// taskbar shows (`on`), or covers the whole monitor again.
+/// V110-B10 Theatre at the bottom edge: the fullscreen window gives up 1 px so the taskbar
+/// shows over it (`on`, V110-N10), or covers the whole monitor again.
 #[tauri::command]
 pub fn window_taskbar_room(window: WebviewWindow, on: bool) {
     crate::sys::workarea::set(&window, on);

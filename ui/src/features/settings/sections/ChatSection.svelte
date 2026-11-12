@@ -253,7 +253,7 @@
   };
 </script>
 
-<SectionHead title="Chat" level={2}>How chat looks, loads and behaves.</SectionHead>
+<SectionHead title="Chat" level={2} page="chat" />
 
 <SectionHead title="History">Older messages loaded when you open a chat.</SectionHead>
 <Row setting="chat.history" label="Recent history" hint="Shows the last messages, dimmed, when you open a chat.">

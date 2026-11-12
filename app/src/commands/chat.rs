@@ -52,6 +52,12 @@ pub fn chat_rejoin(app: AppHandle, view: u32) -> bool {
     chat::rejoin_view(&app, view)
 }
 
+/// V110-N8 F5 / Ctrl+R on a chat: its own room gets "Chat reloaded.".
+#[tauri::command]
+pub fn chat_reloaded(app: AppHandle, view: u32) -> bool {
+    chat::room_note(&app, view, "Chat reloaded.")
+}
+
 /// V103-22 Where the regular chats show and which windows are still loading; changes come
 /// as `chat:shown`.
 #[tauri::command]

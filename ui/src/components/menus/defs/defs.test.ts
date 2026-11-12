@@ -3,7 +3,7 @@ import { test } from 'node:test';
 
 import { menuProblems } from '../../menuItems.ts';
 import { idsOf, resolveMenu } from '../resolve.ts';
-import { MENU_DEFS, MENUS, PREVIEW_AS, type PreviewAs } from './index.ts';
+import { MENU_DEFS, MENUS, MENUS_BY_GROUP, PREVIEW_AS, type PreviewAs } from './index.ts';
 
 const top = (list: ReturnType<typeof resolveMenu>) => list.filter((e) => e !== 'separator').map((e) => (e as { label: string }).label);
 
@@ -48,14 +48,14 @@ test('chat.name: top level as in the plan', () => {
 });
 
 test('chat.message: top level as in the plan', () => {
-  assert.deepEqual(names('chat.message', 'viewer'), ['Reply', 'Translate', 'Copy message', 'Copy with name and time', 'Look up']);
-  assert.deepEqual(names('chat.message', 'mod'), ['Reply', 'Translate', 'Copy message', 'Copy with name and time', 'Time out user', 'Delete message', 'Look up', 'Moderator']);
+  assert.deepEqual(names('chat.message', 'viewer'), ['Reply', 'Translate', 'Copy message', 'Copy full message', 'Look up']);
+  assert.deepEqual(names('chat.message', 'mod'), ['Reply', 'Translate', 'Copy message', 'Copy full message', 'Time out user', 'Delete message', 'Look up', 'Moderator']);
   // The broadcaster's line: Pin is in the Moderator group; Delete stays on top.
   assert.deepEqual(names('chat.message', 'viewer', { pinLine: true, del: true }), [
     'Reply',
     'Translate',
     'Copy message',
-    'Copy with name and time',
+    'Copy full message',
     'Delete message',
     'Look up',
     'Pin message',
@@ -63,7 +63,7 @@ test('chat.message: top level as in the plan', () => {
 });
 
 test('chat.message: a deleted line offers no Reply or Translate (V110-F93)', () => {
-  assert.deepEqual(names('chat.message', 'viewer', { deleted: true }), ['Copy message', 'Copy with name and time', 'Look up']);
+  assert.deepEqual(names('chat.message', 'viewer', { deleted: true }), ['Copy message', 'Copy full message', 'Look up']);
 });
 
 test('the other menus keep their size', () => {
@@ -132,7 +132,7 @@ test('the other menus keep their size', () => {
   ]);
   assert.deepEqual(names('browse.card', 'viewer'), ['Open', 'Open in the background', 'Open as', 'Favorite', 'Pick to watch side by side']);
   assert.deepEqual(names('feed.name', 'viewer'), ['Open usercard', 'Whisper', 'Open this chat', 'Copy name']);
-  assert.deepEqual(names('feed.message', 'viewer'), ['Open this chat', 'Show message in logs', 'Copy message', 'Copy with name and time']);
+  assert.deepEqual(names('feed.message', 'viewer'), ['Open this chat', 'Show message in logs', 'Copy message', 'Copy full message']);
   assert.deepEqual(names('whispers.thread', 'viewer'), ['Archive', 'Mute alerts', 'Block']);
   assert.deepEqual(names('clips.clip', 'viewer'), ['Play', 'Save as MP4', 'Copy link', 'Rename', 'Edit on Twitch', 'Delete clip']);
 });
@@ -232,4 +232,19 @@ test('V110-B8 two rows of one menu never share a name', () => {
     const dup = names.filter((n, k) => names.indexOf(n) !== k);
     assert.deepEqual(dup, [], `${def.id}`);
   }
+});
+
+test('V110-N9 the manager groups the 14 menus under four headings with short names', () => {
+  assert.deepEqual(
+    MENUS_BY_GROUP.map((g) => [g.group, g.menus.map((m) => m.short)]),
+    [
+      ['Chat', ['Names', 'Messages', 'Emotes', 'Chat header', 'Whispers']],
+      ['Feeds', ['Names', 'Messages']],
+      ['Tabs', ['Tabs', 'Tab groups', 'Tab bar', 'Tiles']],
+      ['Watching', ['Players', 'Channel cards', 'Clips']],
+    ],
+  );
+  assert.equal(MENUS_BY_GROUP.flatMap((g) => g.menus).length, MENU_DEFS.length);
+  // Ids and full names (the editor title) are unchanged.
+  assert.equal(MENU_DEFS.find((d) => d.id === 'feed.name')!.label, 'Names in feeds');
 });

@@ -259,4 +259,22 @@ pub(super) const AFTER: &[Cmd] = &[
         "Didn’t understand “{word}”. Usage: /nuke phrase [60s] [10m|ban]",
     ])
     .notes("Moderators and up."),
+    // V110-N13
+    Cmd::new("poll", "/poll [question]", "Opens the poll panel for this channel, the question filled in.", "V110-N13")
+        .args(&[opt("question", "text")])
+        .changes(Window, "Opens a floating poll panel. Nothing goes to chat.")
+        .ex(&[ex("/poll Best map?", "(the poll panel opens)")])
+        .errs(&["Sign in with a moderator account to use that.", "/poll opens a panel. Type it in a chat."])
+        .notes("Moderators and up. Polls come with Affiliate."),
+    Cmd::new(
+        "prediction",
+        "/prediction [question]",
+        "Opens the prediction panel for this channel, the question filled in.",
+        "V110-N13",
+    )
+    .args(&[opt("question", "text")])
+    .changes(Window, "Opens a floating prediction panel. Nothing goes to chat.")
+    .ex(&[ex("/prediction Win this round?", "(the prediction panel opens)")])
+    .errs(&["Sign in with a moderator account to use that.", "/prediction opens a panel. Type it in a chat."])
+    .notes("Moderators and up. Predictions need channel points, which come with Affiliate."),
 ];

@@ -13,7 +13,7 @@
   import { formatNumber } from '../../lib/format';
   import { toast } from '../../lib/toast.svelte';
   import Card from '../../components/PanelCard.svelte';
-  import { raidCountdown } from './logic';
+  import { raidArmedDue, raidCountdown, raidMarkLabel } from './logic';
   import { sm } from './streammanager.svelte';
   import { errorText } from '../../lib/errors';
 
@@ -37,6 +37,23 @@
     // V110-F84 Not while the window is hidden.
     return everyShown(() => (now = Date.now() / 1000), 500);
   });
+
+  // V110-N11 Raid now before the 10 s mark arms and fires at the mark; pressing the label undoes it. A raid
+  // that ends or is replaced disarms.
+  let armedFor = $state<string | null>(null);
+  $effect(() => {
+    if (armedFor && raid?.id !== armedFor) armedFor = null;
+  });
+  $effect(() => {
+    if (!raidArmedDue(armedFor, raid, now) || busy) return;
+    armedFor = null;
+    act(smIpc.raidNow(), () => {});
+  });
+  function raidNow() {
+    if (!raid) return;
+    if (clock?.ready) act(smIpc.raidNow(), () => {});
+    else armedFor = raid.id;
+  }
 
   function loadPicks() {
     smIpc
@@ -87,7 +104,11 @@
     </div>
     <div class="line">
       <!-- V110-A4 Both ask first: a raid sends everyone over. -->
-      <ConfirmButton label="Raid now" confirm="Raid now?" disabled={busy || !clock.ready} onconfirm={() => act(smIpc.raidNow(), () => {})} />
+      {#if armedFor}
+        <Button onclick={() => (armedFor = null)}>{raidMarkLabel()}</Button>
+      {:else}
+        <ConfirmButton label="Raid now" confirm="Raid now?" disabled={busy} onconfirm={raidNow} />
+      {/if}
       <ConfirmButton label="Cancel raid" confirm="Cancel raid?" variant="danger" disabled={busy} onconfirm={cancel} />
     </div>
   {:else if starting}

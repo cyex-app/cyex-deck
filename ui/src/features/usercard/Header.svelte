@@ -135,19 +135,20 @@
     {/if}
   </div>
   <div class="who">
-    <!-- V107-R35 The name is text to select, not a handle for the window. -->
-    <div class="name no-drag" style={colorVars}>
+    <!-- V107-R35 The name is text to select, not a handle for the window. V110-N15 Only the name
+         itself: the row beside it still drags. -->
+    <div class="name" style={colorVars}>
       <div class="names">
         <span class="sr-only" aria-live="polite">{cp.said}</span>
         <!-- V108-C17 The login leads; the display name (or your nickname) sits under it in brackets. -->
-        <span class="line">
+        <span class="line no-drag">
           <strong class={paint ?? ''} class:painted={!!paint} class:colored={!!color}>{profile.login}</strong>
           <button class="cp" aria-label="Copy name" use:tooltip={'Copy name'} onclick={() => cp.run(profile.login, 'Name', 'login')}
             ><Icon name={cp.is('login') ? 'check' : 'copy'} size={11} /></button
           >
         </span>
         {#if second}
-          <span class="line sub">
+          <span class="line sub no-drag">
             <span class="display">({second})</span>
             <button class="cp" aria-label="Copy name" use:tooltip={'Copy name'} onclick={() => cp.run(second, 'Name', 'second')}
               ><Icon name={cp.is('second') ? 'check' : 'copy'} size={11} /></button
@@ -346,6 +347,9 @@
     display: flex;
     gap: 4px;
     align-items: center;
+    /* V110-N15 As wide as the name, so the rest of the row drags the window. */
+    align-self: flex-start;
+    max-width: 100%;
     min-width: 0;
   }
   .line strong {

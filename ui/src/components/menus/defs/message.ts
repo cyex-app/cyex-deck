@@ -77,7 +77,7 @@ export const MESSAGE_DEF: MenuDef<MessageCtx> = {
       renamable: false,
     }),
     row('copy', 'Copy message', 'copy', (c) => ({ label: 'Copy message', icon: 'copy', run: c.act.copyMessage })),
-    row('copyFull', 'Copy with name and time', 'copy', (c) => ({ label: 'Copy with name and time', icon: 'copy', run: c.act.copyFull })),
+    row('copyFull', 'Copy full message', 'copy', (c) => ({ label: 'Copy full message', icon: 'copy', run: c.act.copyFull })),
     row('search', 'Search their messages', 'search', (c) => (c.line && c.search ? { label: 'Search their messages', icon: 'search', run: c.act.search } : null)),
     row('logs', 'Open their logs', 'scroll', line((c) => ({ label: 'Open their logs', icon: 'scroll', run: c.act.logs }))),
     row('showInLogs', 'Show message in logs', 'scroll', (c) => (c.line && c.logsLink ? { label: 'Show message in logs', icon: 'scroll', run: c.act.showInLogs } : null)),

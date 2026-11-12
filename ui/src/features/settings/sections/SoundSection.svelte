@@ -64,7 +64,7 @@
   </span>
 {/snippet}
 
-<SectionHead title="Sound" level={2}>Which speakers play streams and alert sounds.</SectionHead>
+<SectionHead title="Sound" level={2} page="sound" />
 
 <Row
   setting="general.sound.separateStreams"

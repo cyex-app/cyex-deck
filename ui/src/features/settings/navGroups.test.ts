@@ -3,13 +3,24 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 
-import { groupShown, readFolded, saveFolded, toggleFolded } from './navGroups.ts';
+import { groupShown, readFolded, saveFolded, toggleFolded, unfoldFor } from './navGroups.ts';
+import { PAGES } from './registry/pages.ts';
 
-test('a folded group hides unless it holds the open page, a search or a narrow list', () => {
-  assert.equal(groupShown('Chat', ['Chat'], 'App', false), false);
-  assert.equal(groupShown('Chat', ['Chat'], 'Chat', false), true);
-  assert.equal(groupShown('Chat', ['Chat'], 'App', true), true);
-  assert.equal(groupShown('Chat', [], 'App', false), true);
+test("a folded group hides, even the open page's, unless a search or a narrow list shows all", () => {
+  assert.equal(groupShown('Chat', ['Chat'], false), false);
+  assert.equal(groupShown('Chat', ['Chat'], true), true);
+  assert.equal(groupShown('Chat', [], false), true);
+});
+
+test('going to a page unfolds its group and leaves the others folded', () => {
+  assert.deepEqual(unfoldFor(['Chat', 'App'], 'Chat'), ['App']);
+  assert.deepEqual(unfoldFor(['App'], 'Chat'), ['App']);
+});
+
+test('every sidebar page has a hint the section head reads, and the nav tooltip shows it', () => {
+  const nav = readFileSync(new URL('./SettingsView.svelte', import.meta.url), 'utf8');
+  assert.match(nav, /hint: p\.hint/);
+  for (const p of PAGES) assert.ok(p.hint.length > 0, p.id);
 });
 
 test('toggling adds and removes a name', () => {

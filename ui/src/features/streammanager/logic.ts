@@ -32,6 +32,21 @@ export function raidCountdown(createdAt: number, goesAt: number, nowSecs = Date.
   return { left: Math.max(0, Math.ceil(goesAt - nowSecs)), ready: nowSecs - createdAt >= RAID_READY_SECS };
 }
 
+/** V110-N11 "Raid now" pressed before the mark waits for it: seconds to the mark (0 once there). */
+export function raidMarkIn(createdAt: number, nowSecs = Date.now() / 1000): number {
+  return Math.max(0, Math.ceil(RAID_READY_SECS - (nowSecs - createdAt)));
+}
+
+/** V110-N11 The label of an armed "Raid now": when it fires, as the raid's own clock reads. */
+export function raidMarkLabel(): string {
+  return `Raids at 0:${String(RAID_READY_SECS).padStart(2, '0')}`;
+}
+
+/** V110-N11 An armed "Raid now" fires once the mark is reached, if the raid is still the armed one and not gone. */
+export function raidArmedDue(armedFor: string | null, raid: { id: string; createdAt: number; goesAt: number } | null, nowSecs: number): boolean {
+  return !!raid && armedFor === raid.id && nowSecs < raid.goesAt && nowSecs - raid.createdAt >= RAID_READY_SECS;
+}
+
 /** D5 Ad lengths Twitch takes for the channel: steps of 30 s within its limits, and the current one. */
 export function adLengths(min: number, max: number, value: number): number[] {
   const out: number[] = [];

@@ -44,7 +44,7 @@
   ];
 </script>
 
-<SectionHead title="Ignores" level={2}>Hide messages and people you don’t want to see.</SectionHead>
+<SectionHead title="Ignores" level={2} page="ignores" />
 
 <SectionHead title="Words">Hide messages that contain these.</SectionHead>
 <RuleList

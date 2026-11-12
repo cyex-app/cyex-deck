@@ -1,7 +1,9 @@
-//! V110-B10 Theatre is fullscreen, which covers the taskbar. At the bottom edge the window
-//! shrinks to its monitor's work area (the monitor without the taskbar) so the taskbar shows,
-//! and grows back to the whole monitor after. tao keeps its fullscreen state throughout, so
-//! the app still counts as fullscreen.
+//! V110-B10 Theatre is fullscreen, which covers the taskbar. At the bottom edge the taskbar
+//! shows, and the window covers the whole monitor again after. tao keeps its fullscreen state
+//! throughout, so the app still counts as fullscreen.
+//! V110-N10 Windows hides the taskbar only for a window that covers the whole monitor, so the
+//! window gives up 1 px on the taskbar's side and the taskbar (always on top) shows over it.
+//! Shrinking to the work area made the picture jump by the taskbar's height.
 
 /// A rectangle in physical px.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -12,8 +14,9 @@ pub struct Rect {
     pub bottom: i32,
 }
 
-/// The rect to give the window: the work area while the taskbar should show, else the monitor.
-/// A work area that isn't inside the monitor (or is empty) is not trusted: the monitor stays.
+/// The rect to give the window: the monitor less 1 px on each side the taskbar takes (the
+/// bottom for a hidden-away taskbar) while it should show, else the whole monitor. A work area
+/// that isn't inside the monitor (or is empty) is not trusted: the monitor stays.
 pub fn target(monitor: Rect, work: Rect, taskbar: bool) -> Rect {
     let inside = work.left >= monitor.left
         && work.top >= monitor.top
@@ -21,7 +24,15 @@ pub fn target(monitor: Rect, work: Rect, taskbar: bool) -> Rect {
         && work.bottom <= monitor.bottom
         && work.right > work.left
         && work.bottom > work.top;
-    if taskbar && inside { work } else { monitor }
+    if !(taskbar && inside) {
+        return monitor;
+    }
+    let mut r = monitor;
+    r.left += i32::from(work.left > monitor.left);
+    r.top += i32::from(work.top > monitor.top);
+    r.right -= i32::from(work.right < monitor.right);
+    r.bottom -= i32::from(work.bottom < monitor.bottom || work == monitor);
+    r
 }
 
 #[cfg(windows)]
@@ -72,9 +83,13 @@ mod tests {
     const WORK: Rect = Rect { left: 0, top: 0, right: 3840, bottom: 2112 };
 
     #[test]
-    fn taskbar_shows_the_work_area() {
-        assert_eq!(target(MON, WORK, true), WORK);
+    fn v110_n10_the_window_gives_up_1_px_on_the_taskbar_side() {
+        assert_eq!(target(MON, WORK, true), Rect { bottom: 2159, ..MON });
         assert_eq!(target(MON, WORK, false), MON);
+        let left = Rect { left: 96, ..MON };
+        assert_eq!(target(MON, left, true), Rect { left: 1, ..MON });
+        // A hidden-away taskbar leaves the work area whole: the bottom gives.
+        assert_eq!(target(MON, MON, true), Rect { bottom: 2159, ..MON });
     }
 
     #[test]

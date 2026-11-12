@@ -60,7 +60,7 @@
   }
 </script>
 
-<SectionHead title="Streamer mode" level={2}>Keeps things off your stream that viewers shouldn’t see. {status}</SectionHead>
+<SectionHead title="Streamer mode" level={2} page="streamer">{status}</SectionHead>
 
 <Row setting="general.streamer.when" label="Turn on" hint="While streaming: when one of the apps below runs.">
   <Segmented label="Turn on" options={WHEN} value={s.when} onchange={(when) => patch({ when })} />

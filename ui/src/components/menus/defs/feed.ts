@@ -41,7 +41,7 @@ export const FEED_MESSAGE_DEF: MenuDef<FeedMessageCtx> = {
     row('openChat', 'Open this chat', 'list', (c) => ({ label: 'Open this chat', icon: 'list', run: c.act.openChat })),
     row('showInLogs', 'Show message in logs', 'scroll', (c) => (c.logsLink ? { label: 'Show message in logs', icon: 'scroll', run: c.act.showInLogs } : null)),
     row('copy', 'Copy message', 'copy', (c) => ({ label: 'Copy message', icon: 'copy', run: c.act.copyMessage })),
-    row('copyFull', 'Copy with name and time', 'copy', (c) => ({ label: 'Copy with name and time', icon: 'copy', run: c.act.copyFull })),
+    row('copyFull', 'Copy full message', 'copy', (c) => ({ label: 'Copy full message', icon: 'copy', run: c.act.copyFull })),
   ],
   defaults: [item('openChat'), item('showInLogs'), item('copy'), item('copyFull')],
 };

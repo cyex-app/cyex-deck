@@ -89,7 +89,7 @@
 
 </script>
 
-<SectionHead title="Miner" level={2}>Collects channel points while you watch and claims bonus chests.</SectionHead>
+<SectionHead title="Miner" level={2} page="miner" />
 
 <SectionHead title="What goes first" setting="miner.order" />
 <p class="note">

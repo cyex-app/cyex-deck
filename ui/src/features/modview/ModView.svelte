@@ -67,19 +67,20 @@
   let { login, account, onpopout, onclose, host = null, ongrab, chatNear = false }: Props = $props();
 
   /** Page order; never changes, so the chat and the stream never restart. */
-  const ORDER: Id[] = ['stream', 'chat', 'activity', 'actions', 'automod', 'unban', 'chatters', 'mass', 'terms', 'rewards'];
+  const ORDER: Id[] = ['stream', 'chat', 'activity', 'actions', 'automod', 'unban', 'chatters', 'mass', 'terms', 'rewards', 'poll', 'prediction'];
   /** Where every panel sits by default; a closed one comes back here. */
   const FULL: Node = split(
     'row',
     [
       split('column', [leaf('stream'), leaf('chat')], [0.4, 0.6]),
-      split('column', [leaf('activity'), leaf('actions'), leaf('terms')], [0.35, 0.4, 0.25]),
+      // V110-N13 Poll and Prediction start closed, under the mod actions.
+      split('column', [leaf('activity'), leaf('actions'), leaf('terms'), leaf('poll'), leaf('prediction')], [0.28, 0.32, 0.2, 0.1, 0.1]),
       split('column', [leaf('automod'), leaf('unban'), leaf('rewards'), leaf('chatters'), leaf('mass')], [0.17, 0.21, 0.18, 0.24, 0.2]),
     ],
     [0.34, 0.33, 0.33],
   );
   /** V103-07 Closed until asked for. */
-  const START_CLOSED: string[] = ['stream', 'terms', 'rewards'];
+  const START_CLOSED: string[] = ['stream', 'terms', 'rewards', 'poll', 'prediction'];
   /** V103-22 The chat's column in `FULL`, kept when it opens as the only chat. */
   const CHAT_SHARE = 0.34;
   const GAP = 8;

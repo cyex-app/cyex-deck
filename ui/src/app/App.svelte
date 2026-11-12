@@ -73,7 +73,7 @@
   import { gate } from '../lib/gate.svelte';
   import { keyHold, useHotkeys } from '../lib/hotkeys.svelte';
   import { emit } from '@tauri-apps/api/event';
-  import { chatReloads, PressGate, playerReloads, RELOAD_ALL_EVENT, reloadPicks } from '../features/tabs/reload';
+  import { chatReloads, PressGate, playerReloads, RELOAD_ALL_EVENT, reloadPicks, takeAppReloaded } from '../features/tabs/reload';
   import { followFullscreen } from '../lib/layers';
   import { settings } from '../lib/settings.svelte';
   import { streamer } from '../lib/streamer.svelte';
@@ -274,6 +274,9 @@
     if (scope === 'all') void emit(RELOAD_ALL_EVENT).catch(() => {});
     toast.info(scope === 'tab' ? 'Tab reloaded.' : 'All tabs reloaded.', { key: 'tabs.reload' });
   }
+
+  // V110-N8 Ctrl+F5 brought this page back: say so once.
+  if (takeAppReloaded()) toast.info('App reloaded.', { key: 'app.reloaded' });
 
   useRootEffects();
   useHotkeys({

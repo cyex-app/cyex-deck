@@ -32,6 +32,7 @@
   import type { ConnStatus } from '../../ipc/bindings/ConnStatus';
   import type { LinkTarget } from '../../ipc/bindings/LinkTarget';
   import type { UiAction } from '../../ipc/bindings/UiAction';
+  import { openVote } from '../streammanager/votePanels.svelte';
   import { chatIpc } from '../../ipc/chat';
   import { chatxIpc } from '../../ipc/chatx';
   import { errorText } from '../../lib/errors';
@@ -262,6 +263,11 @@
       // I106-3 /add, /remove, /rename: the Undo toast; the chat line came from the edit.
       if (account) editDone(account, login, a.op, a.done);
     }
+    // V110-N13 /poll, /prediction (typed or from a menu entry): the floating panel for this
+    // chat's channel (Rust checked the role).
+    else if (a.type === 'poll' || a.type === 'prediction') {
+      if (account) openVote(a.type, login, account, a.question);
+    }
     else if (a.type === 'popout') {
       if (onpopout) onpopout();
       else toast.info('Only a chat next to a stream pops out.');
@@ -358,16 +364,21 @@
   const STUCK: ConnStatus[] = ['refused', 'banned', 'noAnswer'];
   let rejoining = $state(false);
   function rejoin() {
-    if (!room.view || rejoining) return;
+    if (!room.view || rejoining) return Promise.resolve();
     rejoining = true;
-    chatIpc
+    return chatIpc
       .rejoin(room.view)
       .catch((err) => toast.error(errorText(err)))
       .finally(() => (rejoining = false));
   }
-  // V110-N7 F5 / Ctrl+R rejoin this chat like its own reconnect.
+  // V110-N7 F5 / Ctrl+R rejoin this chat like its own reconnect. V110-N8 Then its room says so.
+  function reloadChat() {
+    const view = room.view;
+    if (!view) return;
+    void rejoin().then(() => chatIpc.reloaded(view).catch(() => {}));
+  }
   // svelte-ignore state_referenced_locally
-  if (tile) onDestroy(chatReloads.add({ tile, run: rejoin }));
+  if (tile) onDestroy(chatReloads.add({ tile, run: reloadChat }));
 
   /** Hovering the name shows the stream, if the last live check found one (user, 2026/11/01):
    *  a chat-only tile still lights its tab's dot, and this says why. */

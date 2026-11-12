@@ -179,6 +179,51 @@ pub async fn sm_end_prediction(app: AppHandle, id: String, end: PredictionEnd) -
     actions::end_prediction(&app, id, end).await
 }
 
+// V110-N13 The same on a channel `account` moderates (or its own): the mod view's panels
+// and `/poll`, `/prediction`. GQL only off the own channel.
+
+/// A card in this window shows `channel`'s votes: the chat's watcher stays on for it.
+#[tauri::command]
+pub fn mod_votes_watch(app: AppHandle, window: tauri::Window, account: String, channel: String) {
+    streammanager::votes::watch(&app, window.label(), &account, &channel);
+}
+
+#[tauri::command]
+pub fn mod_votes_unwatch(app: AppHandle, window: tauri::Window, channel: String) {
+    streammanager::votes::unwatch(&app, window.label(), &channel);
+}
+
+#[tauri::command]
+pub async fn mod_create_poll(app: AppHandle, account: String, channel: String, poll: NewPoll) -> Result<(), String> {
+    streammanager::votes::create_poll(&app, &account, &channel, poll).await
+}
+
+#[tauri::command]
+pub async fn mod_end_poll(app: AppHandle, account: String, channel: String, id: String, archive: bool) -> Result<(), String> {
+    streammanager::votes::end_poll(&app, &account, &channel, id, archive).await
+}
+
+#[tauri::command]
+pub async fn mod_create_prediction(
+    app: AppHandle,
+    account: String,
+    channel: String,
+    prediction: NewPrediction,
+) -> Result<(), String> {
+    streammanager::votes::create_prediction(&app, &account, &channel, prediction).await
+}
+
+#[tauri::command]
+pub async fn mod_end_prediction(
+    app: AppHandle,
+    account: String,
+    channel: String,
+    id: String,
+    end: PredictionEnd,
+) -> Result<(), String> {
+    streammanager::votes::end_prediction(&app, &account, &channel, id, end).await
+}
+
 #[tauri::command]
 pub async fn sm_together(app: AppHandle) -> Result<Together, String> {
     actions::together(&app).await

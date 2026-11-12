@@ -1,10 +1,12 @@
 // V110-U67 The menus the manager lists, in the registry's order, and the fake contexts it
 // previews them with.
 
-import { MENU_DEFS, type AnyDef, menuInfo } from '../../../components/menus/defs/index.ts';
+import { MENU_DEFS, MENUS_BY_GROUP, type AnyDef, menuInfo } from '../../../components/menus/defs/index.ts';
 import type { SampleOf } from './model.ts';
 
 export const DEFS: AnyDef[] = MENU_DEFS;
+/** V110-N9 The list under its small headings. */
+export const BY_GROUP = MENUS_BY_GROUP;
 
 export const sampleOf: SampleOf = (menuId, who) => menuInfo(menuId)?.sample(who);
 

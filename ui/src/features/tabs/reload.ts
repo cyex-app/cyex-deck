@@ -61,3 +61,25 @@ export function reloadEverything(): void {
   for (const c of chatReloads.list()) c.run();
   for (const p of playerReloads.list()) p.run();
 }
+
+const APP_RELOADED = 'cyex:app-reloaded';
+
+/** V110-N8 Ctrl+F5: remembered for the page that comes back, which says so once. */
+export function markAppReload(): void {
+  try {
+    sessionStorage.setItem(APP_RELOADED, '1');
+  } catch {
+    // No storage: the reload just has no note.
+  }
+}
+
+/** V110-N8 True once after a Ctrl+F5 reload; never on a normal start. */
+export function takeAppReloaded(): boolean {
+  try {
+    const was = sessionStorage.getItem(APP_RELOADED) === '1';
+    if (was) sessionStorage.removeItem(APP_RELOADED);
+    return was;
+  } catch {
+    return false;
+  }
+}

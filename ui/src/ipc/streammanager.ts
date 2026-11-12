@@ -95,3 +95,17 @@ export const smIpc = {
   /** D6 Join requests changed. */
   onTogether: (f: () => void): Promise<UnlistenFn> => listen('stream:together', () => f()),
 };
+
+/** V110-N13 Polls and predictions on a channel `account` moderates (or its own): GQL only
+ *  off the own channel. `watch` keeps the chat's vote watcher on while a card shows. */
+export const modVotesIpc = {
+  watch: (account: string, channel: string) => invoke<void>('mod_votes_watch', { account, channel }),
+  unwatch: (channel: string) => invoke<void>('mod_votes_unwatch', { channel }),
+  createPoll: (account: string, channel: string, poll: SmPoll) => invoke<void>('mod_create_poll', { account, channel, poll }),
+  endPoll: (account: string, channel: string, id: string, archive: boolean) =>
+    invoke<void>('mod_end_poll', { account, channel, id, archive }),
+  createPrediction: (account: string, channel: string, prediction: SmPrediction) =>
+    invoke<void>('mod_create_prediction', { account, channel, prediction }),
+  endPrediction: (account: string, channel: string, id: string, end: SmPredictionEnd) =>
+    invoke<void>('mod_end_prediction', { account, channel, id, end }),
+};

@@ -6,6 +6,7 @@
   import { errorText } from '../../lib/errors';
   import { toast } from '../../lib/toast.svelte';
   import { type DocsAnchor, docsUrl } from './docsLinks';
+  import { type PageId, pageOf } from './registry/pages';
 
   interface Props {
     title: string;
@@ -14,13 +15,16 @@
     docs?: DocsAnchor;
     /** V103-13 Registry ids for settings search, on the heading. */
     setting?: string;
-    /** The subtitle. */
+    /** V110-N9 A settings page's id: its hint (registry/pages.ts, also the sidebar tooltip) opens the subtitle. */
+    page?: PageId;
+    /** The subtitle (after the page's hint, if any). */
     children?: Snippet;
     /** U7 Buttons beside the page heading (level 2 only). */
     actions?: Snippet;
   }
 
-  let { title, level = 3, docs, setting, children, actions }: Props = $props();
+  let { title, level = 3, docs, setting, page, children, actions }: Props = $props();
+  const lead = $derived(page ? (pageOf(page)?.hint ?? '') : '');
 
   function open(e: MouseEvent) {
     e.preventDefault();
@@ -34,9 +38,9 @@
     <div class="acts">{@render actions()}</div>
   </div>
 {:else if level === 2}<h2 data-setting={setting}>{title}</h2>{:else}<h3 class="label" data-setting={setting}>{title}</h3>{/if}
-{#if children || docs}
+{#if lead || children || docs}
   <p class="sub">
-    {@render children?.()}{#if docs}{children ? ' ' : ''}<a
+    {lead}{#if lead && children}{' '}{/if}{@render children?.()}{#if docs}{lead || children ? ' ' : ''}<a
         class="docs" href={docsUrl(docs)} onclick={open} use:tooltip={{ label: 'Docs', hint: 'Opens cyex.app in your browser.' }}>Docs</a>{/if}
   </p>
 {/if}

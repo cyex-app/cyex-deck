@@ -20,6 +20,7 @@ pub mod obs;
 pub mod owner;
 pub mod rewards;
 pub mod stats;
+pub mod votes;
 pub mod words;
 
 use std::collections::VecDeque;
@@ -42,6 +43,8 @@ pub fn init(app: &AppHandle) {
     app.manage(State::default());
     app.manage(follows::Seen::default());
     app.manage(bulk::Gate::default());
+    // V110-N13
+    app.manage(votes::Watching::default());
 }
 
 #[derive(Default)]

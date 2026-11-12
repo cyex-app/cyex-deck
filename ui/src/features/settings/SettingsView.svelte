@@ -49,7 +49,7 @@
   import { isFindKey, visibleSearchbox } from '../../lib/findKey';
   import { recording } from '../../lib/hotkeys.svelte';
   import { rovingIndex } from '../../lib/rovingIndex';
-  import { groupShown, readFolded, saveFolded, toggleFolded } from './navGroups';
+  import { groupShown, readFolded, saveFolded, toggleFolded, unfoldFor } from './navGroups';
 
   interface Props {
     /** Open page id. Bindable so other views can jump to a page. */
@@ -204,11 +204,22 @@
     e.stopPropagation();
   }
 
-  // V110-N6 Groups fold by their label; the open page's group and a search show them all.
+  // V110-N6 Groups fold by their label (V110-N9: all of them); a search shows them all, and a
+  // page reached by search or a jump unfolds its group.
   let folded = $state(readFolded());
   let narrow = $state(false);
   const currentGroup = $derived(PAGES.find((p) => p.id === section)?.group ?? '');
-  const shownGroup = (g: string) => groupShown(g, folded, currentGroup, searching || narrow);
+  const shownGroup = (g: string) => groupShown(g, folded, searching || narrow);
+  // Not on open: a group folded on the page you left stays folded.
+  let lastGroup: string | null = null;
+  $effect(() => {
+    const g = currentGroup;
+    const first = lastGroup === null;
+    lastGroup = g;
+    if (first || !g || !untrack(() => folded).includes(g)) return;
+    folded = unfoldFor(untrack(() => folded), g);
+    saveFolded(folded);
+  });
   function fold(g: string) {
     folded = toggleFolded(folded, g);
     saveFolded(folded);
@@ -222,7 +233,7 @@
 
   /** V110-F32 The nav is one Tab stop: the page you are on (else the first), and Up, Down, Home
    *  and End move between pages; Enter or Space opens one. */
-  const stop = $derived(PAGES.some((p) => p.id === section) ? section : PAGES[0].id);
+  const stop = $derived(PAGES.find((p) => p.id === section && shownGroup(p.group))?.id ?? PAGES.find((p) => shownGroup(p.group))?.id ?? PAGES[0].id);
   function navkey(e: KeyboardEvent) {
     const from = (e.target as HTMLElement).closest<HTMLElement>('button[data-page]');
     if (!from || e.altKey || e.ctrlKey || e.metaKey) return;
@@ -348,7 +359,7 @@
       <div class="items" class:open={shown} inert={!shown} id="grp-{g.label}">
         <div class="items-in">
           {#each g.pages as p (p.id)}
-            <button data-page={p.id} tabindex={stop === p.id ? 0 : -1} class:on={!searching && section === p.id} aria-label={p.label} aria-current={!searching && section === p.id ? 'page' : undefined} onclick={() => open(p.id)} use:tooltip={{ label: p.label, when: () => (nav?.offsetWidth ?? 999) < 100 }}>
+            <button data-page={p.id} tabindex={stop === p.id ? 0 : -1} class:on={!searching && section === p.id} aria-label={p.label} aria-current={!searching && section === p.id ? 'page' : undefined} onclick={() => open(p.id)} use:tooltip={{ label: p.label, hint: p.hint, side: 'right', when: () => (nav?.offsetWidth ?? 999) < 100 || !!settings.v.general?.tooltips }}>
               <Icon name={p.icon} size={15} />
               <span>{p.label}</span>
             </button>

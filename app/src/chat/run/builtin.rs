@@ -53,6 +53,9 @@ pub(super) const MOD_COMMANDS: &[&str] = &[
     "restrict",
     "unmonitor",
     "unrestrict",
+    // V110-N13 They open a panel; the role check is a mod's.
+    "poll",
+    "prediction",
 ];
 
 pub async fn run(
@@ -261,6 +264,15 @@ pub async fn run(
             let to = crate::whispers::reply_target(app).ok_or("Nobody has whispered you yet.")?;
             whisper(app, place, &to, args).await
         }
+        // V110-N13 The poll or prediction panel for this chat's channel, question filled in.
+        "poll" | "prediction" => {
+            let account = place.account().ok_or("Sign in with a moderator account to use that.")?;
+            crate::moderation::actor(app, account, place.channel())?;
+            if !place.ui {
+                return Err(format!("/{name} opens a panel. Type it in a chat."));
+            }
+            Ok(Some(vote_panel(name, args)))
+        }
         "nuke" => {
             let account = place.account().ok_or("Sign in to use /nuke.")?.to_owned();
             crate::moderation::nuke::run(app, &account, place.channel(), args).await?;
@@ -268,6 +280,16 @@ pub async fn run(
         }
         _ if is_mod_command(name) => run_mod(app, place, name, args).await,
         _ => Err(format!("Unknown command /{name}. /help lists them.")),
+    }
+}
+
+/// V110-N13 `/poll [question]` or `/prediction [question]` as the panel to open.
+fn vote_panel(name: &str, args: &str) -> UiAction {
+    let question = args.trim().to_owned();
+    if name == "poll" {
+        UiAction::Poll { question }
+    } else {
+        UiAction::Prediction { question }
     }
 }
 
@@ -313,6 +335,8 @@ pub(super) const OWN: &[&str] = &[
     "add", "remove", "rename",
     // V110-C69
     "spam",
+    // V110-N13
+    "poll", "prediction",
 ];
 
 /// V107-Mb The app’s commands that never write to Twitch or 7TV: they show, open or change
@@ -321,6 +345,8 @@ pub(super) const OWN: &[&str] = &[
 const LOCAL: &[&str] = &[
     "echo", "help", "commands", "set", "chain", "foreach", "runin", "user", "usercard", "logs", "hideuser",
     "unhideuser", "mutepings", "translate", "search", "popout", "cosmetics", "mods", "vips", "roles",
+    // V110-N13
+    "poll", "prediction",
 ];
 
 /// V107-Mb A built-in that writes to Twitch (or 7TV) as the account: anything not [`LOCAL`],
@@ -589,6 +615,18 @@ mod tests {
         for r in ["hello", "/me waves", "/ban x", "/chain /echo a | /me b", "/foreach a b > /echo $1", "/runin chan /me x", "/timer 5m /me x", "/nosuch", "", "/"] {
             assert!(!local_only(r), "{r}");
         }    }
+
+    #[test]
+    fn v110_n13_poll_and_prediction_open_a_panel_for_mods() {
+        assert!(matches!(vote_panel("poll", "  Best map? "), UiAction::Poll { question } if question == "Best map?"));
+        assert!(matches!(vote_panel("prediction", ""), UiAction::Prediction { question } if question.is_empty()));
+        for name in ["poll", "prediction"] {
+            assert!(!writes(name) && reserved(name), "{name}");
+            assert_eq!(need(name), Some(Need::Mod), "{name}");
+        }
+        assert!(usable(Some(ModRole::Moderator), true).contains(&"poll"));
+        assert!(!usable(None, true).contains(&"prediction"));
+    }
 
     #[test]
     fn mod_commands_are_twitchs() {

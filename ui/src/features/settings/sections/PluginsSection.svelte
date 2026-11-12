@@ -22,9 +22,7 @@
   }
 </script>
 
-<SectionHead title="Plugins" level={2} docs="plugins">
-  Lua scripts that add commands, change chat lines and more. Each one only gets the permissions you agree to.
-</SectionHead>
+<SectionHead title="Plugins" level={2} docs="plugins" page="plugins" />
 
 {#if view?.safeMode}
   <p class="note">Started with --safe-mode, so no plugin runs.</p>

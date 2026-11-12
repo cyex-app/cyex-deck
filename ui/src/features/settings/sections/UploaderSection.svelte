@@ -62,10 +62,7 @@
   }
 </script>
 
-<SectionHead title="Image uploads" level={2}>
-  Images you paste or drop into the chat box go to your upload host. These settings stay on this PC and never go
-  into exports.
-</SectionHead>
+<SectionHead title="Image uploads" level={2} page="uploads" />
 
 <!-- rb-5 Always a hint, so the row keeps its height as fields fill in. -->
 <Row

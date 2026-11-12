@@ -27,7 +27,7 @@
   const pick = (family: string) => void settings.patch('general', { chatFontFamily: family });
 </script>
 
-<SectionHead title="General" level={2}>Chat font, tray, smooth scrolling, Home and updates.</SectionHead>
+<SectionHead title="General" level={2} page="general" />
 
 <SectionHead title="Chat text">The font used in every chat.</SectionHead>
 <Row setting="general.chatFontFamily" label="Font">

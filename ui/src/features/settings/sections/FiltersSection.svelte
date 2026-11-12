@@ -59,8 +59,8 @@
 </script>
 
 <!-- b-15 One line, so exactly one space sits before the button. -->
-<SectionHead title="Filters" level={2} docs="filters"
-  >A chat shows only what passes its filters. Pick them from the chat’s menu. Same language as Chatterino. <button
+<SectionHead title="Filters" level={2} docs="filters" page="filters"
+  >Same language as Chatterino. <button
     type="button"
     class="doclink"
     onclick={toggleNames}>{showNames ? 'Hide' : 'Show'} what you can use</button

@@ -4,7 +4,7 @@
 import type { IconName } from '../../components/icons';
 import type { Box } from '../../lib/panels';
 
-export type ModPanelId = 'chat' | 'activity' | 'actions' | 'automod' | 'unban' | 'chatters' | 'mass' | 'stream' | 'terms' | 'rewards';
+export type ModPanelId = 'chat' | 'activity' | 'actions' | 'automod' | 'unban' | 'chatters' | 'mass' | 'stream' | 'terms' | 'rewards' | 'poll' | 'prediction';
 
 export interface ModPanelInfo {
   title: string;
@@ -27,6 +27,9 @@ export const INFO: Record<ModPanelId, ModPanelInfo> = {
   terms: { title: 'Blocked terms', hint: 'Words and phrases chat can’t use.', min: { w: 220, h: 160 }, tall: 280, icon: 'filter' },
   // V107-R43
   rewards: { title: 'Reward requests', hint: 'Channel points redemptions to complete or refund.', min: { w: 240, h: 160 }, tall: 300, icon: 'points' },
+  // V110-N13
+  poll: { title: 'Poll', hint: 'Start a poll and watch it run.', min: { w: 240, h: 200 }, tall: 300, icon: 'poll' },
+  prediction: { title: 'Prediction', hint: 'Start a prediction, then pay out or refund.', min: { w: 240, h: 200 }, tall: 320, icon: 'star' },
   mass: { title: 'Mass actions', hint: 'Ban or time out many at once.', min: { w: 220, h: 140 }, tall: 260, icon: 'zap' },
 };
 

@@ -1,5 +1,5 @@
-// V110-B10 Theatre's taskbar room: at the window's bottom edge the window shrinks to the work
-// area so the taskbar shows (`window_taskbar_room`), and covers the screen again after the
+// V110-B10 Theatre's taskbar room: at the window's bottom edge the window gives up 1 px so the
+// taskbar shows over it (V110-N10) (`window_taskbar_room`), and covers the screen again after the
 // pointer stays clear of the bottom. One instance per window.
 
 import { windowFullscreen } from './windowFullscreen';

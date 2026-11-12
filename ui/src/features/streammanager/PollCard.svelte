@@ -1,10 +1,10 @@
 <!-- 1.35 Start a poll and watch it run: live results, end it early or hide it. Results
      come from the chat's vote watcher (GQL, then Hermes); starting and ending
-     go GQL first, Helix otherwise (D30). -->
+     go GQL first, Helix otherwise (D30). V110-N13 Also on a channel `account` moderates (the
+     mod view, `/poll`), GQL only there; without Affiliate it says so instead of the form. -->
 <script lang="ts">
   import Button from '../../components/Button.svelte';
   import Checkbox from '../../components/Checkbox.svelte';
-  import { smIpc } from '../../ipc/streammanager';
   import { formatDuration, formatNumber } from '../../lib/format';
   import { everyShown } from '../../lib/awake';
   import { toast } from '../../lib/toast.svelte';
@@ -15,12 +15,26 @@
   import IconButton from '../../components/IconButton.svelte';
   import NumberField from '../../components/NumberField.svelte';
   import { openMenuAt } from '../../components/menu.svelte';
+  import EmptyState from '../../components/EmptyState.svelte';
+  import { channelVotesAllowed, voteCalls } from './voteCalls';
+  import { firstEmpty, NOT_ALLOWED } from './voteGate';
 
   const DURATIONS = [60, 120, 180, 300, 600, 900];
 
-  let { login }: { login: string } = $props();
+  interface Props {
+    login: string;
+    /** V110-N13 A channel this account moderates; unset: the stream manager's own. */
+    account?: string | null;
+    /** V110-N13 `/poll question`: filled in. */
+    question?: string;
+    /** V110-N13 Focus the first empty field once the form shows. */
+    autofocus?: boolean;
+  }
 
-  let title = $state('');
+  let { login, account = null, question = '', autofocus = false }: Props = $props();
+
+  // svelte-ignore state_referenced_locally
+  let title = $state(question.slice(0, 60));
   let choices = $state(['', '']);
   let duration = $state(120);
   let extra = $state(false);
@@ -28,7 +42,22 @@
   let busy = $state(false);
   let now = $state(Date.now());
 
-  $effect(() => votes.watch(login));
+  const calls = $derived(voteCalls(login, account));
+  $effect(() => calls.watch());
+  /** V110-N13 Affiliate or Partner; `null` unknown (the form stays). */
+  let allowed = $state<boolean | null>(null);
+  $effect(() => {
+    const l = login;
+    allowed = null;
+    void channelVotesAllowed(l).then((a) => l === login && (allowed = a));
+  });
+  let fields: HTMLInputElement[] = $state([]);
+  let focused = false;
+  $effect(() => {
+    if (!autofocus || focused || poll || allowed === false || !fields[0]) return;
+    focused = true;
+    fields[firstEmpty([title, ...choices])]?.focus();
+  });
   $effect(() => {
     // V110-F84 Not while the window is hidden.
     return everyShown(() => (now = Date.now()), 1000);
@@ -42,7 +71,7 @@
 
   function start() {
     busy = true;
-    smIpc
+    calls
       .createPoll({ title, choices, duration, pointsPerVote: extra ? cost : null })
       .then(() => {
         title = '';
@@ -57,7 +86,7 @@
   function end(archive: boolean) {
     if (!poll) return;
     busy = true;
-    smIpc
+    calls
       .endPoll(poll.id, archive)
       .then(() => votes.watch(login))
       .catch((e) => toast.error(errorText(e)))
@@ -97,11 +126,13 @@
         <Button small disabled={busy} onclick={() => end(true)}>Hide and start a new one</Button>
       {/if}
     </div>
+  {:else if allowed === false}
+    <EmptyState icon="poll" text={NOT_ALLOWED.poll} />
   {:else}
-    <input class="field" placeholder="Question" maxlength="60" bind:value={title} />
+    <input class="field" placeholder="Question" maxlength="60" bind:value={title} bind:this={fields[0]} />
     {#each choices as _, i (i)}
       <div class="line">
-        <input class="field grow" placeholder="Choice {i + 1}" maxlength="25" bind:value={choices[i]} />
+        <input class="field grow" placeholder="Choice {i + 1}" maxlength="25" bind:value={choices[i]} bind:this={fields[i + 1]} />
         {#if choices.length > 2}
           <IconButton icon="x" label="Remove choice" size={14} onclick={() => (choices = choices.filter((_, j) => j !== i))} />
         {/if}
@@ -128,7 +159,7 @@
     </div>
   {/if}
   {#snippet foot()}
-    {#if !poll}
+    {#if !poll && allowed !== false}
       <Button small variant="primary" disabled={!ready || busy} onclick={start}>Start poll</Button>
     {/if}
   {/snippet}

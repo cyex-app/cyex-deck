@@ -35,7 +35,8 @@ test('every page heading has a hint', () => {
   for (const f of readdirSync(dir).filter((n) => n.endsWith('Section.svelte'))) {
     const src = readFileSync(new URL(f, dir), 'utf8');
     for (const m of src.matchAll(/<SectionHead title="[^"]+" level=\{2\}[^>]*?(\/)?>/g)) {
-      assert.ok(!m[1], `${f}: heading without a hint`);
+      // V110-N9 The hint is the page's `hint` in registry/pages.ts, read via page="...".
+      assert.ok(!m[1] || /page="/.test(m[0]), `${f}: heading without a hint`);
     }
   }
 });

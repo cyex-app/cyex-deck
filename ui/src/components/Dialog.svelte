@@ -21,9 +21,11 @@
     onsubmit?: () => void;
     children: Snippet;
     footer?: Snippet;
+    /** V110-N12 False: closing leaves focus where it is instead of back on the opener. Read at close. */
+    restore?: boolean;
   }
 
-  let { title, width = 420, top = false, onclose, locked = false, onsubmit, children, footer }: Props = $props();
+  let { title, width = 420, top = false, onclose, locked = false, onsubmit, children, footer, restore = true }: Props = $props();
 
   let box = $state<HTMLElement>();
 
@@ -49,7 +51,13 @@
   $effect(() => {
     if (!box) return;
     // A dialog without fields still takes focus, so Enter and typing don't reach the chat box behind it.
-    const release = focusScope(box, { trap: true, initial: firstField });
+    const release = focusScope(box, {
+      trap: true,
+      initial: firstField,
+      get restore() {
+        return restore;
+      },
+    });
     const off = layer('dialog', dismiss);
     return () => {
       off();

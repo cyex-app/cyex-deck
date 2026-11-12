@@ -694,6 +694,17 @@ pub fn rejoin_view(app: &AppHandle, view: u32) -> bool {
     session::rejoin(app, &key, false)
 }
 
+/// V110-N8 A system line in the one room a view shows ("Chat reloaded."), not its channel's others.
+pub fn room_note(app: &AppHandle, view: u32, text: &str) -> bool {
+    let Some(chat) = app.try_state::<Chat>() else { return false };
+    let mut inner = chat.lock();
+    let Some(key) = inner.views.get(&view).map(|v| v.0.clone()) else { return false };
+    let Some(entry) = inner.rooms.get_mut(&key) else { return false };
+    let ev = entry.room.system(NoticeKind::Info, text, now_ms());
+    queue(entry, vec![ev], &chat.wake);
+    true
+}
+
 /// The channel id for a login: the registry's, else whichever open room knows it.
 pub fn channel_id_of(app: &AppHandle, login: &str) -> Option<String> {
     let chat = app.try_state::<Chat>()?;

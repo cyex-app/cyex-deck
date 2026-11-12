@@ -37,6 +37,8 @@ export const chatIpc = {
   close: (view: number) => invoke<void>('chat_close', { view }),
   /** V109-F81 Sends the JOIN again for a chat that isn't in; true when it went out. */
   rejoin: (view: number) => invoke<boolean>('chat_rejoin', { view }),
+  /** V110-N8 Adds "Chat reloaded." to the room a view shows. */
+  reloaded: (view: number) => invoke<boolean>('chat_reloaded', { view }),
   /** V103-22 Where the regular chats show, by window, and which windows still load. */
   shown: () => invoke<ChatShown>('chat_shown'),
   onShown: (handler: (s: ChatShown) => void) => listen<ChatShown>('chat:shown', (e) => handler(e.payload)),

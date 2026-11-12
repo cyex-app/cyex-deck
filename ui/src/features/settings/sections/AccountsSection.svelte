@@ -52,7 +52,7 @@
   }
 </script>
 
-<SectionHead title="Accounts" level={2}>Who you chat and follow as. Each tab can use its own account.</SectionHead>
+<SectionHead title="Accounts" level={2} page="accounts" />
 
 {#if signIn.kind}<DeviceCode />{/if}
 

@@ -82,9 +82,7 @@
 
 <svelte:window onkeydown={onKey} />
 
-<SectionHead title="Hotkeys" level={2} docs="hotkeys" setting="hotkeys.bindings">
-  Click a shortcut, then press the new keys. Esc cancels, Backspace clears it.
-</SectionHead>
+<SectionHead title="Hotkeys" level={2} docs="hotkeys" setting="hotkeys.bindings" page="hotkeys" />
 
 {#snippet binding(id: ActionId)}
   {@const combo = bindingOf(id)}

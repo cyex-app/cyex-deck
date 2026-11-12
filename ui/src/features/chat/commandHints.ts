@@ -40,6 +40,8 @@ export const COMMAND_HINTS: Readonly<Record<string, string>> = {
   whisper: 'Whispers someone, from your default account.',
   r: 'Replies to the last person who whispered you.',
   nuke: 'Bans or times out everyone who recently said a phrase. A phrase with spaces goes in quotes; /regex/ works too.',
+  poll: 'Opens the poll panel for this channel, the question filled in.',
+  prediction: 'Opens the prediction panel for this channel, the question filled in.',
   ban: 'Bans someone from the channel.',
   timeout: 'Times someone out. Default 10 minutes.',
   unban: 'Unbans a user, or ends their timeout.',

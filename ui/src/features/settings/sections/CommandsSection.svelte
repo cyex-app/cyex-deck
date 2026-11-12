@@ -72,8 +72,8 @@
 </script>
 
 <!-- V110-N6 Menu entries and usercard buttons moved to the Menus page; one line points there. -->
-<SectionHead title="Commands" level={2} docs="commands">
-  Your own chat commands and timers. Menu entries and usercard buttons are on the
+<SectionHead title="Commands" level={2} docs="commands" page="commands">
+  Menu entries and usercard buttons are on the
   <Button variant="link" hit onclick={() => (settingsJump.to = 'menus')}>Menus page</Button>.
 </SectionHead>
 

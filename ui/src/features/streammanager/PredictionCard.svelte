@@ -1,10 +1,11 @@
 <!-- 1.35 Start a prediction, lock betting, pay out the winning side or refund everyone.
      Paying out and refunding take a second click. Live state comes from the chat's vote
-     watcher; the actions go GQL first, Helix otherwise (D30). -->
+     watcher; the actions go GQL first, Helix otherwise (D30). V110-N13 Also on a channel
+     `account` moderates (the mod view, `/prediction`), GQL only there; without Affiliate
+     (no channel points) it says so instead of the form. -->
 <script lang="ts">
   import Button from '../../components/Button.svelte';
   import type { SmPredictionEnd } from '../../ipc/bindings/SmPredictionEnd';
-  import { smIpc } from '../../ipc/streammanager';
   import { formatDuration, formatNumber } from '../../lib/format';
   import { everyShown } from '../../lib/awake';
   import { toast } from '../../lib/toast.svelte';
@@ -16,18 +17,47 @@
   import Select from '../../components/Select.svelte';
   import IconButton from '../../components/IconButton.svelte';
   import { openMenuAt } from '../../components/menu.svelte';
+  import EmptyState from '../../components/EmptyState.svelte';
+  import { channelVotesAllowed, voteCalls } from './voteCalls';
+  import { firstEmpty, NOT_ALLOWED } from './voteGate';
 
   const WINDOWS = [30, 60, 120, 300, 600, 1800];
 
-  let { login }: { login: string } = $props();
+  interface Props {
+    login: string;
+    /** V110-N13 A channel this account moderates; unset: the stream manager's own. */
+    account?: string | null;
+    /** V110-N13 `/prediction question`: filled in. */
+    question?: string;
+    /** V110-N13 Focus the first empty field once the form shows. */
+    autofocus?: boolean;
+  }
 
-  let title = $state('');
+  let { login, account = null, question = '', autofocus = false }: Props = $props();
+
+  // svelte-ignore state_referenced_locally
+  let title = $state(question.slice(0, 45));
   let outcomes = $state(['', '']);
   let betWindow = $state(120);
   let busy = $state(false);
   let now = $state(Date.now());
 
-  $effect(() => votes.watch(login));
+  const calls = $derived(voteCalls(login, account));
+  $effect(() => calls.watch());
+  /** V110-N13 Affiliate or Partner; `null` unknown (the form stays). */
+  let allowed = $state<boolean | null>(null);
+  $effect(() => {
+    const l = login;
+    allowed = null;
+    void channelVotesAllowed(l).then((a) => l === login && (allowed = a));
+  });
+  let fields: HTMLInputElement[] = $state([]);
+  let focused = false;
+  $effect(() => {
+    if (!autofocus || focused || open || allowed === false || !fields[0]) return;
+    focused = true;
+    fields[firstEmpty([title, ...outcomes])]?.focus();
+  });
   $effect(() => {
     // V110-F84 Not while the window is hidden.
     return everyShown(() => (now = Date.now()), 1000);
@@ -42,7 +72,7 @@
 
   function start() {
     busy = true;
-    smIpc
+    calls
       .createPrediction({ title, outcomes, window: betWindow })
       .then(() => {
         title = '';
@@ -57,7 +87,7 @@
   function end(how: SmPredictionEnd, done: string) {
     if (!p) return;
     busy = true;
-    smIpc
+    calls
       .endPrediction(p.id, how)
       .then(() => {
         toast.success(done);
@@ -130,12 +160,14 @@
         </span>
       {/if}
     </div>
+  {:else if allowed === false}
+    <EmptyState icon="star" text={NOT_ALLOWED.prediction} />
   {:else}
     {#if p}<p class="note">Last one: {p.title} · {STATUS[p.status] ?? p.status}</p>{/if}
-    <input class="field" placeholder="Question" maxlength="45" bind:value={title} />
+    <input class="field" placeholder="Question" maxlength="45" bind:value={title} bind:this={fields[0]} />
     {#each outcomes as _, i (i)}
       <div class="line">
-        <input class="field grow" placeholder="Outcome {i + 1}" maxlength="25" bind:value={outcomes[i]} />
+        <input class="field grow" placeholder="Outcome {i + 1}" maxlength="25" bind:value={outcomes[i]} bind:this={fields[i + 1]} />
         {#if outcomes.length > 2}
           <IconButton icon="x" label="Remove outcome" size={14} onclick={() => (outcomes = outcomes.filter((_, j) => j !== i))} />
         {/if}
@@ -157,7 +189,7 @@
     </div>
   {/if}
   {#snippet foot()}
-    {#if !open}
+    {#if !open && allowed !== false}
       <Button small variant="primary" disabled={!ready || busy} onclick={start}>Start prediction</Button>
     {/if}
   {/snippet}

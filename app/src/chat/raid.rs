@@ -144,6 +144,14 @@ impl Raids {
         Tick::On
     }
 
+    /// V110-N11 The update is the first we see of a raid that began just now (its line is due).
+    pub fn starts(&self, channel_id: &str, ev: &RaidEvent, now: i64) -> bool {
+        let RaidEvent::Update(r) = ev else { return false };
+        !self.is_ended(&r.id)
+            && self.by_channel.get(channel_id).is_none_or(|c| c.id != r.id)
+            && now - r.created_at <= FRESH_SECS
+    }
+
     pub fn current(&self, channel_id: &str, now: i64) -> Option<RaidStatus> {
         self.by_channel.get(channel_id).filter(|r| r.goes_at + STALE_SECS > now).cloned()
     }
@@ -202,11 +210,25 @@ fn raids() -> std::sync::MutexGuard<'static, Raids> {
     RAIDS.lock().unwrap_or_else(|p| p.into_inner())
 }
 
-/// The chat line when it goes: "Raided Kuni with 1.234 viewers".
+/// The chat line when it goes: "Raided Kuni with 1.234 viewers."
 pub fn went_line(r: &RaidStatus) -> String {
     let n = r.viewers;
-    format!("Raided {} with {} {}", r.target_name, grouped(n), if n == 1 { "viewer" } else { "viewers" })
+    format!("Raided {} with {} {}.", r.target_name, grouped(n), if n == 1 { "viewer" } else { "viewers" })
 }
+
+/// V110-N11 The chat line when a raid starts.
+pub fn started_line(r: &RaidStatus) -> String {
+    format!("Raiding {}.", r.target_name)
+}
+
+/// V110-N11 The chat line when a raid is called off.
+pub fn canceled_line() -> &'static str {
+    "Raid canceled."
+}
+
+/// V110-N11 How old a raid may be and still count as just started: a chat that opens mid-raid
+/// (or a topic that was forgotten) sees only updates, which must not read as a new raid.
+const FRESH_SECS: i64 = 10;
 
 /// The raid counting down from the channel, for a chat that opens mid-raid.
 pub fn current(channel_id: &str) -> Option<RaidStatus> {
@@ -238,10 +260,12 @@ pub fn on_event(app: &AppHandle, e: &Event) {
         RaidEvent::Done { id } => Some(id.clone()),
         RaidEvent::Update(_) => None,
     };
-    let step = {
+    let (step, started) = {
         let mut r = raids();
-        r.purge(crate::auth::unix_now());
-        r.step(id, ev, went)
+        let now = crate::auth::unix_now();
+        r.purge(now);
+        let started = r.starts(id, &ev, now);
+        (r.step(id, ev, went), started)
     };
     let (raid, went) = match step {
         Step::Keep => {
@@ -253,8 +277,16 @@ pub fn on_event(app: &AppHandle, e: &Event) {
             }
             return;
         }
-        Step::Show(r) => (Some(r), false),
+        Step::Show(r) => {
+            if started && let Some(login) = app.state::<Chat>().channels.login_of(id) {
+                super::notice_line(app, &login, NoticeKind::Raid, &started_line(&r));
+            }
+            (Some(r), false)
+        }
         Step::Gone(r) => {
+            if let Some(login) = app.state::<Chat>().channels.login_of(id) {
+                super::notice_line(app, &login, NoticeKind::Raid, canceled_line());
+            }
             // Called off: nothing opens and the tick clears.
             let ticked = raids().take_tick(&r.id).is_some();
             if ticked {
@@ -510,7 +542,24 @@ mod tests {
 
     #[test]
     fn line_reads_well() {
-        assert_eq!(went_line(&raid("a", 1234)), "Raided Kuni with 1.234 viewers");
-        assert_eq!(went_line(&raid("a", 1)), "Raided Kuni with 1 viewer");
+        assert_eq!(went_line(&raid("a", 1234)), "Raided Kuni with 1.234 viewers.");
+        assert_eq!(went_line(&raid("a", 1)), "Raided Kuni with 1 viewer.");
+    }
+
+    #[test]
+    fn v110_n11_the_start_line_is_due_once_and_only_for_a_new_raid() {
+        let mut r = Raids::default();
+        let a = raid("a", 5);
+        let ev = RaidEvent::Update(a.clone());
+        let now = a.created_at + 1;
+        assert!(r.starts("c", &ev, now));
+        r.step("c", ev.clone(), false);
+        assert!(!r.starts("c", &RaidEvent::Update(raid("a", 9)), now), "an update of the same raid");
+        assert!(r.starts("c", &RaidEvent::Update(raid("b", 5)), now), "another raid");
+        assert!(!r.starts("c", &ev, a.created_at + 60), "a chat opened mid-raid");
+        r.step("c", RaidEvent::Done { id: "a".into() }, true);
+        assert!(!r.starts("c", &ev, now), "an ended raid");
+        assert_eq!(started_line(&a), "Raiding Kuni.");
+        assert_eq!(canceled_line(), "Raid canceled.");
     }
 }

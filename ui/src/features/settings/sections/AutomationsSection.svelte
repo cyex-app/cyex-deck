@@ -93,7 +93,7 @@
   });
 </script>
 
-<SectionHead title="Automations" level={2} docs="automations">When someone says the trigger, the response runs as if you typed it.</SectionHead>
+<SectionHead title="Automations" level={2} docs="automations" page="automations" />
 
 <Row setting="commands.automationsOn" label="Run automations" hint="They answer as your account, so keep them friendly and slow.">
   <Toggle

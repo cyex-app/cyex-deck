@@ -93,6 +93,20 @@
         : !!picked && (show.player || show.chat) && !busy,
   );
 
+  /** V110-N12 A tab added with Enter: focus goes to its chat box, not back to the + button (a ring there). */
+  let added = $state(false);
+  function focusChat(login: string) {
+    let tries = 0;
+    const find = () => {
+      const box = [...document.querySelectorAll<HTMLTextAreaElement>('textarea')].find(
+        (t) => t.getAttribute('aria-label') === `Message #${login}` && t.offsetParent !== null && !t.disabled,
+      );
+      if (box) box.focus({ preventScroll: true });
+      else if (++tries < 15) setTimeout(find, 60);
+    };
+    setTimeout(find, 60);
+  }
+
   async function submit() {
     if (renamingFeed && tab) return void renameFeed(tab.id, tab.alias);
     if (feedMode) return void addFeed();
@@ -114,7 +128,11 @@
       }
     } else {
       const id = await tabs.apply({ op: 'add', channel, show, account: who, alias: name, into: into ?? null });
-      if (id) onopen(id);
+      if (id) {
+        onopen(id);
+        added = true;
+        if (show.chat) focusChat(channel.login);
+      }
     }
     if (mine) orToast(minerIpc.add(channel), 'add it to the miner');
     busy = false;
@@ -155,7 +173,7 @@
   }
 </script>
 
-<Dialog title={feedMode ? 'Add a feed tab' : title} width={440} top onclose={closeTabDialog} onsubmit={submit}>
+<Dialog title={feedMode ? 'Add a feed tab' : title} width={440} top restore={!added} onclose={closeTabDialog} onsubmit={submit}>
   {#if renamingFeed}
     <div class="form">
       <section>

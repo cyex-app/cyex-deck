@@ -339,22 +339,36 @@ pub enum PredictionEnd {
     Cancel,
 }
 
+impl PredictionEnd {
+    /// Helix's status and winner for it.
+    fn status(&self) -> (&'static str, Option<&str>) {
+        match self {
+            PredictionEnd::Lock => ("LOCKED", None),
+            PredictionEnd::Resolve { winner } => ("RESOLVED", Some(winner.as_str())),
+            PredictionEnd::Cancel => ("CANCELED", None),
+        }
+    }
+}
+
+/// V110-N13 The GQL side, also run as a mod of another channel (`super::votes`).
+pub(super) async fn end_prediction_gql(
+    http: &cyex_twitch::Http,
+    auth: gql::Auth<'_>,
+    id: &str,
+    end: &PredictionEnd,
+) -> cyex_twitch::Result<()> {
+    match end {
+        PredictionEnd::Resolve { winner } => dash::votes::resolve_prediction(http, auth, id, winner).await,
+        PredictionEnd::Lock => dash::votes::lock_prediction(http, auth, id).await,
+        PredictionEnd::Cancel => dash::votes::cancel_prediction(http, auth, id).await,
+    }
+}
+
 pub async fn end_prediction(app: &AppHandle, id: String, end: PredictionEnd) -> Result<(), String> {
-    let (status, winner) = match &end {
-        PredictionEnd::Lock => ("LOCKED", None),
-        PredictionEnd::Resolve { winner } => ("RESOLVED", Some(winner.as_str())),
-        PredictionEnd::Cancel => ("CANCELED", None),
-    };
+    let (status, winner) = end.status();
     either(
         app,
-        async |c: &Call| {
-            let (http, auth) = (&c.http, c.gql());
-            match winner {
-                Some(w) => dash::votes::resolve_prediction(http, auth, &id, w).await,
-                None if status == "LOCKED" => dash::votes::lock_prediction(http, auth, &id).await,
-                None => dash::votes::cancel_prediction(http, auth, &id).await,
-            }
-        },
+        async |c: &Call| end_prediction_gql(&c.http, c.gql(), &id, &end).await,
         async |c: &Call| votes::end_prediction(&c.http, c.helix(), &c.channel_id, &id, status, winner).await,
     )
     .await

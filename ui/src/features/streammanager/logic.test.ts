@@ -3,7 +3,7 @@ import { test } from 'node:test';
 
 import type { ActivityFilters } from '../../ipc/bindings/ActivityFilters';
 import type { SmActivity } from '../../ipc/bindings/SmActivity';
-import { adIn, adIntervals, adLengths, alertAction, capPush, raidCountdown, shares, visibleActivity } from './logic.ts';
+import { adIn, adIntervals, adLengths, alertAction, capPush, raidArmedDue, raidCountdown, raidMarkIn, raidMarkLabel, shares, visibleActivity } from './logic.ts';
 
 const ALL: ActivityFilters = {
   follows: true,
@@ -68,4 +68,17 @@ test('ad countdown', () => {
 test('prediction shares', () => {
   assert.deepEqual(shares([300, 100]), [75, 25]);
   assert.deepEqual(shares([0, 0]), [0, 0]);
+});
+
+test('an armed Raid now fires at the 10 s mark, once, for its own raid (V110-N11)', () => {
+  const r = { id: 'a', createdAt: 1000, goesAt: 1090 };
+  assert.equal(raidMarkIn(1000, 1003.2), 7);
+  assert.equal(raidMarkIn(1000, 1012), 0);
+  assert.equal(raidMarkLabel(), 'Raids at 0:10');
+  assert.equal(raidArmedDue('a', r, 1009.9), false);
+  assert.equal(raidArmedDue('a', r, 1010), true);
+  assert.equal(raidArmedDue(null, r, 1050), false, 'not armed');
+  assert.equal(raidArmedDue('b', r, 1050), false, 'another raid');
+  assert.equal(raidArmedDue('a', null, 1050), false, 'raid gone');
+  assert.equal(raidArmedDue('a', r, 1090), false, 'already going');
 });

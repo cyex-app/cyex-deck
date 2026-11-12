@@ -1,5 +1,6 @@
 // V110-N6 Settings sidebar groups that fold: which are folded is remembered per group on this PC.
-// The group of the open page never folds away, and a search ignores folding.
+// Every group folds, the open page's too (V110-N9); a search and the narrow list ignore folding,
+// and going to a page some other way unfolds its group (`unfoldFor`).
 
 const KEY = 'cyex.settingsGroups';
 
@@ -21,9 +22,14 @@ export function saveFolded(folded: string[]): void {
   }
 }
 
-/** Is the group's page list shown? The open page's group, a search and a narrow list always show. */
-export function groupShown(group: string, folded: readonly string[], current: string, forced: boolean): boolean {
-  return forced || group === current || !folded.includes(group);
+/** Is the group's page list shown? A search and a narrow list always show; otherwise unless folded. */
+export function groupShown(group: string, folded: readonly string[], forced: boolean): boolean {
+  return forced || !folded.includes(group);
+}
+
+/** The folded list with `group` open: used when a page in it is reached by search or a jump. */
+export function unfoldFor(folded: readonly string[], group: string): string[] {
+  return folded.includes(group) ? folded.filter((g) => g !== group) : [...folded];
 }
 
 /** The group's name in or out of the folded list. */

@@ -202,6 +202,8 @@ pub fn on_window_event(window: &tauri::Window, event: &WindowEvent) {
             overlay::forget(app, window.label());
             low_memory_windows(app).remove(window.label());
             paint::forget(app, window.label());
+            // V110-N13 Its poll and prediction cards' watches.
+            crate::streammanager::votes::forget(app, window.label());
         }
         _ => {}
     }
@@ -227,6 +229,7 @@ pub fn on_page_load(webview: &Webview, payload: &PageLoadPayload<'_>) {
             close_views(app, label);
             // V108-N04/N23 The old page's topics; the new one follows them again.
             crate::hermes::release(app, label);
+            crate::streammanager::votes::forget(app, label);
             if shows_chats() {
                 crate::chat::shown::loading(app, label);
             }

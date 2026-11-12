@@ -113,7 +113,7 @@
   }
 </script>
 
-<SectionHead title="Appearance" level={2}>Theme, accent color, layout and tabs.</SectionHead>
+<SectionHead title="Appearance" level={2} page="appearance" />
 
 <SectionHead title="Colors">The theme and accent color.</SectionHead>
 <Row setting="appearance.theme appearance.themes" label="Theme" hint="Make your own under Custom themes, or paste a link." stacked>

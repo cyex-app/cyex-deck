@@ -1,5 +1,5 @@
-// V110-B10 Theatre is fullscreen and covers the taskbar. At the bottom edge the window shrinks
-// to the work area so the taskbar shows; it covers the screen again once the pointer has been
+// V110-B10 Theatre is fullscreen and covers the taskbar. At the bottom edge the taskbar shows
+// over the window (V110-N10); it covers the screen again once the pointer has been
 // well above the bottom for a moment. Pure timing rules; the class feeds them pointer events.
 
 /** The bottom edge, in px from the window's bottom. */

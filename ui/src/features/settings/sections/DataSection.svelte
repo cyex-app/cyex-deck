@@ -264,7 +264,7 @@
   }
 </script>
 
-<SectionHead title="Backup and sharing" level={2} docs="data">Move your settings to another PC, share them, or go back to an earlier copy.</SectionHead>
+<SectionHead title="Backup and sharing" level={2} docs="data" page="data" />
 
 <SectionHead title="What to export or share">Pick the parts to put in the file.</SectionHead>
 <div class="picks">
