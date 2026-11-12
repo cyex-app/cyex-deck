@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { blockBrowserFind, isFindKey, stoppedByUs } from './findKey.ts';
+import { blockBrowserFind, isFindKey, stoppedByUs, visibleSearchbox } from './findKey.ts';
 
 function press(key: string, mods: Partial<Record<'ctrlKey' | 'metaKey' | 'altKey' | 'shiftKey', boolean>> = {}) {
   const e = {
@@ -48,4 +48,17 @@ test('a key someone else already used is not claimed', () => {
   e.defaultPrevented = true;
   blockBrowserFind(e);
   assert.ok(!stoppedByUs(e));
+});
+
+test('V110-N16 the search box is found by data-search, whatever its role', () => {
+  let asked = '';
+  const box = { offsetParent: {} };
+  const root = {
+    querySelectorAll: (sel: string) => {
+      asked = sel;
+      return [{ offsetParent: null }, box];
+    },
+  } as unknown as ParentNode;
+  assert.equal(visibleSearchbox(root), box);
+  assert.match(asked, /input\[data-search\]/);
 });

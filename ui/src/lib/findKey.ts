@@ -28,9 +28,11 @@ export function blockBrowserFind(e: KeyLike & { defaultPrevented: boolean; preve
   ours.add(e);
 }
 
-/** Settings: the search box that is showing (the side one or, in narrow windows, the top one). */
+/** Settings: the search box that is showing (the side one or, in narrow windows, the top one).
+ *  V110-N16 By `data-search`: Settings turns its box into a combobox (recent searches), so the
+ *  searchbox role alone missed it and Ctrl+F did nothing there. */
 export function visibleSearchbox(root: ParentNode): HTMLInputElement | null {
-  const all = root.querySelectorAll<HTMLInputElement>('input[role="searchbox"]');
+  const all = root.querySelectorAll<HTMLInputElement>('input[data-search], input[role="searchbox"]');
   for (const el of all) if (el.offsetParent !== null) return el;
   return null;
 }

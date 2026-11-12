@@ -71,6 +71,7 @@
     bind:this={input}
     type="text"
     role="searchbox"
+    data-search
     aria-label={label ?? placeholder}
     {placeholder}
     spellcheck="false"
