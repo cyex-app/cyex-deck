@@ -79,3 +79,14 @@ test('V110-N4 Ctrl+F5 reloads the app, also over the settings sheet', async () =
   assert.equal(hotkeyGroup('app.reload'), 'View');
   assert.equal(hotkeyGroup('settings.open'), 'Navigation');
 });
+
+test('V110-N7 F5 reloads the tab, Ctrl+R all tabs, both under Tabs and kept from the page', async () => {
+  const { OVER_SHEET, hotkeyGroup } = await import('./hotkeyActions.ts');
+  assert.equal(resolveBinding('tab.reload'), 'F5');
+  assert.equal(resolveBinding('tabs.reloadAll'), 'Ctrl+R');
+  assert.equal(ACTIONS['tab.reload'].label, 'Reload this tab');
+  assert.equal(ACTIONS['tabs.reloadAll'].label, 'Reload all tabs');
+  assert.equal(hotkeyGroup('tab.reload'), 'Tabs');
+  assert.equal(hotkeyGroup('tabs.reloadAll'), 'Tabs');
+  assert.ok(OVER_SHEET.has('tab.reload') && OVER_SHEET.has('tabs.reloadAll'));
+});

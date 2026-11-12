@@ -58,7 +58,7 @@
   }
 </script>
 
-<SectionHead title="Player" level={2} />
+<SectionHead title="Player" level={2}>Ads, latency, rewind and how much the player uses.</SectionHead>
 
 <Row setting="player.blockAds" label="Block ads" hint="Cuts Twitch’s ads out of streams, or plays a clean copy while they run.">
   <Toggle label="Block ads" checked={p.blockAds} onchange={(v) => settings.patch('player', { blockAds: v })} />

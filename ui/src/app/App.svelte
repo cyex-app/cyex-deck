@@ -71,7 +71,9 @@
   import { accounts } from '../lib/accounts.svelte';
   import { errorText } from '../lib/errors';
   import { gate } from '../lib/gate.svelte';
-  import { useHotkeys } from '../lib/hotkeys.svelte';
+  import { keyHold, useHotkeys } from '../lib/hotkeys.svelte';
+  import { emit } from '@tauri-apps/api/event';
+  import { chatReloads, PressGate, playerReloads, RELOAD_ALL_EVENT, reloadPicks } from '../features/tabs/reload';
   import { followFullscreen } from '../lib/layers';
   import { settings } from '../lib/settings.svelte';
   import { streamer } from '../lib/streamer.svelte';
@@ -253,8 +255,30 @@
     };
   });
 
+  // V110-N7 F5 reloads the shown tab, Ctrl+R every tab: chats rejoin, players reload. Never the page.
+  const reloadGate = new PressGate(2000);
+  function reloadTabs(scope: 'tab' | 'all') {
+    // Over Settings the key only keeps WebView2 from reloading the page; the tabs are behind the sheet.
+    if (keyHold.sheet) return;
+    const picks = reloadPicks({
+      scope,
+      shown: shownTab && tab ? { id: tab.id, tiles: tiles(tab) } : undefined,
+      tabs: tabs.list.map((t) => ({ id: t.id, tiles: tiles(t) })),
+      chats: chatReloads.list(),
+      players: playerReloads.list(),
+    });
+    if (scope === 'tab' && !(shownTab && tab && tiles(tab).some((t) => !t.feed))) return;
+    if (!reloadGate.allow(performance.now())) return;
+    for (const c of picks.chats) c.run();
+    for (const p of picks.players) p.run();
+    if (scope === 'all') void emit(RELOAD_ALL_EVENT).catch(() => {});
+    toast.info(scope === 'tab' ? 'Tab reloaded.' : 'All tabs reloaded.', { key: 'tabs.reload' });
+  }
+
   useRootEffects();
   useHotkeys({
+    'tab.reload': () => reloadTabs('tab'),
+    'tabs.reloadAll': () => reloadTabs('all'),
     'nav.home': () => show('home'),
     'nav.discover': () => show('discover'),
     'nav.miner': () => (canMine ? show('miner') : gate.ask('gql')),

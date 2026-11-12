@@ -311,6 +311,20 @@ pub fn settings_restore_broken(app: AppHandle, settings: State<Settings>, name: 
     settings.restore_broken(&app, &name)
 }
 
+/// V110-N6 Which settings files could be read again after a locked start, and which still can't.
+#[derive(serde::Serialize)]
+pub struct RetryResult {
+    pub recovered: Vec<Partition>,
+    pub blocked: Vec<Partition>,
+}
+
+/// V110-N6 Retry for files that couldn't be opened at start.
+#[tauri::command]
+pub fn settings_retry_blocked(app: AppHandle, settings: State<Settings>) -> RetryResult {
+    let (recovered, blocked) = settings.retry_blocked(&app);
+    RetryResult { recovered, blocked }
+}
+
 #[tauri::command]
 pub fn settings_open_folder(app: AppHandle, settings: State<Settings>) -> CmdResult<()> {
     let dir = settings.with(|s| s.dir().to_path_buf());

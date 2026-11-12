@@ -40,6 +40,7 @@
   import { bindingOf, useHotkeys } from '../../lib/hotkeys.svelte';
   import { settings } from '../../lib/settings.svelte';
   import { toast } from '../../lib/toast.svelte';
+  import { chatReloads } from '../tabs/reload';
   import { recordingStopText, recordingWarnText } from './recordingStop';
   import { editDone } from '../emotes/edit/run'; // I106-3
   import { catalogs } from './catalog.svelte';
@@ -115,6 +116,8 @@
     chart?: string;
     /** V108-N19 The tab's own text and emote size over Settings. */
     look?: TabLook;
+    /** V110-N7 The tile this chat sits in, so F5 / Ctrl+R can rejoin it. */
+    tile?: string;
   }
 
   let {
@@ -136,6 +139,7 @@
     follows = false,
     chart,
     look,
+    tile,
   }: Props = $props();
 
   // A chat view shows one channel for its whole life; a different one is a new view.
@@ -361,6 +365,9 @@
       .catch((err) => toast.error(errorText(err)))
       .finally(() => (rejoining = false));
   }
+  // V110-N7 F5 / Ctrl+R rejoin this chat like its own reconnect.
+  // svelte-ignore state_referenced_locally
+  if (tile) onDestroy(chatReloads.add({ tile, run: rejoin }));
 
   /** Hovering the name shows the stream, if the last live check found one (user, 2026/11/01):
    *  a chat-only tile still lights its tab's dot, and this says why. */

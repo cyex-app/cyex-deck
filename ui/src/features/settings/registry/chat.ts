@@ -611,28 +611,28 @@ export const CHAT: Entry[] = [
   },
   {
     id: 'commands.userMenu',
-    page: 'commands',
+    page: 'menus', // V110-N6
     label: 'Name menu',
     description: 'Right-click on a name.',
     keywords: ['context menu', 'user menu', 'menu entries'],
   },
   {
     id: 'commands.messageMenu',
-    page: 'commands',
+    page: 'menus', // V110-N6
     label: 'Message menu',
     description: 'Right-click on a message.',
     keywords: ['context menu', 'menu entries'],
   },
   {
     id: 'commands.channelMenu',
-    page: 'commands',
+    page: 'menus', // V110-N6
     label: 'Chat menu',
     description: 'The ⋯ button in a chat’s header.',
     keywords: ['context menu', 'menu entries'],
   },
   {
     id: 'commands.usercardButtons',
-    page: 'commands',
+    page: 'menus', // V110-N6
     label: 'Usercard buttons',
     description: 'Buttons on a usercard.',
     keywords: ['user card'],

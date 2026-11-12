@@ -432,6 +432,7 @@
         name={tile.channel.name}
         account={tile.account}
         readKey={tile.id}
+        tile={tile.id}
         actions={chatActions}
         tileMenu={() => tileCtx(tab, tiled ? tile : null)}
         {onheaderdown}

@@ -302,6 +302,78 @@ impl Store {
         self.dirty.keys().copied().collect()
     }
 
+    /// V110-N6 The partitions whose file couldn't be opened at start and still isn't.
+    pub fn blocked_partitions(&self) -> Vec<Partition> {
+        self.blocked.iter().copied().collect()
+    }
+
+    /// V110-N6 Reads every blocked file again with the rules of the start (BOM and UTF-16, a
+    /// cut-off tabs file, fields that still read, the newest backup). One that opens now loads
+    /// and leaves `blocked`; one that still can't be opened stays as it is, untouched.
+    /// Returns the partitions that came back.
+    pub fn retry_blocked(&mut self) -> Vec<Partition> {
+        let mut back = Vec::new();
+        let mut report = LoadReport::default();
+        for p in self.blocked_partitions() {
+            let path = self.dir.join(p.file_name());
+            let read = read_raw(&path);
+            if matches!(&read, Err(Error::Io(_))) {
+                continue;
+            }
+            let mut raw_highlights = None;
+            let mut changed = false;
+            let loaded = read.and_then(|raw| {
+                if p == Partition::Highlights {
+                    raw_highlights.clone_from(&raw);
+                }
+                let Some(raw) = raw else { return Ok(None) };
+                let v = p.normalize(raw.clone())?;
+                changed = v != raw;
+                Ok(Some(v))
+            });
+            let value = match loaded {
+                Ok(Some(v)) => v,
+                Ok(None) => p.default_value(),
+                Err(_) => {
+                    let salvaged = if p == Partition::Highlights { None } else { salvage(p, &path) };
+                    let rescued = match &salvaged {
+                        None if p == Partition::Tabs => fs::read(&path).ok().and_then(|bytes| {
+                            let bytes = bytes.strip_prefix(&[0xEF, 0xBB, 0xBF]).unwrap_or(&bytes);
+                            rescue::tabs(&String::from_utf8_lossy(bytes)).map(|(v, _)| v)
+                        }),
+                        _ => None,
+                    };
+                    changed = true;
+                    if let Some(v) = salvaged.or(rescued) {
+                        quarantine(&path, &*self.clock, &mut report);
+                        v
+                    } else if let Some((raw, v, _)) = from_backups(&self.dir, p, self.clock.today()) {
+                        if p == Partition::Highlights {
+                            raw_highlights = Some(raw);
+                        }
+                        quarantine(&path, &*self.clock, &mut report);
+                        v
+                    } else {
+                        raw_highlights = None;
+                        quarantine(&path, &*self.clock, &mut report);
+                        let v = p.default_value();
+                        if p == Partition::Chat { presence_off(v) } else { v }
+                    }
+                }
+            };
+            self.blocked.remove(&p);
+            self.values.insert(p, value);
+            if changed {
+                self.mark_dirty(p);
+            }
+            if p == Partition::Highlights {
+                let _ = self.merge_old_mentions(raw_highlights, &mut report);
+            }
+            back.push(p);
+        }
+        back
+    }
+
     /// Writes `p` at the next flush even if unchanged: a one-time migration in `sanitize` ran on load.
     pub fn mark_dirty(&mut self, p: Partition) {
         // V110-F82 A file that couldn't be opened at start is never overwritten.

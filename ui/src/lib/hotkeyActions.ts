@@ -16,6 +16,9 @@ export const ACTIONS = {
   'tabs.prev': { label: 'Previous tab', default: 'Ctrl+Shift+Tab' },
   'tabs.moveLeft': { label: 'Move the tab left', default: 'Ctrl+Shift+PageUp' },
   'tabs.moveRight': { label: 'Move the tab right', default: 'Ctrl+Shift+PageDown' },
+  // V110-N7 F5 and Ctrl+R used to reload the whole page (WebView2); now they reload chats and players.
+  'tab.reload': { label: 'Reload this tab', default: 'F5' },
+  'tabs.reloadAll': { label: 'Reload all tabs', default: 'Ctrl+R' },
   'tabs.onlyLive': { label: 'Only live tabs on or off', default: 'Ctrl+Shift+L' },
   'tabs.lock': { label: 'Lock tabs on or off', default: '' },
   'player.playPause': { label: 'Play or pause', default: 'Space' },
@@ -47,7 +50,9 @@ export const ACTIONS = {
 } as const satisfies Record<string, { label: string; default: string; global?: boolean }>;
 
 /** V108-S1 The settings sheet is open: only these keys reach the tabs and players behind it. */
-export const OVER_SHEET: ReadonlySet<string> = new Set(['settings.open', 'tabs.switcher', 'zoom.in', 'zoom.out', 'zoom.reset', 'app.reload']);
+export const OVER_SHEET: ReadonlySet<string> = new Set(['settings.open', 'tabs.switcher', 'zoom.in', 'zoom.out', 'zoom.reset', 'app.reload', 'tab.reload', 'tabs.reloadAll']);
+// V110-N7 tab.reload and tabs.reloadAll are listed so the sheet never lets WebView2 reload the page
+// on F5 / Ctrl+R; they do nothing while the sheet is open (the tabs are behind it).
 
 /** V110-N4 The headings of the Hotkeys page, in order. */
 export const HOTKEY_GROUPS = ['Navigation', 'Tabs', 'Player', 'Chat', 'View'] as const;
@@ -56,7 +61,7 @@ export type HotkeyGroup = (typeof HOTKEY_GROUPS)[number];
 export function hotkeyGroup(id: string): HotkeyGroup {
   const head = id.split('.')[0];
   if (head === 'nav' || id === 'settings.open') return 'Navigation';
-  if (head === 'tabs') return 'Tabs';
+  if (head === 'tabs' || head === 'tab') return 'Tabs';
   if (head === 'player') return 'Player';
   if (head === 'chat') return 'Chat';
   return 'View';

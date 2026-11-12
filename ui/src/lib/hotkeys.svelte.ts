@@ -100,7 +100,8 @@ export function useHotkeys(own: Partial<Record<ActionId, (e: KeyboardEvent) => u
       const held = actionOfPress(combo);
       if (keyHold.sheet && !(held && OVER_SHEET.has(held))) return;
       // Plain keys belong to text fields; only Ctrl/Alt combos fire while typing.
-      if (isTyping(e.target) && !/^(Ctrl|Alt)\+/.test(combo)) return;
+      // V110-N7 An F key (F5) isn't a character either, so the chat box doesn't leave it to WebView2's reload.
+      if (isTyping(e.target) && !/^(Ctrl|Alt)\+/.test(combo) && !/^F\d+$/.test(combo)) return;
       const id = actionOfPress(combo);
       // V110-F81 A held toggle (play, mute, fullscreen) runs once; its repeats are still kept from the page.
       if (id && !repeatAllowed(id, e.repeat)) {

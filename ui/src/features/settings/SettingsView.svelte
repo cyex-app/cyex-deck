@@ -49,6 +49,7 @@
   import { isFindKey, visibleSearchbox } from '../../lib/findKey';
   import { recording } from '../../lib/hotkeys.svelte';
   import { rovingIndex } from '../../lib/rovingIndex';
+  import { groupShown, readFolded, saveFolded, toggleFolded } from './navGroups';
 
   interface Props {
     /** Open page id. Bindable so other views can jump to a page. */
@@ -203,13 +204,29 @@
     e.stopPropagation();
   }
 
+  // V110-N6 Groups fold by their label; the open page's group and a search show them all.
+  let folded = $state(readFolded());
+  let narrow = $state(false);
+  const currentGroup = $derived(PAGES.find((p) => p.id === section)?.group ?? '');
+  const shownGroup = (g: string) => groupShown(g, folded, currentGroup, searching || narrow);
+  function fold(g: string) {
+    folded = toggleFolded(folded, g);
+    saveFolded(folded);
+  }
+  /** Icons-only width: the labels are lines, so nothing folds. */
+  function measure(el: HTMLElement) {
+    const ro = new ResizeObserver(() => (narrow = el.offsetWidth < 100));
+    ro.observe(el);
+    return { destroy: () => ro.disconnect() };
+  }
+
   /** V110-F32 The nav is one Tab stop: the page you are on (else the first), and Up, Down, Home
    *  and End move between pages; Enter or Space opens one. */
   const stop = $derived(PAGES.some((p) => p.id === section) ? section : PAGES[0].id);
   function navkey(e: KeyboardEvent) {
     const from = (e.target as HTMLElement).closest<HTMLElement>('button[data-page]');
     if (!from || e.altKey || e.ctrlKey || e.metaKey) return;
-    const list = [...(nav?.querySelectorAll<HTMLElement>('button[data-page]') ?? [])];
+    const list = [...(nav?.querySelectorAll<HTMLElement>('.items:not([inert]) button[data-page]') ?? [])];
     const to = rovingIndex(e.key, list.indexOf(from), list.length);
     if (to === null) return;
     e.preventDefault();
@@ -316,16 +333,28 @@
 
 <div class="settings" bind:this={root}>
   <!-- svelte-ignore a11y_no_noninteractive_element_interactions (arrow keys of the buttons inside) -->
-  <nav bind:this={nav} use:quietScroll onkeydown={navkey}>
+  <nav bind:this={nav} use:quietScroll use:measure onkeydown={navkey}>
     {@render searchBox('side')}
     {#each GROUPS as g (g.label)}
-      <div class="group">{g.label}</div>
-      {#each g.pages as p (p.id)}
-        <button data-page={p.id} tabindex={stop === p.id ? 0 : -1} class:on={!searching && section === p.id} aria-label={p.label} aria-current={!searching && section === p.id ? 'page' : undefined} onclick={() => open(p.id)} use:tooltip={{ label: p.label, when: () => (nav?.offsetWidth ?? 999) < 100 }}>
-          <Icon name={p.icon} size={15} />
-          <span>{p.label}</span>
+      {@const shown = shownGroup(g.label)}
+      {#if narrow}
+        <div class="group">{g.label}</div>
+      {:else}
+        <button class="group fold" aria-expanded={shown} aria-controls="grp-{g.label}" onclick={() => fold(g.label)}>
+          <span>{g.label}</span>
+          <Icon name="chevronDown" size={12} />
         </button>
-      {/each}
+      {/if}
+      <div class="items" class:open={shown} inert={!shown} id="grp-{g.label}">
+        <div class="items-in">
+          {#each g.pages as p (p.id)}
+            <button data-page={p.id} tabindex={stop === p.id ? 0 : -1} class:on={!searching && section === p.id} aria-label={p.label} aria-current={!searching && section === p.id ? 'page' : undefined} onclick={() => open(p.id)} use:tooltip={{ label: p.label, when: () => (nav?.offsetWidth ?? 999) < 100 }}>
+              <Icon name={p.icon} size={15} />
+              <span>{p.label}</span>
+            </button>
+          {/each}
+        </div>
+      </div>
     {/each}
   </nav>
   <div class="content" bind:this={content} use:keepScroll={'settings'}>
@@ -381,6 +410,70 @@
     font-weight: 700;
     letter-spacing: 0.04em;
     text-transform: uppercase;
+  }
+  /* V110-N6 The label folds its group: height and opacity, none under reduced motion. */
+  nav button.group {
+    justify-content: space-between;
+    width: 100%;
+    height: auto;
+    padding: 12px 10px 4px;
+    border-radius: var(--radius);
+    color: var(--dim);
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+  nav button.group:hover {
+    background: none;
+    color: var(--text);
+  }
+  nav button.group:focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: -2px;
+  }
+  nav button.group :global(svg) {
+    flex: none;
+    transition: transform var(--base) var(--ease);
+  }
+  nav button.group[aria-expanded='false'] :global(svg) {
+    transform: rotate(-90deg);
+  }
+  .items {
+    display: grid;
+    grid-template-rows: 0fr;
+    opacity: 0;
+    visibility: hidden;
+    transition:
+      grid-template-rows var(--base) var(--ease),
+      opacity var(--base) ease-out,
+      visibility 0s linear var(--base);
+  }
+  .items.open {
+    grid-template-rows: 1fr;
+    opacity: 1;
+    visibility: visible;
+    transition:
+      grid-template-rows var(--base) var(--ease),
+      opacity var(--base) ease-out,
+      visibility 0s;
+  }
+  .items-in {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-height: 0;
+    overflow: hidden;
+    /* Room for the focus ring inside the clip. */
+    padding: 2px;
+    margin: -2px;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .items,
+    .items.open,
+    nav button.group :global(svg) {
+      transition: none;
+    }
   }
   nav button {
     display: flex;

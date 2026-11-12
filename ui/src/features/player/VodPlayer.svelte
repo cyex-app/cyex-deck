@@ -36,6 +36,7 @@
   import Loading from '../../components/Loading.svelte';
   import { layer } from '../../lib/escape';
   import PipNotice from './PipNotice.svelte';
+  import { playerReloads } from '../tabs/reload';
   import { tabs } from '../tabs/tabs.svelte';
 
   interface Props {
@@ -211,6 +212,11 @@
       if (current()) e.failure = 'media';
     }
   }
+
+  // V110-N7 F5 / Ctrl+R reload this player like its menu's Reload player.
+  // svelte-ignore state_referenced_locally
+  const offReload = playerReloads.add({ tile: tile?.id, run: () => void reload() });
+  onDestroy(offReload);
 
   /** The video plays in its own small window (picture in picture). */
   let pip = $state(false);

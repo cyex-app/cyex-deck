@@ -34,7 +34,7 @@
   const long = (r: RecordingMeta) => formatDuration(Math.max(0, Math.floor((r.endedMs - r.startedMs) / 1000)));
 </script>
 
-<SectionHead title="Recordings" level={2} setting="recordings:list" />
+<SectionHead title="Recordings" level={2} setting="recordings:list">Chat recordings you made: play or delete them.</SectionHead>
 
 {#if list === null}
   <Loading rows={3} />

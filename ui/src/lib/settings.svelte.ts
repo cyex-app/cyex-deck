@@ -5,6 +5,7 @@ import { settingsIpc, type DeepPartial, type SettingsValues } from '../ipc/setti
 import type { Partition } from '../ipc/bindings/Partition';
 import { InFlight, mergePatch, sameJson, type Settled } from './mergePatch';
 import { partitionList } from './partitions';
+import { retryBlockedText } from './retryBlocked';
 import { reconcile } from './reconcile';
 import { errorText } from './errors';
 import { toast } from './toast.svelte';
@@ -51,7 +52,10 @@ class SettingsStore {
     const { reset, restored, restoredFrom, blocked, rescuedTabs } = await settingsIpc.takeLoadReport();
     if (blocked.length) {
       // V110-F82 A locked file or a folder in its place: the file is untouched, nothing is saved to it.
-      toast.error(`Some settings couldn’t be opened and were left untouched: ${partitionList(blocked)}. They won’t be saved until the app restarts.`);
+      toast.error(`Some settings couldn’t be opened and were left untouched: ${partitionList(blocked)}. They won’t be saved until they open again: close whatever holds them, then Retry.`, {
+        // V110-N6 Retry reads the files again, so a scanner letting go doesn't need a restart.
+        action: { label: 'Retry', run: () => void this.retryBlocked() },
+      });
     }
     if (reset.length) {
       // t5 Names as in Backup and sharing; a file can also be only partly reset now.
@@ -69,6 +73,17 @@ class SettingsStore {
     if (restored.length) {
       // V107-N10a Cut short or empty: the newest backup that still reads.
       toast.error(`Some settings couldn’t be read and came back from ${restoredFrom ? `the backup of ${restoredFrom}` : 'a backup'}: ${partitionList(restored)}.`);
+    }
+  }
+
+  /** V110-N6 Asks Rust to read the blocked files again; says how it went. */
+  private async retryBlocked(): Promise<void> {
+    try {
+      const r = retryBlockedText(await settingsIpc.retryBlocked());
+      if (r.ok) toast.success(r.text);
+      else toast.error(r.text, { action: { label: 'Retry', run: () => void this.retryBlocked() } });
+    } catch (e) {
+      toast.error(errorText(e, 'open the settings files'));
     }
   }
 

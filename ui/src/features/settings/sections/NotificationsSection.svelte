@@ -1,4 +1,4 @@
-<!-- Notifications (2.2, 1.26): the app's own alerts (followed channels going live, whispers,
+<!-- Alerts (2.2, 1.26; V110-N6 was Notifications): the app's own alerts (followed channels going live, whispers,
      Twitch's bell) and Twitch's settings for the default account: what each followed channel
      sends, and its email, phone and on-Twitch switches as closed groups under Twitch's own
      group switches (V101-06). -->
@@ -146,7 +146,7 @@
   }
 </script>
 
-<SectionHead title="Notifications" level={2}>Sounds and pop-ups for streams going live, whispers and Twitch’s bell.</SectionHead>
+<SectionHead title="Alerts" level={2}>Pop-ups and sounds when channels go live or you get a whisper.</SectionHead>
 
 <SectionHead title="When channels go live">Tell me when a channel starts.</SectionHead>
 <Row setting="notifications.live.enabled" label="Live alerts" hint={account ? 'For channels the default account follows. Each one follows its Twitch bell unless you pick below.' : 'For channels the default account follows. Sign in to get them.'}>

@@ -360,6 +360,23 @@ impl Settings {
         self.appearance_untrusted
     }
 
+    /// V110-N6 Reads the files that couldn't be opened at start again; tells every window about
+    /// the ones that loaded. Returns (recovered, still blocked).
+    pub fn retry_blocked(&self, app: &AppHandle) -> (Vec<Partition>, Vec<Partition>) {
+        let (back, still) = {
+            let mut store = self.lock();
+            let back = store.retry_blocked();
+            if back.contains(&Partition::Uploader) && scrub_uploader(&mut store, self.secrets.as_ref()).unwrap_or(false) {
+                let _ = store.flush();
+            }
+            (back, store.blocked_partitions())
+        };
+        if !back.is_empty() {
+            self.broadcast(app, &back);
+        }
+        (back, still)
+    }
+
     pub fn take_load_report(&self) -> LoadNotice {
         std::mem::take(&mut *self.reset_on_load.lock().unwrap_or_else(|p| p.into_inner()))
     }

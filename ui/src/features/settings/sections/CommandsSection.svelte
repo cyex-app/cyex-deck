@@ -1,4 +1,4 @@
-<!-- Commands (1.8): your own commands, menu entries and usercard buttons as rows (V106-10),
+<!-- Commands (1.8): your own commands as rows (V106-10),
      and timers waiting to run (S3). -->
 <script lang="ts">
   import { tick } from 'svelte';
@@ -8,7 +8,6 @@
   import IconButton from '../../../components/IconButton.svelte';
   import Row from '../../../components/Row.svelte';
   import type { CommandLineError } from '../../../ipc/bindings/CommandLineError';
-  import type { CommandRow } from '../../../ipc/bindings/CommandRow';
   import type { Commands } from '../../../ipc/bindings/Commands';
   import { rulesIpc } from '../../../ipc/rules';
   import { formatDate, formatTime } from '../../../lib/format';
@@ -23,11 +22,6 @@
     commandRow,
     commandProblem,
     commandView,
-    hiddenBySubmenu,
-    type MenuView,
-    menuProblem,
-    menuRow,
-    menuView,
   } from '../commands/rows';
   import type { Field } from '../rules/fields';
   import RuleList from '../rules/RuleList.svelte';
@@ -56,19 +50,6 @@
     { key: 'name', label: 'Name', kind: 'text', placeholder: 'Name', width: '140px', mono: true, lead: true },
     { key: 'sends', label: 'What it sends', kind: 'text', placeholder: 'What it sends', main: true, mono: true },
   ];
-  const menuFields: Field<MenuView>[] = [
-    { key: 'enabled', label: 'On', kind: 'check' },
-    { key: 'label', label: 'Label', kind: 'text', placeholder: 'Label', width: '150px', lead: true },
-    { key: 'command', label: 'Command', kind: 'text', placeholder: 'Command', main: true, mono: true },
-  ];
-
-  type MenuKey = 'userMenu' | 'messageMenu' | 'channelMenu' | 'usercardButtons';
-  const MENUS: { key: MenuKey; label: string; hint: string }[] = [
-    { key: 'userMenu', label: 'Name menu', hint: 'Right-click a name.' },
-    { key: 'messageMenu', label: 'Message menu', hint: 'Right-click a message.' },
-    { key: 'channelMenu', label: 'Chat menu', hint: 'The ⋯ button in a chat’s header.' },
-  ];
-
   /** s3-2 Cancels at once; Undo puts it back where it was. */
   function cancelTimer(id: (typeof c.timers)[number]['id']) {
     const i = c.timers.findIndex((x) => x.id === id);
@@ -90,26 +71,11 @@
   const when = (ms: number) => `${formatDate(new Date(ms))} ${formatTime(new Date(ms))}`;
 </script>
 
-{#snippet menuList(key: MenuKey, add: string, gone: string)}
-  {@const rows: CommandRow[] = c[key]}
-  <RuleList
-    items={rows.map(menuView)}
-    max={CAPS.commandLines}
-    fields={menuFields}
-    layout="split"
-    make={() => ({ enabled: true, label: '', command: '', raw: '' })}
-    onchange={(v) => save({ [key]: v.map(menuRow) })}
-    addLabel={add}
-    deleted={gone}
-    empty="Nothing added."
-    emptyIcon="list"
-    reorder={{ key: `commands.${key}`, label: (v, i) => v.label || `Row ${i + 1}` }}
-    problem={(v) => menuProblem(v)}
-    note={(_, i) => (hiddenBySubmenu(rows, i) ? 'Hidden: the submenu above is off.' : null)}
-  />
-{/snippet}
-
-<SectionHead title="Commands" level={2} docs="commands">Your own chat commands, menu entries and buttons.</SectionHead>
+<!-- V110-N6 Menu entries and usercard buttons moved to the Menus page; one line points there. -->
+<SectionHead title="Commands" level={2} docs="commands">
+  Your own chat commands and timers. Menu entries and usercard buttons are on the
+  <Button variant="link" hit onclick={() => (settingsJump.to = 'menus')}>Menus page</Button>.
+</SectionHead>
 
 <SectionHead title={GUIDE.commands.title} setting="commands.lines"><GuideText entry={GUIDE.commands} /></SectionHead>
 <RuleList
@@ -127,20 +93,6 @@
   problem={(v, i) => errors.find((e) => e.line === i)?.message ?? commandProblem(v)}
 />
 {#if failed}<p class="problem">Couldn’t check these lines.</p>{/if}
-
-<SectionHead title={GUIDE.menus.title}
-  ><GuideText entry={GUIDE.menus} />
-  <Button variant="link" hit onclick={() => (settingsJump.to = 'menus')}>Arrange them in Menus</Button></SectionHead
->
-{#each MENUS as m (m.key)}
-  <div class="sub" data-setting="commands.{m.key}">
-    <span class="sub-title">{m.label}</span><span class="sub-hint">{m.hint}</span>
-  </div>
-  {@render menuList(m.key, 'Add entry', 'Entry deleted.')}
-{/each}
-
-<SectionHead title={GUIDE.usercard.title} setting="commands.usercardButtons"><GuideText entry={GUIDE.usercard} /></SectionHead>
-{@render menuList('usercardButtons', 'Add button', 'Button deleted.')}
 
 <SectionHead title={GUIDE.timers.title} setting="commands.timers"><GuideText entry={GUIDE.timers} /></SectionHead>
 <div class="timers" tabindex="-1" bind:this={timersEl}>
@@ -165,20 +117,6 @@
   .problem {
     margin: 0;
     color: var(--red);
-    font-size: var(--text-hint);
-  }
-  .sub {
-    display: flex;
-    align-items: baseline;
-    gap: 8px;
-    margin: 14px 0 0;
-    font-size: var(--text-sub);
-  }
-  .sub-title {
-    font-weight: 600;
-  }
-  .sub-hint {
-    color: var(--dim);
     font-size: var(--text-hint);
   }
 </style>

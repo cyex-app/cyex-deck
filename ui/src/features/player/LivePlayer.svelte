@@ -33,6 +33,7 @@
   import { canGoThere, hereClip, marks as momentMarks, momentClip, momentText, newest, playingOffset, secsOf } from './moments';
   import { MomentsFeed } from './momentsFeed.svelte';
   import { clock } from './time';
+  import { playerReloads } from '../tabs/reload';
   import { playerFullscreen } from './players.svelte';
   import { type Choice, qualityOptions } from './quality';
   import GearButton from './GearButton.svelte';
@@ -373,6 +374,10 @@
     offlineMisses = 0;
     if (engine) void start(engine, engine.choice, login, account);
   }
+  // V110-N7 F5 / Ctrl+R reload this player like its menu's Reload player.
+  // svelte-ignore state_referenced_locally
+  const offReload = playerReloads.add({ tile: tile.id, run: () => reload() });
+  onDestroy(offReload);
 
   /** The video plays in its own small window (picture in picture). */
   let pip = $state(false);

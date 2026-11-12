@@ -62,7 +62,7 @@
   const cut = () => !!pathEl && pathEl.scrollWidth > pathEl.clientWidth;
 </script>
 
-<SectionHead title="Stream manager" level={2} />
+<SectionHead title="Stream manager" level={2}>Text files for OBS with your live title and category.</SectionHead>
 
 <SectionHead title="Files for OBS">Text files OBS can show on your stream.</SectionHead>
 <Row setting="streammanager.obs.enabled" label="Write status files" hint="Updated about every 30 seconds while the stream manager is open.">

@@ -11,7 +11,7 @@ export const GROUPS = [
       { id: 'appearance', label: 'Appearance', icon: 'palette' },
       { id: 'windows', label: 'Window layouts', icon: 'layout' },
       { id: 'sound', label: 'Sound', icon: 'volume' },
-      { id: 'notifications', label: 'Notifications', icon: 'bell' },
+      { id: 'notifications', label: 'Alerts', icon: 'bell' },
       { id: 'hotkeys', label: 'Hotkeys', icon: 'keyboard' },
       { id: 'menus', label: 'Menus', icon: 'list' },
       { id: 'plugins', label: 'Plugins', icon: 'puzzle' },

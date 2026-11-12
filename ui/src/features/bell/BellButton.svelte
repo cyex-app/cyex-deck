@@ -46,13 +46,13 @@
   <div class="wrap">
     <IconButton
       icon="bell"
-      label="Notifications"
+      label="Twitch notifications"
       hint={bell.unseen ? `${bell.unseen} new on Twitch` : 'Your Twitch notifications.'}
       active={open}
       onclick={() => (open = !open)}
     />
     {#if bell.unseen}<span class="count">{bell.unseen > 99 ? '99+' : bell.unseen}</span>{/if}
-    <Popover bind:open label="Notifications">
+    <Popover bind:open label="Twitch notifications">
       <div class="panel">
         <header>
           <Segmented options={LISTS} value={bell.list} label="Which notifications" onchange={(l) => void bell.load(l)} />
@@ -88,7 +88,7 @@
   </div>
 {:else}
   <!-- V102-20 Greyed out until the default account has a GQL sign-in. -->
-  <IconButton icon="bell" label="Notifications" lock="gql" />
+  <IconButton icon="bell" label="Twitch notifications" lock="gql" />
 {/if}
 
 <style>

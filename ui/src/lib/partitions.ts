@@ -16,7 +16,7 @@ export const PARTITION_LABELS: Record<Partition, string> = {
   miner: 'Miner',
   modview: 'Mod view',
   streammanager: 'Stream manager',
-  notifications: 'Notifications',
+  notifications: 'Alerts',
   windows: 'Windows and layouts',
   plugins: 'Plugins',
   uploader: 'Image uploads',

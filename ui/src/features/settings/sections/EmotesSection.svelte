@@ -54,7 +54,7 @@
   );
 </script>
 
-<SectionHead title="Emotes and badges" level={2} />
+<SectionHead title="Emotes and badges" level={2}>Which emotes and badges show, and from where.</SectionHead>
 
 <SectionHead title="Emotes">How big they are and which wins. Which services they come from is under Providers.</SectionHead>
 <Row setting="chat.unlistedEmotes" label="Unlisted 7TV emotes" hint="Emotes 7TV hasn’t approved for public listing.">

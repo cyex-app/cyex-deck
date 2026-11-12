@@ -11,6 +11,8 @@
   import { formatDecimal, formatDuration, formatNumber } from '../../lib/format';
   import { bannerIn } from '../../lib/motion';
   import { toast } from '../../lib/toast.svelte';
+  import { SvelteMap, SvelteSet } from 'svelte/reactivity';
+  import { endPhase, pollEnded, predictionEnded } from './endedFold.ts';
   import { pollKey, pollLive, predictionKey, predictionLive, shows } from './eventStrip';
   import { eventStrip } from './eventStrip.svelte';
   import { focusStrip } from './bannerFocus';
@@ -27,14 +29,45 @@
   const strip = $derived(eventStrip.of(channel));
 
   let now = $state(Date.now());
-  let folded = $state(false);
+  /** Folded by hand, per kind. */
+  let manual = $state({ poll: false, pred: false });
+  /** V110-N6 When this window saw each item end (by key), and the ones unfolded by hand after. */
+  const endedAt = new SvelteMap<string, number>();
+  const unfolded = new SvelteSet<string>();
   let busy = $state(false);
   /** A paid extra vote waiting for a yes. */
   let extra = $state<string | null>(null);
   let bet = $state(100);
 
+  // V110-N6 The moment an end state shows up; the first sighting counts.
   $effect(() => {
-    if (poll?.status !== 'ACTIVE' && pred?.status !== 'ACTIVE') return;
+    if (poll && pollEnded(poll.status) && !endedAt.has(pollKey(poll.id))) endedAt.set(pollKey(poll.id), Date.now());
+    if (pred && predictionEnded(pred.status) && !endedAt.has(predictionKey(pred.id))) endedAt.set(predictionKey(pred.id), Date.now());
+  });
+  const pollPhase = $derived(poll ? endPhase(endedAt.get(pollKey(poll.id)) ?? null, now, unfolded.has(pollKey(poll.id))) : 'open');
+  const predPhase = $derived(pred ? endPhase(endedAt.get(predictionKey(pred.id)) ?? null, now, unfolded.has(predictionKey(pred.id))) : 'open');
+  const pollFolded = $derived(manual.poll || pollPhase === 'folded');
+  const predFolded = $derived(manual.pred || predPhase === 'folded');
+
+  // V110-N6 Gone after the minute: closed like by hand.
+  $effect(() => {
+    if (poll && pollPhase === 'gone') eventStrip.close(channel, pollKey(poll.id));
+    if (pred && predPhase === 'gone') eventStrip.close(channel, predictionKey(pred.id));
+  });
+
+  function toggle(kind: 'poll' | 'pred', key: string) {
+    const isFolded = kind === 'poll' ? pollFolded : predFolded;
+    if (!isFolded) manual[kind] = true;
+    else {
+      manual[kind] = false;
+      unfolded.add(key);
+    }
+  }
+
+  $effect(() => {
+    const ending =
+      (poll && pollEnded(poll.status) && pollPhase !== 'gone') || (pred && predictionEnded(pred.status) && predPhase !== 'gone');
+    if (poll?.status !== 'ACTIVE' && pred?.status !== 'ACTIVE' && !ending) return;
     // V110-F84 Not while the window is hidden.
     return everyShown(() => (now = Date.now()), 1000);
   });
@@ -79,10 +112,10 @@
   };
 </script>
 
-{#snippet head(icon: 'poll' | 'points', title: string, info: string, key: string, live: boolean)}
+{#snippet head(icon: 'poll' | 'points', title: string, info: string, key: string, live: boolean, folded: boolean, kind: 'poll' | 'pred')}
   <div class="head">
     <Icon name={icon} size={14} />
-    <button class="title" onclick={() => (folded = !folded)} aria-expanded={!folded}>{title}</button>
+    <button class="title" onclick={() => toggle(kind, key)} aria-expanded={!folded}>{title}</button>
     <span class="info">{info}</span>
     {#if live}
       <button
@@ -104,18 +137,20 @@
   </div>
 {/snippet}
 
-{#if poll && shows(strip, pollKey(poll.id))}
+{#if poll && pollPhase !== 'gone' && shows(strip, pollKey(poll.id))}
   {@const left = pollLeft(v!, now)}
   {@const total = poll.totalVotes}
-  <div class="box" in:bannerIn class:folded>
+  <div class="box" in:bannerIn class:folded={pollFolded}>
     {@render head(
       'poll',
       poll.title,
       poll.status === 'ACTIVE' ? formatDuration(left) : 'Ended',
       pollKey(poll.id),
       pollLive(poll.status),
+      pollFolded,
+      'poll',
     )}
-    {#if !folded}
+    {#if !pollFolded}
       {@const top = Math.max(...poll.choices.map((c) => c.votes))}
       <div class="rows">
         {#each poll.choices as c, i (c.id)}
@@ -147,20 +182,22 @@
   </div>
 {/if}
 
-{#if pred && shows(strip, predictionKey(pred.id))}
+{#if pred && predPhase !== 'gone' && shows(strip, predictionKey(pred.id))}
   {@const left = predictionLeft(v!, now)}
   {@const total = pred.outcomes.reduce((s, o) => s + o.points, 0)}
   {@const open = pred.status === 'ACTIVE' && left > 0}
   {@const winner = pred.outcomes.find((o) => o.id === pred.winner)}
-  <div class="box" in:bannerIn class:folded>
+  <div class="box" in:bannerIn class:folded={predFolded}>
     {@render head(
       'points',
       pred.title,
       open ? formatDuration(left) : winner ? `${winner.title} won` : (PRED_STATUS[pred.status] ?? 'Closed'),
       predictionKey(pred.id),
       predictionLive(pred.status),
+      predFolded,
+      'pred',
     )}
-    {#if !folded}
+    {#if !predFolded}
       <div class="rows">
         {#each pred.outcomes as o (o.id)}
           <div

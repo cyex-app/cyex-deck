@@ -5,6 +5,7 @@
 
   import Icon from '../../../components/Icon.svelte';
   import { settings } from '../../../lib/settings.svelte';
+  import OwnEntries from '../menus/OwnEntries.svelte';
   import MenuEditor from '../menus/MenuEditor.svelte';
   import { isChanged } from '../menus/model.ts';
   import { menusView } from '../menus/place.svelte.ts';
@@ -42,6 +43,7 @@
       </button>
     {/each}
   </div>
+  <OwnEntries />
   <ResetSection partition="menus" />
 {/if}
 

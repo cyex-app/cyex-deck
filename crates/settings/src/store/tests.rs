@@ -1180,9 +1180,45 @@ fn import_and_restore_broken_refuse_a_blocked_partition() {
     let bundle = Bundle::new(BTreeMap::from([("chat".to_owned(), json!({"alternateLines": true}))]), clock.now());
     let err = store.import(bundle).unwrap_err();
     assert!(matches!(err, Error::Blocked));
-    assert_eq!(err.to_string(), "That settings file couldn’t be opened when the app started, so it can’t be changed until you restart.");
+    assert_eq!(err.to_string(), "That settings file couldn’t be opened when the app started. Use Retry on the notice, or restart, before changing it.");
     assert!(matches!(store.restore_broken("chat.broken-20261001-090000.json"), Err(Error::Blocked)));
     assert_eq!(store.read::<Chat>(Partition::Chat), before);
+}
+
+/// V110-N6 A folder in the way is removed: Retry reads the file, the partition loads, saves again.
+#[test]
+fn retry_blocked_recovers_a_file_that_opens_now() {
+    let tmp = TempDir::new("store-retry-blocked");
+    let clock = Arc::new(FakeClock::at(day(9)));
+    let path = tmp.path().join(Partition::General.file_name());
+    fs::create_dir(&path).unwrap();
+    let (mut store, report) = open(tmp.path(), &clock);
+    assert_eq!(report.blocked, vec![Partition::General]);
+    assert!(store.retry_blocked().is_empty());
+    assert_eq!(store.blocked_partitions(), vec![Partition::General]);
+    fs::remove_dir(&path).unwrap();
+    fs::write(&path, [&[0xEF, 0xBB, 0xBF][..], br#"{"chatFontSize": 15}"#].concat()).unwrap();
+    assert_eq!(store.retry_blocked(), vec![Partition::General]);
+    assert!(store.blocked_partitions().is_empty());
+    assert_eq!(store.read::<General>(Partition::General).chat_font_size, 15);
+    store.patch(Partition::General, &json!({"chatFontSize": 16})).unwrap();
+    assert!(store.is_dirty());
+}
+
+/// V110-N6 Still shut: stays blocked, the file is not touched, nothing is set aside.
+#[test]
+fn retry_blocked_leaves_a_still_unreadable_file_alone() {
+    let tmp = TempDir::new("store-retry-still");
+    let clock = Arc::new(FakeClock::at(day(9)));
+    let path = tmp.path().join(Partition::Chat.file_name());
+    fs::create_dir(&path).unwrap();
+    let (mut store, _) = open(tmp.path(), &clock);
+    assert!(store.retry_blocked().is_empty());
+    assert_eq!(store.blocked_partitions(), vec![Partition::Chat]);
+    store.mark_dirty(Partition::Chat);
+    assert!(!store.is_dirty());
+    assert!(path.is_dir());
+    assert!(!fs::read_dir(tmp.path()).unwrap().any(|e| e.unwrap().file_name().to_string_lossy().contains("broken")));
 }
 
 /// V110-A44 `.broken-*` files older than 30 days go at start; newer ones stay.

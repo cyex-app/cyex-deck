@@ -390,6 +390,7 @@ pub fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static 
         settings::settings_restore_broken,
         settings::settings_open_folder,
         settings::settings_take_load_report,
+        settings::settings_retry_blocked,
         crate::crash::crash_take_note,
         crate::crash::crash_open_folder,
         system::system_open_link,

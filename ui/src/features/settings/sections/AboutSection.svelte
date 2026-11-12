@@ -44,7 +44,7 @@
   }
 </script>
 
-<SectionHead title="About" level={2} />
+<SectionHead title="About" level={2}>Version, updates and connection health.</SectionHead>
 
 <Row
   setting="about:checkNow"

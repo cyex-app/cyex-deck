@@ -1,6 +1,7 @@
 <!-- A popped-out panel window (1.51): the shared pop-out frame (V104-03) plus the panel for
      its route. Pop-ups (usercards, `#channel` chats) get its slim look (V105-18); overlays draw their own. -->
 <script lang="ts">
+  import { listen } from '@tauri-apps/api/event';
   import { untrack } from 'svelte';
 
   import EmptyState from '../components/EmptyState.svelte';
@@ -13,6 +14,7 @@
   import TabOverlays from '../features/tabs/TabOverlays.svelte';
   import { dockRaid, raidTabs } from '../features/tabs/raidTabs';
   import { whenResumed } from '../features/tabs/resume.svelte';
+  import { reloadEverything, RELOAD_ALL_EVENT } from '../features/tabs/reload';
   import { keyTaken } from '../lib/escape';
   import { useHotkeys } from '../lib/hotkeys.svelte';
   import { followFullscreen } from '../lib/layers';
@@ -28,6 +30,12 @@
   const raided = $derived(raidId !== '' && raidTabs.has(raidId));
 
   useRootEffects();
+
+  // V110-N7 Ctrl+R in the main window: this pop-out's chats rejoin and players reload (no toast of its own).
+  $effect(() => {
+    const off = listen(RELOAD_ALL_EVENT, () => reloadEverything());
+    return () => void off.then((f) => f());
+  });
 
   // V108-N21 After a crash, nothing joins or plays until the main window's pick is answered.
   // A tab or tile closed by the pick is gone by then, and its panel closes the window.

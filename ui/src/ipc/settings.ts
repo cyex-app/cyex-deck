@@ -125,6 +125,8 @@ export const settingsIpc = {
   /** V110-A44 Puts one back by its listed name. */
   restoreBroken: (name: string) => invoke<Partition>('settings_restore_broken', { name }),
   openFolder: () => invoke<void>('settings_open_folder'),
+  /** V110-N6 Reads the files that couldn't be opened at start again. */
+  retryBlocked: () => invoke<{ recovered: Partition[]; blocked: Partition[] }>('settings_retry_blocked'),
   /** V107-N10a Files that went back to default, and files that came back from a backup (day yyyy/mm/dd when all share one). */
   takeLoadReport: () =>
     invoke<{
