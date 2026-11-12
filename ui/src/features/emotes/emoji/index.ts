@@ -42,16 +42,42 @@ export function parseGroups(raw: [string, string][]): EmojiGroup[] {
 const COUNTRY = /^(?:[\u{1F1E6}-\u{1F1FF}]{2}|\u{1F3F4}[\u{E0061}-\u{E007A}]+\u{E007F})$/u;
 
 /** V110-N17 Country flags are listed by country ("switzerland"), so `flag` found none of them:
- *  each also answers to `flag_<country>` and the word flag. */
+ *  each also answers to `flag_<country>`, `flag_<code>` (`flag_ch`) and the word flag. */
 function countryFlag(e: Emoji): Emoji {
   if (!COUNTRY.test(e.char)) return e;
   const country = e.names.find((n) => /[a-z]{3}/.test(n)) ?? e.words.replace(/^flag /, '').replaceAll(' ', '_');
-  const alias = country.startsWith('flag_') ? country : `flag_${country}`;
+  const code = Array.from(e.char, (c) => c.codePointAt(0)!)
+    .filter((cp) => cp >= 0x1f1e6 && cp <= 0x1f1ff)
+    .map((cp) => String.fromCharCode(cp - 0x1f1e6 + 97))
+    .join('');
+  const aliases = [country.startsWith('flag_') ? country : `flag_${country}`, code.length === 2 ? `flag_${code}` : ''];
   return {
     char: e.char,
-    names: e.names.includes(alias) ? e.names : [...e.names, alias],
+    names: [...e.names, ...aliases.filter((a) => a && !e.names.includes(a))],
     words: /\bflag\b/.test(e.words) ? e.words : `${e.words} flag`.trim(),
   };
+}
+
+/** Every emoji by each of its names (lowercase), for `:name:` in a message. */
+export function shortcodeMap(all: EmojiGroup[]): Map<string, string> {
+  const map = new Map<string, string>();
+  for (const g of all) for (const e of g.emoji) for (const n of e.names) if (!map.has(n.toLowerCase())) map.set(n.toLowerCase(), e.char);
+  return map;
+}
+
+/** V110-N17 `:name:` of a known emoji turns into the emoji when sent (`:flag_ch:`, `:sob:`), like
+ *  Chatterino. Unknown names stay as typed; commands other than /me are left alone. */
+export function expandShortcodes(text: string, map: Map<string, string>): string {
+  if (text.startsWith('/') && !/^\/me\s/i.test(text)) return text;
+  return text.replace(/:([a-z0-9_+-]{2,}):/gi, (all, name: string) => map.get(name.toLowerCase()) ?? all);
+}
+
+let codes: Promise<Map<string, string>> | null = null;
+
+/** The `:name:` map, built once from the same list. */
+export function emojiShortcodes(): Promise<Map<string, string>> {
+  codes ??= emojiGroups().then(shortcodeMap);
+  return codes;
 }
 
 export function emojiGroups(): Promise<EmojiGroup[]> {

@@ -4,6 +4,7 @@
      sending again. Up recalls what you sent. Pasted or dropped images go to your upload host (V105-11).
      V108-N09 Suggestions as a row, V108-N20 quick replies, V108-N23 the watch streak prompt. -->
 <script lang="ts">
+  import { emojiShortcodes, expandShortcodes } from '../emotes/emoji';
   import { tick, untrack } from 'svelte';
 
   import { composing } from '../../lib/keys';
@@ -472,7 +473,8 @@
   const chat = new ChatSend({
     cheer: (value, bits, confirmed, careful) => chatxIpc.cheer(room.view, value, bits, confirmed, careful),
     send: async (value) => {
-      const action = await chatIpc.send(room.view, value, replyTo?.id);
+      // V110-N17 `:flag_ch:` and other known `:name:` go out as the emoji.
+      const action = await chatIpc.send(room.view, expandShortcodes(value, await emojiShortcodes()), replyTo?.id);
       if (action) onaction?.(action);
     },
     ask: (a) => (askCheer = a),

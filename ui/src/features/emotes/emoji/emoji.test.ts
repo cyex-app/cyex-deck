@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { findEmoji, nameMap, parseGroups } from './index.ts';
+import { expandShortcodes, findEmoji, nameMap, parseGroups, shortcodeMap } from './index.ts';
 import { emojiKey, splitEmoji } from './split.ts';
 
 const groups = parseGroups([
@@ -87,4 +87,14 @@ test('V110-N17 country flags answer to flag and flag_<country>', () => {
   assert.equal(nameMap(list).get(emojiKey('🇨🇭')), 'switzerland');
   assert.equal(nameMap(list).get(emojiKey('🇩🇪')), 'flag_germany');
   assert.deepEqual(list[0].emoji[0].names, ['checkered_flag'], 'other flags stay as they are');
+});
+
+test('V110-N17 flag_<code> and :name: in a message', () => {
+  const list = parseGroups([['Flags', '🇨🇭 switzerland\n🇮🇱 israel'], ['Smileys & Emotion', '😭 sob|cry']]);
+  assert.deepEqual(findEmoji(list, 'flag_ch').map((e) => e.char), ['🇨🇭']);
+  assert.deepEqual(findEmoji(list, 'flag_il').map((e) => e.char), ['🇮🇱']);
+  const map = shortcodeMap(list);
+  assert.equal(expandShortcodes('go :flag_ch: :Sob: :nope: 12:30:45', map), 'go 🇨🇭 😭 :nope: 12:30:45');
+  assert.equal(expandShortcodes('/me :sob:', map), '/me 😭');
+  assert.equal(expandShortcodes('/ban x :sob:', map), '/ban x :sob:', 'other commands are left alone');
 });
