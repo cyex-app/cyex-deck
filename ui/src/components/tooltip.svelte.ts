@@ -109,6 +109,13 @@ function hintFor(opts: TipOptions): string {
 }
 
 function show(node: HTMLElement, opts: TipOptions): void {
+  // V110-N19 The same element again (the pointer crossing into a part of it, a scroll moving
+  // content under a resting pointer) keeps the open tip as it is: starting over flashed it,
+  // a link's card going back to loading for a moment.
+  if (owner === node && untrack(() => tip.visible)) {
+    clearTimeout(linger);
+    return;
+  }
   clearTimeout(timer);
   clearTimeout(linger);
   overTip = false;
@@ -162,7 +169,11 @@ if (typeof window !== 'undefined') {
   const moved = () => {
     if (!tip.visible || !owner || !tip.anchor) return;
     const r = owner.getBoundingClientRect();
-    if (Math.abs(r.top - tip.anchor.top) > 1 || Math.abs(r.left - tip.anchor.left) > 1) hide();
+    if (Math.abs(r.top - tip.anchor.top) <= 1 && Math.abs(r.left - tip.anchor.left) <= 1) return;
+    // V110-N19 Still under the pointer (a busy chat scrolling a line under it): the tip moves along.
+    // Hiding it here flashed it once per new message, as the browser showed it again at once.
+    if (owner.matches(':hover')) tip.anchor = r;
+    else hide();
   };
   addEventListener('scroll', moved, { capture: true, passive: true });
   // A resize reflows the page under it, so it hides too.
