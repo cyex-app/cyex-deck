@@ -9,6 +9,11 @@
 .emote {
   height: calc(2.15em * var(--emote-scale, 1));
 }
+/* V110-N18 Twitch smileys (:) :/ and the monkey and purple sets) are small pictures: a bit
+   bigger than Chatterino draws them, well under a full emote. */
+.emote.smiley {
+  height: calc(1.6em * var(--emote-scale, 1));
+}
 /* V108-C30 Emoji pictures sit in line like emotes. V108-F52 The art fills its whole box, so it
    is drawn about 22 px against an emote's 28: it then looks as big as one (user, 2026/11/03). */
 .emoji-img {

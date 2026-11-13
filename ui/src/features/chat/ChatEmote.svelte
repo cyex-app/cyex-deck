@@ -13,6 +13,7 @@
   import { hidden } from '../emotes/hidden.svelte';
   import { inStep, moves } from '../emotes/phase';
   import { emoteImg, emoteLarge } from './urls';
+  import { isSmiley, smileys } from '../emotes/smiley';
 
   type EmoteFragment = Extract<Fragment, { t: 'emote' }>;
 
@@ -30,6 +31,13 @@
     return !hidden.has(provider, id);
   }
 
+  /** V110-N18 A Twitch smiley draws a bit smaller; known after its first picture loads. */
+  function smiley(img: HTMLImageElement, id: string) {
+    if (!isSmiley(img.currentSrc || img.src, img.naturalHeight)) return;
+    smileys.add(id);
+    img.classList.add('smiley');
+  }
+
   const visible = $derived(shows(f.provider, f.id) && !(f.unlisted && c.unlistedEmotes === 'hide'));
   const layers = $derived((f.stack ?? []).filter((l) => shows(l.provider, l.id)));
   const card = $derived(
@@ -45,8 +53,10 @@
   {@const img = emoteImg(e.provider, e.id, theme, { animated: e.animated, still, scale: density.scale })}
   <img
     class="emote {classes}"
+    class:smiley={e.provider === 'twitch' && smileys.has(e.id)}
     src={img.src}
     alt={e.name}
+    onload={(ev) => e.provider === 'twitch' && smiley(ev.currentTarget as HTMLImageElement, e.id)}
     style:aspect-ratio={emoteRatio(e.size)}
     loading="lazy"
     decoding="async"
