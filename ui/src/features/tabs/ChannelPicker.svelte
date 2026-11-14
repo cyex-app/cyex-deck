@@ -14,6 +14,7 @@
   import { tabsIpc } from '../../ipc/tabs';
   import { formatNumber } from '../../lib/format';
   import { errorText } from '../../lib/errors';
+  import ChannelPreview from './ChannelPreview.svelte';
   import { enterMayTakeFirst, enterTarget, loginFromLink, manyNames, matchChannels } from './channelMatch';
 
   interface Props {
@@ -25,6 +26,8 @@
   let { text = $bindable(), picked = $bindable(), onsubmit }: Props = $props();
 
   const DEBOUNCE_MS = 300;
+  /** V111-24 The preview follows the highlighted or hovered result after this pause. */
+  const PREVIEW_MS = 150;
 
   let results = $state<ChannelInfo[]>([]);
   let status = $state<'idle' | 'looking' | 'done' | 'error'>('idle');
@@ -133,6 +136,19 @@
   }
 
   const shown = $derived(results.length ? results : picked ? [picked] : []);
+
+  let hovered = $state<ChannelInfo | null>(null);
+  let previewed = $state<ChannelInfo | null>(null);
+  const aim = $derived(shown.length ? (hovered ?? picked) : null);
+  $effect(() => {
+    const next = aim;
+    if (!next) {
+      previewed = null;
+      return;
+    }
+    const t = setTimeout(() => (previewed = next), PREVIEW_MS);
+    return () => clearTimeout(t);
+  });
 </script>
 
 <input
@@ -153,6 +169,7 @@
 {:else if shown.length}
   {#if refused}<p class="note bad">No channel called that. Pick one below.</p>
   {:else if shown.length > 1}<p class="note">Pick one. Best match first.</p>{/if}
+  <div class="pick">
   <div class="results" role="radiogroup" aria-label="Channel">
     {#each shown as c (c.id)}
       <button
@@ -160,6 +177,8 @@
         class:on={picked?.id === c.id}
         role="radio"
         aria-checked={picked?.id === c.id}
+        onmouseenter={() => (hovered = c)}
+        onmouseleave={() => (hovered = null)}
         onclick={() => ((picked = c), (arrowed = true), (refused = false))}
       >
         <Avatar src={c.avatar} name={c.name} size={32} />
@@ -180,6 +199,8 @@
       </button>
     {/each}
   </div>
+  <div class="pv"><ChannelPreview channel={previewed} /></div>
+  </div>
 {/if}
 
 <style>
@@ -193,6 +214,16 @@
   }
   .bad {
     color: var(--yellow);
+  }
+  .pick {
+    display: flex;
+    flex-direction: column;
+  }
+  /* V111-24 In a short window the preview goes above the list, where the dialog does not scroll it away. */
+  @media (max-height: 720px) {
+    .pv {
+      order: -1;
+    }
   }
   .results {
     display: flex;
