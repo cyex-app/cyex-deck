@@ -12,6 +12,7 @@ use tauri::{AppHandle, Emitter, Manager, PhysicalPosition, WebviewUrl};
 
 use super::panels::{PanelRegistry, label_for};
 use crate::icons;
+use super::placement::Rect;
 use crate::settings::Settings;
 
 const KIND: &str = "usercard";
@@ -180,19 +181,86 @@ pub fn open(app: &AppHandle, channel: &str, login: &str) -> tauri::Result<()> {
     // Placed in physical pixels while still hidden: the mouse may be on a monitor with
     // another scale than the one the window was created on, and Windows rescales it
     // when it moves there.
-    if let Some(p) = near_cursor(app, w, h).or_else(|| super::geometry::center_on_main(app, w, h)) {
+    let near = near_cursor(app, w, h).or_else(|| super::geometry::center_on_main(app, w, h));
+    if let Some(p) = near {
         window.set_position(p)?;
     }
-    // V111-18 Another card of the same user steps down and right of the last one, so it
-    // doesn't hide it.
-    if let Some(last) = open.last().and_then(|o| o.outer_position().ok()) {
-        let step = (28.0 * window.scale_factor().unwrap_or(1.0)) as i32;
-        window.set_position(PhysicalPosition::new(last.x + step, last.y + step))?;
+    // V111-19 Next to the pinned cards, never on them (moved only when the spot by the mouse
+    // covers one).
+    if let Some(p) = clear_of_pinned(app, w, h, near) {
+        window.set_position(p)?;
     }
     app.state::<PanelRegistry>().insert(&label, &route);
     icons::apply(&window.as_ref().window());
     window.show()?;
     window.set_focus()
+}
+
+/// V111-19 Where the pinned usercards are (physical px), the last one first, and the work area of
+/// the monitor of the first of them.
+fn pinned_cards(app: &AppHandle) -> Vec<Rect> {
+    let size = |v: u32| i32::try_from(v).unwrap_or(i32::MAX);
+    let mut labels: Vec<_> = app.webview_windows().into_keys().filter(|l| l.starts_with("panel-usercard_")).collect();
+    labels.sort_unstable_by(|a, b| b.cmp(a));
+    labels
+        .iter()
+        .filter_map(|l| app.get_webview_window(l))
+        .filter(|w| w.is_visible().unwrap_or(false) && w.is_always_on_top().unwrap_or(false))
+        .filter_map(|w| {
+            let (p, s) = w.outer_position().ok().zip(w.outer_size().ok())?;
+            Some(Rect { x: p.x, y: p.y, w: size(s.width), h: size(s.height) })
+        })
+        .collect()
+}
+
+fn clear_of_pinned(app: &AppHandle, w: f64, h: f64, near: Option<PhysicalPosition<i32>>) -> Option<PhysicalPosition<i32>> {
+    let pinned = pinned_cards(app);
+    let first = pinned.first()?;
+    let m = app.monitor_from_point(f64::from(first.x + first.w / 2), f64::from(first.y + first.h / 2)).ok().flatten()?;
+    let s = super::geometry::screen(&m);
+    // The saved size was in logical px; the cards are placed in physical ones.
+    let size = ((w * s.scale).round() as i32, (h * s.scale).round() as i32);
+    let gap = (8.0 * s.scale).round() as i32;
+    if let Some(at) = near
+        && pinned.iter().all(|q| overlap(q, (at.x, at.y), size) == 0)
+    {
+        return None;
+    }
+    let (x, y) = clear_spot(&s.work, &pinned, size, gap);
+    Some(PhysicalPosition::new(x, y))
+}
+
+/// V111-19 Top-left corner for a `size` window that doesn't cover any of `pinned`: right of one
+/// of them, else left, below, above (each tried per card, first card first), kept inside `work`.
+/// When every spot overlaps something, the one that covers the least.
+fn clear_spot(work: &Rect, pinned: &[Rect], (w, h): (i32, i32), gap: i32) -> (i32, i32) {
+    let fit = |at: i32, size: i32, start: i32, room: i32| at.min(start + room - size).max(start);
+    let mut best: Option<(i64, (i32, i32))> = None;
+    for sides in 0..4 {
+        for p in pinned {
+            let (x, y) = match sides {
+                0 => (p.x + p.w + gap, p.y),
+                1 => (p.x - w - gap, p.y),
+                2 => (p.x, p.y + p.h + gap),
+                _ => (p.x, p.y - h - gap),
+            };
+            let at = (fit(x, w, work.x, work.w), fit(y, h, work.y, work.h));
+            let covered: i64 = pinned.iter().map(|q| overlap(q, at, (w, h))).sum();
+            if covered == 0 {
+                return at;
+            }
+            if best.is_none_or(|(b, _)| covered < b) {
+                best = Some((covered, at));
+            }
+        }
+    }
+    best.map_or((work.x, work.y), |(_, at)| at)
+}
+
+fn overlap(r: &Rect, (x, y): (i32, i32), (w, h): (i32, i32)) -> i64 {
+    let dx = (r.x + r.w).min(x + w) - r.x.max(x);
+    let dy = (r.y + r.h).min(y + h) - r.y.max(y);
+    i64::from(dx.max(0)) * i64::from(dy.max(0))
 }
 
 /// Right of and below the mouse, or left of and above it where that side has no room, so
@@ -212,7 +280,51 @@ pub fn near_cursor(app: &AppHandle, w: f64, h: f64) -> Option<PhysicalPosition<i
 
 #[cfg(test)]
 mod tests {
-    use super::{is_card, is_popup, settings_key};
+    use super::{Rect, clear_spot, is_card, is_popup, settings_key};
+
+    const WORK: Rect = Rect { x: 0, y: 0, w: 1920, h: 1040 };
+    const SIZE: (i32, i32) = (380, 680);
+    fn card(x: i32, y: i32) -> Rect {
+        Rect { x, y, w: 380, h: 680 }
+    }
+    fn clear(at: (i32, i32), pinned: &[Rect]) -> bool {
+        pinned.iter().all(|p| at.0 >= p.x + p.w || at.0 + SIZE.0 <= p.x || at.1 >= p.y + p.h || at.1 + SIZE.1 <= p.y)
+    }
+
+    #[test]
+    fn new_card_opens_right_of_the_pinned_one() {
+        let p = [card(100, 50)];
+        assert_eq!(clear_spot(&WORK, &p, SIZE, 8), (488, 50));
+    }
+
+    #[test]
+    fn left_when_right_is_off_screen() {
+        let p = [card(1500, 50)];
+        let at = clear_spot(&WORK, &p, SIZE, 8);
+        assert_eq!(at, (1112, 50));
+    }
+
+    #[test]
+    fn several_pinned_cards_are_all_avoided() {
+        let p = [card(100, 50), card(488, 50), card(876, 50)];
+        let at = clear_spot(&WORK, &p, SIZE, 8);
+        assert!(clear(at, &p) && at.0 >= 0 && at.0 + SIZE.0 <= 1920, "{at:?}");
+    }
+
+    #[test]
+    fn nothing_fits_covers_the_least() {
+        // A work area just the size of one card: everything overlaps; the two offsets cover
+        // the same, so any spot inside the work area is fine as long as it stays inside.
+        let work = Rect { x: 0, y: 0, w: 400, h: 700 };
+        let p = [card(0, 0)];
+        let at = clear_spot(&work, &p, SIZE, 8);
+        assert!(at.0 >= 0 && at.1 >= 0 && at.0 + SIZE.0 <= 400 && at.1 + SIZE.1 <= 700);
+        // Two pinned cards, one narrower strip free: picks the side with less covered.
+        let work = Rect { x: 0, y: 0, w: 800, h: 700 };
+        let p = [card(0, 0), card(420, 0)];
+        let at = clear_spot(&work, &p, (380, 680), 8);
+        assert!(super::overlap(&p[0], at, SIZE) + super::overlap(&p[1], at, SIZE) <= 380 * 680);
+    }
 
     #[test]
     fn popups_are_usercards_and_channel_chats() {
