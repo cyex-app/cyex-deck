@@ -690,8 +690,9 @@ async fn fill(app: AppHandle, key: RoomKey, (after, before, limit): (i64, i64, u
             Ok(got) => got,
             Err(e) => {
                 eprintln!("chat: couldn't fill the gap in {}: {}", key.1, e.describe("recent-messages"));
-                // S2 Like the first history (C35), logs.cyex.app stands in.
-                match gap_from_logs(&http, &key.1, after, before, limit).await {
+                // S2 Like the first history (C35), logs.cyex.app stands in (unless turned off, V111-09).
+                let logs = if logs_allowed(&app) { gap_from_logs(&http, &key.1, after, before, limit).await } else { None };
+                match logs {
                     Some(lines) => (lines, false),
                     None => {
                         if let Some(note) = gap_failed_note(&e) {
@@ -722,6 +723,13 @@ async fn fill(app: AppHandle, key: RoomKey, (after, before, limit): (i64, i64, u
             say(&app, &key, cyex_chat::GAP_NOTE);
         }
     }
+}
+
+/// V111-09 logs.cyex.app may stand in for the history service (on by default).
+fn logs_allowed(app: &AppHandle) -> bool {
+    app.state::<crate::settings::Settings>()
+        .read::<cyex_settings::schema::Chat>(cyex_settings::Partition::Chat)
+        .history_from_logs
 }
 
 /// S2 The gap's lines from logs.cyex.app; `None` when it has none or can't be reached.
@@ -796,6 +804,12 @@ async fn fetch_history(
         Ok(lines) if !lines.is_empty() => return Some(lines),
         other => other,
     };
+    if !logs_allowed(app) {
+        if let Err(e) = other {
+            say(app, key, &cyex_twitch::recent::unavailable(&e));
+        }
+        return None;
+    }
     let now = now_ms() / 1000;
     let from = cyex_twitch::clock::rfc3339(now - LOGS_HISTORY_SECS);
     let to = cyex_twitch::clock::rfc3339(now);

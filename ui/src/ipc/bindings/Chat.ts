@@ -116,6 +116,11 @@ readWhileBanned: boolean,
  */
 history: boolean, 
 /**
+ * V111-09 Where the history service has nothing (a first history or a gap), logs.cyex.app
+ * stands in (C35, S2). On by default.
+ */
+historyFromLogs: boolean, 
+/**
  * C37 V108-C02 Who joins the chat, as lines. Only in chats under 1.000 viewers.
  */
 joins: boolean, 

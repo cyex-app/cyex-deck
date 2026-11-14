@@ -29,6 +29,14 @@ export const CHAT: Entry[] = [
     keywords: ['old messages', 'backlog', 'recent messages'],
   },
   {
+    // V111-09
+    id: 'chat.historyFromLogs',
+    page: 'chat',
+    label: 'Fill gaps from logs.cyex.app',
+    description: 'When the history service has nothing, chat history and missed messages come from logs.cyex.app.',
+    keywords: ['logs.cyex.app', 'history', 'gaps', 'missed messages', 'recent messages'],
+  },
+  {
     id: 'chat.historyLines',
     page: 'chat',
     label: 'History to load',

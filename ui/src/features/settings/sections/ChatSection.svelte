@@ -152,6 +152,10 @@
 <Row setting="chat.readWhileBanned" label="Keep reading when banned" hint="A chat you're banned in keeps showing messages, read without your account. You still can't send.">
   <Toggle label="Keep reading when banned" checked={c.readWhileBanned} onchange={(v) => settings.patch('chat', { readWhileBanned: v })} />
 </Row>
+<!-- V111-09 -->
+<Row setting="chat.historyFromLogs" label="Fill gaps from logs.cyex.app" hint="When the history service has nothing, chat history and missed messages come from logs.cyex.app.">
+  <Toggle label="Fill gaps from logs.cyex.app" checked={c.historyFromLogs} onchange={(v) => settings.patch('chat', { historyFromLogs: v })} />
+</Row>
 <Row setting="chat.historyLines" label="History to load" hint="Up to this many. The history service keeps 800 per channel.">
   <NumberField label="History to load" steppers width="110px" min={50} max={2000} step={50} disabled={!c.history} value={c.historyLines} onchange={(n) => settings.patch('chat', { historyLines: n })} />
 </Row>

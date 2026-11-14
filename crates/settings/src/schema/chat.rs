@@ -103,6 +103,9 @@ pub struct Chat {
     pub read_while_banned: bool,
     /// C1 Load recent messages when joining.
     pub history: bool,
+    /// V111-09 Where the history service has nothing (a first history or a gap), logs.cyex.app
+    /// stands in (C35, S2). On by default.
+    pub history_from_logs: bool,
     /// C37 V108-C02 Who joins the chat, as lines. Only in chats under 1.000 viewers.
     pub joins: bool,
     /// C37 V108-C02 Who parts (leaves) the chat, as lines. Only in chats under 1.000 viewers.
@@ -218,6 +221,7 @@ impl Default for Chat {
             ad_length: 60,
             read_while_banned: true,
             history: true,
+            history_from_logs: true,
             joins: false,
             parts: false,
             minimize_presence: false,
@@ -976,6 +980,16 @@ mod tests {
         assert!(!d.joins && !d.parts && !d.old_joins_leaves);
         let new = read(r#"{"joins":true}"#);
         assert!(new.joins && !new.parts);
+    }
+
+    /// V111-09 On unless turned off; an old file without it reads as on.
+    #[test]
+    fn v111_09_history_from_logs_is_on_by_default() {
+        assert!(Chat::default().history_from_logs);
+        let old: Chat = serde_json::from_str(r#"{"history":true}"#).unwrap();
+        assert!(old.history_from_logs, "a settings file from before keeps it on");
+        let off: Chat = serde_json::from_str(r#"{"historyFromLogs":false}"#).unwrap();
+        assert!(!off.history_from_logs);
     }
 
     /// V111-07 Off unless asked; an old file without it reads as off, and it round-trips.
