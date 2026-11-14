@@ -65,6 +65,11 @@ emoteSize: number,
  */
 animateOnlyFocused: boolean, 
 /**
+ * V111-20 BTTV and FFZ emote effects (`w!`, `h!`, ffzX, ffzHyper…). Off: the emote plain,
+ * BTTV's words as text.
+ */
+emoteEffects: boolean, 
+/**
  * E4 Shown as text everywhere.
  */
 hiddenEmotes: Array<EmoteKey>, 

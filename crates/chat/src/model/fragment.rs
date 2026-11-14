@@ -24,6 +24,11 @@ pub enum Fragment {
         #[serde(skip_serializing_if = "Option::is_none")]
         #[ts(optional)]
         mods: Option<u32>,
+        /// V111-20 The BTTV modifier words (`h! w!`) that stood before the emote, with the
+        /// spaces around them, as typed: shown as text when effects are off, and copied.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        #[ts(optional)]
+        pre: Option<String>,
         /// 2.4 Unlisted 7TV emote.
         #[serde(skip_serializing_if = "Option::is_none")]
         #[ts(optional)]
@@ -190,12 +195,14 @@ pub mod mods {
     pub const JAM: u32 = 1 << 15;
     pub const BOUNCE: u32 = 1 << 16;
     pub const NO_SPACE: u32 = 1 << 17;
-    /// BTTV's own: `w!` four times as wide.
+    /// BTTV's own: `w!` four times as wide as high.
     pub const WIDE: u32 = 1 << 18;
     /// BTTV's own: `l!` turned left.
     pub const ROTATE_LEFT: u32 = 1 << 19;
     /// BTTV's own: `p!` cycling colors.
     pub const PARTY: u32 = 1 << 20;
+    /// V111-20 BTTV's own: `s!` a slow, jumpy shake. FFZ's [`SHAKE`] is the fast hyper one.
+    pub const JITTER: u32 = 1 << 21;
 }
 
 /// What a Twitch link opens in the app.
@@ -232,6 +239,7 @@ impl Fragment {
             name: name.into(),
             stack: None,
             mods: None,
+            pre: None,
             unlisted: None,
             look: EmoteLook::default(),
         }
@@ -245,7 +253,10 @@ impl Fragment {
             | Fragment::Channel { text, .. }
             | Fragment::Link { text, .. }
             | Fragment::Span { text, .. } => text.clone(),
-            Fragment::Emote { name, .. } => name.clone(),
+            Fragment::Emote { name, pre, .. } => match pre {
+                Some(pre) => format!("{pre}{name}"),
+                None => name.clone(),
+            },
             Fragment::Cheer { prefix, amount } => format!("{prefix}{amount}"),
             Fragment::Gif { url, .. } => url.clone(),
             Fragment::Image { alt, .. } => alt.clone(),

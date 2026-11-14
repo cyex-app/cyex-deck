@@ -16,6 +16,11 @@ stack?: Array<Layer>,
  */
 mods?: number, 
 /**
+ * V111-20 The BTTV modifier words (`h! w!`) that stood before the emote, with the
+ * spaces around them, as typed: shown as text when effects are off, and copied.
+ */
+pre?: string, 
+/**
  * 2.4 Unlisted 7TV emote.
  */
 unlisted?: boolean, 

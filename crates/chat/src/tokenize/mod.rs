@@ -175,7 +175,8 @@ struct Held {
     at: usize,
 }
 
-/// C7 BTTV's modifier words, written before a third-party emote.
+/// C7 BTTV's modifier words, written before a third-party emote (BTTV's `EMOTE_MODIFIERS`,
+/// checked 2026/11/14). V111-20 `z!` takes the space before it out; `s!` is BTTV's own shake.
 fn bttv_modifier(word: &str) -> Option<u32> {
     Some(match word {
         "w!" => mods::WIDE,
@@ -186,7 +187,7 @@ fn bttv_modifier(word: &str) -> Option<u32> {
         "l!" => mods::ROTATE_LEFT,
         "r!" => mods::ROTATE_90,
         "p!" => mods::PARTY,
-        "s!" => mods::SHAKE,
+        "s!" => mods::JITTER,
         _ => return None,
     })
 }
@@ -229,14 +230,21 @@ impl Builder<'_> {
             let plain = found.provider != Provider::Twitch && !found.zero_width && found.modifier.is_none();
             match self.held.take() {
                 Some(h) if plain => {
-                    self.pending.truncate(h.at);
+                    // V111-20 What the words took from the line, spaces included, goes with the
+                    // emote: shown as text when effects are off, and copied.
+                    let tail = self.pending.split_off(h.at);
+                    let mut pre = String::new();
                     if h.flags & mods::NO_SPACE != 0 && self.pending.ends_with(' ') {
                         self.pending.pop();
+                        pre.push(' ');
                     }
+                    pre.push_str(&h.text);
+                    pre.push_str(&tail);
                     self.base = None;
                     self.emote(found, word);
-                    if let Some(Fragment::Emote { mods: m, .. }) = self.out.last_mut() {
+                    if let Some(Fragment::Emote { mods: m, pre: p, .. }) = self.out.last_mut() {
                         *m = Some(h.flags);
+                        *p = Some(pre);
                     }
                 }
                 held => {
@@ -320,6 +328,7 @@ impl Builder<'_> {
             name: name.to_owned(),
             stack: None,
             mods: None,
+            pre: None,
             unlisted: found.unlisted.then_some(true),
             look: found.look,
         });
@@ -334,6 +343,9 @@ impl Builder<'_> {
     /// No emote followed the modifier words: they're plain text after all.
     fn release(&mut self, h: Held) {
         self.pending.insert_str(h.at, &h.text);
+        // V111-20 They're words between: a zero-width emote or modifier after them doesn't
+        // reach back over them (it used to, and took them out of the line).
+        self.base = None;
     }
 
     fn push(&mut self, f: Fragment) {
@@ -674,6 +686,10 @@ mod tests {
                 "zw" => f.zero_width = true,
                 "mod" => f.modifier = Some(mods::FLIP_X),
                 "hid" => f.modifier = Some(mods::HIDDEN | mods::GROW_X),
+                // V111-20 FFZ's real ones, all hidden (flags from its global set, 2026/11/14).
+                "ffzX" => f.modifier = Some(mods::HIDDEN | mods::FLIP_X),
+                "ffzW" => f.modifier = Some(mods::HIDDEN | mods::GROW_X),
+                "ffzHyper" => f.modifier = Some(mods::HIDDEN | mods::HYPER_RED | mods::SHAKE),
                 "mine" if sender == "7" => {}
                 _ => return None,
             }
@@ -753,6 +769,85 @@ mod tests {
         assert_eq!(tokenize(&input, &[], &Stack).body[0], Fragment::text("w! "));
         // z! eats the space before the emote.
         assert_eq!(stacked("a z! other", "")[0], Fragment::text("a"));
+    }
+
+    fn mods_of(f: &Fragment) -> (Option<u32>, Option<&str>) {
+        match f {
+            Fragment::Emote { mods, pre, .. } => (*mods, pre.as_deref()),
+            _ => panic!("not an emote: {f:?}"),
+        }
+    }
+
+    #[test]
+    fn bttv_words_keep_what_they_took_from_the_line() {
+        // V111-20 Every word maps to its effect; s! is BTTV's shake, not FFZ's hyper one.
+        for (word, bit) in [
+            ("w!", mods::WIDE),
+            ("h!", mods::FLIP_X),
+            ("v!", mods::FLIP_Y),
+            ("z!", mods::NO_SPACE),
+            ("c!", mods::CURSED),
+            ("l!", mods::ROTATE_LEFT),
+            ("r!", mods::ROTATE_90),
+            ("p!", mods::PARTY),
+            ("s!", mods::JITTER),
+        ] {
+            let body = stacked(&format!("{word} base"), "");
+            assert_eq!(body.len(), 1, "{word}: {body:?}");
+            assert_eq!(mods_of(&body[0]), (Some(bit), Some(&*format!("{word} "))), "{word}");
+        }
+        // Several, with double spaces: all of it comes back in the copy.
+        let body = stacked("hi h!  s! base", "");
+        assert_eq!(mods_of(&body[1]), (Some(mods::FLIP_X | mods::JITTER), Some("h!  s! ")));
+        assert_eq!(crate::model::plain(&body), "hi h!  s! base");
+        // z! keeps the space it took, so the copy is whole too.
+        let body = stacked("a z! other", "");
+        assert_eq!(mods_of(&body[1]), (Some(mods::NO_SPACE), Some(" z! ")));
+        assert_eq!(crate::model::plain(&body), "a z! other");
+        // An unknown word in the run breaks it: the words before it stay text.
+        let body = stacked("h! x! base", "");
+        assert_eq!(body[0], Fragment::text("h! x! "));
+        assert_eq!(mods_of(&body[1]), (None, None));
+        // On a word that isn't an emote, or at the end: plain text.
+        assert_eq!(stacked("h! hello", ""), [Fragment::text("h! hello")]);
+        assert_eq!(stacked("base h!", "")[1], Fragment::text(" h!"));
+        // Not on a modifier or zero-width emote: those keep their own job.
+        assert_eq!(stacked("h! ffzX", "")[0], Fragment::text("h! "));
+        let body = stacked("base h! zw", "");
+        assert_eq!(body[1], Fragment::text(" h! "));
+    }
+
+    #[test]
+    fn ffz_modifier_emotes_change_the_emote_before() {
+        // V111-20 Hidden ones leave no picture and no text; the base gets their flags.
+        let body = stacked("base ffzX", "");
+        assert_eq!(body.len(), 1, "{body:?}");
+        assert_eq!(mods_of(&body[0]), (Some(mods::FLIP_X), None));
+        assert!(matches!(&body[0], Fragment::Emote { stack: None, .. }));
+        // A chain adds up, on Twitch emotes too.
+        let input = Input {
+            text: "Kappa ffzX  ffzW ffzHyper hi",
+            sender: "",
+            emotes: "25:0-4",
+            gifs: "",
+            bits: 0,
+        };
+        let body = tokenize(&input, &[], &Stack).body;
+        assert_eq!(body.len(), 2, "{body:?}");
+        assert_eq!(
+            mods_of(&body[0]).0,
+            Some(mods::FLIP_X | mods::GROW_X | mods::HYPER_RED | mods::SHAKE)
+        );
+        assert_eq!(body[1], Fragment::text(" hi"));
+        // BTTV words and FFZ modifiers on one emote.
+        let body = stacked("h! base ffzW", "");
+        assert_eq!(mods_of(&body[0]), (Some(mods::FLIP_X | mods::GROW_X), Some("h! ")));
+        // After a word there's nothing to change: shown as its own emote.
+        let body = stacked("hi ffzX", "");
+        assert!(matches!(&body[1], Fragment::Emote { id, mods: None, .. } if id == "ffzX"));
+        // Only the emote right before: a word in between ends it.
+        let body = stacked("base hi ffzX", "");
+        assert_eq!(mods_of(&body[0]), (None, None));
     }
 
     #[test]

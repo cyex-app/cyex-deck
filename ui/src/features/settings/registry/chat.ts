@@ -389,6 +389,14 @@ export const CHAT: Entry[] = [
     description: 'Emotes, badges and paints stand still otherwise. Saves some power.',
     keywords: ['animations', 'gif', 'battery'],
   },
+  // V111-20
+  {
+    id: 'chat.emoteEffects',
+    page: 'emotes',
+    label: 'BTTV and FFZ effects',
+    description: 'Words like w! and h! before an emote, or ffzX after it, flip, widen or animate it.',
+    keywords: ['modifiers', 'emote effects', 'flip', 'wide', 'rainbow', 'ffzW', 'ffzX', 'ffzHyper', 'bttv', 'ffz'],
+  },
   {
     id: 'chat.emotePriority',
     page: 'emotes',

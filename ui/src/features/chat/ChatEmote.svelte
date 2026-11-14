@@ -9,7 +9,7 @@
   import { focus } from '../../lib/focus.svelte';
   import { density } from '../../lib/density.svelte';
   import { settings } from '../../lib/settings.svelte';
-  import { PROVIDER_NAMES, emoteRatio, modClasses } from '../emotes/emotes';
+  import { PROVIDER_NAMES, emoteRatio, modLook, type ModLook } from '../emotes/emotes';
   import { hidden } from '../emotes/hidden.svelte';
   import { inStep, moves } from '../emotes/phase';
   import { emoteImg, emoteLarge } from './urls';
@@ -40,6 +40,9 @@
   }
 
   const visible = $derived(shows(f.provider, f.id) && !(f.unlisted && c.unlistedEmotes === 'hide'));
+  /** V111-20 BTTV and FFZ effects, unless turned off: then BTTV's words show as typed. */
+  const look = $derived(modLook(c.emoteEffects ? f.mods : undefined, f.size));
+  const pre = $derived(c.emoteEffects && visible ? '' : (f.pre ?? ''));
   const layers = $derived((f.stack ?? []).filter((l) => shows(l.provider, l.id)));
   const card = $derived(
     JSON.stringify({
@@ -50,35 +53,41 @@
   );
 </script>
 
-{#snippet picture(e: Layer, classes: string)}
+<!-- V111-20 `fx`: the base emote's modifiers. `copy`: FFZ Slide's second picture, right behind the first. -->
+{#snippet picture(e: Layer, classes: string, fx: ModLook | null = null, copy = false)}
   {@const img = emoteImg(e.provider, e.id, theme, { animated: e.animated, still, scale: density.scale })}
+  {@const anim = fx?.animation ? (copy ? fx.animation.replace('emote-slide ', 'emote-slide-2 ') : fx.animation) : ''}
   <img
     class="emote {classes}"
     class:smiley={e.provider === 'twitch' && smileys.has(e.id)}
+    class:fx-move={anim !== ''}
     src={img.src}
-    alt={bare ? '' : e.name}
+    alt={bare || copy ? '' : e.name}
+    aria-hidden={copy ? 'true' : undefined}
     onload={(ev) => e.provider === 'twitch' && smiley(ev.currentTarget as HTMLImageElement, e.id)}
-    style:aspect-ratio={emoteRatio(e.size)}
+    style:aspect-ratio={fx?.ratio ? `${fx.ratio} / 1` : emoteRatio(e.size)}
+    style:--fx-anim={anim || undefined}
     loading="lazy"
     decoding="async"
     use:inStep={moves(classes)}
   />
 {/snippet}
 
-{#if !visible}{#if !bare}{f.name}{/if}{#if !bare}{#each f.stack ?? [] as l, i (i)}{' '}{l.name}{/each}{/if}{:else}
+{#if !visible}{#if !bare}{pre}{f.name}{/if}{#if !bare}{#each f.stack ?? [] as l, i (i)}{' '}{l.name}{/each}{/if}{:else}
   {@const unlisted = f.unlisted && c.unlistedEmotes === 'blur'}
-  {@const base = `${modClasses(f.mods)}${unlisted ? ' unlisted' : ''}`}
-  <span
+  {@const base = `${look.classes}${unlisted ? ' unlisted' : ''}`}
+  {pre}<span
     class:stack={layers.length > 0}
     class="emote-wrap"
     role="button"
     tabindex="-1"
     data-emote={card}
     data-unlisted={f.unlisted ? '' : undefined}
-    data-tip={[f.name, ...layers.map((l) => l.name)].join(' ')}
+    data-tip={[c.emoteEffects && f.pre?.trim(), f.name, ...layers.map((l) => l.name)].filter(Boolean).join(' ')}
     data-tip-img={emoteLarge(f.provider, f.id, theme, { animated: f.animated, still })}
     data-hint={PROVIDER_NAMES[f.provider]}
-    >{@render picture(f, base)}{#each layers as l, i (i)}{@render picture(l, '')}{/each}</span
+    >{#if look.slide}<span class="slide-box">{@render picture(f, base, look)}{@render picture(f, base, look, true)}</span
+      >{:else}{@render picture(f, base, look)}{/if}{#each layers as l, i (i)}{@render picture(l, '')}{/each}</span
   >
 {/if}
 

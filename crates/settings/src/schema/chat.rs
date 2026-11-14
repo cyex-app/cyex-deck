@@ -77,6 +77,9 @@ pub struct Chat {
     pub emote_size: u16,
     /// E2 Animated emotes and paints stand still while the window isn't focused.
     pub animate_only_focused: bool,
+    /// V111-20 BTTV and FFZ emote effects (`w!`, `h!`, ffzX, ffzHyper…). Off: the emote plain,
+    /// BTTV's words as text.
+    pub emote_effects: bool,
     /// E4 Shown as text everywhere.
     pub hidden_emotes: Vec<EmoteKey>,
     /// D21 V106-08 Send presence to 7TV and BTTV: which chat you're in, so others see your paint, badge and personal emotes.
@@ -211,6 +214,7 @@ impl Default for Chat {
             emote_priority: EmoteSource::RANKED.to_vec(),
             emote_size: 100,
             animate_only_focused: false,
+            emote_effects: true,
             hidden_emotes: Vec::new(),
             share_presence: true,
             presence_on_once: true,

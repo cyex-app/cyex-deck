@@ -75,6 +75,9 @@
     onchange={(v) => settings.patch('chat', { animateOnlyFocused: v })}
   />
 </Row>
+<Row setting="chat.emoteEffects" label="BTTV and FFZ effects" hint="Words like w! and h! before an emote, or ffzX after it, flip, widen or animate it.">
+  <Toggle label="BTTV and FFZ effects" checked={c.emoteEffects} onchange={(v) => settings.patch('chat', { emoteEffects: v })} />
+</Row>
 <Row setting="chat.emotePriority" label="Which wins" hint="First wins when two have an emote with the same name, in chat and in suggestions. The channel’s emotes still beat global ones.">
   <ol class="order">
     {#each ranked as s, i (s)}

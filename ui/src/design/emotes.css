@@ -77,12 +77,15 @@
   filter: drop-shadow(0 0 0.6px rgb(0 0 0 / 0.75)) var(--paint-shadow,);
 }
 
-/* C7 Modifiers (FFZ numbering). V107-P6 appear and leave stay within a deleted line's dimming (--emote-alpha, Line.svelte). */
-/* V105-08 Every moving modifier's period divides 6 s (phase.ts, MOD_CYCLE_MS). */
+/* C7 Modifiers (FFZ numbering, BTTV's mapped on). V111-20 Drawn as BTTV and FFZ draw them (their
+   CSS, read 2026/11/14). The still looks are transform and filter; the moving ones (phase.ts
+   MOTION, put on the picture as --fx-anim) move only translate, rotate, scale and filter, so the
+   compositor runs them and a flip stays under a spin. Appear and leave scale the picture, so a
+   deleted line's dimming (--emote-alpha, Line.svelte, V107-P6) stays as it is. */
 .m-flipX,
 .m-flipY,
 .m-rotate90,
-.m-growX {
+.m-rotateLeft {
   transform: scale(var(--sx, 1), var(--sy, 1)) rotate(var(--rot, 0deg));
 }
 .m-flipX {
@@ -91,134 +94,231 @@
 .m-flipY {
   --sy: -1;
 }
+/* BTTV r! and l! */
 .m-rotate90 {
   --rot: 90deg;
 }
-.m-growX {
-  width: auto;
-  aspect-ratio: auto;
-  margin-inline: 0.5em;
-  --sx: 2;
+.m-rotateLeft {
+  --rot: -90deg;
 }
-.m-flipX.m-growX {
-  --sx: -2;
+/* FFZ GrowX twice as wide, BTTV w! 4:1: the width comes from ChatEmote (modLook), stretched. */
+.m-growX,
+.m-wide {
+  object-fit: fill;
 }
+/* Filters add up: each look is its own variable. */
 .m-greyscale {
-  filter: grayscale(1);
+  --f-grey: grayscale(1);
 }
 .m-sepia {
-  filter: sepia(1);
+  --f-sepia: sepia(1);
 }
 .m-hyperRed {
-  filter: brightness(0.2) sepia(1) brightness(2.2) saturate(10);
+  --f-red: brightness(0.2) sepia(1) brightness(2.2) contrast(3) saturate(8);
 }
-.m-rainbow {
-  animation: emote-rainbow 2s linear infinite;
+/* FFZ ffzCursed and BTTV c! are the same. */
+.m-cursed {
+  --f-cursed: grayscale(1) brightness(0.7) contrast(2.5);
 }
-.m-rotate {
-  animation: emote-spin 1.5s linear infinite;
-}
-.m-shake {
-  animation: emote-shake 0.25s linear infinite;
-}
-.m-jam {
-  animation: emote-jam 0.6s ease-in-out infinite;
+.m-greyscale,
+.m-sepia,
+.m-hyperRed,
+.m-cursed,
+.m-rainbow,
+.m-party {
+  --fx-filter: var(--f-grey,) var(--f-sepia,) var(--f-red,) var(--f-cursed,);
+  filter: var(--fx-filter);
 }
 .m-bounce {
-  animation: emote-bounce 0.5s ease-in-out infinite alternate;
+  transform-origin: bottom center;
 }
-.m-slide {
-  animation: emote-slide 3s linear infinite;
+.fx-move {
+  animation: var(--fx-anim);
 }
-.m-appear {
-  animation: emote-appear 3s linear infinite;
+/* FFZ Slide: two copies in a clipped box scroll left, the second right behind the first. */
+.slide-box {
+  display: inline-grid;
+  overflow: clip;
+  vertical-align: top;
 }
-.m-leave {
-  animation: emote-leave 3s linear infinite;
+.slide-box > .emote {
+  grid-area: 1 / 1;
 }
-.m-cursed {
-  filter: contrast(2) brightness(0.8) saturate(2) hue-rotate(180deg);
+.stack > .slide-box {
+  grid-area: 1 / 1;
+  margin: auto;
+}
+/* An unlisted emote stays blurred under any effect. */
+.unlisted[class*='m-'] {
+  filter: blur(3px) saturate(0.6) !important;
 }
 
 @keyframes emote-rainbow {
+  from {
+    filter: var(--fx-filter,) hue-rotate(0deg);
+  }
   to {
-    filter: hue-rotate(360deg) saturate(2);
+    filter: var(--fx-filter,) hue-rotate(360deg);
+  }
+}
+/* BTTV p! */
+@keyframes emote-party {
+  from {
+    filter: var(--fx-filter,) sepia(0.5) hue-rotate(0deg) saturate(2.5);
+  }
+  to {
+    filter: var(--fx-filter,) sepia(0.5) hue-rotate(360deg) saturate(2.5);
   }
 }
 @keyframes emote-spin {
+  from {
+    rotate: 0deg;
+  }
   to {
-    transform: rotate(360deg);
+    rotate: 360deg;
   }
 }
+/* FFZ Shake (ffzHyper) */
 @keyframes emote-shake {
-  0%,
-  100% {
-    transform: translate(0, 0);
-  }
-  25% {
-    transform: translate(-2px, 1px);
-  }
-  50% {
-    transform: translate(2px, -1px);
-  }
-  75% {
-    transform: translate(-1px, -2px);
-  }
+  0% { translate: 1px 1px; }
+  10% { translate: -1px -2px; }
+  20% { translate: -3px 0px; }
+  30% { translate: 3px 2px; }
+  40% { translate: 1px -1px; }
+  50% { translate: -1px 2px; }
+  60% { translate: -3px 1px; }
+  70% { translate: 3px 1px; }
+  80% { translate: -1px -1px; }
+  90% { translate: 1px 2px; }
+  100% { translate: 1px -2px; }
+}
+/* BTTV s!, in steps */
+@keyframes emote-jitter {
+  0% { translate: 0px 1px; }
+  10% { translate: 2px 0px; }
+  20% { translate: 1px -2px; }
+  30% { translate: -2px 1px; }
+  40% { translate: 0px -1px; }
+  50% { translate: 2px 2px; }
+  60% { translate: -1px -1px; }
+  70% { translate: -2px 2px; }
+  80% { translate: 2px 1px; }
+  90% { translate: -1px -2px; }
+  100% { translate: 1px 0px; }
 }
 @keyframes emote-jam {
-  50% {
-    transform: rotate(-8deg) translateY(-2px);
-  }
+  0% { translate: -2px -2px; rotate: -6deg; }
+  10% { translate: -1.5px -2px; rotate: -8deg; }
+  20% { translate: 1px -1.5px; rotate: -8deg; }
+  30% { translate: 3px 2.5px; rotate: -6deg; }
+  40% { translate: 3px 4px; rotate: -2deg; }
+  50% { translate: 2px 4px; rotate: 3deg; }
+  60% { translate: 1px 4px; rotate: 3deg; }
+  70% { translate: -0.5px 3px; rotate: 2deg; }
+  80% { translate: -1.25px 1px; rotate: 0deg; }
+  90% { translate: -1.75px -0.5px; rotate: -2deg; }
+  100% { translate: -2px -2px; rotate: -5deg; }
 }
 @keyframes emote-bounce {
-  to {
-    transform: translateY(-25%);
-  }
+  0% { scale: 0.8 1; }
+  10% { scale: 0.9 0.8; }
+  20% { scale: 1 0.4; }
+  25% { scale: 1.2 0.3; }
+  25.001% { scale: -1.2 0.3; }
+  30% { scale: -1 0.4; }
+  40% { scale: -0.9 0.8; }
+  50% { scale: -0.8 1; }
+  60% { scale: -0.9 0.8; }
+  70% { scale: -1 0.4; }
+  75% { scale: -1.2 0.3; }
+  75.001% { scale: 1.2 0.3; }
+  80% { scale: 1 0.4; }
+  90% { scale: 0.9 0.8; }
+  100% { scale: 0.8 1; }
 }
 @keyframes emote-slide {
   from {
-    clip-path: inset(0 100% 0 0);
-  }
-  50% {
-    clip-path: inset(0 0 0 0);
+    translate: 0;
   }
   to {
-    clip-path: inset(0 0 0 100%);
+    translate: -100%;
   }
 }
-@keyframes emote-appear {
+@keyframes emote-slide-2 {
   from {
-    opacity: 0;
+    translate: 100%;
   }
   to {
-    opacity: var(--emote-alpha, 1);
+    translate: 0;
   }
+}
+/* FFZ Appear (ffzArrive), Leave (ffzLeave) and both (6 s): in from the left, out flipping. */
+@keyframes emote-appear {
+  0% { translate: -18px 0px; scale: 0; }
+  19.99% { translate: -18px 0px; scale: 0; }
+  20% { translate: -18px 0px; scale: 0.1; }
+  25% { translate: -16px 0.12px; scale: 0.2; }
+  30% { translate: -14px -1.2px; scale: 0.3; }
+  35% { translate: -12px 0.24px; scale: 0.4; }
+  40% { translate: -10px -2px; scale: 0.5; }
+  45% { translate: -8px 1.2px; scale: 0.6; }
+  50% { translate: -6px -2.1px; scale: 0.7; }
+  55% { translate: -4px 1.6px; scale: 0.8; }
+  60% { translate: -2px -2.7px; scale: 0.9; }
+  65% { translate: 0px 0px; scale: 1; }
+  100% { translate: 0px 0px; scale: 1; }
 }
 @keyframes emote-leave {
-  from {
-    opacity: var(--emote-alpha, 1);
-  }
-  to {
-    opacity: 0;
-  }
+  0% { translate: 0px 0px; scale: 1; }
+  39.99% { translate: 0px 0px; scale: 1; }
+  40% { translate: 0px -2.7px; scale: -0.9 0.9; }
+  45% { translate: -2px 1.6px; scale: -0.8 0.8; }
+  50% { translate: -4px -2.1px; scale: -0.7 0.7; }
+  55% { translate: -6px 1.2px; scale: -0.6 0.6; }
+  60% { translate: -8px -2px; scale: -0.5 0.5; }
+  65% { translate: -10px 0.24px; scale: -0.4 0.4; }
+  70% { translate: -12px -1.2px; scale: -0.3 0.3; }
+  75% { translate: -14px 0.12px; scale: -0.2 0.2; }
+  80% { translate: -16px 0px; scale: -0.1 0.1; }
+  85% { translate: -18px 0px; scale: -0.01 0; }
+  100% { translate: -18px 0px; scale: 0; }
+}
+@keyframes emote-in-out {
+  0% { translate: -18px 0px; scale: 0; }
+  9.995% { translate: -18px 0px; scale: 0; }
+  10% { translate: -18px 0px; scale: 0.1; }
+  12.5% { translate: -16px 0.12px; scale: 0.2; }
+  15% { translate: -14px -1.2px; scale: 0.3; }
+  17.5% { translate: -12px 0.24px; scale: 0.4; }
+  20% { translate: -10px -2px; scale: 0.5; }
+  22.5% { translate: -8px 1.2px; scale: 0.6; }
+  25% { translate: -6px -2.1px; scale: 0.7; }
+  27.5% { translate: -4px 1.6px; scale: 0.8; }
+  30% { translate: -2px -2.7px; scale: 0.9; }
+  32.5% { translate: 0px 0px; scale: 1; }
+  50% { translate: 0px 0px; scale: 1; }
+  69.995% { translate: 0px 0px; scale: 1; }
+  70% { translate: 0px -2.7px; scale: -0.9 0.9; }
+  72.5% { translate: -2px 1.6px; scale: -0.8 0.8; }
+  75% { translate: -4px -2.1px; scale: -0.7 0.7; }
+  77.5% { translate: -6px 1.2px; scale: -0.6 0.6; }
+  80% { translate: -8px -2px; scale: -0.5 0.5; }
+  82.5% { translate: -10px 0.24px; scale: -0.4 0.4; }
+  85% { translate: -12px -1.2px; scale: -0.3 0.3; }
+  87.5% { translate: -14px 0.12px; scale: -0.2 0.2; }
+  90% { translate: -16px 0px; scale: -0.1 0.1; }
+  92.5% { translate: -18px 0px; scale: -0.01 0; }
+  100% { translate: -18px 0px; scale: 0; }
 }
 
 /* E2 Nothing moves while the window isn't focused; V107-H1 or while it's hidden. */
-:root.still .m-rainbow,
-:root.asleep .m-rainbow,
-:root.still .m-rotate,
-:root.asleep .m-rotate,
-:root.still .m-shake,
-:root.asleep .m-shake,
-:root.still .m-jam,
-:root.asleep .m-jam,
-:root.still .m-bounce,
-:root.asleep .m-bounce,
-:root.still .m-slide,
-:root.asleep .m-slide,
-:root.still .m-appear,
-:root.asleep .m-appear,
-:root.still .m-leave,
-:root.asleep .m-leave {
+:root.still .fx-move,
+:root.asleep .fx-move {
   animation-play-state: paused;
+}
+/* V111-20 Asked for less motion: effects that move stand still. */
+@media (prefers-reduced-motion: reduce) {
+  .fx-move {
+    animation: none !important;
+  }
 }
