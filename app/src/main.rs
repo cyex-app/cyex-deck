@@ -57,6 +57,13 @@ use tauri::RunEvent;
 static HEAP: sys::heap::Counting = sys::heap::Counting;
 
 fn main() {
+    // V111-25 A mocks build never runs on the real settings: without a test data folder it
+    // stops before it reads or writes anything (an agent's test run once started without one).
+    #[cfg(feature = "mocks")]
+    if std::env::var_os(paths::DATA_DIR_VAR).is_none_or(|v| v.is_empty()) {
+        eprintln!("test build: set {} to a test data folder", paths::DATA_DIR_VAR);
+        std::process::exit(2);
+    }
     let builder = tauri::Builder::default();
     // Must be the first plugin: a second launch focuses the running app instead.
     // Mocks builds only: CYEX_MULTI with CYEX_DATA_DIR lets test copies run side by side.
