@@ -25,6 +25,7 @@
   import Celebration from './Celebration.svelte';
   import { Engine } from './engine.svelte';
   import LiveButton from './LiveButton.svelte';
+  import LatencyStat from './LatencyStat.svelte';
   import { DVR_GAP } from './liveEdge';
   import { behindText } from './liveKeys';
   import { clipLiveAt, clipMaking, clipVideoAt } from './clipMake.svelte';
@@ -632,6 +633,7 @@
     <Icon name={engine?.playing ? 'pause' : 'play'} size={18} />
   </button>
   <LiveButton behind={rewind.behind} atLive={rewind.atLive} stalled={!!engine?.stalled} ad={ad === 'waiting'} ended={rewind.over || failure === 'offline'} failed={!!failure} hint={bindingOf('player.live')} onlive={() => void rewind.toLive()} />
+  <LatencyStat on={!!engine && rewind.atLive && !failure} read={() => engine?.stats().latency ?? null} />
   <Volume volume={sound.volume} muted={sound.muted} boost={sound.boost} onchange={sound.set} onboost={sound.setBoost} />
   <span class="grow"></span>
   {#if onclip}
