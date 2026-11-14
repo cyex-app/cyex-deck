@@ -20,7 +20,7 @@
   import EarnedBadges from './EarnedBadges.svelte';
   import { suspendedFlag } from './suspended';
   import { coverKey, covered } from './streamerCover';
-  import { avatars } from '../emotes/avatars.svelte';
+  import { sevenTvPick } from '../emotes/avatarPick.svelte';
   import { looks } from '../emotes/looks.svelte';
   import { toggleWatch, watched } from './watch';
   import { copy } from '../../lib/clipboard';
@@ -57,7 +57,9 @@
     const n = note?.nickname || profile.displayName;
     return n.toLowerCase() === profile.login.toLowerCase() ? '' : n;
   });
-  const seventv = $derived(avatars.of(profile.login));
+  // V111-22 A 7TV picture that errors or is slow gives way to Twitch's, and the logo follows.
+  const pick = sevenTvPick(() => profile.login);
+  const seventv = $derived(pick.url);
   const picture = $derived((!twitchPic && seventv) || profile.avatar || '');
 
   // V108-C09 The reveal lives only here: a new opening, another user or the other picture
@@ -132,7 +134,9 @@
     {:else}
       <Avatar src={picture} name={profile.displayName} size={60} />
     {/if}
-    {#if seventv && profile.avatar}
+    {#if pick.failed && profile.avatar}
+      <span class="which" aria-label="Twitch picture"><Icon name="twitch" size={11} /></span>
+    {:else if seventv && profile.avatar}
       <!-- V102-12 The logo of the picture shown; a click shows the other one. -->
       <button
         class="which"

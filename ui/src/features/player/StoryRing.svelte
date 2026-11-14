@@ -5,7 +5,7 @@
   import { tooltip } from '../../components/tooltip.svelte';
   import type { StoryRing } from '../../ipc/bindings/StoryRing';
   import { channelIpc } from '../../ipc/player';
-  import { avatars } from '../emotes/avatars.svelte';
+  import { sevenTvPick } from '../emotes/avatarPick.svelte';
 
   interface Props {
     channelId: string;
@@ -22,7 +22,8 @@
 
   let { channelId, account, avatar: twitch, name, login, size = 24, onopen, onplain }: Props = $props();
 
-  const avatar = $derived(avatars.of(login) ?? twitch);
+  const pick = sevenTvPick(() => login);
+  const avatar = $derived(pick.url ?? twitch);
 
   let ring = $state<StoryRing | null>(null);
 
