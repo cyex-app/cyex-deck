@@ -3,6 +3,8 @@
 use serde::Serialize;
 use ts_rs::TS;
 
+use super::fragment::Provider;
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
@@ -22,6 +24,25 @@ pub struct Notice {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub presence: Option<Presence>,
+    /// V111-01 An emote-change line's emote, drawn as a small picture after its name in `text`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub emote: Option<NoticeEmote>,
+}
+
+/// V111-01 The emote an emote-change line is about (added, removed or renamed to).
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct NoticeEmote {
+    pub provider: Provider,
+    pub id: String,
+    pub name: String,
+    pub animated: bool,
+    /// At 1x in px, when the provider says.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub size: Option<(u16, u16)>,
 }
 
 /// V108-C11 A user named in a notice: the name as shown (may be localized) and the login for the usercard.
@@ -63,6 +84,7 @@ impl Notice {
             links: Vec::new(),
             color: None,
             presence: None,
+            emote: None,
         }
     }
 }

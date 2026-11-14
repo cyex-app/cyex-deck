@@ -132,8 +132,8 @@ async fn check(app: &AppHandle, login: &str) {
         ..Which::default()
     };
     if retry::merge(app, login, generation, only_ffz, got) {
-        for line in diff::lines(&changes) {
-            super::change_line(app, login, &line);
+        for (line, emote) in diff::lines(&changes) {
+            super::change_line(app, login, &line, emote.as_ref());
         }
     }
 }

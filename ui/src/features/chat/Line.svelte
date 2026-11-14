@@ -25,7 +25,9 @@
   import { replyParentName, shownName } from './names';
   import { ownNameColor } from './ownColor';
   import { foldRecipients } from './recipients';
-  import { splitNames } from './noticeNames';
+  import { splitEmote, splitNames } from './noticeNames';
+  import ChatEmote from './ChatEmote.svelte';
+  import type { Fragment } from '../../ipc/bindings/Fragment';
   import { lineBadges } from './sharedBadges';
   import { catalogs } from './catalog.svelte';
   import { lineStacks } from './stacked';
@@ -82,6 +84,14 @@
   const noticeParts = $derived(notice?.links.length ? splitNames(notice.text, notice.links) : null);
   // C37 V108-C03 Joins and leaves: each name opens its usercard; the count stays text.
   const presence = $derived(notice?.presence);
+  // V111-01 An emote-change line shows the emote after its name, like a chat emote (tip and card too).
+  const noticeEmote = $derived(notice?.emote);
+  const emoteParts = $derived(noticeEmote ? splitEmote(notice!.text, noticeEmote.name) : null);
+  const emoteFragment = $derived<Extract<Fragment, { t: 'emote' }> | null>(
+    noticeEmote
+      ? { t: 'emote', provider: noticeEmote.provider, id: noticeEmote.id, name: noticeEmote.name, animated: noticeEmote.animated || undefined, size: noticeEmote.size }
+      : null,
+  );
   /** V110-F84 Names repeat in a long join list; a keyed each throws on a repeat. */
   const presenceKeys = $derived(uniqueKeys(presence?.names ?? [], (login) => login));
   const hl = $derived(highlightStyle(m));
@@ -161,7 +171,7 @@
             role="link"
             tabindex="-1"
             data-user={login}>{login}</span
-          >{/each}{presence.more ? ` +${formatNumber(presence.more)} more` : ''}{:else if noticeParts}{#each noticeParts as p}{#if p.login}<span class="who" role="link" tabindex="-1" data-user={p.login}>{p.text}</span
+          >{/each}{presence.more ? ` +${formatNumber(presence.more)} more` : ''}{:else if emoteParts && emoteFragment}{emoteParts[0]}<span class="notice-emote"><ChatEmote f={emoteFragment} bare /></span>{emoteParts[1]}{:else if noticeParts}{#each noticeParts as p}{#if p.login}<span class="who" role="link" tabindex="-1" data-user={p.login}>{p.text}</span
           >{:else}{p.text}{/if}{/each}{:else}{notice.text}{/if}
     </div>
     {#if recipients.length}
@@ -400,6 +410,10 @@
   }
   .who:hover {
     text-decoration: underline;
+  }
+  /* V111-01 The emote of an emote-change line: a hair of room, no space in the text. */
+  .notice-emote {
+    margin-inline: 0.3em 0.1em;
   }
   .system .notice-text {
     color: var(--dim);

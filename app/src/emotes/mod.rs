@@ -32,7 +32,7 @@ use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::{Duration, Instant};
 
-use cyex_chat::model::Provider;
+use cyex_chat::model::{NoticeEmote, Provider};
 use cyex_emotes::index::ordered;
 use cyex_emotes::seventv::socket::{EventApi, Topic as SevenTopic};
 use cyex_emotes::{Capped, Cosmetics, EmoteSet, Lookup, RoomEmotes, Scope};
@@ -185,11 +185,15 @@ impl Emotes {
 
 /// V108-C31 A line in every room of the channel that a provider's emotes changed, unless the
 /// user turned those lines off (`emoteChanges`).
-fn change_line(app: &AppHandle, login: &str, text: &str) {
+/// V111-01 `emote`: the one the line is about, shown as a picture after its name.
+fn change_line(app: &AppHandle, login: &str, text: &str, emote: Option<&NoticeEmote>) {
     if !app.state::<Settings>().read::<ChatSettings>(Partition::Chat).emote_changes {
         return;
     }
-    crate::chat::system_line(app, login, text);
+    match emote {
+        Some(e) => crate::chat::emote_line(app, login, text, e),
+        None => crate::chat::system_line(app, login, text),
+    }
 }
 
 /// C11 The order from the settings. V110-U71 Twitch is ranked there too (first by default).

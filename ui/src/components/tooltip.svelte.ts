@@ -94,6 +94,17 @@ export function overTipNow(on: boolean): void {
   if (!on) hide();
 }
 
+/** V111-02 `node`'s tip now belongs to `next`, the same thing drawn again (a chat line re-rendered
+ *  under a resting pointer): it stays open, anchored to `next`, instead of closing and showing again. */
+export function adoptTip(node: HTMLElement, next: HTMLElement): boolean {
+  if (owner !== node || !untrack(() => tip.visible)) return false;
+  owner = next;
+  cards.move(node, next);
+  titles.move(node, next);
+  tip.anchor = next.getBoundingClientRect();
+  return true;
+}
+
 /** Changes the text of the tip `node` shows (or is about to), e.g. once a link resolves. */
 export function retitleTip(node: HTMLElement, label: string): void {
   if (titles.put(node, label) && tip.visible) tip.label = label;

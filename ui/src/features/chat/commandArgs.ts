@@ -1,11 +1,11 @@
 // V1051-04 Tab after `/combo`, `/paint` and `/badge` completes their argument: combo names and
 // sub-commands, paint and badge names. I106-3 `/remove` and `/rename` complete the first word only: the
-// channel's 7TV emote names. Ranked with the one helper (`complete`).
+// channel’s 7TV emote names. V111-03 `#` completes channels on all the 7TV emote commands. Ranked with the one helper (`complete`).
 
 import { complete } from './completion.ts';
 
 export interface ArgSpot {
-  command: 'combo' | 'paint' | 'badge' | 'remove' | 'rename';
+  command: 'combo' | 'paint' | 'badge' | 'add' | 'remove' | 'rename' | 'steal' | 'yoink' | 'whoadded';
   sub: string | null;
   start: number;
   typed: string;
@@ -21,7 +21,7 @@ interface Arg {
 
 /** `/combo` sub-commands. Never quoted. */
 const SUBS = ['list', 'save', 'delete', 'rename'];
-const COMMAND = /^\/(combo|paint|badge|remove|rename) /i;
+const COMMAND = /^\/(combo|paint|badge|add|remove|rename|steal|yoink|whoadded) /i;
 const OPEN_QUOTE = /["“]/;
 const CLOSE_QUOTE = /["”]/;
 
@@ -53,6 +53,24 @@ function splitArgs(rest: string): Arg[] {
   return out;
 }
 
+/** I106-3 / V111-03 The 7TV emote commands. */
+const EMOTE_COMMANDS = new Set(['add', 'remove', 'rename', 'steal', 'yoink', 'whoadded']);
+
+/** V111-03 A 7TV emote command's word at the caret. A word starting with `#` completes channels
+ * (`sub` '#', after the `#`); emote names have no spaces, so the name words are: every one for
+ * /remove, the first for the others (none for /add). Their `sub` is the `#channel` typed
+ * anywhere in the line (`whole`: the text after the command, caret or not), or null. */
+function emoteArg(command: ArgSpot['command'], whole: string, from: number, rest: string): ArgSpot | null {
+  const wordStart = rest.search(/\S*$/);
+  const typed = rest.slice(wordStart);
+  if (typed.startsWith('#')) return { command, sub: '#', start: from + wordStart + 1, typed: typed.slice(1), quote: false };
+  if (command === 'add') return null;
+  const before = rest.slice(0, wordStart).split(/\s+/).filter((w) => w && !w.startsWith('#'));
+  if (command !== 'remove' && before.length > 0) return null;
+  const channel = whole.split(/\s+/).find((w) => /^#[A-Za-z0-9_]{1,25}$/.test(w));
+  return { command, sub: channel ? channel.slice(1).toLowerCase() : null, start: from + wordStart, typed, quote: false };
+}
+
 /** Where an argument is being typed, or null. `start` is where the replaced text begins
  * (an opening quote included), `typed` what's after the quote up to the caret. */
 export function argAt(text: string, caret: number): ArgSpot | null {
@@ -63,9 +81,7 @@ export function argAt(text: string, caret: number): ArgSpot | null {
   const command = m[1].toLowerCase() as ArgSpot['command'];
   const from = before.length - head.length + m[0].length;
   const rest = head.slice(m[0].length);
-  // I106-3 Emote names have no spaces: only the first word completes.
-  if (command === 'remove' || command === 'rename')
-    return /\s/.test(rest) ? null : { command, sub: null, start: from, typed: rest, quote: false };
+  if (EMOTE_COMMANDS.has(command)) return emoteArg(command, text.slice(from), from, rest);
   if (command !== 'combo') return { command, sub: null, start: from, typed: rest, quote: false };
 
   const args = splitArgs(rest);

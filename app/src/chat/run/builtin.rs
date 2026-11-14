@@ -81,7 +81,10 @@ pub async fn run(
         // V1051-04
         "combo" | "paint" | "badge" => super::cosmetics::run(app, place, name, args).await,
         // I106-3
-        "add" | "remove" | "rename" => super::seventv_edit::run(app, place, name, args).await,
+        // V111-03 /steal (/yoink), /whoadded
+        "add" | "remove" | "rename" | "steal" | "yoink" | "whoadded" => {
+            super::seventv_edit::run(app, place, name, args).await
+        }
         "set" => set_var(app, args).map(|()| None),
         // V110-C69 The same line up to 100 times, as fast as Twitch takes it.
         // V110-F99 A guarded line hands the text over with its marks (`guard::args`): the count and
@@ -333,6 +336,8 @@ pub(super) const OWN: &[&str] = &[
     "combo", "paint", "badge",
     // I106-3
     "add", "remove", "rename",
+    // V111-03
+    "steal", "yoink", "whoadded",
     // V110-C69
     "spam",
     // V110-N13
@@ -347,6 +352,8 @@ const LOCAL: &[&str] = &[
     "unhideuser", "mutepings", "translate", "search", "popout", "cosmetics", "mods", "vips", "roles",
     // V110-N13
     "poll", "prediction",
+    // V111-03 Reads 7TV only.
+    "whoadded",
 ];
 
 /// V107-Mb A built-in that writes to Twitch (or 7TV) as the account: anything not [`LOCAL`],
@@ -380,6 +387,8 @@ pub(super) const SIGNED_IN: &[&str] = &["me", "tl", "vote", "color", "cosmetics"
     "combo", "paint", "badge",
     // I106-3
     "add", "remove", "rename",
+    // V111-03
+    "steal", "yoink",
     // V110-C69
     "spam",
 ];
@@ -667,6 +676,9 @@ mod tests {
         // I106-3 Same for the 7TV emote commands.
         assert!(has(&viewer, &["add", "remove", "rename"]) && none(&anon, &["add", "remove", "rename"]));
         assert!(super::super::seventv_edit::NAMES.iter().all(|n| OWN.contains(n)));
+        // V111-03 /steal writes as you; /whoadded only reads, so anyone may.
+        assert!(has(&viewer, &["steal", "yoink"]) && none(&anon, &["steal", "yoink"]));
+        assert!(has(&anon, &["whoadded"]) && !writes("whoadded") && writes("steal"));
         // Sorted, once each.
         assert!(owner.windows(2).all(|w| w[0] < w[1]));
     }

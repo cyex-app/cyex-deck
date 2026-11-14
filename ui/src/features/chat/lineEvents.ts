@@ -2,7 +2,8 @@
 // emote card and emote menu, @mentions, #channels, links and uploads, and the tips over
 // badges, links and emoji. The lists delegate their clicks, keys and hovers here.
 
-import { hideTip, lingerTip, previewTip, retitleTip, showTip } from '../../components/tooltip.svelte';
+import { sameTip } from './sameTip';
+import { adoptTip, hideTip, lingerTip, previewTip, retitleTip, showTip } from '../../components/tooltip.svelte';
 import type { MenuEntry } from '../../components/menu.svelte';
 import { popOut } from '../../app/panels';
 import type { LinkTarget } from '../../ipc/bindings/LinkTarget';
@@ -148,7 +149,17 @@ const TIPPED = '[data-tip],[data-link],[data-emoji],[data-stamp]';
  *  off, scrolls away or goes with the tab gives no mouseout, so its tip goes with it. */
 export function lineTips(root: () => HTMLElement | undefined) {
   let tipEl: HTMLElement | null = null;
-  const gone = new MutationObserver(() => tipEl && !tipEl.isConnected && drop());
+  const gone = new MutationObserver(() => tipEl && !tipEl.isConnected && (redrawn(tipEl) || drop()));
+
+  /** V111-02 The newest line is drawn again under a resting pointer (its link resolved, say):
+   *  the open tip moves to the new copy instead of closing and showing again (a quick flash). */
+  function redrawn(old: HTMLElement): boolean {
+    const hovered = [...document.querySelectorAll<HTMLElement>(':hover')].at(-1);
+    const next = hovered?.closest<HTMLElement>(TIPPED);
+    if (!next || !sameTip(old, next) || !adoptTip(old, next)) return false;
+    tipEl = next;
+    return true;
+  }
 
   function hold(el: HTMLElement) {
     tipEl = el;

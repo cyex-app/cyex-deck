@@ -2,7 +2,7 @@
 
 use std::sync::Arc;
 
-use cyex_chat::model::{EmoteLook, Provider};
+use cyex_chat::model::{EmoteLook, NoticeEmote, Provider};
 use cyex_chat::tokenize::Found;
 use serde::Serialize;
 use ts_rs::TS;
@@ -76,6 +76,17 @@ impl Emote {
             approved_personal: false,
             denied_personal: false,
             shared: false,
+        }
+    }
+
+    /// V111-01 The emote as an emote-change line carries it.
+    pub fn notice(&self) -> NoticeEmote {
+        NoticeEmote {
+            provider: self.provider,
+            id: self.id.clone(),
+            name: self.name.clone(),
+            animated: self.animated,
+            size: self.size,
         }
     }
 

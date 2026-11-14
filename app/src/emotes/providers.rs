@@ -4,7 +4,7 @@
 
 use std::sync::Arc;
 
-use cyex_chat::model::Provider;
+use cyex_chat::model::{NoticeEmote, Provider};
 use cyex_emotes::bttv::{self, socket::Event as BttvEvent};
 use cyex_emotes::ffz::{self, api::RoomBadges};
 use cyex_emotes::seventv;
@@ -306,7 +306,7 @@ fn bttv_event(app: &AppHandle, e: BttvEvent) {
         }
         BttvEvent::Added { channel_id, emote, by } => {
             let text = bttv_added_line(&emote.name, by.as_deref());
-            change_channel(app, &channel_id, &text, |emotes| {
+            change_channel(app, &channel_id, &text, Some(emote.notice()), |emotes| {
                 if emotes.iter().any(|e| e.id == emote.id && e.name == emote.name) {
                     return false;
                 }
@@ -316,15 +316,20 @@ fn bttv_event(app: &AppHandle, e: BttvEvent) {
             });
         }
         BttvEvent::Renamed { channel_id, id, name } => {
-            let old = find_name(app, &channel_id, &id);
-            if old.as_deref() == Some(name.as_str()) {
+            let old = find_emote(app, &channel_id, &id);
+            if old.as_ref().map(|e| e.name.as_str()) == Some(name.as_str()) {
                 return;
             }
             let text = match &old {
-                Some(old) => format!("The BTTV emote {old} is now {name}."),
+                Some(old) => format!("The BTTV emote {} is now {name}.", old.name),
                 None => format!("A BTTV emote is now {name}."),
             };
-            change_channel(app, &channel_id, &text, |emotes| {
+            // V111-01 The picture is the emote as it is now.
+            let shown = match &old {
+                Some(old) => cyex_emotes::Emote { name: name.clone(), ..(**old).clone() },
+                None => cyex_emotes::Emote::new(Provider::Bttv, id.clone(), name.clone()),
+            };
+            change_channel(app, &channel_id, &text, Some(shown.notice()), |emotes| {
                 let Some(slot) = emotes.iter_mut().find(|e| e.id == id) else {
                     return false;
                 };
@@ -335,11 +340,11 @@ fn bttv_event(app: &AppHandle, e: BttvEvent) {
             });
         }
         BttvEvent::Removed { channel_id, id } => {
-            let Some(name) = find_name(app, &channel_id, &id) else {
+            let Some(gone) = find_emote(app, &channel_id, &id) else {
                 return;
             };
-            let text = format!("The BTTV emote {name} was removed.");
-            change_channel(app, &channel_id, &text, |emotes| {
+            let text = format!("The BTTV emote {} was removed.", gone.name);
+            change_channel(app, &channel_id, &text, Some(gone.notice()), |emotes| {
                 let before = emotes.len();
                 emotes.retain(|e| e.id != id);
                 emotes.len() != before
@@ -356,7 +361,8 @@ pub(super) fn bttv_added_line(name: &str, by: Option<&str>) -> String {
     }
 }
 
-fn find_name(app: &AppHandle, channel_id: &str, emote_id: &str) -> Option<String> {
+/// The channel's BTTV emote with this id (V111-01 whole, for its picture).
+fn find_emote(app: &AppHandle, channel_id: &str, emote_id: &str) -> Option<Arc<cyex_emotes::Emote>> {
     let state = app.state::<Emotes>();
     let inner = state.lock();
     inner
@@ -367,7 +373,7 @@ fn find_name(app: &AppHandle, channel_id: &str, emote_id: &str) -> Option<String
         .filter(|s| s.provider == Provider::Bttv)
         .flat_map(|s| s.emotes.iter())
         .find(|e| e.id == emote_id)
-        .map(|e| e.name.clone())
+        .cloned()
 }
 
 /// Edits the channel's BTTV set, then tells its chats (C10), unless `edit` found nothing to do
@@ -376,6 +382,7 @@ fn change_channel(
     app: &AppHandle,
     channel_id: &str,
     notice: &str,
+    emote: Option<NoticeEmote>,
     edit: impl Fn(&mut Vec<Arc<cyex_emotes::Emote>>) -> bool,
 ) {
     let state = app.state::<Emotes>();
@@ -429,7 +436,7 @@ fn change_channel(
         logins
     };
     for login in logins {
-        super::change_line(app, &login, notice);
+        super::change_line(app, &login, notice, emote.as_ref());
     }
 }
 

@@ -773,6 +773,14 @@ pub fn system_line(app: &AppHandle, login: &str, text: &str) {
     notice_line(app, login, NoticeKind::Info, text);
 }
 
+/// V111-01 [`system_line`] for an emote change: the emote shows as a small picture after its name.
+pub fn emote_line(app: &AppHandle, login: &str, text: &str, emote: &cyex_chat::model::NoticeEmote) {
+    let now = now_ms();
+    each_room(app, login, |room, _| {
+        vec![room.emote_line(NoticeKind::Info, text, emote.clone(), now)]
+    });
+}
+
 /// A line of `kind` in every room of a channel.
 pub fn notice_line(app: &AppHandle, login: &str, kind: NoticeKind, text: &str) {
     let now = now_ms();

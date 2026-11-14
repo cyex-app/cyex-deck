@@ -27,7 +27,7 @@ use crate::irc::Line;
 use crate::rules::{Outcome, Rules};
 use crate::similar::Repeats;
 use crate::model::{
-    ChatMessage, ConnStatus, Flag, Gone, GoneHow, Meta, NoticeKind, NoticeUser, Pinned, Reply, Restriction, RoomEvent,
+    ChatMessage, ConnStatus, Flag, Gone, GoneHow, Meta, NoticeEmote, NoticeKind, NoticeUser, Pinned, Reply, Restriction, RoomEvent,
     RoomState, Sender, plain,
 };
 use crate::tokenize::{Emotes, Input, tokenize};
@@ -340,6 +340,17 @@ impl Room {
     /// A line of ours, e.g. a send error found before reaching Twitch.
     pub fn system(&mut self, kind: NoticeKind, text: &str, now_ms: i64) -> RoomEvent {
         let m = Arc::new(build::system(kind, text, now_ms));
+        self.push(m.clone());
+        RoomEvent::Message { message: m }
+    }
+
+    /// V111-01 [`Self::system`] for an emote-change line: `emote` is drawn after its name in `text`.
+    pub fn emote_line(&mut self, kind: NoticeKind, text: &str, emote: NoticeEmote, now_ms: i64) -> RoomEvent {
+        let mut m = build::system(kind, text, now_ms);
+        if let Some(n) = m.notice.as_mut() {
+            n.emote = Some(emote);
+        }
+        let m = Arc::new(m);
         self.push(m.clone());
         RoomEvent::Message { message: m }
     }

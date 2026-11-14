@@ -27,6 +27,23 @@ test('I106-3 /remove and /rename complete the first word', () => {
   assert.deepEqual(argMatches({ command: 'rename', sub: null, start: 8, typed: '', quote: false }, ['a b']), ['a b']);
 });
 
+test('V111-03 # completes channels, names know the #channel', () => {
+  assert.deepEqual(at('/add x #fo|'), { command: 'add', sub: '#', start: 8, typed: 'fo', quote: false });
+  assert.deepEqual(at('/steal KEKW #|'), { command: 'steal', sub: '#', start: 13, typed: '', quote: false });
+  assert.deepEqual(at('/remove a b #x|'), { command: 'remove', sub: '#', start: 13, typed: 'x', quote: false });
+  // /remove: every name word; the #channel anywhere in the line goes along.
+  assert.deepEqual(at('/remove a #Forsen K|'), { command: 'remove', sub: 'forsen', start: 18, typed: 'K', quote: false });
+  assert.deepEqual(at('/remove a b|'), { command: 'remove', sub: null, start: 10, typed: 'b', quote: false });
+  // The others: only the first name word.
+  assert.deepEqual(at('/steal KE| #forsen'), { command: 'steal', sub: 'forsen', start: 7, typed: 'KE', quote: false });
+  assert.deepEqual(at('/yoink #forsen KE|'), { command: 'yoink', sub: 'forsen', start: 15, typed: 'KE', quote: false });
+  assert.deepEqual(at('/whoadded K|'), { command: 'whoadded', sub: null, start: 10, typed: 'K', quote: false });
+  assert.equal(at('/steal KEKW n|'), null);
+  assert.equal(at('/whoadded KEKW x|'), null);
+  assert.equal(at('/add 01HZX|'), null);
+  assert.deepEqual(argMatches({ command: 'add', sub: '#', start: 0, typed: 'fo', quote: false }, ['forsen', 'xqc']), ['forsen']);
+});
+
 test('V1051-04 no argument to complete', () => {
   assert.equal(at('/combo save x|'), null);
   assert.equal(at('/combo rename "a b" c|'), null);

@@ -163,7 +163,7 @@ pub fn seventv_set(app: AppHandle, login: String, set_id: Option<String>, actor:
         inner.rebuild(&login);
         drop(inner);
         let text = super::live::switch_line(actor.as_deref(), name.as_deref(), set_id.is_none());
-        super::change_line(&app, &login, &text);
+        super::change_line(&app, &login, &text, None);
     });
 }
 

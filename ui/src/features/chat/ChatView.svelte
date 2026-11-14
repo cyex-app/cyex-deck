@@ -43,7 +43,7 @@
   import { toast } from '../../lib/toast.svelte';
   import { chatReloads } from '../tabs/reload';
   import { recordingStopText, recordingWarnText } from './recordingStop';
-  import { editDone } from '../emotes/edit/run'; // I106-3
+  import { editDone, editsDone } from '../emotes/edit/run'; // I106-3, V111-03
   import { catalogs } from './catalog.svelte';
   import ChatInput from './ChatInput.svelte';
   import { filtersEntry } from '../../components/menus/filtersRow';
@@ -262,6 +262,10 @@
     else if (a.type === 'sevenTvEdited') {
       // I106-3 /add, /remove, /rename: the Undo toast; the chat line came from the edit.
       if (account) editDone(account, login, a.op, a.done);
+    }
+    else if (a.type === 'sevenTvRemoved') {
+      // V111-03 /remove with several names: one toast and one Undo for all.
+      if (account) editsDone(account, login, a.line, a.dones);
     }
     // V110-N13 /poll, /prediction (typed or from a menu entry): the floating panel for this
     // chat's channel (Rust checked the role).

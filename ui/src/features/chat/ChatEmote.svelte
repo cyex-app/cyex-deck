@@ -17,8 +17,9 @@
 
   type EmoteFragment = Extract<Fragment, { t: 'emote' }>;
 
-  /** `giant`: 1.42 the emote this message gigantified, for the card. */
-  let { f, giant = false }: { f: EmoteFragment; giant?: boolean } = $props();
+  /** `giant`: 1.42 the emote this message gigantified, for the card. `bare`: V111-01 an emote-change line's
+   *  picture, its name already in the line's text: nothing when hidden, no alt text. */
+  let { f, giant = false, bare = false }: { f: EmoteFragment; giant?: boolean; bare?: boolean } = $props();
 
   const c = $derived(settings.v.chat);
   const theme = $derived(settings.v.appearance.theme);
@@ -55,7 +56,7 @@
     class="emote {classes}"
     class:smiley={e.provider === 'twitch' && smileys.has(e.id)}
     src={img.src}
-    alt={e.name}
+    alt={bare ? '' : e.name}
     onload={(ev) => e.provider === 'twitch' && smiley(ev.currentTarget as HTMLImageElement, e.id)}
     style:aspect-ratio={emoteRatio(e.size)}
     loading="lazy"
@@ -64,7 +65,7 @@
   />
 {/snippet}
 
-{#if !visible}{f.name}{#each f.stack ?? [] as l, i (i)}{' '}{l.name}{/each}{:else}
+{#if !visible}{#if !bare}{f.name}{/if}{#if !bare}{#each f.stack ?? [] as l, i (i)}{' '}{l.name}{/each}{/if}{:else}
   {@const unlisted = f.unlisted && c.unlistedEmotes === 'blur'}
   {@const base = `${modClasses(f.mods)}${unlisted ? ' unlisted' : ''}`}
   <span

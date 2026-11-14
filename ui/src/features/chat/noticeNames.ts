@@ -45,3 +45,27 @@ export function splitNames(text: string, links: readonly NoticeUser[]): NoticePa
   if (pos < text.length) parts.push({ text: text.slice(pos) });
   return parts;
 }
+
+/**
+ * V111-01 Where an emote-change line's picture goes: the text cut right after the emote's name
+ * (the one after "emote ", "to " or "now ", else its last place). Null when the name isn't there.
+ */
+export function splitEmote(text: string, name: string): [string, string] | null {
+  if (!name) return null;
+  let at = -1;
+  for (const lead of ['emote ', ' to ', ' now ']) {
+    const i = text.indexOf(lead + name);
+    if (i < 0) continue;
+    const end = i + lead.length + name.length;
+    // The name stands alone: a longer name ("notLX") doesn't count.
+    if (end < text.length && WORD.test(text[end]!)) continue;
+    at = end;
+    // "renamed the 7TV emote a to b": the last of these is the new name.
+  }
+  if (at < 0) {
+    const i = text.lastIndexOf(name);
+    if (i < 0) return null;
+    at = i + name.length;
+  }
+  return [text.slice(0, at), text.slice(at)];
+}

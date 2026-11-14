@@ -11,6 +11,8 @@ export interface TipSlot<K, V> {
   /** What's waiting for `key`, if it's still the hovered one. */
   read(key: K): V | undefined;
   owner(): K | null;
+  /** V111-02 `from` was drawn again as `to`: what waits for it moves along. */
+  move(from: K, to: K): void;
 }
 
 export function tipSlot<K, V>(): TipSlot<K, V> {
@@ -33,5 +35,8 @@ export function tipSlot<K, V>(): TipSlot<K, V> {
     },
     read: (key) => (owner === key ? value : undefined),
     owner: () => owner,
+    move(from, to) {
+      if (owner === from) owner = to;
+    },
   };
 }

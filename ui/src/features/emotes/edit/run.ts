@@ -53,6 +53,20 @@ export function editDone(account: string, login: string, op: EditOp, done: EditD
   });
 }
 
+/** V111-03 `/remove a b c` took several: one toast, one Undo that puts them all back. */
+export function editsDone(account: string, login: string, line: string, dones: EditDone[]): void {
+  forgetEmoteMenu(login);
+  toast.success(line, {
+    action: {
+      label: 'Undo',
+      run: () =>
+        void (async () => {
+          for (const d of dones) await undoEdit(account, login, d);
+        })(),
+    },
+  });
+}
+
 /** U4 What the user is filling in: add to a channel's set, or rename in this chat's. */
 export type EditForm = { kind: 'add'; target: AddTarget; ownName?: string } | { kind: 'rename'; here: HereEdit };
 

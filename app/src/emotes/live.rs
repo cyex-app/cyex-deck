@@ -3,7 +3,7 @@
 
 use std::sync::Arc;
 
-use cyex_chat::model::Provider;
+use cyex_chat::model::{NoticeEmote, Provider};
 use cyex_emotes::cosmetics::{Cosmetics, SevenChange};
 use cyex_emotes::seventv::events::{Entitled, Event, SetChange};
 use cyex_emotes::seventv::{self};
@@ -219,7 +219,7 @@ fn set_changed(app: &AppHandle, c: SetChange) {
     };
     super::edit::on_set_changed(app, &c, &ours);
     let state = app.state::<Emotes>();
-    let mut notices: Vec<(String, Vec<String>)> = Vec::new();
+    let mut notices: Vec<(String, Vec<ChangeLine>)> = Vec::new();
     {
         let mut inner = state.lock();
         let logins = apply_to_channels(&mut inner, &c, &ours);
@@ -245,8 +245,8 @@ fn set_changed(app: &AppHandle, c: SetChange) {
         }
     }
     for (login, texts) in notices {
-        for t in texts {
-            super::change_line(app, &login, &t);
+        for (t, e) in texts {
+            super::change_line(app, &login, &t, e.as_ref());
         }
     }
 }
@@ -298,8 +298,8 @@ pub(crate) fn apply_local(app: &AppHandle, c: &SetChange) {
         apply_to_channels(&mut inner, &rest, &c.removed)
     };
     for login in logins {
-        for t in lines(c.actor.as_deref(), c) {
-            super::change_line(app, &login, &t);
+        for (t, e) in lines(c.actor.as_deref(), c) {
+            super::change_line(app, &login, &t, e.as_ref());
         }
     }
 }
@@ -361,43 +361,62 @@ fn apply(set: &EmoteSet, c: &SetChange, ours: &[(String, String)]) -> EmoteSet {
     }
 }
 
+/// V111-01 A change line's text and the emote it shows.
+type ChangeLine = (String, Option<NoticeEmote>);
+
 /// C10 "xQc added the 7TV emote notL." V108-C31 Without a name: "The 7TV emote notL was added."
-/// Set renamed and size changes read the same way.
-fn lines(actor: Option<&str>, c: &SetChange) -> Vec<String> {
-    let mut out = Vec::new();
+/// Set renamed and size changes read the same way. V111-01 Emote lines carry the emote (a removed
+/// one only as id and name) for its picture.
+fn lines(actor: Option<&str>, c: &SetChange) -> Vec<ChangeLine> {
+    let mut out: Vec<ChangeLine> = Vec::new();
     for e in &c.added {
-        out.push(match actor {
-            Some(a) => format!("{a} added the 7TV emote {}.", e.name),
-            None => format!("The 7TV emote {} was added.", e.name),
-        });
+        out.push((
+            match actor {
+                Some(a) => format!("{a} added the 7TV emote {}.", e.name),
+                None => format!("The 7TV emote {} was added.", e.name),
+            },
+            Some(e.notice()),
+        ));
     }
-    for (_, name) in &c.removed {
-        out.push(match actor {
-            Some(a) => format!("{a} removed the 7TV emote {name}."),
-            None => format!("The 7TV emote {name} was removed."),
-        });
+    for (id, name) in &c.removed {
+        out.push((
+            match actor {
+                Some(a) => format!("{a} removed the 7TV emote {name}."),
+                None => format!("The 7TV emote {name} was removed."),
+            },
+            Some(Emote::new(Provider::Seventv, id.clone(), name.clone()).notice()),
+        ));
     }
     for (_, old, new) in &c.renamed {
         if *old != new.name {
-            out.push(match actor {
-                Some(a) => format!("{a} renamed the 7TV emote {old} to {}.", new.name),
-                None => format!("The 7TV emote {old} is now {}.", new.name),
-            });
+            out.push((
+                match actor {
+                    Some(a) => format!("{a} renamed the 7TV emote {old} to {}.", new.name),
+                    None => format!("The 7TV emote {old} is now {}.", new.name),
+                },
+                Some(new.notice()),
+            ));
         }
     }
     if let Some((old, new)) = &c.set_renamed {
-        out.push(match (actor, old.is_empty()) {
-            (Some(a), false) => format!("{a} renamed the 7TV set {old} to {new}."),
-            (Some(a), true) => format!("{a} renamed the 7TV set to {new}."),
-            (None, false) => format!("The 7TV set {old} is now {new}."),
-            (None, true) => format!("The 7TV set is now {new}."),
-        });
+        out.push((
+            match (actor, old.is_empty()) {
+                (Some(a), false) => format!("{a} renamed the 7TV set {old} to {new}."),
+                (Some(a), true) => format!("{a} renamed the 7TV set to {new}."),
+                (None, false) => format!("The 7TV set {old} is now {new}."),
+                (None, true) => format!("The 7TV set is now {new}."),
+            },
+            None,
+        ));
     }
     if let Some((_, size)) = c.capacity {
-        out.push(match actor {
-            Some(a) => format!("{a} set the 7TV set size to {size}."),
-            None => format!("The 7TV set size is now {size}."),
-        });
+        out.push((
+            match actor {
+                Some(a) => format!("{a} set the 7TV set size to {size}."),
+                None => format!("The 7TV set size is now {size}."),
+            },
+            None,
+        ));
     }
     out
 }
@@ -422,6 +441,30 @@ mod tests {
         Emote::new(Provider::Seventv, id, name)
     }
 
+    /// The text of each line.
+    fn texts(actor: Option<&str>, c: &SetChange) -> Vec<String> {
+        lines(actor, c).into_iter().map(|(t, _)| t).collect()
+    }
+
+    /// V111-01 Added, removed and renamed lines carry the emote for its picture.
+    #[test]
+    fn v111_01_emote_lines_carry_the_emote() {
+        let c = SetChange {
+            set_id: "s".into(),
+            added: vec![emote("3", "c")],
+            removed: vec![("1".into(), "a".into())],
+            renamed: vec![("2".into(), "b".into(), emote("2", "bee"))],
+            set_renamed: Some(("Old".into(), "New".into())),
+            ..SetChange::default()
+        };
+        let got: Vec<Option<(String, String)>> = lines(None, &c)
+            .into_iter()
+            .map(|(_, e)| e.map(|e| (e.id, e.name)))
+            .collect();
+        let pair = |i: &str, n: &str| Some((i.to_owned(), n.to_owned()));
+        assert_eq!(got, [pair("3", "c"), pair("1", "a"), pair("2", "bee"), None]);
+    }
+
     #[test]
     fn changes_apply_and_read_well() {
         let set = EmoteSet::new(
@@ -442,7 +485,7 @@ mod tests {
         let names: Vec<&str> = next.emotes.iter().map(|e| e.name.as_str()).collect();
         assert_eq!(names, ["bee", "c"]);
         assert_eq!(
-            lines(Some("xQc"), &c),
+            texts(Some("xQc"), &c),
             [
                 "xQc added the 7TV emote c.",
                 "xQc removed the 7TV emote a.",
@@ -450,7 +493,7 @@ mod tests {
             ]
         );
         assert_eq!(
-            lines(None, &c),
+            texts(None, &c),
             [
                 "The 7TV emote c was added.",
                 "The 7TV emote a was removed.",
@@ -468,7 +511,7 @@ mod tests {
             ..SetChange::default()
         };
         assert_eq!(
-            lines(Some("xQc"), &c),
+            texts(Some("xQc"), &c),
             ["xQc renamed the 7TV set Old to New.", "xQc set the 7TV set size to 600."]
         );
         let set = EmoteSet::new("s", Provider::Seventv, Scope::Channel, Vec::new());

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { splitNames } from './noticeNames.ts';
+import { splitEmote, splitNames } from './noticeNames.ts';
 
 const u = (name: string, login: string) => ({ name, login });
 
@@ -39,4 +39,18 @@ test('CJK display names match', () => {
     { text: 'テスト', login: 'tesuto' },
     { text: ' gifted a sub' },
   ]);
+});
+
+test('V111-01 the emote picture goes right after the emote name', () => {
+  const at = (text: string, name: string) => splitEmote(text, name)?.join('|');
+  assert.equal(at('xQc added the 7TV emote notL.', 'notL'), 'xQc added the 7TV emote notL|.');
+  assert.equal(at('The 7TV emote notL was removed.', 'notL'), 'The 7TV emote notL| was removed.');
+  // A rename shows the new name, also when the actor or the old name is the same word.
+  assert.equal(at('xQc renamed the 7TV emote a to bee.', 'bee'), 'xQc renamed the 7TV emote a to bee|.');
+  assert.equal(at('The BTTV emote a is now b.', 'b'), 'The BTTV emote a is now b|.');
+  // BTTV names the maker: the maker is not the emote.
+  assert.equal(at('The BTTV emote RareHug by RareHug was added.', 'RareHug'), 'The BTTV emote RareHug| by RareHug was added.');
+  // A longer name that only starts the same doesn't count; a name not in the text gives nothing.
+  assert.equal(at('The 7TV emote notLX was added.', 'notL'), 'The 7TV emote notL|X was added.');
+  assert.equal(splitEmote('The 7TV emote x was added.', 'zzz'), null);
 });

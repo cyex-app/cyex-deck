@@ -22,18 +22,23 @@ pub fn names(app: &AppHandle, view: u32) -> Result<Vec<String>, String> {
 }
 
 /// V1051-04 Tab's candidates for an argument of `/combo`, `/paint` or `/badge` (raw names; the UI
-/// ranks them), and I106-3 `/remove` and `/rename`: this channel's 7TV emote names. `sub` is `/combo`'s sub-command when the caret is past it.
+/// ranks them), and I106-3 `/remove` and `/rename`: this channel’s 7TV emote names (V111-03 see
+/// `emote_args`). `sub` is `/combo`’s sub-command when the caret is past it.
 pub async fn args(app: &AppHandle, view: u32, command: &str, sub: Option<&str>) -> Result<Vec<String>, String> {
     use std::time::Duration;
 
     use crate::cosmetics::{self, Kind, lookup};
 
     let place = place_of(app, view, false)?;
+    // V111-03 The 7TV emote commands: `sub` "#" asks for channels, else it is the `#channel`
+    // typed (or none), whose emote names come back.
+    if matches!(command, "add" | "remove" | "rename" | "steal" | "yoink" | "whoadded") {
+        return Ok(emote_args(app, place.account(), place.channel(), command, sub));
+    }
     let Some(account) = place.account() else {
         return Ok(Vec::new());
     };
     let kind = match command {
-        "remove" | "rename" => return Ok(crate::emotes::edit::here_names(app, account, place.channel())),
         "combo" => {
             let sub = sub.map(str::to_ascii_lowercase);
             return Ok(match sub.as_deref() {
@@ -56,4 +61,24 @@ pub async fn args(app: &AppHandle, view: u32, command: &str, sub: Option<&str>) 
         out.extend(lookup::names(&inv, kind));
     }
     Ok(out)
+}
+
+/// V111-03 Tab for the 7TV emote commands. No network.
+fn emote_args(app: &AppHandle, account: Option<&str>, here: &str, command: &str, sub: Option<&str>) -> Vec<String> {
+    use crate::emotes::edit;
+
+    if sub == Some("#") {
+        return edit::channel_names(app, account, here);
+    }
+    let channel = sub.filter(|s| edit::is_login(s)).unwrap_or(here);
+    match command {
+        "remove" | "rename" => match account {
+            Some(a) if channel == here => edit::here_names(app, a, here),
+            Some(a) => edit::names_for(app, a, channel),
+            None => Vec::new(),
+        },
+        "steal" | "yoink" if account.is_some() && channel != here => edit::loaded_names(app, channel),
+        "whoadded" => edit::loaded_names(app, channel),
+        _ => Vec::new(),
+    }
 }
