@@ -58,11 +58,18 @@ pub(super) fn channel_of(app: AppHandle, login: String, id: String, generation: 
         return;
     }
     tauri::async_runtime::spawn(async move {
+        let sets_off = super::providers::current(&app).sets_off;
+        // V111-14 The kept sets first, so the chat (and its history, `ready`) has them at once.
+        let kept = super::cache::read_many(&app, super::providers::channel_keys(&id, want)).await;
+        let (found, kept) = super::providers::kept_channel(&id, sets_off, kept);
+        if found.any() && !super::retry::merge(&app, &login, generation, found, kept) {
+            return;
+        }
         let http = http(&app);
         let lane = crate::chat::shown::lane(&app, &login);
-        let sets_off = super::providers::current(&app).sets_off;
         let got = super::providers::channel(&http, &id, lane, want, sets_off).await;
         let failed = got.failed;
+        super::cache::note_fallbacks(found, failed);
         if super::retry::merge(&app, &login, generation, want, got) && failed.any() {
             super::retry::spawn(app, login, id, generation, failed);
         }

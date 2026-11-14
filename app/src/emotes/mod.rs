@@ -4,6 +4,7 @@
 //! what through `looks`.
 
 mod art;
+mod cache;
 mod card;
 mod card_flags;
 pub mod cyex;
@@ -171,6 +172,7 @@ pub fn init(app: &AppHandle) {
     cyex::init(app);
     ffz_watch::init(app);
     art::init(app);
+    cache::init(app);
 }
 
 fn spawn(task: std::pin::Pin<Box<dyn Future<Output = ()> + Send>>) {

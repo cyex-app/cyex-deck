@@ -5,8 +5,9 @@ use std::collections::HashMap;
 
 use cyex_chat::model::Provider;
 use cyex_twitch::pace::{Lane, Opts, Service};
-use cyex_twitch::{Http, Result};
+use cyex_twitch::{Error, Http, Result};
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use ts_rs::TS;
 
 use crate::cosmetics::BadgeDef;
@@ -22,10 +23,17 @@ pub struct Global {
 }
 
 pub async fn global(http: &Http) -> Result<Global> {
-    let raw: RawGlobal = http
-        .get_json_paced(Service::Ffz, Lane::Front, &format!("{API}/set/global/ids"))
-        .await?;
-    Ok(raw.into())
+    parse_global(&global_raw(http).await?).map_err(Error::Decode)
+}
+
+/// V111-14 [`global`]'s answer as FFZ sent it, for the app's disk copy; [`parse_global`] reads it.
+pub async fn global_raw(http: &Http) -> Result<Value> {
+    http.get_json_paced(Service::Ffz, Lane::Front, &format!("{API}/set/global/ids"))
+        .await
+}
+
+pub fn parse_global(v: &Value) -> serde_json::Result<Global> {
+    Ok(RawGlobal::deserialize(v)?.into())
 }
 
 /// A room's pictures for its mods and VIPs, replacing Twitch's.
@@ -45,27 +53,34 @@ pub struct Room {
 /// `None` when the channel has no FFZ room (404 or 500, B7: not retried). Paced
 /// (V107-P2); S2 in the background it fails fast, the emote retry queue asks again.
 pub async fn room(http: &Http, twitch_id: &str, lane: Lane) -> Result<Option<Room>> {
+    parse_room(&room_raw(http, twitch_id, lane).await?).map_err(Error::Decode)
+}
+
+/// V111-14 [`room`]'s answer as FFZ sent it; `null` without a room (404 or 500).
+pub async fn room_raw(http: &Http, twitch_id: &str, lane: Lane) -> Result<Value> {
     let opts = Opts {
         lane,
         quick: true,
         answers: &[500],
     };
     match http
-        .get_json_paced_with::<RawRoomData>(Service::Ffz, opts, &format!("{API}/room/id/{twitch_id}"))
+        .get_json_paced_with(Service::Ffz, opts, &format!("{API}/room/id/{twitch_id}"))
         .await
     {
-        Ok(r) => Ok(Some(r.into())),
-        Err(cyex_twitch::Error::Api {
+        Err(Error::Api {
             status: 404 | 500, ..
-        }) => Ok(None),
-        Err(e) => Err(e),
+        }) => Ok(Value::Null),
+        r => r,
     }
 }
 
-/// V108-C31 A `/room/id/{id}` answer, for tests of what changed between two reads.
-#[cfg(test)]
-pub(crate) fn parse_room(json: &str) -> Option<Room> {
-    serde_json::from_str::<RawRoomData>(json).ok().map(Room::from)
+/// V111-14 A [`room_raw`] answer; `None` without a room. V108-C31 Tests read two answers
+/// with it to see what changed.
+pub fn parse_room(v: &Value) -> serde_json::Result<Option<Room>> {
+    if v.is_null() {
+        return Ok(None);
+    }
+    Ok(Some(RawRoomData::deserialize(v)?.into()))
 }
 
 /// FFZ's badges and who has them, as sorted Twitch ids (40.000+ people, kept small).
@@ -275,6 +290,16 @@ mod tests {
     fn fixture<T: serde::de::DeserializeOwned>(name: &str) -> T {
         let path = format!("{}/tests/fixtures/ffz/{name}", env!("CARGO_MANIFEST_DIR"));
         serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap()
+    }
+
+    /// V111-14 Kept answers read back; `null` is "no room".
+    #[test]
+    fn v111_14_raw_answers_parse_again() {
+        let g: Value = fixture("set_global_ids.json");
+        assert!(!parse_global(&g).unwrap().sets.is_empty());
+        let r: Value = fixture("room.json");
+        assert!(parse_room(&r).unwrap().unwrap().set.is_some());
+        assert!(parse_room(&Value::Null).unwrap().is_none());
     }
 
     #[test]

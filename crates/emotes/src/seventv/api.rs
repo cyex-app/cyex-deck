@@ -5,7 +5,7 @@ use std::collections::HashMap;
 
 use cyex_chat::model::Provider;
 use cyex_twitch::pace::{Lane, Opts, Service};
-use cyex_twitch::{Http, Result};
+use cyex_twitch::{Error, Http, Result};
 use serde::Deserialize;
 use serde_json::{Value, json};
 
@@ -46,16 +46,25 @@ pub struct Channel {
 /// `None` when the channel has no 7TV account. E2 Paced: `lane` puts the tab on screen first.
 /// S2 In the background it fails fast; the emote retry queue asks again.
 pub async fn channel(http: &Http, twitch_id: &str, lane: Lane) -> Result<Option<Channel>> {
+    parse_channel(&channel_raw(http, twitch_id, lane).await?).map_err(Error::Decode)
+}
+
+/// V111-14 [`channel`]'s answer as 7TV sent it, for the app's disk copy; [`parse_channel`] reads it.
+pub async fn channel_raw(http: &Http, twitch_id: &str, lane: Lane) -> Result<Value> {
     let q = format!(
-        "query($id: String!) {{ users {{ userByConnection(platform: TWITCH, platformId: $id) {{ id \
-         style {{ activeEmoteSet {{ id emotes {{ {ITEM} }} }} }} }} }} }}"
+        "query($id: String!) {{ users {{ userByConnection(platform: TWITCH, platformId: $id) {{ id          style {{ activeEmoteSet {{ id emotes {{ {ITEM} }} }} }} }} }} }}"
     );
     let opts = Opts {
         lane,
         quick: true,
         ..Opts::default()
     };
-    let data: Data<RawUsers> = paced(http, opts, &q, json!({ "id": twitch_id })).await?;
+    paced(http, opts, &q, json!({ "id": twitch_id })).await
+}
+
+/// V111-14 A [`channel_raw`] answer; `None` when the channel has no 7TV account.
+pub fn parse_channel(v: &Value) -> serde_json::Result<Option<Channel>> {
+    let data = Data::<RawUsers>::deserialize(v)?;
     Ok(data.data.users.user_by_connection.map(|u| Channel {
         user_id: u.id,
         set: u
@@ -66,19 +75,35 @@ pub async fn channel(http: &Http, twitch_id: &str, lane: Lane) -> Result<Option<
 }
 
 pub async fn global(http: &Http) -> Result<EmoteSet> {
+    parse_global(&global_raw(http).await?).map_err(Error::Decode)
+}
+
+/// V111-14 [`global`]'s answer as 7TV sent it; [`parse_global`] reads it.
+pub async fn global_raw(http: &Http) -> Result<Value> {
     let q = format!("query {{ emoteSets {{ global {{ id emotes {{ {ITEM} }} }} }} }}");
-    let data: Data<RawGlobal> = paced(http, Lane::Front, &q, json!({})).await?;
-    Ok(data.data.emote_sets.global.into_set(Scope::Global))
+    paced(http, Lane::Front, &q, json!({})).await
+}
+
+pub fn parse_global(v: &Value) -> serde_json::Result<EmoteSet> {
+    Ok(Data::<RawGlobal>::deserialize(v)?.data.emote_sets.global.into_set(Scope::Global))
 }
 
 /// Sets by id, e.g. personal ones (C9). At most [`MAX_BATCH`]. B8 Paced.
 pub async fn sets(http: &Http, ids: &[String], lane: Lane) -> Result<Vec<EmoteSet>> {
+    parse_sets(&sets_raw(http, ids, lane).await?).map_err(Error::Decode)
+}
+
+/// V111-14 [`sets`]' answer as 7TV sent it; [`parse_sets`] reads it.
+pub async fn sets_raw(http: &Http, ids: &[String], lane: Lane) -> Result<Value> {
     let q = format!(
         "query($ids: [Id!]!) {{ emoteSets {{ emoteSets(ids: $ids) {{ id name kind emotes {{ {ITEM} }} }} }} }}"
     );
     let ids = &ids[..ids.len().min(MAX_BATCH)];
-    let data: Data<RawSets> = paced(http, lane, &q, json!({ "ids": ids })).await?;
-    Ok(data
+    paced(http, lane, &q, json!({ "ids": ids })).await
+}
+
+pub fn parse_sets(v: &Value) -> serde_json::Result<Vec<EmoteSet>> {
+    Ok(Data::<RawSets>::deserialize(v)?
         .data
         .emote_sets
         .emote_sets
@@ -471,6 +496,19 @@ mod tests {
     fn fixture<T: serde::de::DeserializeOwned>(name: &str) -> T {
         let path = format!("{}/tests/fixtures/7tv/{name}", env!("CARGO_MANIFEST_DIR"));
         serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap()
+    }
+
+    /// V111-14 A kept answer reads back the same as the live one; a stranger answer is an error.
+    #[test]
+    fn v111_14_raw_answers_parse_again() {
+        let v: Value = fixture("v4_channel_emote_set.json");
+        let ch = parse_channel(&v).unwrap().unwrap();
+        assert!(ch.set.unwrap().get("GAMBA").is_some());
+        let none: Value = fixture("v4_channel_emote_set_no_account.json");
+        assert_eq!(parse_channel(&none).unwrap(), None);
+        assert!(parse_channel(&json!({ "nope": 1 })).is_err());
+        let batch: Value = fixture("v4_emote_sets_batch.json");
+        assert!(!parse_sets(&batch).unwrap().is_empty());
     }
 
     #[test]

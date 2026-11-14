@@ -12,10 +12,12 @@ use cyex_emotes::{EmoteSet, Scope};
 use cyex_settings::Partition;
 use cyex_settings::schema::Chat as ChatSettings;
 use cyex_twitch::Http;
+use serde_json::Value;
 use cyex_twitch::pace::{Lane, Service};
 use tauri::{AppHandle, Manager};
 use tokio::sync::mpsc::UnboundedReceiver;
 
+use super::cache::{Key, Save};
 use super::{Emotes, looks};
 use crate::settings::Settings;
 
@@ -26,6 +28,8 @@ pub struct Globals {
     pub answered: Which,
     /// Failed for now: asked again later (B4).
     pub failed: Which,
+    /// V111-14 The answers to keep on disk.
+    pub save: Vec<Save>,
 }
 
 /// B4 Global sets of those in `want` (7TV's, BTTV's and FFZ's), and BTTV's and FFZ's
@@ -38,21 +42,31 @@ pub async fn globals(app: &AppHandle, http: &Http, want: Which) -> Globals {
     // V110-E13 A provider whose emotes are off gets no sets; its badges still come.
     let sets = current(app).sets_off.not();
     let (s, b, f, bb, fb) = tokio::join!(
-        ask(want.seventv && sets.seventv, seventv::api::global(http)),
-        ask(want.bttv && sets.bttv, bttv::api::global(http)),
-        ask(want.ffz && sets.ffz, ffz::api::global(http)),
+        ask(want.seventv && sets.seventv, seventv::api::global_raw(http)),
+        ask(want.bttv && sets.bttv, bttv::api::global_raw(http)),
+        ask(want.ffz && sets.ffz, ffz::api::global_raw(http)),
         ask(want.bttv, bttv::api::badges(http)),
         ask(want.ffz, ffz::api::badges(http))
     );
     let mut sets = Vec::new();
     let mut failed = Which::default();
+    let mut save = Vec::new();
+    let s = s.map(|r| parsed(r, seventv::api::parse_global));
+    let b = b.map(|r| parsed(r, bttv::api::parse_global));
+    let f = f.map(|r| parsed(r, ffz::api::parse_global));
     match s {
-        Some(Ok(set)) => sets.push(Arc::new(set)),
+        Some(Ok((set, v))) => {
+            save.push((Key::Global(Provider::Seventv), Some(v)));
+            sets.push(Arc::new(set));
+        }
         Some(Err(e)) => failed.seventv |= miss(Service::SevenTv, "globals", &e),
         None => {}
     }
     match b {
-        Some(Ok(set)) => sets.push(Arc::new(set)),
+        Some(Ok((set, v))) => {
+            save.push((Key::Global(Provider::Bttv), Some(v)));
+            sets.push(Arc::new(set));
+        }
         Some(Err(e)) => failed.bttv |= miss(Service::Bttv, "globals", &e),
         None => {}
     }
@@ -65,23 +79,9 @@ pub async fn globals(app: &AppHandle, http: &Http, want: Which) -> Globals {
     let state = app.state::<Emotes>();
     let mut inner = state.lock();
     match f {
-        Some(Ok(g)) => {
-            sets.extend(g.sets.into_iter().map(Arc::new));
-            for (set, users) in g.personal {
-                let id = set.id.clone();
-                inner.personal_sets.insert(id.clone(), Arc::new(set));
-                // B9 The whole batch stamped, then rebuilt, then one trim.
-                for u in &users {
-                    let list = inner.user_sets.get_or_default(u.clone());
-                    if !list.contains(&id) {
-                        list.push(id.clone());
-                    }
-                }
-                for u in &users {
-                    inner.rebuild_personal(u);
-                }
-            }
-            inner.trim_personal();
+        Some(Ok((g, v))) => {
+            save.push((Key::Global(Provider::Ffz), Some(v)));
+            sets.extend(ffz_global(&mut inner, g));
         }
         Some(Err(e)) => failed.ffz |= miss(Service::Ffz, "globals", &e),
         None => {}
@@ -104,7 +104,78 @@ pub async fn globals(app: &AppHandle, http: &Http, want: Which) -> Globals {
         sets,
         answered: want.minus(failed),
         failed,
+        save,
     }
+}
+
+/// FFZ's global sets; its sets for some users go in as personal ones (C9).
+fn ffz_global(inner: &mut super::Inner, g: ffz::api::Global) -> Vec<Arc<EmoteSet>> {
+    for (set, users) in g.personal {
+        let id = set.id.clone();
+        inner.personal_sets.insert(id.clone(), Arc::new(set));
+        // B9 The whole batch stamped, then rebuilt, then one trim.
+        for u in &users {
+            let list = inner.user_sets.get_or_default(u.clone());
+            if !list.contains(&id) {
+                list.push(id.clone());
+            }
+        }
+        for u in &users {
+            inner.rebuild_personal(u);
+        }
+    }
+    inner.trim_personal();
+    g.sets.into_iter().map(Arc::new).collect()
+}
+
+/// V111-14 The keys of the global sets `want` asks for (those whose emotes are on).
+pub fn global_keys(app: &AppHandle, want: Which) -> Vec<Key> {
+    let on = want.minus(current(app).sets_off);
+    [Provider::Seventv, Provider::Bttv, Provider::Ffz]
+        .into_iter()
+        .filter(|p| on.has(*p))
+        .map(Key::Global)
+        .collect()
+}
+
+/// V111-14 Kept global answers as sets (FFZ's personal ones go in on the way), and which
+/// providers had one.
+pub fn kept_globals(app: &AppHandle, kept: Vec<(Key, Value)>) -> (Which, Vec<Arc<EmoteSet>>) {
+    let mut found = Which::default();
+    let mut sets = Vec::new();
+    for (key, v) in kept {
+        match key {
+            Key::Global(Provider::Seventv) => {
+                if let Ok(set) = seventv::api::parse_global(&v) {
+                    found.seventv = true;
+                    sets.push(Arc::new(set));
+                }
+            }
+            Key::Global(Provider::Bttv) => {
+                if let Ok(set) = bttv::api::parse_global(&v) {
+                    found.bttv = true;
+                    sets.push(Arc::new(set));
+                }
+            }
+            Key::Global(Provider::Ffz) => {
+                if let Ok(g) = ffz::api::parse_global(&v) {
+                    found.ffz = true;
+                    let state = app.state::<Emotes>();
+                    sets.extend(ffz_global(&mut state.lock(), g));
+                }
+            }
+            _ => {}
+        }
+    }
+    (found, sets)
+}
+
+/// V111-14 A raw answer read, with the answer kept to save. One that doesn't read is a
+/// failed call, as before.
+fn parsed<T>(r: cyex_twitch::Result<Value>, parse: impl FnOnce(&Value) -> serde_json::Result<T>) -> cyex_twitch::Result<(T, Value)> {
+    let v = r?;
+    let t = parse(&v).map_err(cyex_twitch::Error::Decode)?;
+    Ok((t, v))
 }
 
 /// Logs a failed global fetch; true when it's worth asking again.
@@ -199,6 +270,8 @@ pub struct Fetched {
     /// FFZ's mod and VIP pictures, when FFZ answered.
     pub badges: Option<RoomBadges>,
     pub failed: Which,
+    /// V111-14 The answers to keep on disk.
+    pub save: Vec<Save>,
 }
 
 /// A channel's 7TV, BTTV and FFZ sets (those in `want`), and FFZ's mod and VIP pictures.
@@ -207,49 +280,56 @@ pub struct Fetched {
 pub async fn channel(http: &Http, id: &str, lane: Lane, want: Which, sets_off: Which) -> Fetched {
     let b = async {
         if want.bttv {
-            Some(bttv::api::channel(http, id, lane).await)
+            Some(bttv::api::channel_raw(http, id, lane).await)
         } else {
             None
         }
     };
     let f = async {
         if want.ffz {
-            Some(ffz::api::room(http, id, lane).await)
+            Some(ffz::api::room_raw(http, id, lane).await)
         } else {
             None
         }
     };
     let s = async {
         if want.seventv {
-            Some(seventv::api::channel(http, id, lane).await)
+            Some(seventv::api::channel_raw(http, id, lane).await)
         } else {
             None
         }
     };
     let (s, b, f) = tokio::join!(s, b, f);
     let mut out = Fetched::default();
-    match s {
-        Some(Ok(ch)) => out.seventv = ch,
+    let key = |p: Provider| Key::Channel(p, id.to_owned());
+    match s.map(|r| parsed(r, seventv::api::parse_channel)) {
+        Some(Ok((ch, v))) => {
+            // No 7TV account (any more): nothing to keep, and the kept one goes.
+            out.save.push((key(Provider::Seventv), ch.is_some().then_some(v)));
+            out.seventv = ch;
+        }
         Some(Err(e)) => {
             out.failed.seventv = Service::SevenTv.transient(&e);
             eprintln!("emotes: no 7TV emotes for {id}: {}", e.describe("7TV"));
         }
         None => {}
     }
-    match b {
-        Some(Ok(s)) => out.bttv = s.map(Arc::new),
+    match b.map(|r| parsed(r, |v| bttv::api::parse_channel(id, v))) {
+        Some(Ok((s, v))) => {
+            out.save.push((key(Provider::Bttv), s.is_some().then_some(v)));
+            out.bttv = s.map(Arc::new);
+        }
         Some(Err(e)) => {
             out.failed.bttv = Service::Bttv.transient(&e);
             eprintln!("emotes: no BTTV emotes for {id}: {}", e.describe("BTTV"));
         }
         None => {}
     }
-    match f {
-        Some(Ok(Some(room))) => {
-            out.ffz = room.set.filter(|_| !sets_off.ffz).map(Arc::new);
-            out.badges = Some(room.badges);
+    match f.map(|r| parsed(r, ffz::api::parse_room)) {
+        Some(Ok((room, v))) => {
+            out.save.push((key(Provider::Ffz), room.is_some().then_some(v)));
+            put_room(&mut out, room, sets_off);
         }
-        Some(Ok(None)) => out.badges = Some(RoomBadges::default()),
         Some(Err(e)) => {
             out.failed.ffz = Service::Ffz.transient(&e);
             eprintln!("emotes: no FFZ emotes for {id}: {}", e.describe("FFZ"));
@@ -257,6 +337,57 @@ pub async fn channel(http: &Http, id: &str, lane: Lane, want: Which, sets_off: W
         None => {}
     }
     out
+}
+
+fn put_room(out: &mut Fetched, room: Option<ffz::api::Room>, sets_off: Which) {
+    match room {
+        Some(room) => {
+            out.ffz = room.set.filter(|_| !sets_off.ffz).map(Arc::new);
+            out.badges = Some(room.badges);
+        }
+        None => out.badges = Some(RoomBadges::default()),
+    }
+}
+
+/// V111-14 The keys of a channel's sets `want` asks for.
+pub fn channel_keys(id: &str, want: Which) -> Vec<Key> {
+    [Provider::Seventv, Provider::Bttv, Provider::Ffz]
+        .into_iter()
+        .filter(|p| want.has(*p))
+        .map(|p| Key::Channel(p, id.to_owned()))
+        .collect()
+}
+
+/// V111-14 Kept channel answers as a fetch would bring them, and which providers had one.
+/// Only answers with an account are kept, so each found one has sets to draw.
+pub fn kept_channel(id: &str, sets_off: Which, kept: Vec<(Key, Value)>) -> (Which, Fetched) {
+    let mut found = Which::default();
+    let mut out = Fetched::default();
+    for (key, v) in kept {
+        let Key::Channel(p, _) = key else { continue };
+        match p {
+            Provider::Seventv => {
+                if let Ok(Some(ch)) = seventv::api::parse_channel(&v) {
+                    found.seventv = true;
+                    out.seventv = Some(ch);
+                }
+            }
+            Provider::Bttv => {
+                if let Ok(Some(s)) = bttv::api::parse_channel(id, &v) {
+                    found.bttv = true;
+                    out.bttv = Some(Arc::new(s));
+                }
+            }
+            Provider::Ffz => {
+                if let Ok(Some(room)) = ffz::api::parse_room(&v) {
+                    found.ffz = true;
+                    put_room(&mut out, Some(room), sets_off);
+                }
+            }
+            Provider::Twitch => {}
+        }
+    }
+    (found, out)
 }
 
 pub fn spawn_bttv(app: AppHandle, mut rx: UnboundedReceiver<BttvEvent>) {

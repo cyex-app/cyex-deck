@@ -131,7 +131,8 @@ mod tests {
             env!("CARGO_MANIFEST_DIR")
         ))
         .unwrap();
-        let room = super::super::api::parse_room(&raw).unwrap();
+        let raw: serde_json::Value = serde_json::from_str(&raw).unwrap();
+        let room = super::super::api::parse_room(&raw).unwrap().unwrap();
         let emotes = room.set.unwrap().emotes;
         assert!(!emotes.is_empty());
         assert!(diff(&emotes, &emotes).is_empty());

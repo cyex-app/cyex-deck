@@ -2,8 +2,9 @@
 
 use cyex_chat::model::Provider;
 use cyex_twitch::pace::{Lane, Opts, Service};
-use cyex_twitch::{Http, Result};
+use cyex_twitch::{Error, Http, Result};
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use ts_rs::TS;
 
 use crate::cosmetics::BadgeDef;
@@ -24,9 +25,17 @@ const ZERO_WIDTH: &[&str] = &[
 ];
 
 pub async fn global(http: &Http) -> Result<EmoteSet> {
-    let list: Vec<RawEmote> = http
-        .get_json_paced(Service::Bttv, Lane::Front, &format!("{API}/cached/emotes/global"))
-        .await?;
+    parse_global(&global_raw(http).await?).map_err(Error::Decode)
+}
+
+/// V111-14 [`global`]'s answer as BTTV sent it, for the app's disk copy; [`parse_global`] reads it.
+pub async fn global_raw(http: &Http) -> Result<Value> {
+    http.get_json_paced(Service::Bttv, Lane::Front, &format!("{API}/cached/emotes/global"))
+        .await
+}
+
+pub fn parse_global(v: &Value) -> serde_json::Result<EmoteSet> {
+    let list = Vec::<RawEmote>::deserialize(v)?;
     Ok(EmoteSet::new(
         "bttv-global",
         Provider::Bttv,
@@ -41,19 +50,31 @@ pub async fn global(http: &Http) -> Result<EmoteSet> {
 /// The channel's own and shared emotes. `None` without a BTTV account. Paced (V107-P2);
 /// S2 in the background it fails fast, the emote retry queue asks again.
 pub async fn channel(http: &Http, twitch_id: &str, lane: Lane) -> Result<Option<EmoteSet>> {
+    parse_channel(twitch_id, &channel_raw(http, twitch_id, lane).await?).map_err(Error::Decode)
+}
+
+/// V111-14 [`channel`]'s answer as BTTV sent it; `null` without a BTTV account (404).
+pub async fn channel_raw(http: &Http, twitch_id: &str, lane: Lane) -> Result<Value> {
     let opts = Opts {
         lane,
         quick: true,
         ..Opts::default()
     };
-    let res: Result<RawUser> = http
+    match http
         .get_json_paced_with(Service::Bttv, opts, &format!("{API}/cached/users/twitch/{twitch_id}"))
-        .await;
-    let user = match res {
-        Ok(u) => u,
-        Err(cyex_twitch::Error::Api { status: 404, .. }) => return Ok(None),
-        Err(e) => return Err(e),
-    };
+        .await
+    {
+        Err(Error::Api { status: 404, .. }) => Ok(Value::Null),
+        r => r,
+    }
+}
+
+/// V111-14 A [`channel_raw`] answer; `None` without a BTTV account.
+pub fn parse_channel(twitch_id: &str, v: &Value) -> serde_json::Result<Option<EmoteSet>> {
+    if v.is_null() {
+        return Ok(None);
+    }
+    let user = RawUser::deserialize(v)?;
     let emotes = user
         .channel_emotes
         .into_iter()
@@ -283,6 +304,17 @@ mod tests {
     fn fixture<T: serde::de::DeserializeOwned>(name: &str) -> T {
         let path = format!("{}/tests/fixtures/bttv/{name}", env!("CARGO_MANIFEST_DIR"));
         serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap()
+    }
+
+    /// V111-14 Kept answers read back; `null` is "no BTTV account".
+    #[test]
+    fn v111_14_raw_answers_parse_again() {
+        let g: Value = fixture("global_emotes.json");
+        assert!(!parse_global(&g).unwrap().emotes.is_empty());
+        let u: Value = fixture("user.json");
+        assert_eq!(parse_channel("1", &u).unwrap().unwrap().id, "bttv-1");
+        assert_eq!(parse_channel("1", &Value::Null).unwrap(), None);
+        assert!(parse_channel("1", &serde_json::json!([1])).is_err());
     }
 
     #[test]

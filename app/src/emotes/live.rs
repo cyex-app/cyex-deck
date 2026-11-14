@@ -177,37 +177,56 @@ fn personal(app: &AppHandle, added: bool, set_id: String, users: Vec<String>) {
     if missing {
         let app = app.clone();
         tauri::async_runtime::spawn(async move {
+            // V111-14 The kept copy first (7TV may be slow), then 7TV's answer over it.
+            let key = super::cache::Key::Set(set_id.clone());
+            let kept = super::cache::read_many(&app, vec![key.clone()]).await;
+            if let Some(sets) = kept.first().and_then(|(_, v)| seventv::api::parse_sets(v).ok()) {
+                put_personal(&app, &users, sets);
+            }
             let http = app.state::<Auth>().http.clone();
-            let sets = match seventv::api::sets(&http, std::slice::from_ref(&set_id), Lane::Back).await {
-                Ok(s) => s,
+            let raw = seventv::api::sets_raw(&http, std::slice::from_ref(&set_id), Lane::Back).await;
+            let sets = match raw.map(|v| (seventv::api::parse_sets(&v), v)) {
+                Ok((Ok(s), v)) => {
+                    super::cache::save(&app, vec![(key, (!s.is_empty()).then_some(v))]);
+                    s
+                }
+                Ok((Err(e), _)) => {
+                    eprintln!("emotes: no 7TV personal set {set_id}: unexpected answer ({e})");
+                    return;
+                }
                 Err(e) => {
                     eprintln!("emotes: no 7TV personal set {set_id}: {}", e.describe("7TV"));
                     return;
                 }
             };
-            let state = app.state::<Emotes>();
-            let mut inner = state.lock();
-            for mut set in sets {
-                // B9 Only while one of its users is still kept, else it'd be orphaned.
-                let held = users
-                    .iter()
-                    .any(|u| inner.user_sets.get(u.as_str()).is_some_and(|s| s.contains(&set.id)));
-                if !held {
-                    continue;
-                }
-                // V108-C32 A granted set is personal only when 7TV says so; the rest are event sets.
-                if !matches!(set.scope, Scope::Personal | Scope::Special) {
-                    set.scope = Scope::Special;
-                }
-                inner.personal_sets.insert(set.id.clone(), Arc::new(set));
-            }
-            for u in &users {
-                inner.rebuild_personal(u);
-            }
-            drop(inner);
-            crate::chat::retokenize_users(&app, &users);
+            put_personal(&app, &users, sets);
         });
     }
+}
+
+/// C9 Granted 7TV sets in, for `users`, and their lines drawn again.
+fn put_personal(app: &AppHandle, users: &[String], sets: Vec<EmoteSet>) {
+    let state = app.state::<Emotes>();
+    let mut inner = state.lock();
+    for mut set in sets {
+        // B9 Only while one of its users is still kept, else it'd be orphaned.
+        let held = users
+            .iter()
+            .any(|u| inner.user_sets.get(u.as_str()).is_some_and(|s| s.contains(&set.id)));
+        if !held {
+            continue;
+        }
+        // V108-C32 A granted set is personal only when 7TV says so; the rest are event sets.
+        if !matches!(set.scope, Scope::Personal | Scope::Special) {
+            set.scope = Scope::Special;
+        }
+        inner.personal_sets.insert(set.id.clone(), Arc::new(set));
+    }
+    for u in users {
+        inner.rebuild_personal(u);
+    }
+    drop(inner);
+    crate::chat::retokenize_users(app, users);
 }
 
 fn set_changed(app: &AppHandle, c: SetChange) {

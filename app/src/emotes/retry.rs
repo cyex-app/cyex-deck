@@ -144,6 +144,8 @@ fn joined(app: &AppHandle, login: &str, generation: u64) -> bool {
 /// false once that join is gone. B1 The first load goes through here too: each answered
 /// provider's set replaces the one a socket change or an earlier load put in.
 pub(super) fn merge(app: &AppHandle, login: &str, generation: u64, asked: Which, mut got: Fetched) -> bool {
+    // V111-14 Good answers are kept on disk even when this join is gone.
+    super::cache::save(app, std::mem::take(&mut got.save));
     let came = asked.minus(got.failed);
     {
         let state = app.state::<Emotes>();
@@ -187,13 +189,22 @@ fn put(c: &mut Channel, came: Which, got: Fetched) {
 /// later chat asks for what's still missing.
 pub(super) fn globals(app: AppHandle, want: Which) {
     tauri::async_runtime::spawn(async move {
+        // V111-14 The kept global sets first; the ask below replaces them.
+        let kept = super::cache::read_many(&app, providers::global_keys(&app, want)).await;
+        let (found, kept) = providers::kept_globals(&app, kept);
+        if found.any() {
+            put_kept_globals(&app, found, kept);
+        }
         let left = keep_asking(want, |n| wait_secs(n, jitter()), usize::MAX, |ask, n| {
             let app = app.clone();
             async move {
                 let http = app.state::<crate::auth::Auth>().http.clone();
-                let got = providers::globals(&app, &http, ask).await;
+                let mut got = providers::globals(&app, &http, ask).await;
+                super::cache::save(&app, std::mem::take(&mut got.save));
                 if n > 0 {
                     log_in(ask, got.failed, "globals", n);
+                } else {
+                    super::cache::note_fallbacks(found, got.failed);
                 }
                 put_globals(&app, got.answered, got.sets, n > 0);
                 got.failed
@@ -240,6 +251,22 @@ fn put_globals(app: &AppHandle, answered: Which, sets: Vec<Arc<EmoteSet>>, tell:
         } else {
             Vec::new()
         }
+    };
+    let _ = state.globals_ready.send(true);
+    for login in logins {
+        let _ = app.emit("emotes:loaded", login);
+    }
+}
+
+/// V111-14 Kept global sets in place of the providers' (none yet): drawn and ready, but not
+/// done, so a failed ask is still asked again.
+fn put_kept_globals(app: &AppHandle, found: Which, sets: Vec<Arc<EmoteSet>>) {
+    let state = app.state::<Emotes>();
+    let logins: Vec<String> = {
+        let mut inner = state.lock();
+        swap_globals(&mut inner.globals, found, sets);
+        inner.rebuild_all();
+        inner.channels.keys().cloned().collect()
     };
     let _ = state.globals_ready.send(true);
     for login in logins {
@@ -417,6 +444,52 @@ mod tests {
         assert_eq!(tries, 200);
         assert!(!left.any());
         assert!((240..=360).contains(&wait_secs(WAITS.len() + 40, jitter())));
+    }
+
+    fn fixture(path: &str) -> serde_json::Value {
+        let p = format!("{}/../crates/emotes/tests/fixtures/{path}", env!("CARGO_MANIFEST_DIR"));
+        serde_json::from_str(&std::fs::read_to_string(p).unwrap()).unwrap()
+    }
+
+    /// V111-14 Stale while revalidate: the kept sets go in first, a fresh answer takes their
+    /// place, and a failed ask (7TV down) leaves the kept ones drawn.
+    #[test]
+    fn v111_14_kept_sets_first_then_fresh_and_kept_on_failure() {
+        use super::super::cache::Key;
+        let mut c = Channel {
+            id: "1".into(),
+            generation: 1,
+            retry: None,
+            sets: Vec::new(),
+            seventv_user: None,
+            seventv_switch: 0,
+            ffz_badges: Default::default(),
+            lookup: Arc::default(),
+            whole: false,
+            ready: tokio::sync::watch::channel(false).0,
+        };
+        let kept = vec![
+            (Key::Channel(Provider::Bttv, "1".into()), fixture("bttv/user.json")),
+            (Key::Channel(Provider::Ffz, "1".into()), fixture("ffz/room.json")),
+            // A broken file's body reads as no copy.
+            (Key::Channel(Provider::Seventv, "1".into()), serde_json::json!({ "x": 1 })),
+        ];
+        let (found, got) = providers::kept_channel("1", Which::default(), kept);
+        assert_eq!(found, Which { seventv: false, bttv: true, ffz: true });
+        put(&mut c, found, got);
+        let ids = |c: &Channel| c.sets.iter().map(|s| s.id.clone()).collect::<Vec<_>>();
+        let kept_ids = ids(&c);
+        assert!(kept_ids.contains(&"bttv-1".to_owned()) && kept_ids.len() == 2, "{kept_ids:?}");
+        // 7TV and BTTV down: what was kept stays.
+        let down = Fetched { failed: Which { seventv: true, bttv: true, ffz: false }, ..Fetched::default() };
+        let asked = Which { seventv: true, bttv: true, ffz: false };
+        put(&mut c, asked.minus(down.failed), down);
+        assert_eq!(ids(&c), kept_ids);
+        // BTTV back: its fresh set takes the kept one's place.
+        let fresh = Fetched { bttv: Some(set(Provider::Bttv, Scope::Channel, "fresh")), ..Fetched::default() };
+        put(&mut c, Which { bttv: true, ..Which::default() }, fresh);
+        let now = ids(&c);
+        assert!(now.contains(&"fresh".to_owned()) && !now.contains(&"bttv-1".to_owned()), "{now:?}");
     }
 
     #[test]
