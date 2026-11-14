@@ -25,6 +25,7 @@ pub mod preview;
 pub mod random;
 pub mod recent;
 pub mod resolver;
+pub mod roles;
 pub mod spade;
 pub mod translate;
 pub mod uploader;

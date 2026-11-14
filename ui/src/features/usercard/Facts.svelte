@@ -1,6 +1,8 @@
 <!-- 1.36 One row each, icon first (V101-05, the 7TV extension's way): created, followers,
      sub status (api.ivr.fi), follow age (only when an account here moderates the channel)
-     and earlier names (logs.cyex.app). Each loads on its own. -->
+     and earlier names (logs.cyex.app). Each loads on its own. V111-13 Last live with its title
+     and the gifter (api.ivr.fi), the chat colour; each row can be turned off in Settings >
+     Usercard, and one that is off isn't looked up. -->
 <script lang="ts" module>
   import { chatIpc } from '../../ipc/chat';
 
@@ -27,8 +29,17 @@
   import { usercardIpc } from '../../ipc/rules';
   import { formatDate, formatNumber } from '../../lib/format';
   import { tooltip } from '../../components/tooltip.svelte';
+  import type { IvrUser } from '../../ipc/bindings/IvrUser';
+  import { settings } from '../../lib/settings.svelte';
+  import { copied } from '../../lib/copied.svelte';
+  import { chatHex, giftText, lastLiveText, lookups } from './facts';
 
-  let { profile, channel }: { profile: Profile; channel: string } = $props();
+  let { profile, channel, ivr = null }: { profile: Profile; channel: string; ivr?: IvrUser | null } = $props();
+
+  const show = $derived(settings.v.chat.usercard);
+  // What to ask is settled when the card opens; turning a row on later shows it on the next card.
+  // svelte-ignore state_referenced_locally
+  const ask = lookups(settings.v.chat.usercard);
 
   let sub = $state<SubStatus | null | undefined>(undefined);
   /** V107-R26 The channel's own profile: a channel that is neither affiliate nor partner has no subs. */
@@ -45,20 +56,30 @@
   const own = login === room;
 
   if (!own) {
-    subless(room).then((v) => (noSubs = v));
+    if (ask.sub) {
+      subless(room).then((v) => (noSubs = v));
+      usercardIpc
+        .subStatus(login, room)
+        .then((s) => (sub = s))
+        .catch(() => (sub = null));
+    }
+    if (ask.followAge) {
+      usercardIpc
+        .followAge(room, id)
+        .then((f) => (follow = f))
+        .catch(() => {});
+    }
+  }
+  if (ask.names) {
     usercardIpc
-      .subStatus(login, room)
-      .then((s) => (sub = s))
-      .catch(() => (sub = null));
-    usercardIpc
-      .followAge(room, id)
-      .then((f) => (follow = f))
+      .nameHistory(id)
+      .then((n) => (names = n.filter((x) => x.login !== login)))
       .catch(() => {});
   }
-  usercardIpc
-    .nameHistory(id)
-    .then((n) => (names = n.filter((x) => x.login !== login)))
-    .catch(() => {});
+
+  const live = $derived(lastLiveText(ivr));
+  const hex = $derived(chatHex(profile.color, ivr));
+  const cp = copied();
 
   const TIERS: Record<string, string> = { '1': 'Tier 1', '2': 'Tier 2', '3': 'Tier 3', prime: 'Prime' };
   const day = (rfc: string) => formatDate(new Date(rfc));
@@ -83,26 +104,46 @@
     if (sub.hidden) return 'Sub status hidden';
     if (sub.active) {
       const how = sub.tier ? (TIERS[sub.tier] ?? sub.tier) : 'Subbed';
-      return `${how}${sub.gift ? ', gifted' : ''} · ${months(sub.months)}`;
+      const gift = giftText(sub, show.gifter);
+      return `${how}${gift ? `, ${gift}` : ''} · ${months(sub.months)}`;
     }
     return sub.months ? `Was subbed ${months(sub.months)}` : 'Never subbed';
   });
 </script>
 
 <ul>
-  <li><Icon name="cake" size={14} />Created {profile.createdAt ? day(profile.createdAt) : '—'}</li>
-  {#if profile.followers != null}
+  {#if show.created}
+    <li><Icon name="cake" size={14} />Created {profile.createdAt ? day(profile.createdAt) : '—'}</li>
+  {/if}
+  {#if show.followers && profile.followers != null}
     <li><Icon name="users" size={14} />{formatNumber(profile.followers)} {profile.followers === 1 ? 'follower' : 'followers'}</li>
   {/if}
+  {#if show.lastLive && ask.ivr && live}
+    <li class="live">
+      <Icon name="tv" size={14} /><span
+        >{live}{#if ivr?.lastTitle}<span class="title" use:tooltip={ivr.lastTitle}>{ivr.lastTitle}</span>{/if}</span
+      >
+    </li>
+  {/if}
   {#if !own}
-    <li class:dim={noSubs || !sub?.active}><Icon name="star" size={14} />{subText}</li>
-    {#if follow?.known}
+    {#if show.sub && ask.sub}
+      <li class:dim={noSubs || !sub?.active}><Icon name="star" size={14} />{subText}</li>
+    {/if}
+    {#if show.followAge && follow?.known}
       <li>
         <Icon name="heart" size={14} />{follow.since ? `Following since ${day(follow.since)} · ${age(follow.since)}` : 'Not following'}
       </li>
     {/if}
   {/if}
-  {#if names.length}
+  {#if show.chatColor && hex}
+    <li>
+      <span class="swatch" style:background={hex} aria-hidden="true"></span><span class="hex">Chat color {hex}</span><span class="sr-only" aria-live="polite">{cp.said}</span>
+      <button class="cp" aria-label="Copy color" use:tooltip={'Copy color'} onclick={() => cp.run(hex, 'Color', 'hex')}
+        ><Icon name={cp.is('hex') ? 'check' : 'copy'} size={11} /></button
+      >
+    </li>
+  {/if}
+  {#if show.names && names.length}
     <li>
       <Icon name="history" size={14} /><span
         >Was {#each names as n, i (nameKeys[i])}{i ? ', ' : ''}<span use:tooltip={`${day(n.firstSeen)} – ${day(n.lastSeen)}`}>{n.login}</span
@@ -137,5 +178,42 @@
   }
   .dim {
     color: var(--muted);
+  }
+  /* V111-13 The title under the date, cut to one line; the whole of it on hover. */
+  .live > span {
+    display: grid;
+    min-width: 0;
+  }
+  .title {
+    overflow: hidden;
+    color: var(--muted);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .swatch {
+    flex: none;
+    width: 14px;
+    height: 14px;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius);
+  }
+  .hex {
+    font-variant-numeric: tabular-nums;
+  }
+  .cp {
+    display: grid;
+    flex: none;
+    place-items: center;
+    width: 18px;
+    height: 18px;
+    padding: 0;
+    background: none;
+    border: 0;
+    border-radius: var(--radius);
+    color: var(--dim);
+  }
+  .cp:hover {
+    background: var(--surface-hover);
+    color: var(--text);
   }
 </style>

@@ -35,6 +35,7 @@ pub mod raid;
 pub mod raid_mock;
 pub mod record;
 mod refill;
+mod role_reads;
 pub mod roles;
 pub mod standing;
 pub mod rules;
@@ -771,6 +772,22 @@ pub fn open_channels(app: &AppHandle) -> Vec<String> {
     out.sort_unstable();
     out.dedup();
     out
+}
+
+/// V111-12 Whether any chat of `channel` is open.
+pub fn is_open(app: &AppHandle, channel: &str) -> bool {
+    app.try_state::<Chat>().is_some_and(|chat| chat.lock().rooms.keys().any(|(_, l)| l == channel))
+}
+
+/// V111-12 The channels open as `account` (its user id).
+pub fn open_as(app: &AppHandle, account: &str) -> HashSet<String> {
+    let Some(chat) = app.try_state::<Chat>() else { return HashSet::new() };
+    chat.lock()
+        .rooms
+        .keys()
+        .filter(|(i, _)| matches!(i, Identity::Account(id) if id == account))
+        .map(|(_, l)| l.clone())
+        .collect()
 }
 
 /// C10 A system line in every room of a channel, e.g. "x added the 7TV emote y."

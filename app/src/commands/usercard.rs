@@ -14,6 +14,29 @@ pub async fn user_sub_status(app: AppHandle, user: String, channel: String) -> C
     usercard::sub_status(&app, &user, &channel).await
 }
 
+/// V111-13 Last stream, bot flag and chat colour (api.ivr.fi); null when unknown or off.
+#[tauri::command]
+pub async fn user_ivr(app: AppHandle, login: String) -> CmdResult<Option<cyex_twitch::logs::IvrUser>> {
+    Ok(usercard::ivr_user(&app, &login).await)
+}
+
+/// V111-13 Their role counts in other channels (roles.tv).
+#[tauri::command]
+pub async fn user_role_counts(app: AppHandle, user_id: String) -> CmdResult<cyex_twitch::roles::RoleCounts> {
+    usercard::role_counts(&app, &user_id).await
+}
+
+/// V111-13 One page of channels where they hold a role (roles.tv).
+#[tauri::command]
+pub async fn user_role_page(
+    app: AppHandle,
+    user_id: String,
+    role: cyex_twitch::roles::OtherRole,
+    after: Option<String>,
+) -> CmdResult<cyex_twitch::roles::RolePage> {
+    usercard::role_page(&app, &user_id, role, after).await
+}
+
 #[tauri::command]
 pub async fn user_follow_age(app: AppHandle, channel: String, user_id: String) -> CmdResult<FollowAge> {
     usercard::follow_age(&app, &channel, &user_id).await

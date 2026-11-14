@@ -4,15 +4,21 @@
 //! parsing, the compiled list is swapped in without locking per line, and only a match
 //! is parsed in full. Matches go to the Mentions tab and/or a custom feed (V107-H16, per
 //! row) marked global, with the same alerts as a chat's own mentions.
+//! V111-12 The same list also runs on every live line of the open chats and of the
+//! background reads of channels where the account has a role (`role_reads`), so those come
+//! straight from Twitch, not through logs.cyex.app (which lags a little, and gets Twitch's
+//! chat delay where you'd skip it). Whichever copy of a message comes first counts; later
+//! ones are dropped by id, and one alert gap covers every path.
 
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::collections::VecDeque;
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::{Duration, Instant};
 
 use cyex_chat::build::{self, Colors, Ctx, Incoming};
 use cyex_chat::irc::Line;
 use cyex_chat::mentions::{self, MentionSet};
-use cyex_chat::model::{Flag, Highlight, HighlightKind};
+use cyex_chat::model::{ChatMessage, Flag, Highlight, HighlightKind};
 use cyex_chat::rules::Outcome;
 use cyex_settings::Partition;
 use cyex_settings::schema::Highlights;
@@ -63,6 +69,36 @@ struct Shared {
     /// V108-GM Where a row's "tab" choice goes: the Global mentions tab or the chosen feed.
     dest: Mutex<Option<Arc<str>>>,
     generation: AtomicU64,
+    /// V111-12 The list has something to find: chat lines skip everything else when not.
+    active: AtomicBool,
+    /// V111-12 Messages already taken and the last alert, for every path at once.
+    gate: Mutex<Gate>,
+    /// V111-12 The reader for chat lines (open chats and role reads), made on first use.
+    irc: Mutex<Option<Reader>>,
+}
+
+/// V111-12 One message counts once, whichever path brings it first (the firehose, an open
+/// chat, a role read); alerts at most every [`ALERT_GAP`] across all of them.
+#[derive(Default)]
+struct Gate {
+    seen: VecDeque<(String, Instant)>,
+    last_alert: Option<Instant>,
+}
+
+impl Gate {
+    /// False when this message id was taken already.
+    fn first(&mut self, id: &str, now: Instant) -> bool {
+        super::mention::remember(&mut self.seen, id, now)
+    }
+
+    /// Whether an alert may go now; if so, it counts as the last one.
+    fn alert(&mut self, now: Instant) -> bool {
+        if self.last_alert.is_some_and(|t| now.saturating_duration_since(t) < ALERT_GAP) {
+            return false;
+        }
+        self.last_alert = Some(now);
+        true
+    }
 }
 
 #[derive(Default)]
@@ -83,7 +119,20 @@ impl Global {
 
 pub fn init(app: &AppHandle) {
     app.manage(Global::default());
+    super::role_reads::init(app);
     sync(app);
+}
+
+/// V111-12 A raw line off a chat connection (an open chat's or a role read's): matched
+/// like a firehose line. Anything but a chat message costs a peek.
+pub fn irc_line(app: &AppHandle, raw: &str) {
+    let Some(global) = app.try_state::<Global>() else { return };
+    let shared = &global.shared;
+    if !shared.active.load(Ordering::Acquire) {
+        return;
+    }
+    let mut irc = shared.irc.lock().unwrap_or_else(|p| p.into_inner());
+    irc.get_or_insert_with(|| Reader::new(app.clone())).line(shared, raw);
 }
 
 pub fn status(app: &AppHandle) -> GlobalStatus {
@@ -107,6 +156,9 @@ pub fn sync(app: &AppHandle) {
     let active = !set.is_empty();
     *global.shared.set.lock().unwrap_or_else(|p| p.into_inner()) = Arc::new(set);
     global.shared.generation.fetch_add(1, Ordering::Release);
+    global.shared.active.store(active, Ordering::Release);
+    // V111-12 Role channels are read while there is something to find.
+    super::role_reads::sync(app, active);
     let mut inner = global.lock();
     match (active, inner.stop.is_some()) {
         (true, false) => {
@@ -201,12 +253,12 @@ fn set_status(app: &AppHandle, run: u64, status: GlobalStatus) {
 }
 
 fn start(app: AppHandle, shared: Arc<Shared>, stop: watch::Receiver<bool>, run: u64) {
-    let mut reader = Reader::new(app.clone(), shared);
+    let mut reader = Reader::new(app.clone());
     tauri::async_runtime::spawn(async move {
         firehose::run(
             firehose::URL,
             stop,
-            |line| reader.line(line),
+            |line| reader.line(&shared, line),
             |s| {
                 let status = match s {
                     Status::Connecting => GlobalStatus::Connecting,
@@ -236,10 +288,40 @@ fn outcome(set: &MentionSet, text: &str, scratch: &mut String) -> Option<(String
     (!out.routes.is_empty() || out.pings()).then_some((color, out))
 }
 
-/// What the reader keeps between lines.
+/// A matched line as a message, marked as a mention in `color`. None: not a chat message,
+/// your own (`own` sender id), or from someone never highlighted (`never` login).
+fn mention_of(
+    raw: &str,
+    color: String,
+    colors: &mut Colors,
+    own: impl Fn(&str) -> bool,
+    never: impl Fn(&str) -> bool,
+) -> Option<ChatMessage> {
+    let line = Line::parse(raw)?;
+    let mut ctx = Ctx::new(None, colors, super::now_ms());
+    let Some(Incoming::Message(mut m)) = build::build(&line, &mut ctx) else {
+        return None;
+    };
+    // Your own messages aren't mentions of you.
+    if m.sender_id().is_some_and(&own) {
+        return None;
+    }
+    // V107-Mq Never highlight holds here too.
+    if m.sender.as_ref().is_some_and(|s| never(&s.login)) {
+        return None;
+    }
+    m.set(Flag::Mention);
+    m.meta.highlight = Some(Highlight {
+        kind: HighlightKind::Mention,
+        color: (!color.is_empty()).then_some(color),
+        words: None,
+    });
+    Some(m)
+}
+
+/// What a reader keeps between lines: one for the firehose, one for chat lines.
 struct Reader {
     app: AppHandle,
-    shared: Arc<Shared>,
     set: Arc<MentionSet>,
     dest: Option<Arc<str>>,
     generation: u64,
@@ -247,14 +329,12 @@ struct Reader {
     colors: Colors,
     second: Instant,
     in_second: u32,
-    last_alert: Option<Instant>,
 }
 
 impl Reader {
-    fn new(app: AppHandle, shared: Arc<Shared>) -> Self {
+    fn new(app: AppHandle) -> Self {
         Self {
             app,
-            shared,
             set: Arc::default(),
             dest: None,
             generation: u64::MAX,
@@ -262,16 +342,15 @@ impl Reader {
             colors: Colors::default(),
             second: Instant::now(),
             in_second: 0,
-            last_alert: None,
         }
     }
 
-    /// Runs for every line of the firehose: no allocation unless something matches.
-    fn line(&mut self, raw: &str) {
-        let generation = self.shared.generation.load(Ordering::Acquire);
+    /// Runs for every line: no allocation unless something matches.
+    fn line(&mut self, shared: &Shared, raw: &str) {
+        let generation = shared.generation.load(Ordering::Acquire);
         if generation != self.generation {
-            self.set = self.shared.set.lock().unwrap_or_else(|p| p.into_inner()).clone();
-            self.dest = self.shared.dest.lock().unwrap_or_else(|p| p.into_inner()).clone();
+            self.set = shared.set.lock().unwrap_or_else(|p| p.into_inner()).clone();
+            self.dest = shared.dest.lock().unwrap_or_else(|p| p.into_inner()).clone();
             self.generation = generation;
         }
         let Some(peek) = mentions::peek(raw) else { return };
@@ -281,7 +360,7 @@ impl Reader {
         if !self.room_for_one_more() {
             return;
         }
-        self.matched(raw, peek.channel, color, out);
+        self.matched(shared, raw, peek.channel, color, out);
     }
 
     fn room_for_one_more(&mut self) -> bool {
@@ -293,39 +372,30 @@ impl Reader {
         self.in_second <= MAX_PER_SECOND
     }
 
-    fn matched(&mut self, raw: &str, channel: &str, color: String, mut out: Outcome) {
-        let Some(line) = Line::parse(raw) else { return };
-        let mut ctx = Ctx::new(None, &mut self.colors, super::now_ms());
-        let Some(Incoming::Message(mut m)) = build::build(&line, &mut ctx) else {
+    fn matched(&mut self, shared: &Shared, raw: &str, channel: &str, color: String, mut out: Outcome) {
+        let accounts = crate::auth::accounts(&self.app);
+        let rules = super::rules::current(&self.app);
+        let own = |id: &str| accounts.get(id).is_some();
+        let Some(m) = mention_of(raw, color, &mut self.colors, own, |login| rules.never(login)) else {
             return;
         };
-        // Your own messages aren't mentions of you.
-        let accounts = crate::auth::accounts(&self.app);
-        if m.sender_id().is_some_and(|id| accounts.get(id).is_some()) {
+        // V111-12 The first copy of a message counts: the firehose's, an open chat's or a role read's.
+        if !shared.gate.lock().unwrap_or_else(|p| p.into_inner()).first(&m.id, Instant::now()) {
             return;
         }
-        // V107-Mq Never highlight holds here too.
-        let rules = super::rules::current(&self.app);
-        if m.sender.as_ref().is_some_and(|s| rules.never(&s.login)) {
-            return;
-        }
-        m.set(Flag::Mention);
-        m.meta.highlight = Some(Highlight {
-            kind: HighlightKind::Mention,
-            color: (!color.is_empty()).then_some(color),
-            words: None,
-        });
         let m = Arc::new(m);
         // V107-H16 V108-GM The global tab (or its feed) when the row asks for it, plus any feed of its own.
         out.routes = place(std::mem::take(&mut out.routes), self.dest.as_deref());
         super::feeds::route_global(&self.app, channel, &m, &out.routes);
         // C27 Silent chats stay silent here too; pings come at most every few seconds.
-        let quiet = rules.muted(channel);
-        let soon = self.last_alert.is_some_and(|t| t.elapsed() < ALERT_GAP);
-        if out.pings() && !quiet && !soon {
-            self.last_alert = Some(Instant::now());
+        if out.pings()
+            && !rules.muted(channel)
+            && shared.gate.lock().unwrap_or_else(|p| p.into_inner()).alert(Instant::now())
+        {
             out.routes.clear();
-            super::mention::notify(&self.app, channel, &m, &out, true);
+            // V111-12 A chat that is open pops up as that chat; any other as its #channel window.
+            let global = !super::is_open(&self.app, channel);
+            super::mention::notify(&self.app, channel, &m, &out, global);
         }
     }
 }
@@ -394,5 +464,43 @@ mod tests {
         assert_eq!(destination(&h).as_deref(), Some("Pings"));
         h.global_tab = true;
         assert_eq!(destination(&h).as_deref(), Some(TAB_FEED));
+    }
+
+    const LINE: &str = "@tmi-sent-ts=1792694804267;id=m1;room-id=1;user-id=2;display-name=Ann;badges=;color=;emotes= :ann!ann@ann.tmi.twitch.tv PRIVMSG #somechan :hey seryxx look";
+
+    fn matched(raw: &str, own: &str, never: &str) -> Option<ChatMessage> {
+        let set = MentionSet::new(&[row("seryxx", true, "")]);
+        let peek = mentions::peek(raw)?;
+        let (color, _) = outcome(&set, peek.text, &mut String::new())?;
+        mention_of(raw, color, &mut Colors::default(), |id| id == own, |login| login == never)
+    }
+
+    // V111-12 A chat line matches like a firehose line; your own and never-highlight senders don't.
+    #[test]
+    fn v111_12_chat_lines_match_but_not_your_own() {
+        let m = matched(LINE, "9", "").unwrap();
+        assert_eq!(m.id, "m1");
+        assert!(m.has(Flag::Mention));
+        assert!(matched(LINE, "2", "").is_none(), "own message");
+        assert!(matched(LINE, "9", "ann").is_none(), "never highlight");
+        assert!(matched(&LINE.replace("seryxx", "someone"), "9", "").is_none());
+    }
+
+    // V111-12 The open chat's copy comes first; the firehose's copy of the same id is dropped.
+    #[test]
+    fn v111_12_the_later_copy_of_a_message_is_dropped() {
+        let (mut gate, t) = (Gate::default(), Instant::now());
+        assert!(gate.first("m1", t), "chat");
+        assert!(!gate.first("m1", t + Duration::from_millis(900)), "firehose");
+        assert!(gate.first("m2", t + Duration::from_secs(1)));
+    }
+
+    // V111-12 One alert gap for every path: a chat ping right after a firehose ping stays quiet.
+    #[test]
+    fn v111_12_one_alert_gap_for_every_path() {
+        let (mut gate, t) = (Gate::default(), Instant::now());
+        assert!(gate.alert(t), "firehose");
+        assert!(!gate.alert(t + Duration::from_secs(1)), "chat, within the gap");
+        assert!(gate.alert(t + ALERT_GAP), "after the gap");
     }
 }

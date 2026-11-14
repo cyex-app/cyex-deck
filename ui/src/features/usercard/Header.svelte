@@ -2,7 +2,8 @@
      its color or 7TV paint, the paint's name, roles and every badge they own (V102-13), and
      small buttons for the note, the logs, the 7TV profile (V108-C16) and the Twitch profile. V101-23 switches the 7TV
      picture for Twitch's. V102-25 A flag when Twitch hides the account. V108-C09 Streamer mode
-     blurs the picture until it is clicked. -->
+     blurs the picture until it is clicked. V111-13 A Verified bot chip (api.ivr.fi) and the
+     Follow button (1.11); every part can be turned off in Settings > Usercard. -->
 <script lang="ts">
   import Avatar from '../../components/Avatar.svelte';
   import Icon from '../../components/Icon.svelte';
@@ -24,6 +25,8 @@
   import { toggleWatch, watched } from './watch';
   import { copy } from '../../lib/clipboard';
   import { copied } from '../../lib/copied.svelte';
+  import { accounts } from '../../lib/accounts.svelte';
+  import FollowButton from '../tabs/FollowButton.svelte';
 
   interface Props {
     profile: Profile;
@@ -35,9 +38,16 @@
     isChannel: boolean;
     logsUrl: string;
     editing: boolean;
+    /** V111-13 Twitch verified it as a bot (api.ivr.fi). */
+    verifiedBot?: boolean;
+    /** V111-13 Your own card: nothing to follow. */
+    isSelf?: boolean;
   }
 
-  let { profile, channel, badges, color, isChannel, logsUrl, editing = $bindable() }: Props = $props();
+  let { profile, channel, badges, color, isChannel, logsUrl, editing = $bindable(), verifiedBot = false, isSelf = false }: Props = $props();
+
+  const show = $derived(settings.v.chat.usercard);
+  const followAs = $derived(accounts.current?.userId ?? null);
 
   // V101-23 Per card: every card starts on the 7TV picture.
   let twitchPic = $state(false);
@@ -78,6 +88,8 @@
   $effect(() => {
     const id = profile.id;
     seventvId = null;
+    // V111-13 Off: not looked up.
+    if (!show.seventvProfile) return;
     let gone = false;
     void emotesIpc
       .seventvUser(id)
@@ -178,7 +190,10 @@
         {#if logsUrl}
           <IconButton icon="scroll" label="All logs" hint="logs.cyex.app" size={14} onclick={() => systemIpc.openLink(logsUrl)} />
         {/if}
-        {#if seventvId}
+        {#if show.follow && !isSelf && followAs && followAs !== profile.id}
+          <FollowButton channelId={profile.id} name={profile.displayName} account={followAs} />
+        {/if}
+        {#if show.seventvProfile && seventvId}
           <IconButton
             icon="seventv"
             label="7TV profile"
@@ -196,19 +211,26 @@
         {/if}
       </div>
     </div>
-    {#if paintName}<span class="paint"><span class="fill {paint}" aria-hidden="true"></span><span class="label">{paintName}</span></span>{/if}
+    {#if show.paint && paintName}<span class="paint"><span class="fill {paint}" aria-hidden="true"></span><span class="label">{paintName}</span></span>{/if}
     <div class="marks">
       {#if flag}<span class="role suspended {flag.tone}" use:tooltip={flag.hint}>{flag.label}</span>{/if}
-      {#if profile.staff}<span class="role staff">Staff</span>{/if}
-      {#if profile.partner}<span class="role partner">Partner</span>{/if}
-      {#if profile.affiliate}<span class="role affiliate">Affiliate</span>{/if}
+      {#if show.chips}
+        {#if profile.staff}<span class="role staff">Staff</span>{/if}
+        {#if profile.partner}<span class="role partner">Partner</span>{/if}
+        {#if profile.affiliate}<span class="role affiliate">Affiliate</span>{/if}
+      {/if}
+      {#if show.verifiedBot && verifiedBot}<span class="role bot" use:tooltip={'Twitch verified this bot.'}>Verified bot</span>{/if}
     </div>
-    <EarnedBadges login={profile.login} userId={profile.id} {channel} fallback={badges} />
-    <!-- V110-U58 The chip copies too; the icon beside it says so. -->
-    <div class="idrow">
-      <button class="id" onclick={copyId} use:tooltip={'Copy user ID'}>ID {profile.id}</button>
-      <button class="cp" aria-label="Copy ID" use:tooltip={'Copy ID'} onclick={copyId}><Icon name="copy" size={11} /></button>
-    </div>
+    {#if show.badges}
+      <EarnedBadges login={profile.login} userId={profile.id} {channel} fallback={badges} />
+    {/if}
+    {#if show.userId}
+      <!-- V110-U58 The chip copies too; the icon beside it says so. -->
+      <div class="idrow">
+        <button class="id" onclick={copyId} use:tooltip={'Copy user ID'}>ID {profile.id}</button>
+        <button class="cp" aria-label="Copy ID" use:tooltip={'Copy ID'} onclick={copyId}><Icon name="copy" size={11} /></button>
+      </div>
+    {/if}
   </div>
 </header>
 
@@ -453,6 +475,12 @@
   .affiliate {
     background: var(--accent-dim);
     color: var(--accent-text);
+  }
+  /* V111-13 Neutral: a fact, not a rank. */
+  .bot {
+    background: var(--surface-hover);
+    color: var(--muted);
+    border: 1px solid var(--border);
   }
   /* V102-25 */
   .suspended.red {

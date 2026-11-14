@@ -9,6 +9,14 @@ export type SubStatus = { months: number, active: boolean,
  */
 tier: string | null, gift: boolean, 
 /**
+ * V111-13 Who gifted it, when Twitch says (display name, else login).
+ */
+gifter: string | null, 
+/**
+ * V111-13 A gift from someone who stayed anonymous.
+ */
+giftAnonymous: boolean, 
+/**
  * The user hides it; nothing else is known.
  */
 hidden: boolean, };

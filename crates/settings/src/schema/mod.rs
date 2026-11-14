@@ -25,6 +25,7 @@ mod streammanager;
 mod tabs;
 mod theme_link;
 mod uploader;
+mod usercard;
 mod windows;
 
 pub use accounts::{Account, Accounts, SevenTvConsent, TokenMeta, TokenSource};
@@ -56,6 +57,7 @@ pub use hotkeys::Hotkeys;
 pub use menus::{CustomAction, MenuLayout, MenuLayouts, MenuNode};
 pub use miner::{Badges, BetFilter, Bets, ChatPresence, DelayMode, FilterBy, FilterCmp, MAX_FIRST, MAX_PICKED, MineSource, Miner, Rule, Strategy};
 pub use modview::Modview;
+pub use usercard::UsercardShow;
 // V110-M20
 pub use name_clicks::{NameClick, NameClicks};
 pub use notifications::{InAppCards, LiveAlerts, LiveScope, Notifications};

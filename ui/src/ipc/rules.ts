@@ -6,11 +6,15 @@ import type { BadgeInfo } from './bindings/BadgeInfo';
 import type { CommandLineError } from './bindings/CommandLineError';
 import type { FilterName } from './bindings/FilterName';
 import type { FollowAge } from './bindings/FollowAge';
+import type { IvrUser } from './bindings/IvrUser';
 import type { LogPage } from './bindings/LogPage';
 import type { MenuContext } from './bindings/MenuContext';
 import type { Menus } from './bindings/Menus';
 import type { NameChange } from './bindings/NameChange';
 import type { OtherModCount } from './bindings/OtherModCount';
+import type { OtherRole } from './bindings/OtherRole';
+import type { RoleCounts } from './bindings/RoleCounts';
+import type { RolePage } from './bindings/RolePage';
 import type { SubStatus } from './bindings/SubStatus';
 import type { UiAction } from './bindings/UiAction';
 
@@ -24,6 +28,12 @@ export const rulesIpc = {
 
 export const usercardIpc = {
   subStatus: (user: string, channel: string) => invoke<SubStatus>('user_sub_status', { user, channel }),
+  /** V111-13 Last stream, bot flag, chat colour (api.ivr.fi); null when unknown. */
+  ivr: (login: string) => invoke<IvrUser | null>('user_ivr', { login }),
+  /** V111-13 Their roles in other channels (roles.tv). */
+  roleCounts: (userId: string) => invoke<RoleCounts>('user_role_counts', { userId }),
+  rolePage: (userId: string, role: OtherRole, after: string | null) =>
+    invoke<RolePage>('user_role_page', { userId, role, after }),
   followAge: (channel: string, userId: string) => invoke<FollowAge>('user_follow_age', { channel, userId }),
   nameHistory: (userId: string) => invoke<NameChange[]>('user_name_history', { userId }),
   /** V102-13 Every Twitch badge they own in the channel. */

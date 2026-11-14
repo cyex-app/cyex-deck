@@ -64,7 +64,7 @@ fn first(recent: &Recent, id: &str) -> bool {
 }
 
 /// Adds `id`; false when it was seen within `WINDOW`. No id: always new.
-fn remember(recent: &mut VecDeque<(String, Instant)>, id: &str, now: Instant) -> bool {
+pub(super) fn remember(recent: &mut VecDeque<(String, Instant)>, id: &str, now: Instant) -> bool {
     if id.is_empty() {
         return true;
     }

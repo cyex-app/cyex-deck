@@ -33,6 +33,8 @@ export const GROUPS = [
       { id: 'ignores', label: 'Ignores', icon: 'eyeOff', hint: 'Hide messages and people you don’t want to see.' },
       // V111-04 Everything for channels you moderate; one page, so it joins Chat instead of a group of its own.
       { id: 'moderation', label: 'Moderation', icon: 'gavel', hint: 'Timeout, slow mode and ad lengths, and the buttons mod mode puts in front of chat lines.' },
+      // V111-13 What a usercard shows; each switch off also skips its lookup.
+      { id: 'usercard', label: 'Usercard', icon: 'card', hint: 'What a usercard shows. Anything off is not looked up either.' },
       { id: 'filters', label: 'Filters', icon: 'filter', hint: 'A chat shows only what passes its filters. Pick them from the chat’s menu.' },
       { id: 'commands', label: 'Commands', icon: 'pencil', hint: 'Your own chat commands and timers.' },
       { id: 'uploads', label: 'Image uploads', icon: 'image', hint: 'Images you paste or drop into the chat box go to your upload host. These settings stay on this PC and never go into exports.' },

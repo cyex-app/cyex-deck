@@ -15,6 +15,7 @@ import type { SuggestStyle } from "./SuggestStyle";
 import type { Timestamps } from "./Timestamps";
 import type { UnlistedEmotes } from "./UnlistedEmotes";
 import type { UserNote } from "./UserNote";
+import type { UsercardShow } from "./UsercardShow";
 
 export type Chat = { 
 /**
@@ -277,4 +278,8 @@ users: { [key in string]: UserNote },
 /**
  * U7 How chat overlays look.
  */
-overlay: Overlay, };
+overlay: Overlay, 
+/**
+ * V111-13 What a usercard shows; each item off skips its lookup too.
+ */
+usercard: UsercardShow, };

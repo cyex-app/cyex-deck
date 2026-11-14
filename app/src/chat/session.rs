@@ -378,6 +378,10 @@ fn line(app: &AppHandle, identity: &Identity, raw: &str) {
         mirror(app, channel, &line, raw);
     }
     room_line(app, identity, channel, &line, raw);
+    // V111-12 Global mentions in open chats come straight from IRC; the firehose copy drops.
+    if line.command == "PRIVMSG" {
+        super::global::irc_line(app, raw);
+    }
 }
 
 /// V110-T05 Test builds only: a raw incoming line from the chat injector, into every open
@@ -389,6 +393,9 @@ pub(super) fn inject(app: &AppHandle, channel: &str, raw: &str) {
         app.state::<Chat>().lock().rooms.keys().filter(|(_, c)| c == channel).map(|(i, _)| i.clone()).collect();
     for id in &ids {
         room_line(app, id, channel, &line, raw);
+    }
+    if line.command == "PRIVMSG" {
+        super::global::irc_line(app, raw);
     }
 }
 

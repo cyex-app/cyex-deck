@@ -1,6 +1,7 @@
 //! 1.36 The usercard's outside data: chat logs and name history from logs.cyex.app (a
 //! rustlog instance), and sub status from api.ivr.fi (D23), both public. C35 Chat history
-//! comes from there too where the recent-messages service has none.
+//! comes from there too where the recent-messages service has none. V111-13 Last stream, the
+//! bot flag and the gifter come from api.ivr.fi too.
 
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
@@ -43,6 +44,10 @@ pub struct SubStatus {
     /// `1`, `2`, `3` or `prime`, while active.
     pub tier: Option<String>,
     pub gift: bool,
+    /// V111-13 Who gifted it, when Twitch says (display name, else login).
+    pub gifter: Option<String>,
+    /// V111-13 A gift from someone who stayed anonymous.
+    pub gift_anonymous: bool,
     /// The user hides it; nothing else is known.
     pub hidden: bool,
 }
@@ -129,6 +134,66 @@ pub async fn sub_status(http: &Http, user: &str, channel: &str) -> Result<SubSta
     Ok(raw.into())
 }
 
+/// V111-13 What api.ivr.fi adds to the usercard: the last stream and the bot flag.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct IvrUser {
+    /// RFC 3339, when the last (or current) stream started.
+    pub last_live: Option<String>,
+    pub last_title: Option<String>,
+    /// Live right now (that stream is the last one).
+    pub live: bool,
+    pub verified_bot: bool,
+    /// `#RRGGBB`, their chat colour.
+    pub chat_color: Option<String>,
+}
+
+/// V111-13 `/v2/twitch/user?login=` answers a list; an unknown login gives `[]`.
+pub async fn ivr_user(http: &Http, login: &str) -> Result<Option<IvrUser>> {
+    let base = http.mock_base().map_or_else(|| IVR.to_owned(), |b| format!("{b}/ivr/v2/twitch"));
+    let raw: Vec<RawIvrUser> = json(http.0.get(format!("{base}/user")).query(&[("login", login)])).await?;
+    Ok(raw.into_iter().next().map(Into::into))
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct RawIvrUser {
+    #[serde(default)]
+    verified_bot: Option<bool>,
+    #[serde(default)]
+    chat_color: Option<String>,
+    #[serde(default)]
+    last_broadcast: Option<RawBroadcast>,
+    #[serde(default)]
+    stream: Option<serde_json::Value>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct RawBroadcast {
+    started_at: Option<String>,
+    title: Option<String>,
+}
+
+impl From<RawIvrUser> for IvrUser {
+    fn from(r: RawIvrUser) -> Self {
+        let text = |s: Option<String>| s.map(|s| s.trim().to_owned()).filter(|s| !s.is_empty());
+        let (last_live, last_title) = r.last_broadcast.map_or((None, None), |b| (text(b.started_at), text(b.title)));
+        Self {
+            last_title: last_live.as_ref().and(last_title),
+            live: last_live.is_some() && r.stream.as_ref().is_some_and(|s| !s.is_null()),
+            last_live,
+            verified_bot: r.verified_bot.unwrap_or(false),
+            chat_color: text(r.chat_color).filter(|c| is_hex_color(c)),
+        }
+    }
+}
+
+fn is_hex_color(c: &str) -> bool {
+    c.len() == 7 && c.starts_with('#') && c[1..].bytes().all(|b| b.is_ascii_hexdigit())
+}
+
 #[derive(Deserialize)]
 struct RawName {
     user_login: String,
@@ -170,6 +235,13 @@ struct RawMeta {
     gift_meta: Option<serde_json::Value>,
 }
 
+/// V111-13 `giftMeta.gifter`: `{login, displayName}`, or null for an anonymous gift.
+fn gifter_of(gift: &serde_json::Value) -> Option<String> {
+    let g = gift.get("gifter")?;
+    let pick = |k: &str| g.get(k).and_then(|v| v.as_str()).map(str::trim).filter(|v| !v.is_empty());
+    pick("displayName").or_else(|| pick("login")).map(str::to_owned)
+}
+
 impl From<RawSubAge> for SubStatus {
     fn from(r: RawSubAge) -> Self {
         let tier = r.meta.as_ref().map(|m| {
@@ -179,13 +251,14 @@ impl From<RawSubAge> for SubStatus {
                 m.tier.clone().unwrap_or_else(|| "1".into())
             }
         });
+        let gift_meta = r.meta.as_ref().and_then(|m| m.gift_meta.as_ref()).filter(|g| !g.is_null());
+        let gifter = gift_meta.and_then(gifter_of);
         Self {
             months: r.cumulative.map_or(0, |c| c.months),
             active: r.meta.is_some(),
-            gift: r
-                .meta
-                .as_ref()
-                .is_some_and(|m| m.gift_meta.as_ref().is_some_and(|g| !g.is_null())),
+            gift: gift_meta.is_some(),
+            gift_anonymous: gift_meta.is_some() && gifter.is_none(),
+            gifter,
             tier,
             hidden: r.status_hidden,
         }
@@ -223,6 +296,61 @@ mod tests {
         let never: RawSubAge =
             serde_json::from_str(r#"{"statusHidden":false,"cumulative":null,"meta":null}"#).unwrap();
         assert_eq!(SubStatus::from(never).months, 0);
+    }
+
+    /// V111-13 The gifter by display name, else login; no gifter object is anonymous.
+    #[test]
+    fn v111_13_gifted_by() {
+        let named: RawSubAge = serde_json::from_str(
+            r#"{"statusHidden":false,"cumulative":{"months":3},"meta":{"type":"gift","tier":"1","endsAt":"2026-12-01T00:00:00Z",
+                "giftMeta":{"giftDate":"2026-11-01T00:00:00Z","gifter":{"login":"giver","displayName":"Giver","id":"1"}}}}"#,
+        )
+        .unwrap();
+        let s = SubStatus::from(named);
+        assert_eq!((s.gift, s.gift_anonymous, s.gifter.as_deref()), (true, false, Some("Giver")));
+        let login_only: RawSubAge = serde_json::from_str(
+            r#"{"cumulative":{"months":1},"meta":{"type":"gift","giftMeta":{"gifter":{"login":"giver","displayName":""}}}}"#,
+        )
+        .unwrap();
+        assert_eq!(SubStatus::from(login_only).gifter.as_deref(), Some("giver"));
+        let anon: RawSubAge = serde_json::from_str(
+            r#"{"cumulative":{"months":1},"meta":{"type":"gift","giftMeta":{"giftDate":"x","gifter":null}}}"#,
+        )
+        .unwrap();
+        let s = SubStatus::from(anon);
+        assert!(s.gift && s.gift_anonymous && s.gifter.is_none());
+        let paid: RawSubAge =
+            serde_json::from_str(r#"{"cumulative":{"months":1},"meta":{"type":"paid","giftMeta":null}}"#).unwrap();
+        let s = SubStatus::from(paid);
+        assert!(!s.gift && !s.gift_anonymous);
+    }
+
+    /// V111-13 From a real answer's shape (2026/11/14, trimmed).
+    #[test]
+    fn v111_13_ivr_user() {
+        let raw: Vec<RawIvrUser> = serde_json::from_str(
+            r##"[{"banned":false,"displayName":"LIRIK","login":"lirik","id":"23161357","chatColor":"#0029CC",
+                "verifiedBot":null,"roles":{"isAffiliate":false,"isPartner":true,"isStaff":null},
+                "stream":{"title":"Pogging","createdAt":"2026-11-14T17:08:38Z"},
+                "lastBroadcast":{"startedAt":"2026-11-14T17:08:42.768081Z","title":"Pogging"}}]"##,
+        )
+        .unwrap();
+        let u = IvrUser::from(raw.into_iter().next().unwrap());
+        assert_eq!(u.last_live.as_deref(), Some("2026-11-14T17:08:42.768081Z"));
+        assert_eq!(u.last_title.as_deref(), Some("Pogging"));
+        assert_eq!(u.chat_color.as_deref(), Some("#0029CC"));
+        assert!(!u.verified_bot && u.live);
+        let bot: RawIvrUser = serde_json::from_str(
+            r#"{"chatColor":"","verifiedBot":true,"lastBroadcast":{"startedAt":null,"title":"old"}}"#,
+        )
+        .unwrap();
+        let u = IvrUser::from(bot);
+        assert!(u.verified_bot && !u.live);
+        assert_eq!((u.last_live, u.last_title, u.chat_color), (None, None, None), "no start, no title");
+        let bare: RawIvrUser = serde_json::from_str(r#"{"chatColor":"red"}"#).unwrap();
+        assert_eq!(IvrUser::from(bare), IvrUser::default());
+        let none: Vec<RawIvrUser> = serde_json::from_str("[]").unwrap();
+        assert!(none.is_empty());
     }
 
     #[test]

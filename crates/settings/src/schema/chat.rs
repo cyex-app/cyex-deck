@@ -7,6 +7,7 @@ use super::Schema;
 use super::emotes::{EmoteKey, EmoteSource, dedupe};
 use super::highlights::clean_color;
 use super::name_clicks::NameClicks;
+use super::usercard::UsercardShow;
 
 /// Twitch's longest timeout: 14 days.
 const MAX_TIMEOUT_SECS: u32 = 1_209_600;
@@ -191,6 +192,8 @@ pub struct Chat {
     pub users: BTreeMap<String, UserNote>,
     /// U7 How chat overlays look.
     pub overlay: Overlay,
+    /// V111-13 What a usercard shows; each item off skips its lookup too.
+    pub usercard: UsercardShow,
 }
 
 impl Default for Chat {
@@ -262,6 +265,7 @@ impl Default for Chat {
             effects: true,
             users: BTreeMap::new(),
             overlay: Overlay::default(),
+            usercard: UsercardShow::default(),
         }
     }
 }

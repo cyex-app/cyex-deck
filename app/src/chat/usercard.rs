@@ -17,6 +17,8 @@ use ts_rs::TS;
 
 use super::{Chat, Identity};
 
+mod cache;
+
 const PAGE: u32 = 50;
 
 /// P4 #16 Test builds: the usercard's Twitch reads (the profile too, `user_profile`) go to
@@ -29,7 +31,17 @@ pub(crate) fn http(app: &AppHandle) -> cyex_twitch::Http {
     http
 }
 
+/// V111-13 What the usercard shows (Settings > Usercard); an item that is off isn't looked up.
+pub(crate) fn shows(app: &AppHandle) -> cyex_settings::schema::UsercardShow {
+    app.state::<crate::settings::Settings>()
+        .read::<cyex_settings::schema::Chat>(cyex_settings::Partition::Chat)
+        .usercard
+}
+
 pub async fn sub_status(app: &AppHandle, user: &str, channel: &str) -> Result<SubStatus, String> {
+    if !shows(app).needs_subage() {
+        return Err("Sub status is turned off.".into());
+    }
     logs::sub_status(&http(app), user, channel)
         .await
         .map_err(|_| "Couldn’t get the sub status.".into())
@@ -329,4 +341,72 @@ pub async fn other_mod_counts(
     counts.insert(key, (std::time::Instant::now(), all));
     drop(counts);
     Ok(out)
+}
+
+/// V111-13 api.ivr.fi per login for ten minutes: the last stream changes rarely, the bot flag
+/// almost never. A failed lookup isn't kept, so the next card asks again.
+static IVR_USERS: std::sync::LazyLock<cache::TtlCache<String, Option<logs::IvrUser>>> =
+    std::sync::LazyLock::new(|| cache::TtlCache::new(std::time::Duration::from_secs(10 * 60), 256));
+
+/// V111-13 Last stream, the bot flag and the chat colour from api.ivr.fi. `None` when it
+/// doesn't know them, can't be reached or both items are turned off; never an error, the
+/// card just leaves them out.
+pub async fn ivr_user(app: &AppHandle, login: &str) -> Option<logs::IvrUser> {
+    if !shows(app).needs_ivr_user() {
+        return None;
+    }
+    let key = login.trim().to_ascii_lowercase();
+    if key.is_empty() {
+        return None;
+    }
+    if let Some(hit) = IVR_USERS.get(&key) {
+        return hit;
+    }
+    let got = logs::ivr_user(&http(app), &key).await.ok()?;
+    IVR_USERS.put(key, got.clone());
+    got
+}
+
+/// V111-13 roles.tv counts per user for ten minutes, pages for five (as moltorino).
+static ROLE_COUNTS: std::sync::LazyLock<cache::TtlCache<String, cyex_twitch::roles::RoleCounts>> =
+    std::sync::LazyLock::new(|| cache::TtlCache::new(std::time::Duration::from_secs(10 * 60), 128));
+type PageKey = (String, cyex_twitch::roles::OtherRole, Option<String>);
+static ROLE_PAGES: std::sync::LazyLock<cache::TtlCache<PageKey, cyex_twitch::roles::RolePage>> =
+    std::sync::LazyLock::new(|| cache::TtlCache::new(std::time::Duration::from_secs(5 * 60), 128));
+const ROLE_PAGE: u32 = 20;
+
+/// V111-13 How many channels make them mod, VIP, founder or artist (roles.tv).
+pub async fn role_counts(app: &AppHandle, user_id: &str) -> Result<cyex_twitch::roles::RoleCounts, String> {
+    if !shows(app).needs_roles() {
+        return Err("Roles are turned off.".into());
+    }
+    if let Some(hit) = ROLE_COUNTS.get(&user_id.to_owned()) {
+        return Ok(hit);
+    }
+    let got = cyex_twitch::roles::counts(&http(app), user_id)
+        .await
+        .map_err(|_| "Couldn’t load roles.".to_owned())?;
+    ROLE_COUNTS.put(user_id.to_owned(), got);
+    Ok(got)
+}
+
+/// V111-13 One page of the channels where they hold `role`, newest first as roles.tv sorts.
+pub async fn role_page(
+    app: &AppHandle,
+    user_id: &str,
+    role: cyex_twitch::roles::OtherRole,
+    after: Option<String>,
+) -> Result<cyex_twitch::roles::RolePage, String> {
+    if !shows(app).needs_roles() {
+        return Err("Roles are turned off.".into());
+    }
+    let key = (user_id.to_owned(), role, after.clone());
+    if let Some(hit) = ROLE_PAGES.get(&key) {
+        return Ok(hit);
+    }
+    let got = cyex_twitch::roles::page(&http(app), user_id, role, ROLE_PAGE, after.as_deref())
+        .await
+        .map_err(|_| "Couldn’t load roles.".to_owned())?;
+    ROLE_PAGES.put(key, got.clone());
+    Ok(got)
 }

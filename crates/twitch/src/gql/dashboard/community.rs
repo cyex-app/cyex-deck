@@ -145,6 +145,12 @@ pub async fn assigned(ch: &Channel<'_>) -> Result<AssignedList> {
     }
 }
 
+/// V111-12 Only the channels the account (`ch`, your own) moderates, lead mods included,
+/// with when the role was granted; and whether the list was cut short.
+pub async fn moderated(ch: &Channel<'_>) -> Result<(Vec<Assigned>, bool)> {
+    all(ch, MODERATED, json!({}), "/moderatedChannels", Role::Mod).await
+}
+
 /// V107-Mw Whether you (`ch`) are a lead mod in `channel_id`, from Twitch's own list.
 pub async fn lead_mod_in(ch: &Channel<'_>, channel_id: &str) -> Result<bool> {
     let vars = json!({ "role": Role::LeadMod.channel_role_id() });

@@ -118,8 +118,19 @@ impl Client {
         connect: Connect,
         events: mpsc::UnboundedSender<Event>,
     ) -> (Self, impl Future<Output = ()> + Send + 'static) {
+        Self::with_join_limit(creds, connect, events, Window::JOIN_LIMIT)
+    }
+
+    /// V111-12 Same, with at most `join_limit` JOINs per 10 s (1 to [`Window::JOIN_LIMIT`]):
+    /// a second reader of one account leaves room under Twitch's 20 for the account's chats.
+    pub fn with_join_limit(
+        creds: Arc<dyn Credentials>,
+        connect: Connect,
+        events: mpsc::UnboundedSender<Event>,
+        join_limit: usize,
+    ) -> (Self, impl Future<Output = ()> + Send + 'static) {
         let (tx, rx) = mpsc::unbounded_channel();
-        (Self { tx }, run(creds, connect, rx, events))
+        (Self { tx }, run(creds, connect, rx, events, join_limit.clamp(1, Window::JOIN_LIMIT)))
     }
 
     pub fn join(&self, channel: &str) {
@@ -191,6 +202,7 @@ async fn run(
     connect: Connect,
     mut rx: mpsc::UnboundedReceiver<Cmd>,
     events: mpsc::UnboundedSender<Event>,
+    join_limit: usize,
 ) {
     let mut channels = BTreeSet::new();
     let mut backoff = Duration::ZERO;
@@ -199,7 +211,7 @@ async fn run(
     loop {
         let _ = events.send(Event::Status(LinkStatus::Connecting));
         let started = Instant::now();
-        let delay = match session(creds.as_ref(), &connect, &mut channels, &mut joins, &mut rx, &events).await {
+        let delay = match session(creds.as_ref(), &connect, &mut channels, (&mut joins, join_limit), &mut rx, &events).await {
             End::Stop => return,
             End::AuthFailed => {
                 let _ = events.send(Event::Status(LinkStatus::AuthFailed));
@@ -246,7 +258,7 @@ async fn session(
     creds: &dyn Credentials,
     connect: &Connect,
     channels: &mut BTreeSet<String>,
-    joins: &mut Window,
+    (joins, join_limit): (&mut Window, usize),
     rx: &mut mpsc::UnboundedReceiver<Cmd>,
     events: &mpsc::UnboundedSender<Event>,
 ) -> End {
@@ -306,7 +318,7 @@ async fn session(
     let mut tick = interval(Duration::from_secs(5));
 
     loop {
-        match out.flush_joins(&mut queue, joins).await {
+        match out.flush_joins(&mut queue, joins, join_limit).await {
             Err(_) => return lost,
             Ok(sent) if !sent.is_empty() => {
                 let _ = events.send(Event::Joining(sent));
@@ -314,7 +326,7 @@ async fn session(
             Ok(_) => {}
         }
         let join_wait = (!queue.is_empty())
-            .then(|| joins.wait(Window::JOIN_LIMIT, Instant::now()))
+            .then(|| joins.wait(join_limit, Instant::now()))
             .flatten();
 
         tokio::select! {
@@ -462,7 +474,7 @@ impl Writer {
     }
 
     /// Sends as many queued JOINs as the rate limit allows, a few per line.
-    async fn flush_joins(&mut self, queue: &mut VecDeque<String>, limit: &mut Window) -> io::Result<Vec<String>> {
+    async fn flush_joins(&mut self, queue: &mut VecDeque<String>, limit: &mut Window, max: usize) -> io::Result<Vec<String>> {
         let mut batch: Vec<String> = Vec::new();
         let mut sent: Vec<String> = Vec::new();
         let mut len = 0;
@@ -473,7 +485,7 @@ impl Writer {
                 len = 0;
                 continue;
             }
-            if !limit.try_take(Window::JOIN_LIMIT, Instant::now()) {
+            if !limit.try_take(max, Instant::now()) {
                 break;
             }
             len += next.len() + 2;
@@ -647,6 +659,33 @@ mod tests {
         client.reconnect();
         let mut s = Server::accept(&servers).await;
         assert_eq!(s.read().await, write::CAPS);
+    }
+
+    // V111-12 A second reader of one account joins at its own, lower pace.
+    #[tokio::test(start_paused = true)]
+    async fn a_lower_join_limit_paces_joins() {
+        let (connect, servers) = fake();
+        let (tx, mut events) = mpsc::unbounded_channel();
+        let (client, task) = Client::with_join_limit(Arc::new(Anonymous), connect, tx, 2);
+        tokio::spawn(task);
+        for i in 0..5 {
+            client.join(&format!("c{i}"));
+        }
+        let mut s = Server::accept(&servers).await;
+        s.read().await;
+        s.read().await;
+        s.say(":tmi.twitch.tv 001 x :hi").await;
+        assert_eq!(s.read().await.matches('#').count(), 2);
+        let mut reported = 0;
+        while let Ok(ev) = events.try_recv() {
+            if let Event::Joining(sent) = ev {
+                reported += sent.len();
+            }
+        }
+        assert_eq!(reported, 2);
+        // The next two only after the window moved on.
+        assert_eq!(s.read().await.matches('#').count(), 2);
+        assert_eq!(s.read().await.matches('#').count(), 1);
     }
 
     #[tokio::test(start_paused = true)]

@@ -32,6 +32,7 @@
   import HotkeysSection from './sections/HotkeysSection.svelte';
   import IgnoresSection from './sections/IgnoresSection.svelte';
   import ModerationSection from './sections/ModerationSection.svelte';
+  import UsercardSection from './sections/UsercardSection.svelte';
   import MenusSection from './sections/MenusSection.svelte';
   import MinerSection from './sections/MinerSection.svelte';
   import NotificationsSection from './sections/NotificationsSection.svelte';
@@ -77,6 +78,7 @@
     highlights: HighlightsSection,
     ignores: IgnoresSection,
     moderation: ModerationSection,
+    usercard: UsercardSection,
     filters: FiltersSection,
     commands: CommandsSection,
     uploads: UploaderSection,

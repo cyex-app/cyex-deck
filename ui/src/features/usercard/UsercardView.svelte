@@ -2,7 +2,9 @@
      buttons (S1), block and hide, the mod bar where you moderate (1.57), then one scroll
      window that fills the rest of the card: their messages here and in the
      logs, and for mods their timeouts, bans, warnings and mod comments (M3). Your own
-     nickname and note for them (C3) open from the pencil. Route: `usercard/<channel>/<login>`. -->
+     nickname and note for them (C3) open from the pencil. Route: `usercard/<channel>/<login>`.
+     V111-13 One api.ivr.fi read per card (cached) for last live and the bot chip, roles in other
+     channels (roles.tv); Settings > Usercard turns each part off, and off skips its lookup. -->
 <script lang="ts">
   import { onDestroy, untrack } from 'svelte';
 
@@ -26,6 +28,10 @@
   import Facts from './Facts.svelte';
   import Header from './Header.svelte';
   import OtherChannels from './OtherChannels.svelte';
+  import OtherRoles from './OtherRoles.svelte';
+  import type { IvrUser } from '../../ipc/bindings/IvrUser';
+  import { usercardIpc } from '../../ipc/rules';
+  import { lookups } from './facts';
   import ModBar from './ModBar.svelte';
   import Timeline from './Timeline.svelte';
   import { theirIds, touches } from './userWatch';
@@ -66,6 +72,18 @@
   // V109-F70 Any signed-in account, not only the default one.
   const isSelf = $derived(isOwnCard(profile?.id, accounts.list.map((a) => a.userId), modAccount));
   const last = $derived(messages.at(-1));
+
+  const show = $derived(settings.v.chat.usercard);
+  // V111-13 Settled when the card opens.
+  // svelte-ignore state_referenced_locally
+  const ask = lookups(settings.v.chat.usercard);
+  let ivr = $state<IvrUser | null | undefined>(undefined);
+  if (ask.ivr && login) {
+    usercardIpc
+      .ivr(login)
+      .then((u) => (ivr = u))
+      .catch(() => (ivr = null));
+  }
 
   void catalogs.loadGlobal();
   void catalogs.loadChannel(channel);
@@ -171,7 +189,7 @@
   });
 
   const tabs = $derived<{ key: Tab; label: string; count: string }[]>(
-    history
+    history && show.modTabs
       ? [
           { key: 'messages', label: 'Messages', count: history.messageCount >= 1000 ? '1.000+' : formatNumber(history.messageCount) },
           { key: 'timeouts', label: 'Timeouts', count: formatNumber(history.timeouts) },
@@ -210,9 +228,14 @@
         {isChannel}
         {logsUrl}
         bind:editing
+        verifiedBot={!!ivr?.verifiedBot}
+        {isSelf}
       />
-      <Facts {profile} {channel} />
-      {#if !isChannel && accounts.current}
+      <Facts {profile} {channel} {ivr} />
+      {#if ask.roles && show.roles}
+        <OtherRoles userId={profile.id} {channel} />
+      {/if}
+      {#if ask.otherMods && show.otherModCounts && !isChannel && accounts.current}
         <OtherChannels {channel} userId={profile.id} account={accounts.current.userId} />
       {/if}
       {#if !isChannel && !isSelf}
@@ -274,16 +297,16 @@
           {/each}
         </nav>
       {/if}
-      {#if history && !editing && tab === 'comments'}
+      {#if history && tabs.length && !editing && tab === 'comments'}
         <Comments comments={history.comments} {channel} account={modAccount ?? ''} targetId={profile.id} onchange={changed} />
-      {:else if history && !editing && tab !== 'messages'}
+      {:else if history && tabs.length && !editing && tab !== 'messages'}
         <ActionList
           actions={history.actions.filter((a) => a.kind === KINDS[tab])}
           empty={`No ${tab} here.`}
         />
       {/if}
       <!-- Kept while other tabs show, so the logs aren't read again. -->
-      <div class="pane" class:gone={editing || tab !== 'messages'}>
+      <div class="pane" class:gone={editing || (tabs.length > 0 && tab !== 'messages')}>
         <Timeline
           {channel}
           userId={profile.id}
