@@ -1,6 +1,8 @@
 // V110-U66 Right-click a name, in the chat and in the viewer list. The built-in layout, in a
-// fixed order: reach them and copy, Look up, Hide or block, your own entries and plugins, then the
-// Moderator group (V110-B8: only for an account that moderates the chat).
+// fixed order: reach them, copy and look up, hide or block, your own entries and plugins, then Time
+// out and the Moderator group (V110-B8: only for an account that moderates the chat).
+// V111-10 No submenus of 1-2 rows: Look up and Hide or block are plain rows now (a saved layout that
+// still has those groups keeps them; the rows' ids did not change).
 
 import {
   banEntry,
@@ -84,7 +86,7 @@ export const NAME_DEF: MenuDef<NameCtx> = {
       { when: 'signed in' },
     ),
     // Palette only (3e).
-    row('openChat', 'Open their chat', 'popout', (c) => ({ label: 'Open their chat', icon: 'popout', run: c.act.openChat })),
+    row('openChat', 'Open chat', 'popout', (c) => ({ label: 'Open chat', icon: 'popout', run: c.act.openChat })),
     row('watch', 'Watch their stream', 'tv', (c) => (c.userId ? { label: 'Watch their stream', icon: 'tv', run: c.act.watch } : null)),
     row('hideHere', 'Hide user in this chat', 'eyeOff', (c) => ({
       label: 'Hide user in this chat',
@@ -107,15 +109,19 @@ export const NAME_DEF: MenuDef<NameCtx> = {
     item('usercard'),
     item('mention'),
     item('whisper'),
-    item('copy'),
     SEP,
-    group('lookup', 'Look up', [item('search'), item('logs')], 'search'),
-    group('hideblock', 'Hide or block', [item('hide'), item('block')], 'eyeOff'),
+    item('copy'),
+    item('search'),
+    item('logs'),
+    SEP,
+    item('hide'),
+    item('block'),
     SEP,
     item('entries'),
     item('plugins'),
     SEP,
-    group('moderate', 'Moderator', [item('timeout'), item('warn'), item('unban'), item('monitor'), item('restrict'), SEP, item('mod'), item('vip'), SEP, item('ban')], 'shield'),
+    item('timeout'),
+    group('moderate', 'Moderator', [item('warn'), item('unban'), item('monitor'), item('restrict'), SEP, item('mod'), item('vip'), SEP, item('ban')], 'shield'),
   ],
 };
 

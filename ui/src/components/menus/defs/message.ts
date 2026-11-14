@@ -1,6 +1,7 @@
 // V110-U66 Right-click a chat message. The built-in layout, in a fixed order: reply and copy,
-// Look up, your own entries and plugins, then the Moderator group (V110-B8: only for an account
-// that moderates the chat). Time out and Delete stay on top, after the copy rows.
+// Look up, your own entries and plugins, then Time out, Delete and the Moderator group (V110-B8:
+// only for an account that moderates the chat). V111-10 One Pin message row (also on the
+// broadcaster's line for an account that may pin it).
 
 import {
   banEntry,
@@ -83,11 +84,7 @@ export const MESSAGE_DEF: MenuDef<MessageCtx> = {
     row('showInLogs', 'Show message in logs', 'scroll', (c) => (c.line && c.logsLink ? { label: 'Show message in logs', icon: 'scroll', run: c.act.showInLogs } : null)),
     row('timeout', 'Time out user', 'clock', mod(timeoutEntry), { when: 'mods', mod: true }),
     row('delete', 'Delete message', 'trash', (c) => (c.mod || c.del ? deleteEntry(c.msgId, c.run) : null), { when: 'mods', mod: true }),
-    row('pin', 'Pin message', 'pin', (c) => (c.mod ? pinEntry(c.msgId, c.run) : null), { when: 'mods', mod: true }),
-    row('pinLine', 'Pin message (broadcaster’s line)', 'pin', (c) => (!c.mod && c.pinLine ? pinEntry(c.msgId, c.run) : null), {
-      when: 'on the broadcaster’s line',
-      mod: true,
-    }),
+    row('pin', 'Pin message', 'pin', (c) => (c.mod || c.pinLine ? pinEntry(c.msgId, c.run) : null), { when: 'mods, or the broadcaster’s line', mod: true }),
     row('warn', 'Warn user', 'alert', mod(warnEntry), { when: 'mods', mod: true }),
     row('unban', 'Unban user', 'undo', mod(unbanEntry), { when: 'mods', mod: true }),
     row('monitor', 'Monitor user', 'eye', mod(monitorEntry), { when: 'mods', mod: true }),
@@ -107,23 +104,18 @@ export const MESSAGE_DEF: MenuDef<MessageCtx> = {
   defaults: [
     item('reply'),
     item('translate'),
+    SEP,
     item('copy'),
     item('copyFull'),
-    // Time out and Delete stay on top for a moderator (both are mod-only rows).
-    item('timeout'),
-    item('delete'),
-    SEP,
     group('lookup', 'Look up', [item('search'), item('logs'), item('showInLogs')], 'search'),
     SEP,
     item('entries'),
     item('plugins'),
     SEP,
-    group(
-      'moderate',
-      'Moderator',
-      [item('pin'), item('pinLine'), item('warn'), item('unban'), item('monitor'), item('restrict'), SEP, item('mod'), item('vip'), SEP, item('ban')],
-      'shield',
-    ),
+    item('timeout'),
+    item('delete'),
+    SEP,
+    group('moderate', 'Moderator', [item('pin'), item('warn'), item('unban'), item('monitor'), item('restrict'), SEP, item('mod'), item('vip'), SEP, item('ban')], 'shield'),
   ],
 };
 

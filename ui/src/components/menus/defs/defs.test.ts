@@ -42,22 +42,23 @@ for (const { def, sample } of MENUS) {
 }
 
 test('chat.name: top level as in the plan', () => {
-  assert.deepEqual(names('chat.name', 'viewer'), ['Open usercard', 'Mention', 'Whisper', 'Copy name', 'Look up', 'Hide or block']);
-  assert.deepEqual(names('chat.name', 'mod'), ['Open usercard', 'Mention', 'Whisper', 'Copy name', 'Look up', 'Hide or block', 'Moderator']);
-  assert.deepEqual(names('chat.name', 'out'), ['Open usercard', 'Mention', 'Copy name', 'Look up', 'Hide user for me']);
+  const base = ['Open usercard', 'Mention', 'Whisper', 'Copy name', 'Search their messages', 'Open their logs', 'Hide user for me', 'Block on Twitch'];
+  assert.deepEqual(names('chat.name', 'viewer'), base);
+  assert.deepEqual(names('chat.name', 'mod'), [...base, 'Time out user', 'Moderator']);
+  assert.deepEqual(names('chat.name', 'out'), ['Open usercard', 'Mention', 'Copy name', 'Search their messages', 'Open their logs', 'Hide user for me']);
 });
 
 test('chat.message: top level as in the plan', () => {
   assert.deepEqual(names('chat.message', 'viewer'), ['Reply', 'Translate', 'Copy message', 'Copy full message', 'Look up']);
-  assert.deepEqual(names('chat.message', 'mod'), ['Reply', 'Translate', 'Copy message', 'Copy full message', 'Time out user', 'Delete message', 'Look up', 'Moderator']);
-  // The broadcaster's line: Pin is in the Moderator group; Delete stays on top.
+  assert.deepEqual(names('chat.message', 'mod'), ['Reply', 'Translate', 'Copy message', 'Copy full message', 'Look up', 'Time out user', 'Delete message', 'Moderator']);
+  // The broadcaster's line: the one Pin message row shows (alone, so not in a submenu); Delete stays on top.
   assert.deepEqual(names('chat.message', 'viewer', { pinLine: true, del: true }), [
     'Reply',
     'Translate',
     'Copy message',
     'Copy full message',
-    'Delete message',
     'Look up',
+    'Delete message',
     'Pin message',
   ]);
 });
@@ -67,7 +68,7 @@ test('chat.message: a deleted line offers no Reply or Translate (V110-F93)', () 
 });
 
 test('the other menus keep their size', () => {
-  assert.deepEqual(names('chat.emote', 'viewer'), ['Open emote card', 'Copy emote name', 'Hide Kappa', 'Add to 7TV channel']);
+  assert.deepEqual(names('chat.emote', 'viewer'), ['Open emote card', 'Copy emote name', 'Hide emote', 'Add to 7TV channel']);
   assert.deepEqual(names('chat.more', 'viewer'), [
     'Search',
     'Viewers',
@@ -76,11 +77,8 @@ test('the other menus keep their size', () => {
     'Filters',
     'Record chat',
     'Overlay',
-    'Theatre',
-    'Sound here',
-    'Edit',
-    'Move to its own tab',
-    'View',
+    'Pop out chat',
+    'Tab',
     'Subscribe',
     'Close',
   ]);
@@ -92,10 +90,8 @@ test('the other menus keep their size', () => {
     'Filters',
     'Record chat',
     'Overlay',
-    'Theatre',
-    'Edit',
-    'Move to its own tab',
-    'View',
+    'Pop out chat',
+    'Tab',
     'Close',
   ]);
   assert.deepEqual(names('tabs.tab', 'viewer'), [
@@ -131,9 +127,9 @@ test('the other menus keep their size', () => {
     'Tools',
   ]);
   assert.deepEqual(names('browse.card', 'viewer'), ['Open', 'Open in the background', 'Open as', 'Favorite', 'Pick to watch side by side']);
-  assert.deepEqual(names('feed.name', 'viewer'), ['Open usercard', 'Whisper', 'Open this chat', 'Copy name']);
-  assert.deepEqual(names('feed.message', 'viewer'), ['Open this chat', 'Show message in logs', 'Copy message', 'Copy full message']);
-  assert.deepEqual(names('whispers.thread', 'viewer'), ['Archive', 'Mute alerts', 'Block']);
+  assert.deepEqual(names('feed.name', 'viewer'), ['Open usercard', 'Whisper', 'Open chat', 'Copy name']);
+  assert.deepEqual(names('feed.message', 'viewer'), ['Copy message', 'Copy full message', 'Open chat', 'Show message in logs']);
+  assert.deepEqual(names('whispers.thread', 'viewer'), ['Archive', 'Mute alerts', 'Block on Twitch']);
   assert.deepEqual(names('clips.clip', 'viewer'), ['Play', 'Save as MP4', 'Copy link', 'Rename', 'Edit on Twitch', 'Delete clip']);
 });
 
@@ -142,7 +138,7 @@ test('the new actions are in the palette, not in the built-in layouts', () => {
     'chat.name': ['openChat', 'watch', 'hideHere', 'copyId', 'shoutout', 'unblock'],
     'chat.message': ['copyId', 'copyLogsLink', 'mention', 'copyName', 'hideUser'],
     'chat.emote': ['favorite', 'copyLink'],
-    'chat.more': ['popOut', 'copyLink', 'logs'],
+    'chat.more': ['copyLink', 'logs'],
     'tabs.tab': ['copyLink', 'theatre'],
     'browse.card': ['copyLink'],
     player: ['theatre'],
@@ -208,8 +204,8 @@ test('V110-B8 every row marked "mods" is a moderator row, and no mod row builds 
   }
 });
 
-// Time out and Delete stay at the top level of the message menu (still mod-only rows).
-const TOP_MOD: Record<string, string[]> = { 'chat.message': ['timeout', 'delete'] };
+// Time out (names, messages) and Delete (messages) stay at the top level (still mod-only rows).
+const TOP_MOD: Record<string, string[]> = { 'chat.name': ['timeout'], 'chat.message': ['timeout', 'delete'] };
 
 test('V110-B8 the Moderator group holds all and only the mod rows of the built-in layout', () => {
   for (const id of ['chat.name', 'chat.message']) {
@@ -224,6 +220,23 @@ test('V110-B8 the Moderator group holds all and only the mod rows of the built-i
     assert.deepEqual(outside, [], `${id}: mod rows outside the group`);
     for (const x of inGroup) assert.ok(modIds.includes(x), `${id}.${x} is a viewer row in the Moderator group`);
   }
+});
+
+test('V111-10 the same action has the same words in every menu', () => {
+  const labels = (id: string) => MENU_DEFS.find((d) => d.id === id)!.items.map((i) => i.name);
+  assert.ok(labels('chat.name').includes('Open chat') && labels('feed.name').includes('Open chat') && labels('feed.message').includes('Open chat'));
+  assert.ok(labels('whispers.thread').includes('Block on Twitch') && labels('chat.name').includes('Block on Twitch'));
+  for (const id of ['chat.more', 'tabs.tab', 'browse.card']) assert.ok(labels(id).includes('Copy link'), id);
+  const m = MENUS.find((x) => x.def.id === 'chat.message')!;
+  assert.ok(!m.def.items.some((i) => i.id === 'pinLine'));
+});
+
+test('V111-10 Tab group of the chat header: only in a tab, rows of the tile menu', () => {
+  const m = MENUS.find((x) => x.def.id === 'chat.more')!;
+  const withTab = resolveMenu(m.def, undefined, m.sample('viewer')).find((e) => e !== 'separator' && e.label === 'Tab');
+  assert.deepEqual(withTab && withTab !== 'separator' && flat(withTab.items ?? []), ['Theatre', 'Sound here', 'Edit', 'Move to its own tab', 'Hide chat', 'Hide stream', 'Move panels', 'Reset layout', 'Chat look', 'Text size']);
+  const none = top(resolveMenu(m.def, undefined, { ...m.sample('viewer'), tile: null }));
+  assert.ok(!none.includes('Tab') && !none.includes('Close'));
 });
 
 test('V110-B8 two rows of one menu never share a name', () => {
@@ -247,4 +260,47 @@ test('V110-N9 the manager groups the 14 menus under four headings with short nam
   assert.equal(MENUS_BY_GROUP.flatMap((g) => g.menus).length, MENU_DEFS.length);
   // Ids and full names (the editor title) are unchanged.
   assert.equal(MENU_DEFS.find((d) => d.id === 'feed.name')!.label, 'Names in feeds');
+});
+
+test('V111-10 a layout saved before the new defaults still resolves, with every row', async () => {
+  const { group, item, SEP } = await import('../types.ts');
+  const pick = (id: string) => MENUS.find((x) => x.def.id === id)!;
+  // Names: the old Look up and Hide or block groups stay as the user saved them.
+  const name = pick('chat.name');
+  const oldName = {
+    nodes: [
+      item('usercard'),
+      item('copy'),
+      SEP,
+      group('lookup', 'Look up', [item('search'), item('logs')], 'search'),
+      group('hideblock', 'Hide or block', [item('hide'), item('block')], 'eyeOff'),
+      SEP,
+      group('moderate', 'Moderator', [item('timeout'), item('warn'), item('ban')], 'shield'),
+    ],
+    known: name.def.items.map((i) => i.id).filter((i) => i !== 'openChat'),
+  };
+  const got = resolveMenu(name.def, oldName, name.sample('mod'));
+  const all = flat(got);
+  for (const l of ['Open usercard', 'Copy name', 'Look up', 'Search their messages', 'Open their logs', 'Hide or block', 'Hide user for me', 'Block on Twitch', 'Time out user', 'Warn user', 'Ban user'])
+    assert.ok(all.includes(l), l);
+  assert.deepEqual(menuProblems(got), []);
+  // Messages: a saved Pin message (broadcaster's line) row is gone, the one Pin row keeps working.
+  const msg = pick('chat.message');
+  const oldMsg = {
+    nodes: [item('copy'), group('moderate', 'Moderator', [item('pin'), item('pinLine'), item('warn'), item('ban')], 'shield')],
+    known: msg.def.items.map((i) => i.id),
+  };
+  assert.ok(flat(resolveMenu(msg.def, oldMsg, msg.sample('mod'))).includes('Pin message'));
+  assert.ok(flat(resolveMenu(msg.def, oldMsg, { ...msg.sample('viewer'), pinLine: true })).includes('Pin message'));
+  // Chat header: the old View group stays, Pop out chat joins after Overlay.
+  const more = pick('chat.more');
+  const oldMore = {
+    nodes: [item('search'), item('overlay'), SEP, item('tile.theatre'), group('view', 'View', [item('tile.hideChat'), item('tile.panels')], 'layout'), item('tile.close')],
+    known: more.def.items.map((i) => i.id).filter((i) => i !== 'popOut'),
+  };
+  assert.deepEqual(top(resolveMenu(more.def, oldMore, more.sample('viewer'))), ['Search', 'Overlay', 'Pop out chat', 'Theatre', 'View', 'Close']);
+  // Emote: the saved 7TV group is kept.
+  const emote = pick('chat.emote');
+  const oldEmote = { nodes: [item('card'), group('seventv', '7TV', [item('edits')], 'seventv'), item('hide')], known: emote.def.items.map((i) => i.id) };
+  assert.deepEqual(top(resolveMenu(emote.def, oldEmote, emote.sample('viewer'))), ['Open emote card', 'Add to 7TV channel', 'Hide emote']);
 });

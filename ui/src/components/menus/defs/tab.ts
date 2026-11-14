@@ -89,7 +89,7 @@ export const TAB_DEF: MenuDef<TabCtx> = {
       run: c.reopen.run,
     })),
     // Palette only (3e).
-    row('copyLink', 'Copy channel link', 'link', (c) => (c.copyLink ? { label: 'Copy channel link', icon: 'link', run: c.copyLink.run } : null)),
+    row('copyLink', 'Copy link', 'link', (c) => (c.copyLink ? { label: 'Copy link', icon: 'link', run: c.copyLink.run } : null)),
     row('theatre', 'Theatre', 'expand', (c) => (c.theatre ? { label: 'Theatre', icon: 'expand', hint: c.theatre.hint, run: c.theatre.run } : null)),
   ],
   defaults: [

@@ -42,7 +42,7 @@ export const CARD_DEF: MenuDef<CardCtx> = {
       renamable: false,
     }),
     // Palette only (3e).
-    row('copyLink', 'Copy channel link', 'link', (c) => ({ label: 'Copy channel link', icon: 'link', run: c.act.copyLink })),
+    row('copyLink', 'Copy link', 'link', (c) => ({ label: 'Copy link', icon: 'link', run: c.act.copyLink })),
   ],
   defaults: [
     item('open'),

@@ -1,7 +1,7 @@
 // V110-U66 Right-click an emote in chat. The 7TV edits come from 7TV and arrive as one slot.
 
 import type { MenuEntry } from '../../menuItems.ts';
-import { group, item, type MenuDef } from '../types.ts';
+import { item, type MenuDef, SEP } from '../types.ts';
 import { noop, row, slot, type Who } from './make.ts';
 
 export interface EmoteCtx {
@@ -24,7 +24,7 @@ export const EMOTE_DEF: MenuDef<EmoteCtx> = {
   items: [
     row('card', 'Open emote card', 'smile', (c) => ({ label: 'Open emote card', icon: 'smile', run: c.act.card })),
     row('copy', 'Copy emote name', 'copy', (c) => ({ label: 'Copy emote name', icon: 'copy', run: c.act.copyName })),
-    row('hide', 'Hide emote', 'eyeOff', (c) => ({ label: `Hide ${c.name}`, icon: 'eyeOff', run: c.act.hide }), { renamable: false }),
+    row('hide', 'Hide emote', 'eyeOff', (c) => ({ label: 'Hide emote', icon: 'eyeOff', run: c.act.hide }), { renamable: false }),
     slot('edits', '7TV edits', (c) => c.edits),
     row('blur', 'Blur unlisted emotes', 'eye', (c) => (c.unlisted ? { label: 'Blur unlisted emotes', icon: 'eye', checked: c.blurred, run: c.act.blur } : null), {
       when: 'unlisted emotes',
@@ -35,7 +35,8 @@ export const EMOTE_DEF: MenuDef<EmoteCtx> = {
     }),
     row('copyLink', 'Copy emote link', 'link', (c) => ({ label: 'Copy emote link', icon: 'link', run: c.act.copyLink })),
   ],
-  defaults: [item('card'), item('copy'), item('hide'), group('seventv', '7TV', [item('edits')], 'seventv'), item('blur')],
+  // V111-10 The 7TV edits are plain rows after a separator (they were a 7TV submenu of 1-3 rows).
+  defaults: [item('card'), item('copy'), item('hide'), SEP, item('edits'), SEP, item('blur')],
 };
 
 export function emoteSample(who: Who): EmoteCtx {

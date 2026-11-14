@@ -29,7 +29,7 @@ export const WHISPER_DEF: MenuDef<WhisperCtx> = {
     row('mute', 'Mute alerts', 'bellOff', (c) => (c.history ? { label: c.muted ? 'Unmute alerts' : 'Mute alerts', icon: c.muted ? 'bell' : 'bellOff', run: c.act.mute } : null), {
       renamable: false,
     }),
-    row('block', 'Block', 'ban', (c) => ({ label: 'Block', icon: 'ban', note: 'Blocks them on Twitch', danger: true, run: c.act.block })),
+    row('block', 'Block on Twitch', 'ban', (c) => ({ label: 'Block on Twitch', icon: 'ban', note: 'Blocks them on Twitch', danger: true, run: c.act.block })),
   ],
   defaults: [item('archive'), item('revoke'), item('mute'), SEP, item('block')],
 };

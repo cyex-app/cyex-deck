@@ -1,5 +1,5 @@
 // V110-U66 The ⋯ menu in a chat's header. In a tiled tab the tile's rows join it, in the
-// Layout group (the same rows as the tile's own ⋯ menu).
+// Tab group (the same rows as the tile's own ⋯ menu). V111-10 New default order.
 
 import type { TokenKind } from '../../../ipc/bindings/TokenKind';
 import type { MenuEntry } from '../../menuItems.ts';
@@ -70,11 +70,13 @@ export const MORE_DEF: MenuDef<MoreCtx> = {
     tile('close'),
     // Palette only (3e).
     row('popOut', 'Pop out chat', 'popout', (c) => (c.popOut ? { label: 'Pop out chat', icon: 'popout', run: c.popOut.run } : null)),
-    row('copyLink', 'Copy channel link', 'link', (c) => ({ label: 'Copy channel link', icon: 'link', run: c.act.copyLink })),
+    row('copyLink', 'Copy link', 'link', (c) => ({ label: 'Copy link', icon: 'link', run: c.act.copyLink })),
     row('logs', 'Open channel logs', 'scroll', (c) => ({ label: 'Open channel logs', icon: 'scroll', run: c.act.logs })),
     slot('entries', 'Your entries', (c) => c.entries),
     slot('plugins', 'Plugin entries', (c) => c.plugins),
   ],
+  // V111-10 Reach and search, then what the chat does, then Tab (only in a tab: the tile's rows and
+  // the View rows), then Subscribe, your entries and plugins, Close last.
   defaults: [
     item('search'),
     item('viewers'),
@@ -85,16 +87,30 @@ export const MORE_DEF: MenuDef<MoreCtx> = {
     SEP,
     item('record'),
     item('overlay'),
+    item('popOut'),
     SEP,
-    item('tile.theatre'),
-    item('tile.sound'),
-    item('tile.edit'),
-    item('tile.detach'),
-    group('view', 'View', [item('tile.hideChat'), item('tile.hideStream'), item('tile.panels'), item('tile.reset'), item('tile.look')], 'layout'),
+    group(
+      'tab',
+      'Tab',
+      [
+        item('tile.theatre'),
+        item('tile.sound'),
+        item('tile.edit'),
+        item('tile.detach'),
+        SEP,
+        item('tile.hideChat'),
+        item('tile.hideStream'),
+        item('tile.panels'),
+        item('tile.reset'),
+        item('tile.look'),
+      ],
+      'layout',
+    ),
     SEP,
     item('subscribe'),
     item('entries'),
     item('plugins'),
+    SEP,
     item('tile.close'),
   ],
 };

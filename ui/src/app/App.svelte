@@ -5,7 +5,7 @@
      where it was when its window closes (V102-16). -->
 <script lang="ts">
   import { listen } from '@tauri-apps/api/event';
-  import { setContext, tick, untrack } from 'svelte';
+  import { setContext, untrack } from 'svelte';
 
   import Button from '../components/Button.svelte';
   import EmptyState from '../components/EmptyState.svelte';
@@ -28,13 +28,10 @@
   import { modviewPlace, modviewRoute } from '../features/modview/where.svelte';
   import StreamManagerView from '../features/streammanager/StreamManagerView.svelte';
   import { whispers } from '../features/whispers/whispers.svelte';
-  import FeedView from '../features/chat/FeedView.svelte';
   import { globalTab } from '../features/chat/globalTab.svelte';
-  import { GLOBAL_FEED } from '../features/chat/mentionsTab';
   import { isMentionsFeed, MENTIONS_FEED } from '../features/chat/mentionsTab';
   import { mentionsTab } from '../features/chat/mentionsTab.svelte';
   import { roomRoute } from '../features/chat/roomRoute';
-  import WhispersView from '../features/whispers/WhispersView.svelte';
   import { openAdd } from '../features/tabs/dialog.svelte';
   import PoppedOut from '../features/tabs/PoppedOut.svelte';
   import Switcher from '../features/tabs/Switcher.svelte';
@@ -96,10 +93,13 @@
   const cyexView = lazy(() => import('../features/accounts/CyexView.svelte'));
   const dashboardView = lazy(() => import('../features/dashboard/CreatorDashboard.svelte'));
   const sheetFrame = lazy(() => import('../components/Sheet.svelte'));
+  const viewSheet = lazy(() => import('./ViewSheet.svelte'));
   const settingsSheet = lazy(() => import('../features/settings/SettingsSheet.svelte'));
 
-  type Fixed = 'home' | 'discover' | 'miner' | 'streamManager' | 'whispers' | 'mentions' | 'subs' | 'modview';
+  type Fixed = 'home' | 'discover' | 'miner' | 'streamManager' | 'subs' | 'modview';
   /** V109-B15 Pages that float over the window like Settings. */
+  /** V111-11 Whispers and Global mentions float over the window like Settings. */
+  type Over = 'whispers' | 'mentions';
   type SheetPage = 'cosmetics' | 'cyex' | 'dashboard';
   /** Somewhere the main window can show. */
   type Place = { tab: string } | { view: Fixed };
@@ -112,6 +112,7 @@
   /** V108-S1 Settings show as a sheet over the tab or view, not in its place. */
   let settingsOpen = $state(false);
   let sheetPage = $state<SheetPage | null>(null);
+  let over = $state<Over | null>(null);
   const SHEET_LABELS: Record<SheetPage, string> = { cosmetics: '7TV paint and badge', cyex: 'cyex cosmetics', dashboard: 'Creator dashboard' };
   let switcher = $state(false);
 
@@ -218,10 +219,12 @@
   const canWhisper = $derived(accounts.can('whispers'));
   /** V108-GM Global mentions have their own view while that's how they're shown. */
   const hasGlobalTab = $derived(settings.v.highlights.global && settings.v.highlights.globalTab);
+  /** The sheet is up: what's behind it can't be reached. */
+  const overShown = $derived(over === 'whispers' ? canWhisper : over === 'mentions' ? hasGlobalTab : false);
   globalTab.start();
-  $effect(() => globalTab.show(fixed === 'mentions'));
+  $effect(() => globalTab.show(over === 'mentions'));
   $effect(() => {
-    if (!hasGlobalTab && fixed === 'mentions') untrack(() => leaveView('mentions'));
+    if (!hasGlobalTab && over === 'mentions') untrack(() => (over = null));
   });
 
   // Follow the active tab when an edit moves it, e.g. closing the shown tab.
@@ -286,7 +289,7 @@
     'nav.discover': () => show('discover'),
     'nav.miner': () => (canMine ? show('miner') : gate.ask('gql')),
     'nav.streamManager': () => canManage && show('streamManager'),
-    'nav.whispers': () => canWhisper && toggleView('whispers'),
+    'nav.whispers': () => canWhisper && toggleOver('whispers'),
     'settings.open': toggleSettings,
     'window.pin': () => currentWindow.togglePin(),
     'tabs.switcher': () => (switcher = true),
@@ -360,7 +363,7 @@
   });
 
   // V102-16 Views popped out of here, by route: what they were and where this window went.
-  const docked = new Map<string, { view: Fixed; at: Place }>();
+  const docked = new Map<string, { view: Fixed | Over; at: Place }>();
   $effect(() => {
     const off = windowsIpc.onPanels((routes) => {
       for (const [route, d] of docked) {
@@ -368,7 +371,8 @@
         docked.delete(route);
         if (d.view === 'modview') modviewPlace.login = route.slice(route.indexOf('/') + 1);
         // Back where it was, unless you went somewhere else meanwhile.
-        if (isHere(d.at)) show(d.view);
+        // V111-11 A sheet comes back too, unless something else is open over the window now.
+        if (isHere(d.at) && (d.view !== 'whispers' && d.view !== 'mentions' ? true : !settingsOpen && !sheetPage && !over)) show(d.view);
       }
     });
     return () => void off.then((f) => f());
@@ -442,9 +446,11 @@
     nav.left(now);
   }
 
-  function show(view: Fixed) {
+  function show(view: Fixed | Over) {
+    if (view === 'whispers' || view === 'mentions') return openOver(view);
     settingsOpen = false;
     sheetPage = null;
+    over = null;
     if (fixed !== view) moved();
     fixed = view;
     tabs.activate(null);
@@ -453,6 +459,7 @@
   function open(id: string) {
     settingsOpen = false;
     sheetPage = null;
+    over = null;
     if (fixed || current !== id) moved();
     // V107-H15 Taken before the old tab leaves the page.
     const typing = inOtherField(document.activeElement);
@@ -469,26 +476,27 @@
     else show('view' in back ? back.view : 'home');
   }
 
-  /** V1051-02 Cancel on the 7TV consent, Escape in Settings: back to where you were. */
-  function leaveView(view: Fixed) {
-    goBack(view);
+  /** V111-11 The whisper and mentions buttons and Ctrl+5 open the sheet; again, it closes. Opening one closes the other, Settings and the cosmetics pages. */
+  function toggleOver(view: Over) {
+    if (over === view) over = null;
+    else openOver(view);
   }
-
-  /** V107-R32, V108-C06 The cog, the whisper button and their hotkeys open the view; again, back to where you were. */
-  function toggleView(view: Fixed) {
-    if (fixed === view) leaveView(view);
-    else show(view);
-  }
-  /** V108-F60h Escape in the whispers page: back to where you were, focus on the title-bar button. */
-  function closeWhispers() {
-    leaveView('whispers');
-    void tick().then(() => document.querySelector<HTMLElement>('[data-whispers-toggle] button')?.focus());
+  function openOver(view: Over) {
+    if (theatre.tile) theatre.leave();
+    settingsOpen = false;
+    sheetPage = null;
+    over = view;
+    viewSheet().catch(() => {
+      over = null;
+      toast.error('Couldn’t open that. Try again.', { key: 'sheet.load' });
+    });
   }
   /** V108-S1 Settings over where you are, on `page` if given. Theatre ends, as it did when they took the window. */
   function openSettings(page?: string) {
     if (page) settingsSection = page;
     if (theatre.tile) theatre.leave();
     sheetPage = null;
+    over = null;
     settingsOpen = true;
     // The sheet's chunk failed to load: no sheet, so nothing may stay inert behind it.
     settingsSheet().catch(() => {
@@ -499,6 +507,7 @@
   /** V109-B15 The 7TV and cyex cosmetics pages, V109-C04 the creator dashboard: a sheet like Settings. */
   function openSheetPage(page: SheetPage) {
     settingsOpen = false;
+    over = null;
     sheetPage = page;
   }
   function toggleSettings() {
@@ -508,9 +517,10 @@
 
   /** V102-16 Pops a view out of here and goes back to where you were before it; when its
    * window closes the view comes back, if you're still there. */
-  async function popOutView(view: Fixed, route: string, title?: string) {
+  async function popOutView(view: Fixed | Over, route: string, title?: string) {
     if (!(await popOut(route, title))) return;
-    goBack(view);
+    if (view === 'whispers' || view === 'mentions') over = null;
+    else goBack(view);
     docked.set(route, { view, at: here() ?? { view: 'home' } });
   }
 
@@ -595,7 +605,7 @@
     theatre={theatreOn}
     {width}
     {height}
-    inert={settingsOpen}
+    inert={settingsOpen || overShown}
   />
 {/if}
 
@@ -661,9 +671,9 @@
           icon="whisper"
           label="Whispers"
           hint={whispers.state.unread ? `${whispers.state.unread} unread` : 'Your whispers (Ctrl+5).'}
-          active={fixed === 'whispers'}
-          expanded={fixed === 'whispers'}
-          onclick={() => toggleView('whispers')}
+          active={over === 'whispers'}
+          expanded={over === 'whispers'}
+          onclick={() => toggleOver('whispers')}
         />
         {#if whispers.state.unread}<span class="count">{whispers.state.unread > 99 ? '99+' : whispers.state.unread}</span>{/if}
       </div>
@@ -674,8 +684,8 @@
           icon="at"
           label="Global mentions"
           hint={globalTab.unread ? `${globalTab.unread} new` : 'Mentions of you in chats you aren’t in.'}
-          active={fixed === 'mentions'}
-          onclick={() => toggleView('mentions')}
+          active={over === 'mentions'}
+          onclick={() => toggleOver('mentions')}
         />
         {#if globalTab.unread}<span class="count">{globalTab.unread > 99 ? '99+' : globalTab.unread}</span>{/if}
       </div>
@@ -697,16 +707,16 @@
 {/snippet}
 
 {#if place === 'row' && !theatreOn}
-  <div class="tab-row" inert={settingsOpen}>
+  <div class="tab-row" inert={settingsOpen || overShown}>
     <TabBar {current} onopen={open} />
   </div>
 {:else if place === 'above' && !theatreOn}
   <!-- V110-U54 Empty unless the "Above chat" bar is here (narrow window). -->
-  <div class="tab-row above-row" inert={settingsOpen} bind:this={rowSlot}></div>
+  <div class="tab-row above-row" inert={settingsOpen || overShown} bind:this={rowSlot}></div>
 {/if}
 <div class="bar-slot" bind:this={barPark}></div>
 
-<div class="body {side}" inert={settingsOpen}>
+<div class="body {side}" inert={settingsOpen || overShown}>
   {#if (place === 'bottom' || place === 'left' || place === 'right') && !theatreOn}
     <div class="side-bar" bind:this={sideBar}>
       <TabBar vertical={side !== 'bottom'} width={sideBarWidth(side, menusEdge)} {current} onopen={open} />
@@ -740,10 +750,6 @@
             {#await minerView() then { default: MinerView }}<MinerView onsettings={minerSettings} />{/await}
           {:else if fixed === 'streamManager' && canManage}
             <StreamManagerView onpopout={popOutManager} onsignin={manageAccounts} />
-          {:else if fixed === 'whispers' && canWhisper}
-            <WhispersView onpopout={popOutWhispers} onsignin={manageAccounts} onclose={closeWhispers} />
-          {:else if fixed === 'mentions' && hasGlobalTab}
-            <FeedView name={GLOBAL_FEED} />
           {:else if fixed === 'subs'}
             {#await subsView() then { default: SubsView }}
               <SubsView onchannel={(c) => void openChannel({ show: open, account: () => accounts.current?.userId ?? null }, c)} onsignin={manageAccounts} />
@@ -762,6 +768,15 @@
   {#await settingsSheet() then { default: SettingsSheet }}
     <SettingsSheet bind:section={settingsSection} onclose={() => (settingsOpen = false)} />
   {:catch}<!-- openSettings closes it and says so -->
+  {/await}
+{/if}
+{#if over && overShown}
+  {#await viewSheet() then { default: ViewSheet }}
+    <!-- Keyed: switching between the two is a new sheet, with focus taken again. -->
+    {#key over}
+      <ViewSheet kind={over} onclose={() => (over = null)} onpopout={popOutWhispers} onsignin={manageAccounts} />
+    {/key}
+  {:catch}<!-- openOver closes it and says so -->
   {/await}
 {/if}
 {#if sheetPage}

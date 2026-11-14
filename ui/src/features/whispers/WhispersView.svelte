@@ -1,6 +1,6 @@
 <!-- 1.26 Whispers: every conversation with its history on the left (search, start a new
      one, archived ones folded away), the open one on the right. In the main window or
-     popped out. -->
+     popped out. V111-11 In the main window it is a sheet over the window (ViewSheet), like Settings. -->
 <script lang="ts">
   import { tick } from 'svelte';
 
@@ -29,9 +29,11 @@
     onsignin?: () => void;
     /** V108-F60h Escape (main window only): the page closes. */
     onclose?: () => void;
+    /** V111-11 Shown in a sheet over the window: the sheet closes on Escape, and it has a pop-out button. */
+    sheet?: boolean;
   }
 
-  let { popout = false, route = '', onpopout, onsignin, onclose }: Props = $props();
+  let { popout = false, route = '', onpopout, onsignin, onclose, sheet = false }: Props = $props();
 
   // svelte-ignore state_referenced_locally
   let selected = $state<string | null>(route.split('/')[1] || whispers.wanted);
@@ -87,7 +89,8 @@
     const r = root;
     void tick().then(() => {
       const a = document.activeElement as HTMLElement | null;
-      if (a && a !== document.body && !a.closest('[data-whispers-toggle]') && a.offsetParent !== null) return;
+      // V111-11 The sheet's own box holds focus when it opens: that isn't a field being typed in.
+      if (a && a !== document.body && !a.closest('[data-whispers-toggle]') && !a.matches('[role="dialog"]') && a.offsetParent !== null) return;
       const live = 'aside:not([hidden])';
       (r.querySelector<HTMLElement>(`${live} .thread`) ?? r.querySelector<HTMLElement>(`${live} input`))?.focus();
     });
@@ -122,7 +125,7 @@
         disabled: !s.history,
         run: () => whispersIpc.blockStrangers(!s.blockStrangers).catch((err) => toast.error(errorText(err))),
       },
-      ...(!popout && onpopout ? ['separator' as const, { label: 'Pop out', icon: 'popout' as const, run: () => onpopout(selected) }] : []),
+      ...(!popout && !sheet && onpopout ? ['separator' as const, { label: 'Pop out', icon: 'popout' as const, run: () => onpopout(selected) }] : []),
     ]);
   }
 
@@ -151,6 +154,9 @@
       <div class="top">
         <div class="search"><SearchField bind:value={query} label="Search or start a conversation" /></div>
         <IconButton icon="more" label="Options" hint="Mark all read, and who may whisper you." onclick={more} />
+        {#if sheet && onpopout}
+          <IconButton icon="popout" label="Pop out" hint="Opens whispers in their own window." onclick={() => onpopout(selected)} />
+        {/if}
       </div>
       <div class="threads" {onscroll}>
         {#if fresh}

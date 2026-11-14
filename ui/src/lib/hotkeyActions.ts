@@ -50,7 +50,7 @@ export const ACTIONS = {
 } as const satisfies Record<string, { label: string; default: string; global?: boolean }>;
 
 /** V108-S1 The settings sheet is open: only these keys reach the tabs and players behind it. */
-export const OVER_SHEET: ReadonlySet<string> = new Set(['settings.open', 'tabs.switcher', 'zoom.in', 'zoom.out', 'zoom.reset', 'app.reload', 'tab.reload', 'tabs.reloadAll']);
+export const OVER_SHEET: ReadonlySet<string> = new Set(['settings.open', 'nav.whispers', 'tabs.switcher', 'zoom.in', 'zoom.out', 'zoom.reset', 'app.reload', 'tab.reload', 'tabs.reloadAll']);
 // V110-N7 tab.reload and tabs.reloadAll are listed so the sheet never lets WebView2 reload the page
 // on F5 / Ctrl+R; they do nothing while the sheet is open (the tabs are behind it).
 
