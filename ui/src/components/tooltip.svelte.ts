@@ -91,7 +91,8 @@ export function lingerTip(): void {
 export function overTipNow(on: boolean): void {
   overTip = on;
   clearTimeout(linger);
-  if (!on) hide();
+  // V111-02 Back onto its own element (the tip moved off the pointer): it stays.
+  if (!on && !owner?.matches(':hover')) hide();
 }
 
 /** V111-02 `node`'s tip now belongs to `next`, the same thing drawn again (a chat line re-rendered

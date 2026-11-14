@@ -139,10 +139,19 @@ export function floating(node: HTMLElement, opts: FloatOptions) {
     const size = { width: node.offsetWidth, height: node.offsetHeight };
     const p = place(anchor, size, { width: innerWidth, height: innerHeight }, o);
     const at = origin(node);
+    const fixed = at.x === 0 && at.y === 0 && getComputedStyle(node).position === 'fixed';
     node.style.right = 'auto';
-    node.style.bottom = 'auto';
     node.style.left = `${p.left - at.x}px`;
-    node.style.top = `${p.top - at.y}px`;
+    // V111-02 A fixed box above its anchor is held by its bottom edge, so content that arrives
+    // later (a link's card) grows it upward, away from the anchor, not down over it and the
+    // pointer (which looped the link tip open and shut every few ms on the newest chat line).
+    if (fixed && p.side === 'above') {
+      node.style.top = 'auto';
+      node.style.bottom = `${innerHeight - (p.top + size.height)}px`;
+    } else {
+      node.style.bottom = 'auto';
+      node.style.top = `${p.top - at.y}px`;
+    }
     node.style.maxWidth = p.maxWidth === undefined ? (limited ? `${fit}px` : '') : `${p.maxWidth}px`;
     node.style.maxHeight = p.maxHeight === undefined ? '' : `${p.maxHeight}px`;
     node.style.overflow = p.maxWidth === undefined && p.maxHeight === undefined ? '' : 'auto';
