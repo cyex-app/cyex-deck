@@ -4,6 +4,7 @@ mod accounts;
 mod browse;
 mod chat;
 mod chat_extra;
+mod chatterino_commands;
 mod clips;
 mod community;
 mod content;
@@ -137,7 +138,7 @@ pub fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static 
         chat::chat_open,
         chat::chat_close,
         chat::chat_rejoin,
-        chat::chat_reloaded,
+        chat::chat_reload,
         chat::chat_shown,
         chat::chat_send,
         chat::chat_global_catalog,
@@ -374,6 +375,9 @@ pub fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static 
         player::channel_stories_seen,
         highlights::highlights_chatterino_preview,
         highlights::highlights_chatterino_import,
+        chatterino_commands::commands_chatterino_preview,
+        chatterino_commands::commands_chatterino_import,
+        chatterino_commands::commands_chatterino_cancel,
         settings::settings_all,
         settings::settings_patch,
         settings::settings_prune_blank,

@@ -2,6 +2,7 @@
 //! deletions, history (C1), the user's rules (`checks`). Pure state: the app feeds it
 //! lines and streams the events.
 
+mod alive;
 pub mod budget;
 mod checks;
 mod gap;
@@ -104,6 +105,8 @@ pub struct Room {
     outcomes: Vec<(Arc<ChatMessage>, Outcome)>,
     /// C24 When the connection dropped, while it's gone.
     lost_at: Option<i64>,
+    /// V111-08 Whether the room still hears its channel (`alive`).
+    alive: alive::Alive,
     /// C37, V102-18 The joins and leaves lines still taking names.
     presence: presence::Batches,
     /// V107-M7 Timeouts in a row, one line per user.
@@ -142,6 +145,7 @@ impl Room {
             repeats: Repeats::default(),
             outcomes: Vec::new(),
             lost_at: None,
+            alive: alive::Alive::default(),
             presence: presence::Batches::default(),
             timeouts: stack::Stacks::default(),
             moments: crate::moments::Moments::default(),
@@ -314,6 +318,9 @@ impl Room {
             (ConnStatus::Joined, ConnStatus::Reconnecting) => Some("Disconnected"),
             _ => None,
         };
+        // V111-08 A forced rejoin's own answer says nothing; the app says how it went.
+        let quiet = self.alive.settle(status, now_ms);
+        let line = line.filter(|_| !quiet);
         self.status = status;
         let mut events = vec![RoomEvent::Status { status }];
         events.extend(line.map(|text| self.system(NoticeKind::Info, text, now_ms)));
@@ -459,6 +466,14 @@ impl Room {
         let mut events = Vec::new();
         match incoming {
             Incoming::Message(m) => {
+                // V111-08 A live line from the channel: the room still hears it.
+                if !m.has(Flag::History) && m.sender.is_some() {
+                    if m.has(Flag::Own) {
+                        self.alive.echoed(&m.id);
+                    } else {
+                        self.alive.heard(now_ms);
+                    }
+                }
                 // V102-21 Our own line from another app carries fresh badges.
                 if m.has(Flag::Own)
                     && !m.has(Flag::History)
@@ -545,6 +560,8 @@ impl Room {
             if let Some(p) = self.answered(us.nonce.as_deref()) {
                 // V105-06 The reader may have brought our line already.
                 if !self.buffer.iter().any(|b| b.id == id) {
+                    // V111-08 Twitch took it: the reader should bring it back soon.
+                    self.alive.expect_echo(&id, now_ms);
                     let m = self.echo(p, us, id, now_ms, emotes);
                     events.extend(self.add(m, now_ms, emotes));
                 }

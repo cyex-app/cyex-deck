@@ -10,6 +10,7 @@ import { dragBlocked, dropBlocked } from './lock';
 import type { Zone } from '../../ipc/bindings/Zone';
 import type { Edge } from '../../lib/panels';
 import { tabs, tiles } from './tabs.svelte';
+import { rowSlotAt } from './rowSlot';
 import { edgeAt, groupAt, rowSlot, zoneAt } from './zones';
 
 /** V103-05 A panel of the layout `layout` (a `PanelLayout`'s key). `tile` when it's a tab's,
@@ -88,7 +89,11 @@ class Drag {
       this.item = null;
       this.target = null;
     };
-    const up = () => end(true);
+    // V111-05 Lands where the pointer is let go, not where the last move left it.
+    const up = (ev: PointerEvent) => {
+      if (this.item) this.target = hit(ev.clientX, ev.clientY, item);
+      end(true);
+    };
     const cancel = () => end(false);
     const key = (ev: KeyboardEvent) => ev.key === 'Escape' && cancel();
     addEventListener('pointermove', move);
@@ -103,15 +108,23 @@ class Drag {
 export const drag = new Drag();
 
 function hit(x: number, y: number, item: DragItem): DropTarget | null {
+  if (item.kind === 'row') {
+    // V111-05 From the rows' boxes, not the element under the pointer: past either end,
+    // beside the list or over a gap that found no row, and the drop was lost.
+    // Hidden rows (no box) would stretch the list to the window's corner.
+    const rows = [...document.querySelectorAll<HTMLElement>(`[data-row-of="${CSS.escape(item.list)}"]`)]
+      .map((el) => ({ el, box: el.getBoundingClientRect() }))
+      .filter((r) => r.box.width || r.box.height);
+    const slot = rowSlotAt(
+      rows.map((r) => r.box),
+      x,
+      y,
+    );
+    return slot && { kind: 'row', list: item.list, id: rows[slot.index].el.dataset.rowId!, after: slot.after };
+  }
   const el = document.elementFromPoint(x, y);
   if (!el) return null;
   const kind = item.kind;
-  if (item.kind === 'row') {
-    const row = el.closest<HTMLElement>(`[data-row-of="${CSS.escape(item.list)}"]`);
-    if (!row) return null;
-    const r = row.getBoundingClientRect();
-    return { kind: 'row', list: item.list, id: row.dataset.rowId!, after: y > r.top + r.height / 2 };
-  }
   if (item.kind === 'panel') {
     // V103-05 Onto another panel of its layout, or the layout itself; a tab's panel onto
     // another tile moves the whole tile (U3).

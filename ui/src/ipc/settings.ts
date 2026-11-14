@@ -6,6 +6,8 @@ import type { Appearance } from './bindings/Appearance';
 import type { Browse } from './bindings/Browse';
 import type { Chat } from './bindings/Chat';
 import type { Combos } from './bindings/Combos';
+import type { CommandImport } from './bindings/CommandImport';
+import type { CommandPreview } from './bindings/CommandPreview';
 import type { Commands } from './bindings/Commands';
 import type { Emotes } from './bindings/Emotes';
 import type { General } from './bindings/General';
@@ -105,6 +107,11 @@ export const settingsIpc = {
   highlightsPreview: () => invoke<HighlightPreview | null>('highlights_chatterino_preview'),
   /** V105-16 Adds the picked highlights; duplicates keep yours or take Chatterino's. */
   highlightsImport: (keepMine: boolean) => invoke<HighlightImport>('highlights_chatterino_import', { keepMine }),
+  /** V111-06 Opens a file picker for Chatterino's commands.json; `null` when cancelled. */
+  commandsPreview: () => invoke<CommandPreview | null>('commands_chatterino_preview'),
+  /** V111-06 Adds the picked commands; `take` lists the conflicts that take Chatterino's. */
+  commandsImport: (take: number[], menu: boolean) => invoke<CommandImport>('commands_chatterino_import', { take, menu }),
+  commandsCancel: () => invoke<void>('commands_chatterino_cancel'),
   shareCode: (partitions: Partition[]) => invoke<string>('settings_share_code', { partitions }),
   importCode: (code: string) => invoke<Imported>('settings_import_code', { code }),
   /** V110-A-idea Picks a file and tells what it brings; nothing changes until `applyImport`. `null` when cancelled. */

@@ -23,7 +23,7 @@
   import { errorText } from '../../lib/errors';
   import Select from '../../components/Select.svelte';
 
-  /** V110-M23 Your ad lengths and default (Settings > Chat). */
+  /** V110-M23 Your ad lengths and default (Settings > Moderation). */
   const LENGTHS = $derived(settings.v.chat.adPresets.map((v) => ({ value: v, label: formatSecs(v) })));
 
   let length = $state(settings.v.chat.adLength);

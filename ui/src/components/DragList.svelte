@@ -5,6 +5,7 @@
   import { tick, type Snippet } from 'svelte';
 
   import { drag, rowDrops } from '../features/tabs/drag.svelte';
+  import { sameSlot } from '../features/tabs/rowSlot';
   import { BASE, EASE, reduced } from '../lib/motion';
   import { moveKey, nudge, nudgeDir } from '../lib/order';
   import { hideTip } from './tooltip.svelte';
@@ -45,7 +46,11 @@
   const mine = $derived(drag.item?.kind === 'row' && drag.item.list === key ? drag.item.id : null);
   const line = $derived.by(() => {
     const t = drag.target;
-    return mine !== null && t?.kind === 'row' && t.list === key && t.id !== mine ? t : null;
+    if (mine === null || t?.kind !== 'row' || t.list !== key) return null;
+    // V111-05 No line where the drop changes nothing (its own slot or the edge next to it):
+    // a line there promised a move that never came.
+    const at = (k: string) => items.findIndex((x) => id(x) === k);
+    return sameSlot(at(mine), at(t.id), t.after) ? null : t;
   });
 
   let said = $state('');

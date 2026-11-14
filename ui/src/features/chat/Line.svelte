@@ -8,6 +8,7 @@
   import Icon from '../../components/Icon.svelte';
   import type { ChatMessage } from '../../ipc/bindings/ChatMessage';
   import type { Look } from '../../ipc/bindings/Look';
+  import { foldPresence } from './presenceFold';
   import { formatDuration, formatNumber, formatTime } from '../../lib/format';
   import { uniqueKeys } from '../../lib/keys';
   import { MOD_ROLE_NOTE, modButtonsFor, takesModRole, type LineMod } from '../modview/lineMod';
@@ -82,7 +83,7 @@
   const fold = $derived(foldRecipients(recipients, recipientsOpen));
   // V108-C11 The gifter and a lone recipient in the text open their usercard.
   const noticeParts = $derived(notice?.links.length ? splitNames(notice.text, notice.links) : null);
-  // C37 V108-C03 Joins and leaves: each name opens its usercard; the count stays text.
+  // C37 V108-C03 Joins and parts: each name opens its usercard.
   const presence = $derived(notice?.presence);
   // V111-01 An emote-change line shows the emote after its name, like a chat emote (tip and card too).
   const noticeEmote = $derived(notice?.emote);
@@ -94,6 +95,9 @@
   );
   /** V110-F84 Names repeat in a long join list; a keyed each throws on a repeat. */
   const presenceKeys = $derived(uniqueKeys(presence?.names ?? [], (login) => login));
+  // V111-07 With "Minimize join/part messages" on, a long list shows 5 names and a Show more / Show less toggle (per line).
+  let presenceOpen = $state(false);
+  const presenceFold = $derived(foldPresence(presence?.names ?? [], c.minimizePresence, presenceOpen));
   const hl = $derived(highlightStyle(m));
   /** V107-Mj Zalgo stays inside its line. */
   const stacked = $derived(lineStacks(m.body, notice?.text, m.sender?.display, m.reply?.parentDisplay, m.reply?.parentBody));
@@ -166,12 +170,12 @@
   {#if notice}
     <div class="notice-text">
       {#if !sender && time}<span class="ts" data-stamp={m.ts}>{time}</span>{/if}{#if upLine}Uploaded <a class="up" href={upLine.link} data-upload={upLine.link}>{upLine.link}</a>{#if upLine.deletion}
-        · delete: <a class="up" href={upLine.deletion} data-upload={upLine.deletion}>{upLine.deletion}</a>{/if}{:else if presence}{presence.joined ? 'joined: ' : 'parted: '}{#each presence.names as login, i (presenceKeys[i])}{i ? ', ' : ''}<span
+        · delete: <a class="up" href={upLine.deletion} data-upload={upLine.deletion}>{upLine.deletion}</a>{/if}{:else if presence}{presence.joined ? 'joined: ' : 'parted: '}{#each presenceFold.shown as login, i (presenceKeys[i])}{i ? ', ' : ''}<span
             class="who"
             role="link"
             tabindex="-1"
             data-user={login}>{login}</span
-          >{/each}{presence.more ? ` +${formatNumber(presence.more)} more` : ''}{:else if emoteParts && emoteFragment}{emoteParts[0]}<span class="notice-emote"><ChatEmote f={emoteFragment} bare /></span>{emoteParts[1]}{:else if noticeParts}{#each noticeParts as p}{#if p.login}<span class="who" role="link" tabindex="-1" data-user={p.login}>{p.text}</span
+          >{/each}{#if presenceFold.toggle}{' '}<button class="more presence-toggle" aria-expanded={presenceOpen} aria-label={presenceOpen ? 'Show less' : `Show more: ${formatNumber(presenceFold.hidden)} names`} onclick={() => (presenceOpen = !presenceOpen)}>{presenceFold.toggle}</button>{/if}{:else if emoteParts && emoteFragment}{emoteParts[0]}<span class="notice-emote"><ChatEmote f={emoteFragment} bare /></span>{emoteParts[1]}{:else if noticeParts}{#each noticeParts as p}{#if p.login}<span class="who" role="link" tabindex="-1" data-user={p.login}>{p.text}</span
           >{:else}{p.text}{/if}{/each}{:else}{notice.text}{/if}
     </div>
     {#if recipients.length}
@@ -404,6 +408,10 @@
   .more:hover {
     background: var(--surface-hover);
     color: var(--text);
+  }
+  /* V111-07 Sits in the line's text, after the names. */
+  .presence-toggle {
+    margin: 0 0 0 2px;
   }
   .who {
     cursor: pointer;

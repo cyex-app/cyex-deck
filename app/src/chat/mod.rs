@@ -23,6 +23,7 @@ pub mod hypetrain;
 pub mod identity;
 pub mod link_preview;
 pub mod live;
+mod alive;
 mod mention;
 pub mod moments;
 mod park;
@@ -170,6 +171,10 @@ struct Entry {
     /// V110-M28 Banned here and read through the anonymous connection meanwhile: its lines
     /// are routed into this room (`session::mirror`).
     mirror: bool,
+    /// V111-08 F5 asked for a real rejoin: its answer says "Chat reloaded." (or that it failed).
+    reload: bool,
+    /// V111-08 When the app last forced a rejoin here (ms), so it doesn't keep doing it.
+    forced_at: i64,
 }
 
 #[derive(Serialize, TS)]
@@ -198,6 +203,7 @@ pub fn init(app: &AppHandle) {
     on_settings(app);
     shown::init(app);
     park::init(app);
+    alive::init(app);
     search::init(app);
     flush::spawn(app.clone(), wake);
     catalog::init(app);
@@ -438,6 +444,8 @@ fn ensure_room(app: &AppHandle, inner: &mut Inner, key: &RoomKey, me: Option<Me>
             history,
             epoch,
             mirror: false,
+            reload: false,
+            forced_at: 0,
         },
     );
     Some(Joined {
@@ -694,15 +702,12 @@ pub fn rejoin_view(app: &AppHandle, view: u32) -> bool {
     session::rejoin(app, &key, false)
 }
 
-/// V110-N8 A system line in the one room a view shows ("Chat reloaded."), not its channel's others.
-pub fn room_note(app: &AppHandle, view: u32, text: &str) -> bool {
-    let Some(chat) = app.try_state::<Chat>() else { return false };
-    let mut inner = chat.lock();
-    let Some(key) = inner.views.get(&view).map(|v| v.0.clone()) else { return false };
-    let Some(entry) = inner.rooms.get_mut(&key) else { return false };
-    let ev = entry.room.system(NoticeKind::Info, text, now_ms());
-    queue(entry, vec![ev], &chat.wake);
-    true
+/// V111-08 F5 / Ctrl+R: the room a view shows leaves and joins again on its own connection,
+/// whatever state it is in; its answer says "Chat reloaded." (V110-N8) or that it failed,
+/// and what was missed fills from history. False: no such view.
+pub fn reload_view(app: &AppHandle, view: u32) -> bool {
+    let Some(key) = app.state::<Chat>().view_key(view) else { return false };
+    session::force_rejoin(app, &key, true)
 }
 
 /// The channel id for a login: the registry's, else whichever open room knows it.

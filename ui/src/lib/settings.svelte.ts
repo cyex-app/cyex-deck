@@ -93,11 +93,15 @@ class SettingsStore {
   async patch<P extends Partition>(partition: P, patch: DeepPartial<SettingsValues[P]>): Promise<void> {
     const n = this.flight.start(partition);
     // Plain, so no proxy of the store lands back in it (a row moved within its own list).
-    const shown = mergePatch($state.snapshot(this.v[partition]) as SettingsValues[P], $state.snapshot(patch));
+    // V111-05 Rust gets the same copy: `reconcile` rewrites the store's rows in place, so a
+    // patch holding those rows (a reordered list) changed under it before it was sent. A
+    // moved timeout button sent its neighbour's length, and the drop landed elsewhere.
+    const plain = $state.snapshot(patch) as DeepPartial<SettingsValues[P]>;
+    const shown = mergePatch($state.snapshot(this.v[partition]) as SettingsValues[P], plain);
     reconcile(this.v as Record<Partition, unknown>, partition, shown);
     let value: SettingsValues[P] | undefined;
     try {
-      value = await settingsIpc.patch(partition, patch);
+      value = await settingsIpc.patch(partition, plain);
     } catch (e) {
       toast.error(errorText(e, 'save the settings'));
     }

@@ -375,11 +375,12 @@
       .catch((err) => toast.error(errorText(err)))
       .finally(() => (rejoining = false));
   }
-  // V110-N7 F5 / Ctrl+R rejoin this chat like its own reconnect. V110-N8 Then its room says so.
+  // V110-N7 F5 / Ctrl+R rejoin this chat. V111-08 A real one (leave and join, banned or
+  // timed out too); Rust says "Chat reloaded." once Twitch answered and fills the gap.
   function reloadChat() {
     const view = room.view;
     if (!view) return;
-    void rejoin().then(() => chatIpc.reloaded(view).catch(() => {}));
+    void chatIpc.reload(view).catch((err) => toast.error(errorText(err)));
   }
   // svelte-ignore state_referenced_locally
   if (tile) onDestroy(chatReloads.add({ tile, run: reloadChat }));

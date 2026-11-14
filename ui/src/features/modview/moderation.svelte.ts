@@ -13,7 +13,7 @@ import { treatItems as treatEntries } from './modEntries';
 import type { Standing } from './standing';
 import { errorText } from '../../lib/errors';
 
-/** 2.11 The quick timeout lengths from Settings → Chat, shortest first. */
+/** 2.11 The quick timeout lengths from Settings → Moderation (V111-04), shortest first. */
 export function timeouts(): { label: string; secs: number }[] {
   return settings.v.chat.timeoutPresets.map((secs) => ({ label: formatDuration(secs), secs }));
 }

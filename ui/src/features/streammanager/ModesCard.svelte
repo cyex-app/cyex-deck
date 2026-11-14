@@ -15,7 +15,7 @@
   import Loading from '../../components/Loading.svelte';
   import Button from '../../components/Button.svelte';
 
-  /** V110-M23 Your lengths (Settings > Chat); "Any follower" is always first. */
+  /** V110-M23 Your lengths (Settings > Moderation); "Any follower" is always first. */
   const FOLLOW = $derived([
     { value: 0, label: 'Any follower' },
     ...settings.v.chat.followPresets.map((m) => ({ value: m, label: formatSecs(m * 60) })),

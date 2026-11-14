@@ -69,10 +69,8 @@ impl NoticeUser {
 #[ts(export)]
 pub struct Presence {
     pub joined: bool,
-    /// Logins written out, in order of arrival.
+    /// Logins in order of arrival; all of them (V111-07).
     pub names: Vec<String>,
-    /// Names past those, only counted.
-    pub more: u32,
 }
 
 impl Notice {

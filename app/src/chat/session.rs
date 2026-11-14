@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use cyex_chat::build::Me;
 use cyex_chat::irc::{self, Client, Credentials, Event, Line, LinkStatus, Window};
-use cyex_chat::model::{ConnStatus, Flag, NoticeKind, RoomEvent};
+use cyex_chat::model::{ConnStatus, Flag, NoticeKind, Restriction, RoomEvent};
 use tauri::{AppHandle, Manager};
 use tokio::sync::mpsc;
 
@@ -148,6 +148,7 @@ fn unanswered(app: &AppHandle, identity: &Identity, channels: &[String], stamp: 
         }
         eprintln!("chat: no answer to JOIN #{c} twice, not joined");
         queue(e, events, &chat.wake);
+        reload_failed(e, &chat.wake);
         any = true;
     }
     if let Some(session) = inner.sessions.get(identity) {
@@ -203,6 +204,7 @@ fn link_status(app: &AppHandle, identity: &Identity, link: LinkStatus) {
         moved |= entry.room.status == ConnStatus::Refused;
         let events = entry.room.set_status(status, now);
         queue(entry, events, &chat.wake);
+        reload_failed(entry, &chat.wake);
     }
     drop(inner);
     // V105-05 A refused chat that lost its link isn't refused anymore: the counter follows.
@@ -227,6 +229,7 @@ pub fn rejoin(app: &AppHandle, key: &RoomKey, only_banned: bool) -> bool {
         return false;
     }
     e.join_retried = false;
+    e.forced_at = now_ms();
     let was_refused = e.room.status == ConnStatus::Refused;
     let events = e.room.set_status(ConnStatus::Connecting, now_ms());
     queue(e, events, &chat.wake);
@@ -256,6 +259,81 @@ pub fn rejoin_banned(app: &AppHandle, account: &str, channel_id: &str) {
         .collect();
     for k in keys {
         rejoin(app, &k, true);
+    }
+}
+
+/// V111-08 A real rejoin of one room: it leaves and joins again on its own connection (a link
+/// that is down or refused connects anew instead), whatever its status, so a room Twitch
+/// stopped sending to (an account banned while in it), a banned or timed-out one, or a stuck
+/// one gets Twitch's fresh answer: the JOIN echo (in; the standing is read again), `msg_banned`
+/// (banned, read anonymously, M28) or nothing (not in). What was said since it last heard
+/// anyone fills from history once it's in. `reload` (F5): the answer says "Chat reloaded.",
+/// after the fill, or that it couldn't. False: no such room.
+pub fn force_rejoin(app: &AppHandle, key: &RoomKey, reload: bool) -> bool {
+    let chat = app.state::<Chat>();
+    let mut inner = chat.lock();
+    let Some(e) = inner.rooms.get_mut(key) else { return false };
+    let now = now_ms();
+    let before = e.room.status;
+    e.reload |= reload;
+    e.forced_at = now;
+    e.join_retried = false;
+    let events = e.room.rejoin(now);
+    queue(e, events, &chat.wake);
+    let client = ensure(app, &mut inner, &key.0).client.clone();
+    if matches!(before, ConnStatus::Reconnecting | ConnStatus::AuthFailed) {
+        client.reconnect();
+    } else {
+        client.part(&key.1);
+        client.join(&key.1);
+    }
+    drop(inner);
+    if before == ConnStatus::Refused {
+        crate::connections::notify(app);
+    }
+    true
+}
+
+/// V111-08 An automatic rejoin, at most once a minute per room (`alive::may_force`).
+pub fn auto_rejoin(app: &AppHandle, key: &RoomKey, why: &str) {
+    {
+        let chat = app.state::<Chat>();
+        let inner = chat.lock();
+        let Some(e) = inner.rooms.get(key) else { return };
+        if !super::alive::may_force(e.forced_at, now_ms()) {
+            return;
+        }
+    }
+    eprintln!("chat: rejoining #{} ({why})", key.1);
+    force_rejoin(app, key, false);
+}
+
+const RELOADED: &str = "Chat reloaded.";
+const RELOAD_FAILED: &str = "Couldn’t rejoin this chat.";
+
+/// V111-08 What a reload's answer says: nothing while it still waits.
+fn reload_answer(status: ConnStatus) -> Option<&'static str> {
+    match status {
+        ConnStatus::Connecting | ConnStatus::Reconnecting => None,
+        ConnStatus::Joined | ConnStatus::Banned => Some(RELOADED),
+        _ => Some(RELOAD_FAILED),
+    }
+}
+
+/// V111-08 The reload's answer once Twitch gave one, taken.
+fn take_reload(e: &mut super::Entry) -> Option<&'static str> {
+    let note = if e.reload { reload_answer(e.room.status) } else { None };
+    if note.is_some() {
+        e.reload = false;
+    }
+    note
+}
+
+/// V111-08 A reload that ended up not in says so at once.
+fn reload_failed(e: &mut super::Entry, wake: &tokio::sync::Notify) {
+    if let Some(note) = take_reload(e) {
+        let ev = e.room.system(NoticeKind::Info, note, now_ms());
+        queue(e, [ev], wake);
     }
 }
 
@@ -435,15 +513,26 @@ fn room_line(app: &AppHandle, identity: &Identity, channel: &str, line: &Line<'_
         let events = entry.room.set_status(ConnStatus::Joined, now_ms());
         queue(entry, events, &chat.wake);
         let gap = entry.room.take_gap(now_ms());
+        let note = take_reload(entry);
         sync_mirror(app, &mut inner, &key);
         drop(inner);
         if was_refused {
             crate::connections::notify(app);
         }
-        if let Some(span) = gap {
+        if gap.is_some() {
             // V108-C31 FFZ has no live feed: read its room again after a drop.
             crate::emotes::ffz_after_reconnect(app, channel);
-            fill_gap(app.clone(), key, span);
+        }
+        after_answer(app, key, gap, note);
+        return;
+    }
+    // V111-08 Our own PART: the one a forced rejoin sent says nothing. Twitch parting an
+    // account that thinks it's in means it stopped sending this chat: join again.
+    if line.command == "PART" && matches!(identity, Identity::Account(_)) && own(entry.room.me(), line.nick()) {
+        let dropped = entry.room.status == ConnStatus::Joined;
+        drop(inner);
+        if dropped {
+            auto_rejoin(app, &key, "Twitch parted us");
         }
         return;
     }
@@ -453,7 +542,13 @@ fn room_line(app: &AppHandle, identity: &Identity, channel: &str, line: &Line<'_
         return;
     }
     let role_before = entry.room.role();
+    let was_joined = entry.room.status == ConnStatus::Joined;
     let events = entry.room.handle_line(line, now_ms(), &emotes);
+    // V111-08 Banned while in: Twitch keeps the account joined but stops sending it this
+    // chat. A rejoin makes it say so (`msg_banned`) and the chat reads anonymously (M28).
+    let banned_in = was_joined
+        && matches!(identity, Identity::Account(_))
+        && events.iter().any(|e| matches!(e, RoomEvent::Restricted { how: Restriction::Banned }));
     let refused = entry.room.status == ConnStatus::Refused;
     let role = entry.room.role();
     // U9 Only rooms no view shows collect news.
@@ -491,7 +586,25 @@ fn room_line(app: &AppHandle, identity: &Identity, channel: &str, line: &Line<'_
         .then(|| events.clone());
     queue(entry, events, &chat.wake);
     sync_mirror(app, &mut inner, &key);
+    // V111-08 A forced rejoin answered with the ban: the anonymous read fills what was missed.
+    let (gap, note) = match inner.rooms.get_mut(&key) {
+        Some(e) => {
+            let gap = if e.room.status == ConnStatus::Banned && e.mirror { e.room.take_gap(now_ms()) } else { None };
+            (gap, take_reload(e))
+        }
+        None => (None, None),
+    };
     drop(inner);
+    if gap.is_some() || note.is_some() {
+        after_answer(app, key.clone(), gap, note);
+    }
+    if banned_in {
+        let (app, key) = (app.clone(), key.clone());
+        tauri::async_runtime::spawn(async move {
+            tokio::time::sleep(BAN_SETTLE).await;
+            auto_rejoin(&app, &key, "banned while in");
+        });
+    }
 
     if refused != was_refused {
         crate::connections::notify(app);
@@ -529,15 +642,42 @@ fn room_line(app: &AppHandle, identity: &Identity, channel: &str, line: &Line<'_
     }
 }
 
+/// V111-08 How long Twitch gets to settle a ban before the rejoin asks it.
+const BAN_SETTLE: std::time::Duration = std::time::Duration::from_secs(2);
+
+/// V111-08 After Twitch answered a JOIN: the gap fills, then a reload says how it went.
+fn after_answer(app: &AppHandle, key: RoomKey, gap: Option<(i64, i64, u32)>, note: Option<&'static str>) {
+    match gap {
+        Some(span) => fill_gap(app.clone(), key, span, note),
+        None => {
+            if let Some(n) = note {
+                say(app, &key, n);
+            }
+        }
+    }
+}
+
 /// C24 Fetches what was said while the connection was gone and puts it in by time.
-/// V108-C01 Also what was said while the room was parked.
-fn fill_gap(app: AppHandle, key: RoomKey, (after, before, limit): (i64, i64, u32)) {
+/// V108-C01 Also what was said while the room was parked. V111-08 `then`: said once it's in.
+fn fill_gap(app: AppHandle, key: RoomKey, span: (i64, i64, u32), then: Option<&'static str>) {
     let history = app.state::<crate::settings::Settings>().read::<cyex_settings::schema::Chat>(cyex_settings::Partition::Chat).history;
     if !history {
         say(&app, &key, cyex_chat::GAP_NOTE);
+        if let Some(n) = then {
+            say(&app, &key, n);
+        }
         return;
     }
     tauri::async_runtime::spawn(async move {
+        fill(app.clone(), key.clone(), span).await;
+        if let Some(n) = then {
+            say(&app, &key, n);
+        }
+    });
+}
+
+async fn fill(app: AppHandle, key: RoomKey, (after, before, limit): (i64, i64, u32)) {
+    {
         let http = app.state::<crate::auth::Auth>().http.clone();
         // V108-C01 A chat on screen (a tab just reopened) doesn't wait behind hidden ones.
         let lane = super::shown::lane(&app, &key.1);
@@ -581,7 +721,7 @@ fn fill_gap(app: AppHandle, key: RoomKey, (after, before, limit): (i64, i64, u32
         if cyex_chat::gap_may_miss(true, limit, lines.len(), recovering) {
             say(&app, &key, cyex_chat::GAP_NOTE);
         }
-    });
+    }
 }
 
 /// S2 The gap's lines from logs.cyex.app; `None` when it has none or can't be reached.

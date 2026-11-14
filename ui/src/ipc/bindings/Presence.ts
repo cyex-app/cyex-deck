@@ -5,10 +5,6 @@
  */
 export type Presence = { joined: boolean, 
 /**
- * Logins written out, in order of arrival.
+ * Logins in order of arrival; all of them (V111-07).
  */
-names: Array<string>, 
-/**
- * Names past those, only counted.
- */
-more: number, };
+names: Array<string>, };

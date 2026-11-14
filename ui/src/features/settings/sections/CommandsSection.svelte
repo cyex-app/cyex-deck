@@ -1,4 +1,4 @@
-<!-- Commands (1.8): your own commands as rows (V106-10),
+<!-- Commands (1.8): your own commands as rows (V106-10), an import from Chatterino (V111-06),
      and timers waiting to run (S3). -->
 <script lang="ts">
   import { tick } from 'svelte';
@@ -13,6 +13,7 @@
   import { formatDate, formatTime } from '../../../lib/format';
   import { settings } from '../../../lib/settings.svelte';
   import { toast } from '../../../lib/toast.svelte';
+  import CommandImport from '../chatterino/CommandImport.svelte';
   import { settingsJump } from '../menus/place.svelte';
   import { GUIDE } from '../commands/guide';
   import GuideText from '../commands/GuideText.svelte';
@@ -72,7 +73,8 @@
 </script>
 
 <!-- V110-N6 Menu entries and usercard buttons moved to the Menus page; one line points there. -->
-<SectionHead title="Commands" level={2} docs="commands" page="commands">
+<SectionHead title="Commands" level={2} docs="commands" page="commands" setting="commands:import">
+  {#snippet actions()}<CommandImport />{/snippet}
   Menu entries and usercard buttons are on the
   <Button variant="link" hit onclick={() => (settingsJump.to = 'menus')}>Menus page</Button>.
 </SectionHead>

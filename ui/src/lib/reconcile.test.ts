@@ -109,3 +109,15 @@ test('empty arrays', () => {
   land({ tabs: [] as { id: string }[] }, { tabs: [{ id: 'a' }] });
   land({ tabs: [{ id: 'a' }] }, { tabs: [] as { id: string }[] });
 });
+
+test('V111-05 rows reordered in place: a patch holding them must be copied before', () => {
+  // Mod mode's order: three timeout buttons, the first dragged to the end.
+  const store = { order: ['ban', { timeout: 60 }, { timeout: 600 }, { timeout: 3600 }] as unknown[] };
+  const next = [store.order[0], store.order[2], store.order[3], store.order[1]];
+  const sent = clone(next);
+  reconcile(store, 'order', clone(next));
+  assert.deepEqual(store.order, sent);
+  // The rows themselves were rewritten, so the uncopied list no longer says what was meant.
+  assert.notDeepEqual(next, sent);
+  assert.deepEqual(clone(next), ['ban', { timeout: 3600 }, { timeout: 60 }, { timeout: 600 }]);
+});

@@ -120,9 +120,14 @@ history: boolean,
  */
 joins: boolean, 
 /**
- * C37 V108-C02 Who leaves the chat, as lines. Only in chats under 1.000 viewers.
+ * C37 V108-C02 Who parts (leaves) the chat, as lines. Only in chats under 1.000 viewers.
  */
 parts: boolean, 
+/**
+ * V111-07 "Minimize join/part messages": a join or part line shows 5 names, the rest
+ * behind Show more.
+ */
+minimizePresence: boolean, 
 /**
  * V101-03 How many, at most.
  */

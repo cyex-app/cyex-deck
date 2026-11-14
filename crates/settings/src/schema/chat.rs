@@ -105,8 +105,11 @@ pub struct Chat {
     pub history: bool,
     /// C37 V108-C02 Who joins the chat, as lines. Only in chats under 1.000 viewers.
     pub joins: bool,
-    /// C37 V108-C02 Who leaves the chat, as lines. Only in chats under 1.000 viewers.
+    /// C37 V108-C02 Who parts (leaves) the chat, as lines. Only in chats under 1.000 viewers.
     pub parts: bool,
+    /// V111-07 "Minimize join/part messages": a join or part line shows 5 names, the rest
+    /// behind Show more.
+    pub minimize_presence: bool,
     /// V108-C02 The one joins-and-leaves toggle from before: read once, then `joins` and
     /// `parts` take over. Never written back.
     #[serde(rename = "joinsLeaves", skip_serializing)]
@@ -217,6 +220,7 @@ impl Default for Chat {
             history: true,
             joins: false,
             parts: false,
+            minimize_presence: false,
             old_joins_leaves: false,
             history_lines: 500,
             scrollback: 1000,
@@ -972,6 +976,17 @@ mod tests {
         assert!(!d.joins && !d.parts && !d.old_joins_leaves);
         let new = read(r#"{"joins":true}"#);
         assert!(new.joins && !new.parts);
+    }
+
+    /// V111-07 Off unless asked; an old file without it reads as off, and it round-trips.
+    #[test]
+    fn v111_07_minimize_presence_is_off_by_default() {
+        assert!(!Chat::default().minimize_presence);
+        let old: Chat = serde_json::from_str(r#"{"joins":true}"#).unwrap();
+        assert!(!old.minimize_presence);
+        let on: Chat = serde_json::from_str(r#"{"minimizePresence":true}"#).unwrap();
+        assert!(on.minimize_presence);
+        assert_eq!(serde_json::to_value(&on).unwrap()["minimizePresence"], true);
     }
 
     #[test]

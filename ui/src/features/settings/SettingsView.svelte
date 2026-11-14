@@ -31,6 +31,7 @@
   import HighlightsSection from './sections/HighlightsSection.svelte';
   import HotkeysSection from './sections/HotkeysSection.svelte';
   import IgnoresSection from './sections/IgnoresSection.svelte';
+  import ModerationSection from './sections/ModerationSection.svelte';
   import MenusSection from './sections/MenusSection.svelte';
   import MinerSection from './sections/MinerSection.svelte';
   import NotificationsSection from './sections/NotificationsSection.svelte';
@@ -75,6 +76,7 @@
     emotes: EmotesSection,
     highlights: HighlightsSection,
     ignores: IgnoresSection,
+    moderation: ModerationSection,
     filters: FiltersSection,
     commands: CommandsSection,
     uploads: UploaderSection,

@@ -1,0 +1,24 @@
+{
+    "commands": [
+        {"name": "/hi", "func": "/me waves at {1} and {2+}", "showInMsgContextMenu": false},
+        {"name": "/so", "func": "/shoutout {1}", "showInMsgContextMenu": false},
+        {"name": "/where", "func": "We are in {channel.name} playing {stream.game;nothing}", "showInMsgContextMenu": false},
+        {"name": "/lookup", "func": "/user {user.name}", "showInMsgContextMenu": true},
+        {"name": "/quote", "func": "\"{msg.text}\" - {user.name;someone}", "showInMsgContextMenu": true},
+        {"name": "/first", "func": "/timeout {1} 1", "showInMsgContextMenu": true},
+        {"name": "/id", "func": "room {channel.id}", "showInMsgContextMenu": false},
+        {"name": "/brace", "func": "{{1}} costs $5 \\o/ {paint}", "showInMsgContextMenu": false},
+        {"name": "!lurk", "func": "/me is lurking", "showInMsgContextMenu": false},
+        {"name": "/Hi", "func": "other hi", "showInMsgContextMenu": false},
+        {"name": "/hi", "func": "second hi", "showInMsgContextMenu": false},
+        {"name": "/two words", "func": "x", "showInMsgContextMenu": false},
+        {"name": "/empty", "func": "", "showInMsgContextMenu": false},
+        {"name": "/привет", "func": "Привет, {1}! 🎉", "showInMsgContextMenu": false},
+        {"name": "/ban", "func": "/ban {1} spam", "showInMsgContextMenu": false},
+        {"name": "/stream", "func": "/streamlink {channel}", "showInMsgContextMenu": false},
+        {"name": "/paste", "func": "{input.text}", "showInMsgContextMenu": true},
+        {"name": "/me2"},
+        "not a command",
+        {"func": "no name"}
+    ]
+}

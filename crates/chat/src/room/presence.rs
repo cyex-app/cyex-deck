@@ -1,6 +1,7 @@
 //! C37, V102-18 Joins and leaves as chat lines, batched: everyone who joined within 10 s
 //! of the first goes on one "joined: a, b, c" line, leaves on one "parted: …" line, each
-//! updated in place wherever it is in the chat. Past 10 names the line ends in "+N more".
+//! updated in place wherever it is in the chat. V111-07 Every name is kept (no cut at 10); the
+//! UI folds a long list to 5 when "Minimize join/part messages" is on.
 //! V108-C03 The names also go out on their own (`Notice::presence`), so each opens its usercard.
 
 use std::collections::HashSet;
@@ -12,14 +13,12 @@ use crate::model::{Notice, NoticeKind, Presence, RoomEvent};
 
 /// How long a line keeps taking names, from its first.
 const WINDOW_MS: i64 = 10_000;
-/// Names written out; the rest are counted.
-const SHOWN: usize = 10;
 
 /// A joins or leaves line still taking names.
 pub(super) struct Open {
     id: String,
     since_ms: i64,
-    /// In order of arrival; only the first `SHOWN` are written.
+    /// In order of arrival; all of them are written (V111-07).
     names: Vec<String>,
     seen: HashSet<String>,
 }
@@ -31,24 +30,14 @@ pub(super) struct Batches {
     parted: Option<Open>,
 }
 
-/// "joined: ana, bob", "parted: ana, bob, … +3 more".
+/// "joined: ana, bob", "parted: ana, bob, cy".
 fn text(joined: bool, names: &[String]) -> String {
-    let shown = names.len().min(SHOWN);
-    let mut line = format!("{}: {}", if joined { "joined" } else { "parted" }, names[..shown].join(", "));
-    if names.len() > shown {
-        line.push_str(&format!(" +{} more", names.len() - shown));
-    }
-    line
+    format!("{}: {}", if joined { "joined" } else { "parted" }, names.join(", "))
 }
 
-/// V108-C03 The names as the line shows them, plus the count past them.
+/// V108-C03 The names as the line shows them.
 fn names(joined: bool, names: &[String]) -> Presence {
-    let shown = names.len().min(SHOWN);
-    Presence {
-        joined,
-        names: names[..shown].to_vec(),
-        more: u32::try_from(names.len() - shown).unwrap_or(u32::MAX),
-    }
+    Presence { joined, names: names.to_vec() }
 }
 
 fn fill(notice: &mut Notice, joined: bool, list: &[String]) {
@@ -143,17 +132,16 @@ mod tests {
         assert_eq!(text(&late[0]), "joined: fay");
     }
 
+    /// V111-07 A long list is not cut: every name is on the line.
     #[test]
-    fn long_lists_end_in_a_count() {
+    fn long_lists_show_every_name() {
         let mut r = room();
         let mut last = Vec::new();
         for i in 0..14 {
             last = join(&mut r, &format!("user{i}"), i);
         }
-        assert_eq!(
-            text(&last[0]),
-            "joined: user0, user1, user2, user3, user4, user5, user6, user7, user8, user9 +4 more"
-        );
+        let all: Vec<String> = (0..14).map(|i| format!("user{i}")).collect();
+        assert_eq!(text(&last[0]), format!("joined: {}", all.join(", ")));
     }
 
     #[test]
@@ -167,14 +155,14 @@ mod tests {
         let mut r = room();
         let p = presence(&part(&mut r, "ana", 0)[0]);
         assert!(!p.joined);
-        assert_eq!((p.names, p.more), (vec!["ana".to_owned()], 0));
+        assert_eq!(p.names, vec!["ana".to_owned()]);
         let mut last = Vec::new();
         for i in 0..12 {
             last = join(&mut r, &format!("user{i}"), i);
         }
         let p = presence(&last[0]);
         assert!(p.joined);
-        assert_eq!((p.names.len(), p.names[9].as_str(), p.more), (10, "user9", 2));
+        assert_eq!((p.names.len(), p.names[11].as_str()), (12, "user11"));
     }
 
     #[test]
