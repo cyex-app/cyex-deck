@@ -90,8 +90,11 @@
     max-height: 18px;
     overflow: hidden;
   }
+  /* V111-18 Opened: 3 rows at most, then it scrolls inside, so the card's top part keeps its size. */
   .row.open {
-    max-height: none;
+    max-height: 60px;
+    overflow-y: auto;
+    overscroll-behavior: contain;
   }
   .badge {
     width: 18px;

@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import type { IvrUser } from '../../ipc/bindings/IvrUser.ts';
 import type { UsercardShow } from '../../ipc/bindings/UsercardShow.ts';
 import { setAppClock } from '../../lib/format.ts';
-import { chatHex, giftText, lastLiveText, lookups, roleSummary, sinceText } from './facts.ts';
+import { chatHex, giftText, lastLiveHint, lastLiveText, lookups, roleSummary, sinceText } from './facts.ts';
 
 const ALL: UsercardShow = {
   created: true,
@@ -61,6 +61,8 @@ test('V111-13 last live, in the app formats', () => {
   assert.equal(lastLiveText(ivr()), null);
   assert.equal(lastLiveText(ivr({ lastLive: 'soon' })), null);
   assert.equal(lastLiveText(null), null);
+  assert.equal(lastLiveHint(ivr({ lastLive: at })), 'Stream started 2026/11/02, 19:40');
+  assert.equal(lastLiveHint(ivr({ lastLive: at, live: true })), '');
 });
 
 test('V111-13 who gifted it', () => {

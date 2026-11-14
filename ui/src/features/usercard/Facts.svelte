@@ -32,7 +32,7 @@
   import type { IvrUser } from '../../ipc/bindings/IvrUser';
   import { settings } from '../../lib/settings.svelte';
   import { copied } from '../../lib/copied.svelte';
-  import { chatHex, giftText, lastLiveText, lookups } from './facts';
+  import { chatHex, giftText, lastLiveHint, lastLiveText, lookups } from './facts';
 
   let { profile, channel, ivr = null }: { profile: Profile; channel: string; ivr?: IvrUser | null } = $props();
 
@@ -120,9 +120,10 @@
   {/if}
   {#if show.lastLive && ask.ivr && live}
     <li class="live">
-      <Icon name="tv" size={14} /><span
-        >{live}{#if ivr?.lastTitle}<span class="title" use:tooltip={ivr.lastTitle}>{ivr.lastTitle}</span>{/if}</span
-      >
+      <Icon name="tv" size={14} />{#if ivr?.lastTitle}<!-- V111-18 One line; the title is the tip (keyboard too). -->
+        <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
+        <span class="when" tabindex="0" use:tooltip={{ label: ivr.lastTitle, hint: lastLiveHint(ivr) }}>{live}</span>
+      {:else}<span>{live}</span>{/if}
     </li>
   {/if}
   {#if !own}
@@ -178,17 +179,6 @@
   }
   .dim {
     color: var(--muted);
-  }
-  /* V111-13 The title under the date, cut to one line; the whole of it on hover. */
-  .live > span {
-    display: grid;
-    min-width: 0;
-  }
-  .title {
-    overflow: hidden;
-    color: var(--muted);
-    text-overflow: ellipsis;
-    white-space: nowrap;
   }
   .swatch {
     flex: none;

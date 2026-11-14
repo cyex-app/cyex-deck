@@ -331,15 +331,16 @@
     min-height: 0;
     user-select: text;
   }
-  /* Takes what it needs; if a mod with many buttons outgrows the card, it scrolls. */
+  /* V111-18 Never scrolls or clips: header, facts, roles and mod buttons take what they need
+     and the logs below give way first. The window's minimum height (windows/usercard.rs)
+     is sized so this part always fits; only the logs and an open role list scroll. */
   .top {
-    flex: 0 1 auto;
-    min-height: 0;
-    overflow-y: auto;
+    flex: none;
   }
   .data {
     display: flex;
-    flex: 1 0 160px;
+    flex: 1 1 0;
+    min-height: 3.5rem;
     flex-direction: column;
     min-height: 0;
     border-top: 1px solid var(--border);

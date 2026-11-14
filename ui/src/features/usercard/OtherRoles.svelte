@@ -144,16 +144,22 @@
   }
   .list {
     display: grid;
-    gap: 1px;
-    max-height: 168px;
+    gap: 0;
+    /* V111-18 About 8 rows, whole rows only; fewer when the window is short so the logs keep
+       a few lines. The one scroll bar of the top part, and it stays inside the list. */
+    max-height: 160px;
+    max-height: round(down, min(160px, 18vh), 20px);
     margin: 6px 0 0 22px;
     overflow-y: auto;
+    overscroll-behavior: contain;
   }
   .row {
     display: flex;
     gap: 8px;
+    align-items: center;
     justify-content: space-between;
     min-width: 0;
+    height: 20px;
   }
   .name {
     min-width: 0;

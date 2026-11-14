@@ -18,10 +18,12 @@ const KIND: &str = "usercard";
 /// V108-C09 Sent to a card that was open already when its user is clicked again: it
 /// counts as opening it again (streamer mode blurs the picture again).
 const REOPENED_EVENT: &str = "usercard:reopened";
-const SIZE: (f64, f64) = (380.0, 560.0);
-const WIDTHS: std::ops::RangeInclusive<f64> = 340.0..=640.0;
-/// V107 Taller shows more of their messages; shorter than this cuts the profile part.
-const HEIGHTS: std::ops::RangeInclusive<f64> = 420.0..=1400.0;
+const SIZE: (f64, f64) = (380.0, 680.0);
+const WIDTHS: std::ops::RangeInclusive<f64> = 360.0..=640.0;
+/// V107 Taller shows more of their messages. V111-18 The minimum fits the whole top part (header,
+/// facts, roles with an open list capped at 18 % of the height, mod buttons) with about three
+/// lines of logs left; the top part never scrolls, the logs give way first.
+const HEIGHTS: std::ops::RangeInclusive<f64> = 680.0..=1400.0;
 /// Focus can bounce between the window and its webview; only a lasting loss counts.
 const BLUR_GRACE: Duration = Duration::from_millis(250);
 
@@ -128,14 +130,34 @@ pub fn settings_key(route: &str) -> &str {
     }
 }
 
+/// V111-18 The open cards of one user: the base label, then `-2`, `-3`... for extra ones.
+fn cards_of(app: &AppHandle, base: &str) -> Vec<tauri::WebviewWindow> {
+    (1..=20)
+        .map(|n| if n == 1 { base.to_owned() } else { format!("{base}-{n}") })
+        .filter_map(|l| app.get_webview_window(&l))
+        .collect()
+}
+
+/// V111-18 First free label for another card of the same user.
+fn free_label(app: &AppHandle, base: &str) -> String {
+    (1..)
+        .map(|n| if n == 1 { base.to_owned() } else { format!("{base}-{n}") })
+        .find(|l| app.get_webview_window(l).is_none())
+        .unwrap_or_else(|| base.to_owned())
+}
+
 pub fn open(app: &AppHandle, channel: &str, login: &str) -> tauri::Result<()> {
     let route = format!("{KIND}/{channel}/{login}");
-    let label = label_for(&route);
-    if let Some(existing) = app.get_webview_window(&label) {
-        let _ = app.emit_to(&label, REOPENED_EVENT, ());
+    let base = label_for(&route);
+    // V111-18 An unpinned card of this user is reused; when every open one is pinned, this
+    // opens another beside them (a pinned card is one you keep).
+    let open = cards_of(app, &base);
+    if let Some(existing) = open.iter().find(|w| !w.is_always_on_top().unwrap_or(false)) {
+        let _ = app.emit_to(existing.label(), REOPENED_EVENT, ());
         existing.show()?;
         return existing.set_focus();
     }
+    let label = free_label(app, &base);
     let saved = app
         .state::<Settings>()
         .read::<Windows>(Partition::Windows)
@@ -160,6 +182,12 @@ pub fn open(app: &AppHandle, channel: &str, login: &str) -> tauri::Result<()> {
     // when it moves there.
     if let Some(p) = near_cursor(app, w, h).or_else(|| super::geometry::center_on_main(app, w, h)) {
         window.set_position(p)?;
+    }
+    // V111-18 Another card of the same user steps down and right of the last one, so it
+    // doesn't hide it.
+    if let Some(last) = open.last().and_then(|o| o.outer_position().ok()) {
+        let step = (28.0 * window.scale_factor().unwrap_or(1.0)) as i32;
+        window.set_position(PhysicalPosition::new(last.x + step, last.y + step))?;
     }
     app.state::<PanelRegistry>().insert(&label, &route);
     icons::apply(&window.as_ref().window());

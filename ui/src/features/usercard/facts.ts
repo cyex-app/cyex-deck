@@ -29,6 +29,13 @@ export function lastLiveText(ivr: IvrUser | null | undefined): string | null {
   return ivr.live ? `Live since ${formatTime(d)}` : `Last live ${formatDate(d)}, ${formatTime(d)}`;
 }
 
+/** V111-18 Under the title in the hover tip: the time is when that stream started, not ended. */
+export function lastLiveHint(ivr: IvrUser | null | undefined): string {
+  if (!ivr?.lastLive || ivr.live) return '';
+  const d = new Date(ivr.lastLive);
+  return Number.isNaN(d.getTime()) ? '' : `Stream started ${formatDate(d)}, ${formatTime(d)}`;
+}
+
 /** "Gifted by Name", "Gifted anonymously", or "gifted" alone when Twitch doesn't say. */
 export function giftText(sub: Pick<SubStatus, 'gift' | 'gifter' | 'giftAnonymous'>, showGifter: boolean): string {
   if (!sub.gift) return '';
