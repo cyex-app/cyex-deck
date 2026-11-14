@@ -6,6 +6,14 @@
 <script lang="ts">
   import { untrack } from 'svelte';
 
+  import { popOut } from '../../app/panels';
+  import { openMenu } from '../../components/menu.svelte';
+  import { chatIpc } from '../../ipc/chat';
+  import { streamer } from '../../lib/streamer.svelte';
+  import { toast } from '../../lib/toast.svelte';
+  import { nameEntries } from '../chat/feedLines';
+  import { roomRoute } from '../chat/roomRoute';
+
   import Button from '../../components/Button.svelte';
   import FeedList from '../../components/FeedList.svelte';
   import FilterChips from '../../components/FilterChips.svelte';
@@ -46,7 +54,17 @@
     { key: 'time', label: 'Time', on: filters.time },
   ]);
   const mods = $derived(moderatorsIn(items));
-  const rows = $derived(visibleActions(items, { filters, moderator, user }).map((l) => ({ ...l, key: l.id, kind: l.group })));
+  // V111-16 Streamer mode's "Hide mod actions" covers this panel too: it names the mods.
+  const hidden = $derived(streamer.hides('hideModActions'));
+  const rows = $derived(hidden ? [] : visibleActions(items, { filters, moderator, user }).map((l) => ({ ...l, key: l.id, kind: l.group })));
+
+  /** V111-16 A name here opens its usercard in this channel, like a name in chat; right-click is the name menu. */
+  const openCard = (who: string) => chatIpc.openUsercard(login, who).catch((e) => toast.error(errorText(e)));
+  const openRoom = (channel: string) => void popOut(roomRoute(channel, null), `${channel} chat`);
+  const nameMenu = (e: MouseEvent, who: string) => {
+    e.preventDefault();
+    openMenu(e, nameEntries(login, who, openRoom));
+  };
 
   async function load(more: boolean) {
     if (!account || !gql || loading) return;
@@ -67,6 +85,20 @@
   });
 </script>
 
+{#snippet person(p: { login: string; name: string } | null, fallback: string)}
+  {#if p?.login}
+    <span
+      class="who link"
+      role="link"
+      tabindex="0"
+      data-user={p.login}
+      onclick={() => void openCard(p.login)}
+      onkeydown={(e) => e.key === 'Enter' && void openCard(p.login)}
+      oncontextmenu={(e) => nameMenu(e, p.login)}>{p.name}</span
+    >
+  {:else}<span class="who">{p?.name ?? fallback}</span>{/if}
+{/snippet}
+
 <Card title="Mod actions" flush>
   <div class="bar">
     <FilterChips {chips} onflip={(k) => onflip(k as keyof ModActionFilters)} />
@@ -82,11 +114,11 @@
     />
     <input placeholder="User" aria-label="User" bind:value={user} />
   </div>
-  <FeedList {rows} icon="gavel" date={filters.date} time={filters.time} empty={items.length ? 'Nothing matches the filters.' : 'No mod actions yet.'}>
+  <FeedList {rows} icon="gavel" date={filters.date} time={filters.time} empty={hidden ? 'Hidden in streamer mode.' : items.length ? 'Nothing matches the filters.' : 'No mod actions yet.'}>
     {#snippet row(l)}
-      <span class="who">{l.moderator?.name ?? 'A mod'}</span>
+      {@render person(l.moderator, 'A mod')}
       {l.action}
-      {#if l.target}<span class="who">{l.target.name}</span>{/if}
+      {#if l.target}{@render person(l.target, '')}{/if}
       {#if l.secs}<span class="len">{formatDuration(l.secs)}</span>{/if}
       {#if l.about}<span class="about">“{l.about}”</span>{/if}
       {#if l.reason}<span class="why">{l.reason}</span>{/if}
@@ -152,6 +184,13 @@
   }
   .who {
     font-weight: 600;
+  }
+  .link {
+    cursor: pointer;
+  }
+  .link:hover,
+  .link:focus-visible {
+    text-decoration: underline;
   }
   .len {
     padding: 0 4px;

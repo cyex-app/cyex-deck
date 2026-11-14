@@ -3,10 +3,26 @@
 
 use cyex_chat::build::duration_text;
 use cyex_core::number::grouped;
-use cyex_eventsub::events::Moderate;
+use cyex_chat::model::NoticeUser;
+use cyex_eventsub::events::{Moderate, Who};
+
+/// V111-16 A name in [`describe`]'s line as one that opens a usercard, spelled as the line
+/// spells it. `None` without a name or login.
+fn person(w: &Who) -> Option<NoticeUser> {
+    let login = if w.login.is_empty() { w.name.to_ascii_lowercase() } else { w.login.clone() };
+    let name = if w.name.is_empty() { w.login.clone() } else { w.name.clone() };
+    (!login.is_empty() && !name.is_empty()).then(|| NoticeUser::new(name, login))
+}
+
+/// V111-16 The target and the mod that [`describe`] names, to open their usercards. The
+/// mod comes only from a mod feed (Twitch gives plain chat no moderator), so a line built
+/// from this is for the channel's mods and above.
+pub fn people(m: &Moderate) -> (Option<NoticeUser>, Option<NoticeUser>) {
+    (m.target.as_ref().and_then(person), person(&m.moderator))
+}
 
 pub fn describe(m: &Moderate, secs: Option<u64>) -> String {
-    let by = if m.moderator.name.is_empty() { "A mod" } else { m.moderator.name.as_str() };
+    let by = [&m.moderator.name, &m.moderator.login].into_iter().find(|n| !n.is_empty()).map_or("A mod", |n| n.as_str());
     let who = m.target.as_ref().map_or("someone", |t| if t.name.is_empty() { &t.login } else { &t.name });
     let why = |s: String| if m.reason.is_empty() { format!("{s}.") } else { format!("{s}: {}", m.reason) };
     let term = || m.terms.iter().map(|t| format!("“{t}”")).collect::<Vec<_>>().join(", ");
@@ -92,6 +108,28 @@ mod tests {
             terms: Vec::new(),
             source_channel: None,
         }
+    }
+
+    /// V111-16 The names a line carries are the ones it spells, as usercard links.
+    #[test]
+    fn v111_16_people_are_the_names_in_the_line() {
+        let t = m("timeout");
+        let (target, by) = people(&t);
+        assert_eq!(target, Some(NoticeUser::new("X", "x")));
+        assert_eq!(by, Some(NoticeUser::new("Kuni", "kuni")));
+        let line = describe(&t, Some(60));
+        assert!(line.contains("Kuni") && line.contains("X"), "{line}");
+        // A login-only mod (PubSub): the line and the link both use it.
+        let mut p = m("ban");
+        p.moderator = Who { id: String::new(), login: "kuni".into(), name: String::new() };
+        assert_eq!(describe(&p, None), "kuni banned X.");
+        assert_eq!(people(&p).1, Some(NoticeUser::new("kuni", "kuni")));
+        // No mod named, no target: nothing to open.
+        let mut none = m("slow");
+        none.target = None;
+        none.moderator = Who { id: String::new(), login: String::new(), name: String::new() };
+        assert_eq!(people(&none), (None, None));
+        assert!(describe(&none, None).starts_with("A mod "));
     }
 
     #[test]

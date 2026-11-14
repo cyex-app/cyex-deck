@@ -90,7 +90,7 @@ fn standing_of(data: &Value) -> Standing {
     let rules = &data["channel"]["unbanRequestsSettings"];
     Standing {
         // V108-C40e Never who did it, even if an answer carries it.
-        ban: modlogs::ban_of(data).map(|b| BanStatus { by: None, ..b }),
+        ban: modlogs::ban_of(data).map(|b| BanStatus { by: None, by_login: None, ..b }),
         unban: rules.is_object().then(|| UnbanRules {
             enabled: rules["isEnabled"].as_bool().unwrap_or(false),
             cooldown_minutes: u32::try_from(rules["cooldownMinutes"].as_u64().unwrap_or(0)).unwrap_or(u32::MAX),

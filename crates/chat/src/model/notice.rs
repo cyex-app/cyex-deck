@@ -4,6 +4,7 @@ use serde::Serialize;
 use ts_rs::TS;
 
 use super::fragment::Provider;
+use super::message::NameColor;
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, TS)]
 #[serde(rename_all = "camelCase")]
@@ -52,6 +53,10 @@ pub struct NoticeEmote {
 pub struct NoticeUser {
     pub name: String,
     pub login: String,
+    /// V111-16 Their chat colour, when a line of theirs has been seen in the room.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub color: Option<NameColor>,
 }
 
 impl NoticeUser {
@@ -59,6 +64,7 @@ impl NoticeUser {
         Self {
             name: name.into(),
             login: login.into(),
+            color: None,
         }
     }
 }

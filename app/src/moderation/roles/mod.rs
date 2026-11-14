@@ -116,7 +116,10 @@ pub async fn apply(app: &AppHandle, actor: &Actor, who: &str, holds: Option<Vec<
     }
     let chat_role = out.done.iter().any(|c| matches!(c.role, Role::Mod | Role::Vip | Role::LeadMod));
     if out.ok() && chat_role {
-        crate::chat::notice_line(app, &actor.channel, NoticeKind::Moderation, &out.line);
+        // V111-16 Their name opens their usercard.
+        let login = who.trim().trim_start_matches('@');
+        let links = vec![cyex_chat::model::NoticeUser::new(login, login)];
+        crate::chat::linked_line(app, &actor.channel, NoticeKind::Moderation, &out.line, links);
     }
     out
 }

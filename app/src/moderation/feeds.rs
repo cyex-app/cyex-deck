@@ -336,9 +336,12 @@ fn moderate(
     }
     // V107-M7 Timeouts of one user in a row share a line with IRC's copy; V107-N2e a ban too.
     let stacked = m.target.as_ref().filter(|t| matches!(m.action.as_str(), "timeout" | "ban") && !t.id.is_empty());
+    // V111-16 The target and the mod open their usercards; only rooms of a mod account
+    // get the line that names the mod (the rest keep IRC's plain one).
+    let (target, by) = cyex_moderation::log::people(m);
     match stacked {
-        Some(t) => crate::chat::timeout_line(app, login, &t.id, m.action == "ban", &text),
-        None => crate::chat::notice_line(app, login, NoticeKind::Moderation, &text),
+        Some(t) => crate::chat::timeout_line(app, login, &t.id, m.action == "ban", &text, target, by),
+        None => crate::chat::mod_line(app, login, &text, target.into_iter().chain(by).collect()),
     }
 }
 
@@ -360,22 +363,28 @@ fn attribute(app: &AppHandle, account: &str, login: &str, m: &Moderate, secs: Op
         _ => return,
     };
     let secs = secs.filter(|_| how == GoneHow::TimedOut);
-    crate::chat::gone_by(app, account, login, target, Gone::new(how, by).with_secs(secs));
+    // V111-16 The name opens the mod's usercard.
+    let by_login = (!mo.login.is_empty()).then(|| mo.login.clone());
+    crate::chat::gone_by(app, account, login, target, Gone::new(how, by).with_login(by_login).with_secs(secs));
 }
 
 /// A held message, from EventSub or Hermes (V103-15): mod view, chat notice and the AutoMod feed (V106-07).
 fn held(app: &AppHandle, account: &str, channel_id: &str, login: Option<&str>, item: HeldItem) {
     let who = item.display.clone();
+    let item_login = item.login.clone();
     if let Some(login) = login {
         crate::feeds::automod::held(app, account, channel_id, login, &item);
     }
     view::add_held(app, channel_id, item);
     if let Some(login) = login {
-        crate::chat::notice_line(
+        // V111-16 Their name opens their usercard.
+        let links = vec![cyex_chat::model::NoticeUser::new(who.clone(), item_login)];
+        crate::chat::linked_line(
             app,
             login,
             NoticeKind::Moderation,
             &format!("AutoMod held a message from {who}. Review it in the mod view."),
+            links,
         );
     }
 }
@@ -431,11 +440,12 @@ fn route(app: &AppHandle, account: &str, channel_id: &str, login: Option<&str>, 
             if status == "restricted"
                 && let Some(login) = login
             {
-                crate::chat::notice_line(
+                crate::chat::linked_line(
                     app,
                     login,
                     NoticeKind::Moderation,
                     &format!("Restricted: {} said “{}”", display(&user), message.text),
+                    vec![cyex_chat::model::NoticeUser::new(display(&user), user.login.clone())],
                 );
             }
         }
@@ -444,7 +454,16 @@ fn route(app: &AppHandle, account: &str, channel_id: &str, login: Option<&str>, 
             crate::chat::powerups::shield_changed(app, channel_id, on);
             view::add_action(app, channel_id, ModLine::shield(on, moderator.as_ref(), cyex_chat::build::local_id(), now));
             if let Some(login) = login {
-                crate::chat::notice_line(app, login, NoticeKind::Moderation, &format!("Shield mode {}.", if on { "on" } else { "off" }));
+                // V111-16 Who did it, for the mods this line is for; their name opens their usercard.
+                let state = if on { "on" } else { "off" };
+                match moderator.as_ref().filter(|m| !m.login.is_empty() || !m.name.is_empty()) {
+                    Some(m) => {
+                        let name = display(m);
+                        let link = cyex_chat::model::NoticeUser::new(name.clone(), if m.login.is_empty() { name.to_ascii_lowercase() } else { m.login.clone() });
+                        crate::chat::mod_line(app, login, &format!("{name} turned shield mode {state}."), vec![link]);
+                    }
+                    None => crate::chat::notice_line(app, login, NoticeKind::Moderation, &format!("Shield mode {state}.")),
+                }
             }
         }
         Event::UnbanRequest { user, .. } => {

@@ -12,7 +12,7 @@
   import { formatDuration, formatNumber, formatTime } from '../../lib/format';
   import { uniqueKeys } from '../../lib/keys';
   import { MOD_ROLE_NOTE, modButtonsFor, takesModRole, type LineMod } from '../modview/lineMod';
-  import { goneNote } from './gone';
+  import { goneBy, goneNote } from './gone';
   import { settings } from '../../lib/settings.svelte';
   import { streamer } from '../../lib/streamer.svelte';
   import { looks } from '../emotes/looks.svelte';
@@ -68,6 +68,8 @@
   const notice = $derived(m.notice);
   /** V107-R34 "(deleted)", "(timed out by Kuni)": after the text while it stays visible. */
   const gone = $derived(deleted && c.deleted !== 'hidden' ? goneNote(m.gone) : '');
+  /** V111-16 The same note with the mod's name cut out, to open their usercard. */
+  const goneMod = $derived(gone ? goneBy(m.gone) : null);
   /** V105-11 Our own upload line: both links are clickable. */
   const upLine = $derived(notice && !sender && notice.kind === 'info' ? uploadLine(notice.text) : null);
   const time = $derived(c.timestamps.show ? formatTime(new Date(m.ts), c.timestamps) : '');
@@ -175,7 +177,7 @@
             role="link"
             tabindex="-1"
             data-user={login}>{login}</span
-          >{/each}{#if presenceFold.toggle}{' '}<button class="more presence-toggle" aria-expanded={presenceOpen} aria-label={presenceOpen ? 'Show less' : `Show more: ${formatNumber(presenceFold.hidden)} names`} onclick={() => (presenceOpen = !presenceOpen)}>{presenceFold.toggle}</button>{/if}{:else if emoteParts && emoteFragment}{emoteParts[0]}<span class="notice-emote"><ChatEmote f={emoteFragment} bare /></span>{emoteParts[1]}{:else if noticeParts}{#each noticeParts as p}{#if p.login}<span class="who" role="link" tabindex="-1" data-user={p.login}>{p.text}</span
+          >{/each}{#if presenceFold.toggle}{' '}<button class="more presence-toggle" aria-expanded={presenceOpen} aria-label={presenceOpen ? 'Show less' : `Show more: ${formatNumber(presenceFold.hidden)} names`} onclick={() => (presenceOpen = !presenceOpen)}>{presenceFold.toggle}</button>{/if}{:else if emoteParts && emoteFragment}{emoteParts[0]}<span class="notice-emote"><ChatEmote f={emoteFragment} bare /></span>{emoteParts[1]}{:else if noticeParts}{#each noticeParts as p}{#if p.login}<span class="who" class:tint={!!p.color} style={p.color ? `--cd:${p.color.dark};--cl:${p.color.light}` : undefined} role="link" tabindex="-1" data-user={p.login}>{p.text}</span
           >{:else}{p.text}{/if}{/each}{:else}{notice.text}{/if}
     </div>
     {#if recipients.length}
@@ -246,7 +248,7 @@
         class:action
         dir="auto"><Body fragments={m.body} {channel} giant={has('gigantified')} words={m.highlight?.words} /></span
       >{#if m.repeat}<span class="repeat" data-tip="Said {m.repeat} times in a row">×{m.repeat}</span>{/if}{#if gone}<span
-          class="gone">{gone}</span
+          class="gone">{#if goneMod}{goneMod.head}<span class="who" role="link" tabindex="-1" data-user={goneMod.login}>{goneMod.name}</span>{goneMod.tail}{:else}{gone}{/if}</span
         >{/if}
     </div>
   {/if}
@@ -418,6 +420,13 @@
   }
   .who:hover {
     text-decoration: underline;
+  }
+  /* V111-16 A name in a mod line keeps its chat colour. */
+  .who.tint {
+    color: var(--cd);
+  }
+  :global(:root[data-theme='light']) .who.tint {
+    color: var(--cl);
   }
   /* V111-01 The emote of an emote-change line: a hair of room, no space in the text. */
   .notice-emote {

@@ -68,7 +68,7 @@ use std::sync::{Arc, Mutex, MutexGuard};
 use cyex_chat::build::Me;
 use cyex_chat::filter::Filter;
 use cyex_chat::irc::{Client, Window};
-use cyex_chat::model::{ChatMessage, ConnStatus, Gone, NoticeKind, RoomEvent};
+use cyex_chat::model::{ChatMessage, ConnStatus, Gone, NoticeKind, NoticeUser, RoomEvent};
 use cyex_chat::{Room, RoomSnapshot};
 use cyex_settings::Partition;
 use cyex_settings::schema::Chat as ChatSettings;
@@ -828,10 +828,35 @@ pub fn lifted(app: &AppHandle, login: &str, user_id: &str) {
 }
 
 /// V107-N2e `ban`: a ban's line, one with IRC's.
-pub fn timeout_line(app: &AppHandle, login: &str, user_id: &str, ban: bool, text: &str) {
+/// V111-16 It names the mod (`by`), so only rooms of an account that mods here get it (the
+/// rest keep IRC's plain line); `target` and `by` open their usercards.
+pub fn timeout_line(app: &AppHandle, login: &str, user_id: &str, ban: bool, text: &str, target: Option<NoticeUser>, by: Option<NoticeUser>) {
     let now = now_ms();
     // A second delivery (another mod account's feed) brings nothing.
-    each_room(app, login, |room, _| room.timeout_line(user_id, ban, text, now).into_iter().collect());
+    each_room(app, login, |room, _| {
+        if !room.privileged() {
+            return Vec::new();
+        }
+        room.timeout_line(user_id, ban, text, target.clone(), by.clone(), now).into_iter().collect()
+    });
+}
+
+/// V111-16 A mod-action line in the rooms of accounts that mod the channel, its names
+/// (`links`: the target, the mod) opening their usercards.
+pub fn mod_line(app: &AppHandle, login: &str, text: &str, links: Vec<NoticeUser>) {
+    let now = now_ms();
+    each_room(app, login, |room, _| {
+        if !room.privileged() {
+            return Vec::new();
+        }
+        vec![room.linked_line(NoticeKind::Moderation, text, links.clone(), now)]
+    });
+}
+
+/// V111-16 [`notice_line`] with names that open their usercards, in every room.
+pub fn linked_line(app: &AppHandle, login: &str, kind: NoticeKind, text: &str, links: Vec<NoticeUser>) {
+    let now = now_ms();
+    each_room(app, login, |room, _| vec![room.linked_line(kind, text, links.clone(), now)]);
 }
 
 /// V107-R34 A mod feed named who deleted a line (`msg`) or timed out or banned a user: their

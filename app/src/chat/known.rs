@@ -207,7 +207,7 @@ mod tests {
 
     fn banned(since: Option<i64>) -> Standing {
         Standing {
-            ban: Some(BanStatus { until: None, by: None, reason: "spam".into(), since: since.map(iso) }),
+            ban: Some(BanStatus { until: None, by: None, by_login: None, reason: "spam".into(), since: since.map(iso) }),
             unban: Some(cyex_twitch::gql::standing::UnbanRules { enabled: true, cooldown_minutes: 180 }),
             can_request: Some(false),
             request: None,
@@ -262,7 +262,7 @@ mod tests {
     #[test]
     fn an_ended_timeout_is_no_doubt() {
         let mut k = Known::default();
-        let t = Standing { ban: Some(BanStatus { until: Some(iso(NOW + 60_000)), by: None, reason: String::new(), since: None }), ..Default::default() };
+        let t = Standing { ban: Some(BanStatus { until: Some(iso(NOW + 60_000)), by: None, by_login: None, reason: String::new(), since: None }), ..Default::default() };
         take_read(&mut k, t, NOW);
         assert_eq!(take_read(&mut k, Standing::default(), NOW + 61_000), Took::Kept, "it ran out by itself");
     }
@@ -272,7 +272,7 @@ mod tests {
         // V109-F79 The channel part refused once: the unban wait isn't lost.
         let mut k = Known::default();
         take_read(&mut k, banned(Some(NOW - 60_000)), NOW);
-        let partial = Standing { ban: Some(BanStatus { until: None, by: None, reason: "spam".into(), since: None }), ..Default::default() };
+        let partial = Standing { ban: Some(BanStatus { until: None, by: None, by_login: None, reason: "spam".into(), since: None }), ..Default::default() };
         assert_eq!(take_read(&mut k, partial, NOW + 1_000), Took::Kept);
         let s = k.standing.unwrap();
         assert_eq!(s.ban.unwrap().since, Some(iso(NOW - 60_000)));

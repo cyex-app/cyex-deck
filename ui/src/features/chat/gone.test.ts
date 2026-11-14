@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import type { ChatMessage } from '../../ipc/bindings/ChatMessage';
-import { goneNote, markGone, markOld, mergeGone } from './gone.ts';
+import { goneBy, goneNote, markGone, markOld, mergeGone } from './gone.ts';
 
 const line = (extra: Partial<ChatMessage> = {}): ChatMessage => ({ id: 'a', ts: 0, body: [], flags: [], ...extra }) as ChatMessage;
 
@@ -44,4 +44,12 @@ test('V110-A24 a cleared line is marked as history once', () => {
   const m = markOld(line());
   assert.deepEqual(m?.flags, ['history']);
   assert.equal(markOld(m!), null);
+});
+
+test('V111-16 the mod in the note opens their usercard when the login is known', () => {
+  const g = { how: 'timedOut' as const, secs: 600, by: 'Kuni', byLogin: 'kuni' };
+  assert.deepEqual(goneBy(g), { head: '(timed out 10m by ', name: 'Kuni', login: 'kuni', tail: ')' });
+  assert.equal(goneBy({ how: 'banned', by: 'Kuni' }), null, 'no login, a plain note');
+  assert.equal(goneBy({ how: 'deleted' }), null);
+  assert.equal(`${goneBy(g)!.head}${goneBy(g)!.name}${goneBy(g)!.tail}`, goneNote(g));
 });

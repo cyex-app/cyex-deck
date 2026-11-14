@@ -54,3 +54,27 @@ test('V111-01 the emote picture goes right after the emote name', () => {
   assert.equal(at('The 7TV emote notLX was added.', 'notL'), 'The 7TV emote notL|X was added.');
   assert.equal(splitEmote('The 7TV emote x was added.', 'zzz'), null);
 });
+
+// V111-16 Mod action lines: the mod and the target both open their usercard, in their colours.
+test('V111-16 a mod line links the mod and the target, with colours', () => {
+  const color = { dark: '#ff0000', light: '#aa0000' };
+  const parts = splitNames('Kuni and Bob timed out Ann for 5m (3 times).', [{ ...u('Kuni', 'kuni'), color }, u('Bob', 'bob'), u('Ann', 'ann')]);
+  assert.deepEqual(
+    parts.filter((p) => p.login).map((p) => [p.text, p.login, p.color?.dark]),
+    [
+      ['Kuni', 'kuni', '#ff0000'],
+      ['Bob', 'bob', undefined],
+      ['Ann', 'ann', undefined],
+    ],
+  );
+});
+
+test('V111-16 a name spelled as the line spells it wins over a word in another case', () => {
+  const parts = splitNames('A deleted a message from A.', [u('A', 'a')]);
+  assert.deepEqual(parts[0], { text: 'A', login: 'a' });
+  assert.equal(parts.filter((p) => p.login).length, 1);
+  // The target "a" in a line where the lower-case word comes first.
+  const t = splitNames('Kuni deleted a message from A.', [u('A', 'a')]);
+  assert.deepEqual(t.filter((p) => p.login).map((p) => p.text), ['A']);
+  assert.equal(t.map((p) => p.text).join(''), 'Kuni deleted a message from A.');
+});

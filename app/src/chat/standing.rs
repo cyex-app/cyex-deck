@@ -290,6 +290,7 @@ pub mod mock {
         BanStatus {
             until,
             by: None,
+            by_login: None,
             reason: "Spamming links after being asked to stop".into(),
             since: Some(rfc3339(-since_secs_ago)),
         }
@@ -365,7 +366,7 @@ mod tests {
     fn an_unban_read_rejoins_and_a_doubted_one_waits() {
         // V109-F81
         use cyex_twitch::gql::modlogs::BanStatus;
-        let ban = Standing { ban: Some(BanStatus { until: None, by: None, reason: String::new(), since: None }), ..Default::default() };
+        let ban = Standing { ban: Some(BanStatus { until: None, by: None, by_login: None, reason: String::new(), since: None }), ..Default::default() };
         let mut k = Known::default();
         let took = known::take_read(&mut k, ban, 1_000);
         assert!(!rejoins(&took, &k), "still banned");

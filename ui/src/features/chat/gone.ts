@@ -14,20 +14,30 @@ export function goneNote(gone: Gone | undefined): string {
   return `(${WORDS[gone.how]}${secs}${gone.by ? ` by ${gone.by}` : ''})`;
 }
 
+/** V111-16 `goneNote` cut at the mod's name, which opens their usercard: the text before it, the
+ *  name (as shown) and its login; null when no login is known. */
+export function goneBy(gone: Gone | undefined): { head: string; name: string; login: string; tail: string } | null {
+  if (!gone?.by || !gone.byLogin) return null;
+  const note = goneNote(gone); // ends "by Name)"
+  return { head: note.slice(0, note.length - gone.by.length - 1), name: gone.by, login: gone.byLogin, tail: ')' };
+}
+
 /** The newer answer wins; the same action told twice (IRC and a mod feed) keeps what either
  *  knew. A feed's length can be a second short; a timeout of another length is a new one. */
 export function mergeGone(next: Gone, old: Gone | undefined): Gone {
   const far = next.secs != null && old?.secs != null && Math.abs(next.secs - old.secs) > 5;
   if (!old || old.how !== next.how || far) return next;
   const secs = Math.max(next.secs ?? 0, old.secs ?? 0);
-  return { how: next.how, ...((next.by ?? old.by) ? { by: next.by ?? old.by } : {}), ...(secs ? { secs } : {}) };
+  const by = next.by ?? old.by;
+  const byLogin = next.byLogin ?? old.byLogin;
+  return { how: next.how, ...(by ? { by } : {}), ...(byLogin ? { byLogin } : {}), ...(secs ? { secs } : {}) };
 }
 
 /** `m` marked deleted, and why when known; null when nothing changes. */
 export function markGone(m: ChatMessage, gone: Gone | undefined): ChatMessage | null {
   const was = m.flags.includes('deleted');
   const g = gone ? mergeGone(gone, m.gone) : m.gone;
-  if (was && g?.how === m.gone?.how && g?.by === m.gone?.by && g?.secs === m.gone?.secs) return null;
+  if (was && g?.how === m.gone?.how && g?.by === m.gone?.by && g?.byLogin === m.gone?.byLogin && g?.secs === m.gone?.secs) return null;
   return { ...m, flags: was ? m.flags : [...m.flags, 'deleted'], ...(g ? { gone: g } : {}) };
 }
 

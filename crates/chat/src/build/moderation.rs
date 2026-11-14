@@ -1,7 +1,7 @@
 //! CLEARCHAT, CLEARMSG and NOTICE (C14, send errors).
 
 use crate::irc::Line;
-use crate::model::{ChatMessage, NoticeKind};
+use crate::model::{ChatMessage, NoticeKind, NoticeUser};
 
 use super::{Ctx, Incoming, system, timestamp};
 
@@ -18,11 +18,12 @@ pub fn clearchat(line: &Line<'_>, ctx: &mut Ctx<'_>) -> Incoming {
         Some(secs) => format!("{login} was timed out for {}.", duration_text(secs)),
         None => format!("{login} was banned."),
     };
-    Incoming::ClearUser {
-        user_id: user_id.to_owned(),
-        secs,
-        notice: system(NoticeKind::Moderation, text, ts),
+    let mut notice = system(NoticeKind::Moderation, text, ts);
+    // V111-16 The name opens their usercard.
+    if let Some(n) = notice.notice.as_mut().filter(|_| !login.is_empty() && line.trailing().is_some()) {
+        n.links = vec![NoticeUser::new(login, login)];
     }
+    Incoming::ClearUser { user_id: user_id.to_owned(), secs, notice }
 }
 
 pub fn clearmsg(line: &Line<'_>) -> Option<Incoming> {

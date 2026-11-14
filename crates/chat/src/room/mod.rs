@@ -383,10 +383,22 @@ impl Room {
     /// before it (`stack`). `None`: a second delivery of the same action (the channel is
     /// open under two mod accounts), nothing to show.
     /// V107-N2e `ban`: a ban's line, one with IRC's "x was banned.".
-    pub fn timeout_line(&mut self, user_id: &str, ban: bool, text: &str, now_ms: i64) -> Option<RoomEvent> {
+    /// V111-16 `target` and `by` (the mod) are the names in `text` that open a usercard.
+    pub fn timeout_line(
+        &mut self,
+        user_id: &str,
+        ban: bool,
+        text: &str,
+        target: Option<NoticeUser>,
+        by: Option<NoticeUser>,
+        now_ms: i64,
+    ) -> Option<RoomEvent> {
         let mut m = build::system(NoticeKind::Moderation, text, now_ms);
+        if let Some(n) = m.notice.as_mut() {
+            n.links = target.into_iter().chain(by.clone()).collect();
+        }
         let key = if ban { stack::ban_key(user_id) } else { user_id.to_owned() };
-        match self.stacked(&key, stack::Source::Feed, &mut m, now_ms) {
+        match self.stacked(&key, stack::Source::Feed, &mut m, by.as_ref(), now_ms) {
             Stacked::Update(ev) => Some(ev),
             Stacked::Dup => None,
             Stacked::New => {
@@ -414,27 +426,56 @@ impl Room {
 
     /// V107-M7 Puts timeout line `m`, received at `now_ms` (local time for both sources,
     /// never IRC's `tmi-sent-ts`), into its stack.
-    fn stacked(&mut self, user_id: &str, src: stack::Source, m: &mut ChatMessage, now_ms: i64) -> Stacked {
-        let Some(text) = m.notice.as_ref().map(|n| n.text.clone()) else { return Stacked::New };
+    fn stacked(&mut self, user_id: &str, src: stack::Source, m: &mut ChatMessage, by: Option<&NoticeUser>, now_ms: i64) -> Stacked {
+        let Some((text, links)) = m.notice.as_ref().map(|n| (n.text.clone(), n.links.clone())) else { return Stacked::New };
         let buffer = &self.buffer;
-        let Some(hit) = self.timeouts.hit(user_id, src, &text, now_ms, &m.id, |id| buffer.iter().any(|b| b.id == id))
+        let Some(mut hit) =
+            self.timeouts.hit(user_id, src, &text, &links, by, now_ms, &m.id, |id| buffer.iter().any(|b| b.id == id))
         else {
             return Stacked::Dup;
         };
+        self.colour(&mut hit.links);
         if hit.update
             && let Some(slot) = self.buffer.iter_mut().rev().find(|b| b.id == hit.id)
         {
             let mut u = (**slot).clone();
             if let Some(n) = u.notice.as_mut() {
                 n.text = hit.text;
+                n.links = hit.links;
             }
             *slot = Arc::new(u);
             return Stacked::Update(RoomEvent::Update { message: slot.clone() });
         }
         if let Some(n) = m.notice.as_mut() {
             n.text = hit.text;
+            n.links = hit.links;
         }
         Stacked::New
+    }
+
+    /// V111-16 The chat colour of each name, from the newest line of theirs in this room
+    /// (what their name looks like in chat); none for someone who hasn't spoken.
+    fn colour(&self, users: &mut [NoticeUser]) {
+        for u in users.iter_mut().filter(|u| u.color.is_none() && !u.login.is_empty()) {
+            u.color = self
+                .buffer
+                .iter()
+                .rev()
+                .find_map(|m| m.sender.as_ref().filter(|s| s.login.eq_ignore_ascii_case(&u.login)))
+                .map(|s| s.color.clone());
+        }
+    }
+
+    /// V111-16 A moderation line whose names open their usercards (the target, the mod).
+    pub fn linked_line(&mut self, kind: NoticeKind, text: &str, mut links: Vec<NoticeUser>, now_ms: i64) -> RoomEvent {
+        self.colour(&mut links);
+        let mut m = build::system(kind, text, now_ms);
+        if let Some(n) = m.notice.as_mut() {
+            n.links = links;
+        }
+        let m = Arc::new(m);
+        self.push(m.clone());
+        RoomEvent::Message { message: m }
     }
 
     /// 1.26 A finished line from outside the room, e.g. a whisper shown inline.
@@ -548,7 +589,7 @@ impl Room {
             Some(_) => user_id.clone(),
             None => stack::ban_key(&user_id),
         };
-        let stacked = self.stacked(&key, stack::Source::Irc, &mut notice, now_ms);
+        let stacked = self.stacked(&key, stack::Source::Irc, &mut notice, None, now_ms);
         match stacked {
             Stacked::Update(update) => events.push(update),
             Stacked::New => events.extend(self.add(notice, now_ms, emotes)),

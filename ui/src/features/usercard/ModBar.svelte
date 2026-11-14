@@ -4,6 +4,7 @@
      broadcaster and lead mods, a Roles pair under it (like technorino's mod/VIP buttons):
      Mod or Unmod and VIP or Unvip from what they hold now. -->
 <script lang="ts">
+  import UserLink from '../../components/UserLink.svelte';
   import Icon from '../../components/Icon.svelte';
   import IconButton from '../../components/IconButton.svelte';
   import { openMenu } from '../../components/menu.svelte';
@@ -220,7 +221,7 @@
     {/if}
     {#if ban && (!ban.until || left)}
       <p class="state">
-        {ban.until ? `Timed out until ${until}` : 'Banned'}{ban.by ? ` by ${ban.by}` : ''}{ban.until ? ` · ${left}` : ''}{ban.reason ? `: ${ban.reason}` : ''}
+        {ban.until ? `Timed out until ${until}` : 'Banned'}{#if ban.by}{' by '}{#if ban.byLogin}<UserLink {channel} login={ban.byLogin}>{ban.by}</UserLink>{:else}{ban.by}{/if}{/if}{ban.until ? ` · ${left}` : ''}{ban.reason ? `: ${ban.reason}` : ''}
       </p>
     {/if}
   </section>

@@ -65,7 +65,7 @@
     <div class="fill"><ChatView {login} {account} onmodview={null} follows /></div>
   </Card>
 {:else if id === 'activity'}
-  <Card title="Activity" flush><ActivityFeed items={board.activity} suspicious={board.suspicious} /></Card>
+  <Card title="Activity" flush><ActivityFeed items={board.activity} suspicious={board.suspicious} {login} /></Card>
 {:else if id === 'actions'}
   <ModActions items={board.actions} older={board.older} {filters} onflip={flip} {account} {login} />
 {:else if id === 'automod'}

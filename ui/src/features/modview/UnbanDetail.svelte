@@ -10,6 +10,7 @@
 <script lang="ts">
   import { tick, untrack } from 'svelte';
 
+  import UserLink from '../../components/UserLink.svelte';
   import Avatar from '../../components/Avatar.svelte';
   import Button from '../../components/Button.svelte';
   import Icon from '../../components/Icon.svelte';
@@ -223,7 +224,7 @@
             {#if ban}
               <div class="by">
                 <dt>{ban.until ? 'Timed out by' : 'Banned by'}</dt>
-                <dd class:dim={hideBy || !ban.by?.trim()}><bdi>{bannedBy(ban.by, hideBy)}</bdi></dd>
+                <dd class:dim={hideBy || !ban.by?.trim()}>{#if ban.byLogin && !hideBy && ban.by?.trim()}<UserLink channel={login} login={ban.byLogin}><bdi>{bannedBy(ban.by, hideBy)}</bdi></UserLink>{:else}<bdi>{bannedBy(ban.by, hideBy)}</bdi>{/if}</dd>
               </div>
               {#if ban.since}<div><dt>{ban.until ? 'Timed out' : 'Banned'}</dt><dd class="t">{when(ban.since)}</dd></div>{/if}
               {#if ban.until}<div><dt>Until</dt><dd class="t">{when(ban.until)}</dd></div>{/if}

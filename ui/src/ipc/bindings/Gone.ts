@@ -10,6 +10,10 @@ export type Gone = { how: GoneHow,
  */
 by?: string, 
 /**
+ * V111-16 The mod's login, so the name opens their usercard.
+ */
+byLogin?: string, 
+/**
  * Timeouts: the length in seconds, when known.
  */
 secs?: number, };

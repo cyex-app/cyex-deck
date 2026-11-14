@@ -5,6 +5,10 @@
  */
 export type ModComment = { id: string, text: string, author: string, 
 /**
+ * V111-16 The author's login, so the name opens their usercard.
+ */
+authorLogin?: string | null, 
+/**
  * RFC 3339.
  */
 at: string, 

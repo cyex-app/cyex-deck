@@ -88,6 +88,10 @@ pub struct Gone {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub by: Option<String>,
+    /// V111-16 The mod's login, so the name opens their usercard.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub by_login: Option<String>,
     /// Timeouts: the length in seconds, when known.
     #[serde(skip_serializing_if = "Option::is_none")]
     #[ts(optional, type = "number")]
@@ -105,7 +109,12 @@ pub enum GoneHow {
 
 impl Gone {
     pub fn new(how: GoneHow, by: Option<String>) -> Self {
-        Self { how, by, secs: None }
+        Self { how, by, by_login: None, secs: None }
+    }
+
+    /// V111-16 Names the mod's login too.
+    pub fn with_login(self, by_login: Option<String>) -> Self {
+        Self { by_login, ..self }
     }
 
     pub fn with_secs(self, secs: Option<u64>) -> Self {
@@ -121,6 +130,7 @@ impl Gone {
             Some(o) if o.how == self.how && !far => Gone {
                 how: self.how,
                 by: self.by.clone().or_else(|| o.by.clone()),
+                by_login: self.by_login.clone().or_else(|| o.by_login.clone()),
                 secs: self.secs.max(o.secs),
             },
             _ => self.clone(),

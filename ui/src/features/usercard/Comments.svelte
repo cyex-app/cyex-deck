@@ -1,6 +1,7 @@
 <!-- M3 Mod comments on this user, yours and those shared from other channels, with a box
      at the bottom for a new one (V101-05, the 7TV extension's comments tab). -->
 <script lang="ts">
+  import UserLink from '../../components/UserLink.svelte';
   import Checkbox from '../../components/Checkbox.svelte';
   import IconButton from '../../components/IconButton.svelte';
   import type { ModComment } from '../../ipc/bindings/ModComment';
@@ -72,7 +73,7 @@
   {#each oldest as c (c.id)}
     <div class="comment">
       <div class="meta">
-        {c.author} · {c.at ? formatDate(new Date(c.at)) : ''}{c.shared ? ' · shared' : ''}
+        {#if c.authorLogin}<UserLink {channel} login={c.authorLogin}>{c.author}</UserLink>{:else}{c.author}{/if} · {c.at ? formatDate(new Date(c.at)) : ''}{c.shared ? ' · shared' : ''}
         {#if !c.shared}<span class="del"><IconButton icon="trash" label="Delete comment" size={12} onclick={() => remove(c)} /></span>{/if}
       </div>
       <div class="text">{c.text}</div>

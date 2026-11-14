@@ -49,6 +49,9 @@ pub struct BanStatus {
     /// RFC 3339; `None` for a ban.
     pub until: Option<String>,
     pub by: Option<String>,
+    /// V111-16 The mod's login, so the name opens their usercard.
+    #[ts(optional = nullable)]
+    pub by_login: Option<String>,
     pub reason: String,
     /// V108-C36 When it was given, RFC 3339 (Twitch's `createdAt`).
     #[ts(optional = nullable)]
@@ -63,6 +66,9 @@ pub struct ModComment {
     pub id: String,
     pub text: String,
     pub author: String,
+    /// V111-16 The author's login, so the name opens their usercard.
+    #[ts(optional = nullable)]
+    pub author_login: Option<String>,
     /// RFC 3339.
     pub at: String,
     /// From another channel that shares its comments.
@@ -222,6 +228,12 @@ fn comments_of(v: &Value, field: &str, shared: bool) -> Vec<ModComment> {
                             .and_then(Value::as_str)
                             .unwrap_or("?")
                             .to_owned(),
+                        author_login: n
+                            .get("author")
+                            .and_then(|a| a.get("login"))
+                            .and_then(Value::as_str)
+                            .filter(|l| !l.is_empty())
+                            .map(str::to_owned),
                         at: n.get("timestamp").and_then(Value::as_str).unwrap_or_default().to_owned(),
                         shared,
                     })
@@ -273,6 +285,12 @@ pub(crate) fn ban_of(data: &Value) -> Option<BanStatus> {
             .get("moderator")
             .and_then(|m| m.get("displayName").or_else(|| m.get("login")))
             .and_then(Value::as_str)
+            .map(str::to_owned),
+        by_login: b
+            .get("moderator")
+            .and_then(|m| m.get("login"))
+            .and_then(Value::as_str)
+            .filter(|l| !l.is_empty())
             .map(str::to_owned),
         reason: b.get("reason").and_then(Value::as_str).unwrap_or_default().to_owned(),
         since: b.get("createdAt").and_then(Value::as_str).filter(|s| !s.is_empty()).map(str::to_owned),
