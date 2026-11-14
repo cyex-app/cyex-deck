@@ -19,7 +19,9 @@
   import Badges from './Badges.svelte';
   import Body from './Body.svelte';
   import { CLIENTS, COSMIC, effectOf, highlightStyle } from './highlight';
+  import HeldLine from './HeldLine.svelte';
   import LinkCard from './LinkCard.svelte';
+  import { notifyEvents } from '../../ipc/notify';
   import { fxSleep } from './fxSleep';
   import { isHot, isPicked } from './hover.svelte';
   import { HOVER_OWNER } from './hoverOwner';
@@ -169,7 +171,10 @@
       <span>{#if m.reward.title}Redeemed <b>{m.reward.title}</b>{#if m.reward.cost}{" · "}{formatNumber(m.reward.cost)}{/if}{:else}Redeemed a reward{/if}</span>
     </div>
   {/if}
-  {#if notice}
+  {#if notice?.held}
+    <!-- V111-17 AutoMod held it: Approve and Deny where this account moderates. -->
+    <HeldLine held={notice.held} {channel} account={mod?.me ?? null} {time} ts={m.ts} />
+  {:else if notice}
     <div class="notice-text">
       {#if !sender && time}<span class="ts" data-stamp={m.ts}>{time}</span>{/if}{#if upLine}Uploaded <a class="up" href={upLine.link} data-upload={upLine.link}>{upLine.link}</a>{#if upLine.deletion}
         · delete: <a class="up" href={upLine.deletion} data-upload={upLine.deletion}>{upLine.deletion}</a>{/if}{:else if presence}{presence.joined ? 'joined: ' : 'parted: '}{#each presenceFold.shown as login, i (presenceKeys[i])}{i ? ', ' : ''}<span
@@ -178,7 +183,10 @@
             tabindex="-1"
             data-user={login}>{login}</span
           >{/each}{#if presenceFold.toggle}{' '}<button class="more presence-toggle" aria-expanded={presenceOpen} aria-label={presenceOpen ? 'Show less' : `Show more: ${formatNumber(presenceFold.hidden)} names`} onclick={() => (presenceOpen = !presenceOpen)}>{presenceFold.toggle}</button>{/if}{:else if emoteParts && emoteFragment}{emoteParts[0]}<span class="notice-emote"><ChatEmote f={emoteFragment} bare /></span>{emoteParts[1]}{:else if noticeParts}{#each noticeParts as p}{#if p.login}<span class="who" class:tint={!!p.color} style={p.color ? `--cd:${p.color.dark};--cl:${p.color.light}` : undefined} role="link" tabindex="-1" data-user={p.login}>{p.text}</span
-          >{:else}{p.text}{/if}{/each}{:else}{notice.text}{/if}
+          >{:else}{p.text}{/if}{/each}{:else}{notice.text}{/if}{#if notice.action === 'signIn'}{' '}<button
+          class="more"
+          onclick={() => void notifyEvents.open({ kind: 'settings', page: 'accounts' })}>Sign in again</button
+        >{/if}
     </div>
     {#if recipients.length}
       <!-- C16 One recipient per line, the long lists folded. -->

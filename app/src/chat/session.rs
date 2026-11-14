@@ -549,6 +549,7 @@ fn room_line(app: &AppHandle, identity: &Identity, channel: &str, line: &Line<'_
         return;
     }
     let role_before = entry.room.role();
+    let id_before = entry.room.state.channel_id.is_some();
     let was_joined = entry.room.status == ConnStatus::Joined;
     let events = entry.room.handle_line(line, now_ms(), &emotes);
     // V111-08 Banned while in: Twitch keeps the account joined but stops sending it this
@@ -558,6 +559,9 @@ fn room_line(app: &AppHandle, identity: &Identity, channel: &str, line: &Line<'_
         && events.iter().any(|e| matches!(e, RoomEvent::Restricted { how: Restriction::Banned }));
     let refused = entry.room.status == ConnStatus::Refused;
     let role = entry.room.role();
+    // V111-17 ROOMSTATE comes after USERSTATE: a mod room that only now knows its channel id
+    // starts its mod feed now (a feed needs the id; nothing else would ask again).
+    let id_learned = !id_before && entry.room.state.channel_id.is_some() && role.is_some();
     // U9 Only rooms no view shows collect news.
     let news = if entry.views.is_empty() { unread::news(&events) } else { News::default() };
     // V107-Mr Each new mention also counts, so the tab's number follows.
@@ -617,7 +621,7 @@ fn room_line(app: &AppHandle, identity: &Identity, channel: &str, line: &Line<'_
         crate::connections::notify(app);
     }
     // V102-21 A role change here: mod feeds (1.46) and every window.
-    if role != role_before && let Identity::Account(_) = identity {
+    if (role != role_before || id_learned) && let Identity::Account(_) = identity {
         super::roles::changed(app);
     }
     if !moments.is_empty() {

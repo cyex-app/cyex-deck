@@ -12,15 +12,8 @@ use ts_rs::TS;
 use super::{FeedEntry, push, remove, update};
 use crate::moderation::view::HeldItem;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, TS)]
-#[serde(rename_all = "camelCase")]
-#[ts(export)]
-pub enum HeldStatus {
-    Pending,
-    Allowed,
-    Denied,
-    Expired,
-}
+/// V111-17 One state for chat, the mod view and this feed.
+pub use cyex_chat::model::HeldStatus;
 
 #[derive(Clone, Debug, Serialize, TS)]
 #[serde(rename_all = "camelCase")]
@@ -94,11 +87,7 @@ pub fn keep_only(app: &AppHandle, pairs: &HashSet<(String, String)>) {
 }
 
 fn status_of(s: &str) -> HeldStatus {
-    match s.to_ascii_lowercase().as_str() {
-        "approved" | "allowed" => HeldStatus::Allowed,
-        "denied" => HeldStatus::Denied,
-        _ => HeldStatus::Expired,
-    }
+    HeldStatus::of(s)
 }
 
 #[cfg(test)]

@@ -11,7 +11,7 @@ use std::sync::Mutex;
 use cyex_eventsub::events::{self, Event, Moderate};
 use cyex_eventsub::session::Out;
 use cyex_eventsub::subs;
-use cyex_chat::model::{Gone, GoneHow, NoticeKind};
+use cyex_chat::model::{Gone, GoneHow, HeldStatus, NoticeKind};
 use cyex_moderation::actions::{self, Decision, ModLine};
 use cyex_moderation::own::{Echo, OwnEchoes};
 use cyex_moderation::roles::RoleAction;
@@ -24,6 +24,7 @@ use super::view::{self, FeedItem, HeldItem, SuspiciousItem};
 use super::channel_id;
 use crate::auth;
 
+mod plan;
 mod sockets;
 
 use sockets::Account;
@@ -35,9 +36,19 @@ pub struct Feeds(Mutex<HashMap<String, Account>>);
 #[derive(Default)]
 pub struct HermesFeeds(Mutex<HashMap<(String, String), String>>);
 
+/// V111-17 (account, channel id) → the Helix token's key Twitch refused mod actions or AutoMod for.
+#[derive(Default)]
+pub struct Refused(Mutex<plan::Refused>);
+
+/// V111-17 (account, login) pairs whose chat has said a fresh sign-in is needed.
+#[derive(Default)]
+struct Prompted(Mutex<HashSet<(String, String)>>);
+
 pub fn init(app: &AppHandle) {
     app.manage(Feeds::default());
     app.manage(HermesFeeds::default());
+    app.manage(Refused::default());
+    app.manage(Prompted::default());
     app.manage(Own::default());
     sockets::init(app);
 }
@@ -118,13 +129,10 @@ fn repeat(app: &AppHandle, channel_id: &str, m: &Moderate, now: i64) -> bool {
 /// roles, accounts or the stream manager change.
 pub fn sync(app: &AppHandle) {
     let Some(feeds) = app.try_state::<Feeds>() else { return };
-    // Account id → (channel id → login) for channels the account mods and has open.
-    let mut wanted: HashMap<String, HashMap<String, String>> = HashMap::new();
-    // V103-15 The same for GQL-only accounts, on Hermes.
-    let mut topics: HashMap<(String, String), String> = HashMap::new();
+    // V111-17 The room's own id first: a mod room whose catalog hasn't loaded yet still counts.
     let mut pairs: Vec<(String, String, String)> = crate::chat::moderated_open(app)
         .into_iter()
-        .filter_map(|(acc, login)| Some((acc, channel_id(app, &login)?, login)))
+        .filter_map(|(acc, login, cid)| Some((acc, cid.or_else(|| channel_id(app, &login))?, login)))
         .collect();
     pairs.extend(crate::streammanager::own_channel(app));
     let open: HashSet<(String, String)> = pairs.iter().map(|(a, c, _)| (a.clone(), c.clone())).collect();
@@ -134,14 +142,12 @@ pub fn sync(app: &AppHandle) {
         .filter(|(_, _, login)| crate::chat::shown::lane(app, login) == cyex_twitch::pace::Lane::Front)
         .map(|(_, cid, _)| cid.clone())
         .collect();
-    for (acc, cid, login) in pairs {
-        if auth::helix_token(app, &acc).is_some() {
-            wanted.entry(acc).or_default().insert(cid, login);
-        } else if auth::gql_token(app, &acc).is_some() {
-            topics.insert((acc, cid), login);
-        }
-    }
+    // V111-17 Every mod account's feed: EventSub, Hermes where EventSub can't carry AutoMod and
+    // mod actions, else a prompt in that chat (`plan`).
+    let refused = app.try_state::<Refused>().map(|r| r.0.lock().unwrap_or_else(|p| p.into_inner()).clone()).unwrap_or_default();
+    let plan::Plan { eventsub: wanted, hermes: topics, prompts } = plan::plan(&pairs, |acc| tokens(app, acc), &refused);
     sync_hermes(app, topics);
+    prompt(app, prompts);
     let mut map = feeds.0.lock().unwrap_or_else(|p| p.into_inner());
     // Channels whose session closes here: the stream manager may need their follows back.
     let mut released = Vec::new();
@@ -164,6 +170,58 @@ pub fn sync(app: &AppHandle) {
     }
     crate::feeds::automod::keep_only(app, &open);
     view::keep_only(app, open.iter().map(|(_, cid)| cid.as_str()));
+}
+
+/// V111-17 What `account`'s sign-in holds, for the plan.
+fn tokens(app: &AppHandle, account: &str) -> plan::Tokens {
+    let scopes = auth::accounts(app).get(account).and_then(|a| a.helix.as_ref()).map(|m| m.scopes.clone()).unwrap_or_default();
+    plan::Tokens {
+        helix: auth::helix_token(app, account).map(|(token, _)| (scopes, plan::key_of(&token))),
+        gql: auth::gql_token(app, account).is_some(),
+    }
+}
+
+/// V111-17 A chat whose account can't get AutoMod messages says so once, with a way to fix
+/// it; a pair that is fine again (signed in, closed) may say it again later.
+fn prompt(app: &AppHandle, now: HashSet<(String, String)>) {
+    let Some(state) = app.try_state::<Prompted>() else { return };
+    let fresh: Vec<(String, String)> = {
+        let mut said = state.0.lock().unwrap_or_else(|p| p.into_inner());
+        said.retain(|k| now.contains(k));
+        now.into_iter().filter(|k| said.insert(k.clone())).collect()
+    };
+    for (acc, login) in fresh {
+        eprintln!("mod feeds: {acc}: no AutoMod feed for {login}, sign-in needed");
+        crate::chat::action_line(app, &acc, &login, SIGN_IN_LINE, cyex_chat::model::NoticeAction::SignIn);
+    }
+}
+
+/// V111-17 The prompt's words.
+pub const SIGN_IN_LINE: &str = "AutoMod messages and mod names need a fresh sign-in for this account.";
+
+/// V111-17 Twitch refused a feed type that carries mod actions or AutoMod (403: a scope the
+/// token lacks): Hermes takes over when there is a GQL sign-in, else the chat says so.
+pub(super) fn refused(app: &AppHandle, account: &str, channel_id: &str, kind: &str) {
+    if !matches!(kind, "channel.moderate" | "automod.message.hold" | "automod.message.update") {
+        return;
+    }
+    let Some((token, _)) = auth::helix_token(app, account) else { return };
+    let Some(state) = app.try_state::<Refused>() else { return };
+    let key = plan::key_of(&token);
+    let new = state.0.lock().unwrap_or_else(|p| p.into_inner()).insert((account.to_owned(), channel_id.to_owned()), key) != Some(key);
+    if new {
+        let app = app.clone();
+        tauri::async_runtime::spawn(async move { sync(&app) });
+    }
+}
+
+/// V111-17 A joined channel's id was found (catalog): a mod room waiting for it starts its
+/// feed. Hooks can't take the chat lock, so the sync runs next.
+pub fn on_channel(app: &AppHandle, e: &crate::chat::channels::Event) {
+    if let crate::chat::channels::Event::Known { .. } = e {
+        let app = app.clone();
+        tauri::async_runtime::spawn(async move { sync(&app) });
+    }
 }
 
 /// The stream manager let go of `channel.follow` for a channel (D30): a mod feed that has
@@ -281,8 +339,7 @@ pub fn on_hermes(app: &AppHandle, e: &cyex_twitch::hermes::Event) {
                 if let Some(d) = actions::automod_queue(&e.payload) {
                     view::add_action(app, cid, ModLine::decision(&d, cyex_chat::build::local_id(), now));
                 }
-                crate::feeds::automod::done(app, &r.message_id, &r.status, r.by.as_deref());
-                view::resolve_held(app, cid, &r.message_id);
+                decided(app, cid, login.as_deref(), &r.message_id, &r.status, r.by.as_deref());
             }
         }
         _ => {}
@@ -375,18 +432,30 @@ fn held(app: &AppHandle, account: &str, channel_id: &str, login: Option<&str>, i
     if let Some(login) = login {
         crate::feeds::automod::held(app, account, channel_id, login, &item);
     }
-    view::add_held(app, channel_id, item);
+    // V111-17 In chat as its own line with Approve and Deny, in mod rooms only (never a
+    // viewer's); its name opens their usercard (V111-16).
     if let Some(login) = login {
-        // V111-16 Their name opens their usercard.
-        let links = vec![cyex_chat::model::NoticeUser::new(who.clone(), item_login)];
-        crate::chat::linked_line(
-            app,
-            login,
-            NoticeKind::Moderation,
-            &format!("AutoMod held a message from {who}. Review it in the mod view."),
-            links,
-        );
+        let note = cyex_chat::model::HeldNote {
+            message_id: item.message_id.clone(),
+            user: cyex_chat::model::NoticeUser::new(who, item_login),
+            text: item.text.clone(),
+            reason: item.reason.clone(),
+            status: HeldStatus::Pending,
+            by: None,
+        };
+        crate::chat::held_line(app, login, note);
     }
+    view::add_held(app, channel_id, item);
+}
+
+/// V111-17 A decision on a held message (or its expiry), from either feed: the AutoMod feed,
+/// the chat line and the mod view's queue all follow.
+fn decided(app: &AppHandle, channel_id: &str, login: Option<&str>, message_id: &str, status: &str, by: Option<&str>) {
+    crate::feeds::automod::done(app, message_id, status, by);
+    if let Some(login) = login {
+        crate::chat::held_done(app, login, message_id, HeldStatus::of(status), by);
+    }
+    view::resolve_held(app, channel_id, message_id);
 }
 
 fn route(app: &AppHandle, account: &str, channel_id: &str, login: Option<&str>, ev: Event) {
@@ -418,8 +487,7 @@ fn route(app: &AppHandle, account: &str, channel_id: &str, login: Option<&str>, 
             }
             // V106-07
             let by = moderator.as_ref().map(|m| if m.name.is_empty() { m.login.as_str() } else { m.name.as_str() });
-            crate::feeds::automod::done(app, &message_id, &status, by);
-            view::resolve_held(app, channel_id, &message_id)
+            decided(app, channel_id, login, &message_id, &status, by);
         }
         // Shared with the stream manager's feed (D30).
         Event::Follow { user, .. } => crate::streammanager::follows::seen(app, channel_id, &user),
@@ -470,6 +538,38 @@ fn route(app: &AppHandle, account: &str, channel_id: &str, login: Option<&str>, 
             activity(app, channel_id, "unban_request", format!("{} asked to be unbanned.", display(&user)), Some(user.login), now);
         }
         Event::UnbanResolved { .. } | Event::SuspiciousChanged { .. } | Event::WarningRead { .. } => {}
+    }
+}
+
+/// V111-17 Mocks builds: an EventSub-shaped event from `tools/mock/chat.mjs` (`POST /_automod`) for a
+/// channel, through the same parser and routing as a real one, for every account whose mod feed
+/// (EventSub or Hermes) covers that channel. Only mod-action and AutoMod events.
+#[cfg(feature = "mocks")]
+pub fn mock_event(app: &AppHandle, channel: &str, kind: &str, event: &serde_json::Value) {
+    if !matches!(kind, "automod.message.hold" | "automod.message.update" | "channel.moderate") {
+        return;
+    }
+    let channel = channel.to_ascii_lowercase();
+    let mut pairs: Vec<(String, String)> = Vec::new();
+    if let Some(feeds) = app.try_state::<Feeds>() {
+        let map = feeds.0.lock().unwrap_or_else(|p| p.into_inner());
+        for (acc, e) in map.iter() {
+            pairs.extend(e.wanted.iter().filter(|(_, l)| **l == channel).map(|(cid, _)| (acc.clone(), cid.clone())));
+        }
+    }
+    if let Some(h) = app.try_state::<HermesFeeds>() {
+        let map = h.0.lock().unwrap_or_else(|p| p.into_inner());
+        pairs.extend(map.iter().filter(|(_, l)| **l == channel).map(|(k, _)| k.clone()));
+    }
+    pairs.sort();
+    pairs.dedup();
+    if pairs.is_empty() {
+        eprintln!("mock: no mod feed covers {channel}");
+    }
+    for (acc, cid) in pairs {
+        if let Some(ev) = events::parse(kind, event) {
+            route(app, &acc, &cid, Some(&channel), ev);
+        }
     }
 }
 

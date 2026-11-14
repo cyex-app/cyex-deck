@@ -513,6 +513,10 @@ fn run(app: &AppHandle, account: &str, (token, client_id): (String, String), job
                     if a != Answer::Done && super::first_failure(&cid, kind) {
                         eprintln!("mod feeds: {cid}: couldn't subscribe {kind} ({a:?}): {e}");
                     }
+                    // V111-17 Refused for good: Hermes takes over, or the chat says so.
+                    if a == Answer::Final {
+                        super::refused(&app, &account, &cid, kind);
+                    }
                     (a, None)
                 }
             };

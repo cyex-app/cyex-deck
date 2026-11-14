@@ -6,6 +6,7 @@ mod alive;
 pub mod budget;
 mod checks;
 mod gap;
+mod held;
 pub use gap::{GAP_NOTE, gap_may_miss};
 mod hook;
 mod keep;

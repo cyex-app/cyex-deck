@@ -29,6 +29,64 @@ pub struct Notice {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub emote: Option<NoticeEmote>,
+    /// V111-17 A message AutoMod holds, with its state: the line shows Approve and Deny (mods only).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub held: Option<HeldNote>,
+    /// V111-17 A button after the text, e.g. "Sign in again".
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub action: Option<NoticeAction>,
+}
+
+/// V111-17 What a notice's button does.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub enum NoticeAction {
+    /// Opens Settings → Accounts to sign the account in again.
+    SignIn,
+}
+
+/// 1.56, V106-07 A held message's state, in chat, the mod view and the AutoMod feed alike.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub enum HeldStatus {
+    Pending,
+    Allowed,
+    Denied,
+    Expired,
+}
+
+impl HeldStatus {
+    /// Twitch's word for it: EventSub `Approved`/`Denied`/`Expired`, Hermes `ALLOWED`/`DENIED`/`EXPIRED`.
+    pub fn of(s: &str) -> HeldStatus {
+        match s.to_ascii_lowercase().as_str() {
+            "approved" | "allowed" => HeldStatus::Allowed,
+            "denied" => HeldStatus::Denied,
+            "pending" => HeldStatus::Pending,
+            _ => HeldStatus::Expired,
+        }
+    }
+}
+
+/// V111-17 A message AutoMod holds, as a chat line for the channel's mods.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct HeldNote {
+    pub message_id: String,
+    /// Who sent it (their name opens their usercard).
+    pub user: NoticeUser,
+    pub text: String,
+    /// V108-N15 Wire form: `automod:<category>[:<level>]`, `blocked_term[:<text>]` or `blocked_link`.
+    pub reason: String,
+    pub status: HeldStatus,
+    /// The mod who approved or denied it.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub by: Option<String>,
 }
 
 /// V111-01 The emote an emote-change line is about (added, removed or renamed to).
@@ -89,6 +147,8 @@ impl Notice {
             color: None,
             presence: None,
             emote: None,
+            held: None,
+            action: None,
         }
     }
 }

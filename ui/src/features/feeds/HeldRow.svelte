@@ -1,5 +1,5 @@
-<!-- 1.56, V106-07 One message AutoMod holds: who, why, the text and Allow / Deny. A decided
-     row stays, dimmed, and says who decided. -->
+<!-- 1.56, V106-07 One message AutoMod holds: who, why, the text and Approve / Deny. A decided
+     row stays, dimmed, and says who decided (V111-17 the same words as the chat line). -->
 <script lang="ts">
   import Button from '../../components/Button.svelte';
   import type { HeldItem } from '../../ipc/bindings/HeldItem';
@@ -7,6 +7,7 @@
   import { modIpc } from '../../ipc/moderation';
   import { errorText } from '../../lib/errors';
   import { toast } from '../../lib/toast.svelte';
+  import { HELD_WAIT_MS, heldDone } from './heldDone';
   import { heldLabel } from './heldReason';
 
   interface Props {
@@ -23,7 +24,6 @@
 
   /** s3-11 Stays on until the status event decides the row (it unmounts the buttons), or
    * a timeout says it didn't go through. */
-  const WAIT_MS = 10_000;
   let busy = $state(false);
   let wait: ReturnType<typeof setTimeout> | undefined;
 
@@ -37,7 +37,7 @@
         if (status !== 'pending') return;
         busy = false;
         toast.error('Twitch didn’t confirm that. Try again.');
-      }, WAIT_MS);
+      }, HELD_WAIT_MS);
     } catch (e) {
       busy = false;
       toast.error(errorText(e));
@@ -52,19 +52,7 @@
   });
   $effect(() => () => clearTimeout(wait));
 
-  const done = $derived(
-    status === 'allowed'
-      ? by
-        ? `Allowed by ${by}`
-        : 'Allowed'
-      : status === 'denied'
-        ? by
-          ? `Denied by ${by}`
-          : 'Denied'
-        : status === 'expired'
-          ? 'Expired'
-          : null,
-  );
+  const done = $derived(heldDone(status, by));
 </script>
 
 <div class="held" class:decided={status !== 'pending'}>
@@ -77,7 +65,7 @@
     <div class="done">{done}</div>
   {:else}
     <div class="row">
-      <span class="btn"><Button small disabled={busy} onclick={() => resolve(true)}>Allow</Button></span>
+      <span class="btn"><Button small disabled={busy} onclick={() => resolve(true)}>Approve</Button></span>
       <span class="btn"><Button small variant="danger" disabled={busy} onclick={() => resolve(false)}>Deny</Button></span>
     </div>
   {/if}

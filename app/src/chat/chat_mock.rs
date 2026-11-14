@@ -21,6 +21,17 @@ const COMMANDS: [&str; 5] = ["PRIVMSG", "CLEARCHAT", "CLEARMSG", "USERNOTICE", "
 struct Batch {
     next: u64,
     lines: Vec<String>,
+    /// V111-17 EventSub-shaped mod events (AutoMod holds and decisions, mod actions).
+    #[serde(default)]
+    events: Vec<MockEvent>,
+}
+
+/// V111-17 One event for a channel's mod feeds (`crate::moderation::feeds::mock_event`).
+#[derive(Deserialize)]
+struct MockEvent {
+    channel: String,
+    kind: String,
+    event: serde_json::Value,
 }
 
 /// The channel (login) of an injectable IRC line; `None` for anything else.
@@ -47,6 +58,9 @@ pub fn start(app: &AppHandle) {
                 if let Some(channel) = target(&raw) {
                     super::session::inject(&app, &channel, &raw);
                 }
+            }
+            for e in batch.events {
+                crate::moderation::feeds::mock_event(&app, &e.channel, &e.kind, &e.event);
             }
         }
     });
@@ -80,7 +94,13 @@ mod tests {
     #[test]
     fn t05_a_batch_decodes() {
         let b: Batch = serde_json::from_str(r#"{"next":3,"lines":["a","b"]}"#).unwrap();
-        assert_eq!((b.next, b.lines.len()), (3, 2));
+        assert_eq!((b.next, b.lines.len(), b.events.len()), (3, 2, 0));
+        // V111-17
+        let b: Batch = serde_json::from_str(
+            r#"{"next":4,"lines":[],"events":[{"channel":"c","kind":"automod.message.hold","event":{"message_id":"m"}}]}"#,
+        )
+        .unwrap();
+        assert_eq!((b.events[0].channel.as_str(), b.events[0].kind.as_str()), ("c", "automod.message.hold"));
     }
 
     #[test]

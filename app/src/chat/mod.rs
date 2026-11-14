@@ -201,6 +201,8 @@ pub fn init(app: &AppHandle) {
         channels: channels::Registry::default(),
     });
     app.state::<Chat>().channels.hook(crate::emotes::on_channel);
+    // V111-17 A channel id found after our role came: the mod feeds start then.
+    app.state::<Chat>().channels.hook(crate::moderation::feeds::on_channel);
     on_settings(app);
     shown::init(app);
     park::init(app);
@@ -726,8 +728,9 @@ pub fn channel_id_of(app: &AppHandle, login: &str) -> Option<String> {
         .and_then(|(_, e)| e.room.state.channel_id.clone())
 }
 
-/// (account id, login) for every open room where the account is broadcaster or mod (1.46).
-pub fn moderated_open(app: &AppHandle) -> Vec<(String, String)> {
+/// (account id, login, the room's channel id once Twitch said it) for every open room where
+/// the account is broadcaster or mod (1.46).
+pub fn moderated_open(app: &AppHandle) -> Vec<(String, String, Option<String>)> {
     let Some(chat) = app.try_state::<Chat>() else { return Vec::new() };
     let inner = chat.lock();
     inner
@@ -735,7 +738,7 @@ pub fn moderated_open(app: &AppHandle) -> Vec<(String, String)> {
         .iter()
         .filter_map(|((identity, login), e)| {
             let Identity::Account(acc) = identity else { return None };
-            e.room.role().map(|_| (acc.clone(), login.clone()))
+            e.room.role().map(|_| (acc.clone(), login.clone(), e.room.state.channel_id.clone()))
         })
         .collect()
 }
@@ -857,6 +860,29 @@ pub fn mod_line(app: &AppHandle, login: &str, text: &str, links: Vec<NoticeUser>
 pub fn linked_line(app: &AppHandle, login: &str, kind: NoticeKind, text: &str, links: Vec<NoticeUser>) {
     let now = now_ms();
     each_room(app, login, |room, _| vec![room.linked_line(kind, text, links.clone(), now)]);
+}
+
+/// V111-17 A held message, as a line with Approve and Deny in the rooms of accounts that mod
+/// `login` (never a viewer's room). One line per message, whichever feed or account brings it.
+pub fn held_line(app: &AppHandle, login: &str, note: cyex_chat::model::HeldNote) {
+    let now = now_ms();
+    each_room(app, login, |room, _| room.held_line(note.clone(), now).into_iter().collect());
+}
+
+/// V111-17 A held message was approved, denied or expired: its line says so.
+pub fn held_done(app: &AppHandle, login: &str, message_id: &str, status: cyex_chat::model::HeldStatus, by: Option<&str>) {
+    each_room(app, login, |room, _| room.held_done(message_id, status, by).into_iter().collect());
+}
+
+/// V111-17 A line with a button in `account`'s own rooms of `login` only.
+pub fn action_line(app: &AppHandle, account: &str, login: &str, text: &str, action: cyex_chat::model::NoticeAction) {
+    let now = now_ms();
+    each_room(app, login, |room, id| {
+        if account_of(id) != Some(account) {
+            return Vec::new();
+        }
+        vec![room.action_line(NoticeKind::Info, text, action, now)]
+    });
 }
 
 /// V107-R34 A mod feed named who deleted a line (`msg`) or timed out or banned a user: their
