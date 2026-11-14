@@ -8,6 +8,7 @@
 
   import type { ChatMessage } from '../../ipc/bindings/ChatMessage';
   import { usercardIpc } from '../../ipc/rules';
+  import { anchoredTop, gapBelow, isPinned } from '../../lib/bottomAnchor';
   import { formatDate } from '../../lib/format';
   import { openMenu } from '../../components/menu.svelte';
   import EmoteCard from '../emotes/EmoteCard.svelte';
@@ -63,6 +64,8 @@
   let box = $state<HTMLElement>();
   let inner = $state<HTMLElement>();
   let atBottom = true;
+  /** Distance of the viewport's bottom edge from the end, kept across viewport resizes. */
+  let gap = 0;
 
   const liveIds = $derived(new Set(live.map((m) => m.id)));
   /** The open chat's lines are the newest part; logs fill in only what is older than them
@@ -112,19 +115,26 @@
   function onscroll() {
     if (!box) return;
     tips.drop();
-    atBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 24;
+    atBottom = isPinned(box);
+    gap = gapBelow(box);
     if (box.scrollTop < 40) void loadOlder();
   }
 
   // Starts at the newest line and stays there while new ones come in and while pictures
-  // load and make lines taller.
+  // load and make lines taller. When the list's own height changes (the card's top part grows
+  // or shrinks), its bottom edge stays still: pinned stays pinned, otherwise the gap holds.
   $effect(() => {
     if (!box || !inner) return;
     const list = box;
+    let height = list.clientHeight;
     const ro = new ResizeObserver(() => {
-      if (atBottom) list.scrollTop = list.scrollHeight;
+      const resized = list.clientHeight !== height;
+      height = list.clientHeight;
+      if (atBottom || resized) list.scrollTop = anchoredTop(list, gap, atBottom);
+      if (!atBottom) gap = gapBelow(list);
     });
     ro.observe(inner);
+    ro.observe(list);
     return () => ro.disconnect();
   });
 
