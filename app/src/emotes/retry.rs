@@ -143,7 +143,14 @@ fn joined(app: &AppHandle, login: &str, generation: u64) -> bool {
 /// Puts what came in into join `generation` of the channel and marks its emotes ready;
 /// false once that join is gone. B1 The first load goes through here too: each answered
 /// provider's set replaces the one a socket change or an earlier load put in.
-pub(super) fn merge(app: &AppHandle, login: &str, generation: u64, asked: Which, mut got: Fetched) -> bool {
+pub(super) fn merge(app: &AppHandle, login: &str, generation: u64, asked: Which, got: Fetched) -> bool {
+    merge_part(app, login, generation, asked, got, true)
+}
+
+/// V111-15 [`merge`] for one provider of a first load: `ready` says whether the room's emotes
+/// count as ready now (the last answer, or the cap, see `load::READY_CAP`). What was shown
+/// before the sets came is read again for the emotes it lacked.
+pub(super) fn merge_part(app: &AppHandle, login: &str, generation: u64, asked: Which, mut got: Fetched, ready: bool) -> bool {
     // V111-14 Good answers are kept on disk even when this join is gone.
     super::cache::save(app, std::mem::take(&mut got.save));
     let came = asked.minus(got.failed);
@@ -153,7 +160,9 @@ pub(super) fn merge(app: &AppHandle, login: &str, generation: u64, asked: Which,
         let Some(c) = inner.live(login, generation) else {
             return false;
         };
-        let _ = c.ready.send(true);
+        if ready {
+            let _ = c.ready.send(true);
+        }
         if !came.any() {
             return true;
         }
@@ -168,7 +177,16 @@ pub(super) fn merge(app: &AppHandle, login: &str, generation: u64, asked: Which,
     }
     // Windows refresh what depends on it, e.g. FFZ's mod and VIP pictures.
     let _ = app.emit("emotes:loaded", login);
+    crate::chat::retokenize_channel(app, login);
     true
+}
+
+/// V111-15 The room's emotes count as ready, whatever is still outstanding (the cap passed).
+pub(super) fn mark_ready(app: &AppHandle, login: &str, generation: u64) {
+    let state = app.state::<Emotes>();
+    if let Some(c) = state.lock().live(login, generation) {
+        let _ = c.ready.send(true);
+    }
 }
 
 /// BTTV's and FFZ's answers into the channel, in place of what it had.

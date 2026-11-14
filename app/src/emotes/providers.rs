@@ -2,6 +2,7 @@
 //! BTTV's socket (C9 Pro emotes and badges, C10 emotes changing live). E2 A channel's
 //! 7TV set is fetched here too, so all three retry alike.
 
+use std::future::Future;
 use std::sync::Arc;
 
 use cyex_chat::model::{NoticeEmote, Provider};
@@ -278,65 +279,102 @@ pub struct Fetched {
 /// V107-P2 `lane`: the tab on screen goes ahead of background ones.
 /// V110-E13 `sets_off`: those whose sets are dropped (FFZ is still asked for its badges).
 pub async fn channel(http: &Http, id: &str, lane: Lane, want: Which, sets_off: Which) -> Fetched {
-    let b = async {
-        if want.bttv {
-            Some(bttv::api::channel_raw(http, id, lane).await)
-        } else {
-            None
+    let all = std::sync::Mutex::new(Fetched::default());
+    channel_each(http, id, lane, want, sets_off, |_, part| all.lock().unwrap().absorb(part)).await;
+    all.into_inner().unwrap()
+}
+
+/// V111-15 [`channel`], but each provider's answer goes to `on` (with that provider alone as
+/// `Which`) the moment it comes, so a slow 7TV doesn't hold back BTTV and FFZ.
+pub async fn channel_each(
+    http: &Http,
+    id: &str,
+    lane: Lane,
+    want: Which,
+    sets_off: Which,
+    on: impl Fn(Which, Fetched),
+) {
+    let key = |p: Provider| Key::Channel(p, id.to_owned());
+    let s = async {
+        if !want.seventv {
+            return None;
         }
+        let mut out = Fetched::default();
+        match parsed(seventv::api::channel_raw(http, id, lane).await, seventv::api::parse_channel) {
+            Ok((ch, v)) => {
+                // No 7TV account (any more): nothing to keep, and the kept one goes.
+                out.save.push((key(Provider::Seventv), ch.is_some().then_some(v)));
+                out.seventv = ch;
+            }
+            Err(e) => {
+                out.failed.seventv = Service::SevenTv.transient(&e);
+                eprintln!("emotes: no 7TV emotes for {id}: {}", e.describe("7TV"));
+            }
+        }
+        Some((Which { seventv: true, ..Which::default() }, out))
+    };
+    let b = async {
+        if !want.bttv {
+            return None;
+        }
+        let mut out = Fetched::default();
+        match parsed(bttv::api::channel_raw(http, id, lane).await, |v| bttv::api::parse_channel(id, v)) {
+            Ok((s, v)) => {
+                out.save.push((key(Provider::Bttv), s.is_some().then_some(v)));
+                out.bttv = s.map(Arc::new);
+            }
+            Err(e) => {
+                out.failed.bttv = Service::Bttv.transient(&e);
+                eprintln!("emotes: no BTTV emotes for {id}: {}", e.describe("BTTV"));
+            }
+        }
+        Some((Which { bttv: true, ..Which::default() }, out))
     };
     let f = async {
-        if want.ffz {
-            Some(ffz::api::room_raw(http, id, lane).await)
-        } else {
-            None
+        if !want.ffz {
+            return None;
+        }
+        let mut out = Fetched::default();
+        match parsed(ffz::api::room_raw(http, id, lane).await, ffz::api::parse_room) {
+            Ok((room, v)) => {
+                out.save.push((key(Provider::Ffz), room.is_some().then_some(v)));
+                put_room(&mut out, room, sets_off);
+            }
+            Err(e) => {
+                out.failed.ffz = Service::Ffz.transient(&e);
+                eprintln!("emotes: no FFZ emotes for {id}: {}", e.describe("FFZ"));
+            }
+        }
+        Some((Which { ffz: true, ..Which::default() }, out))
+    };
+    fan_out(s, b, f, on).await;
+}
+
+/// V111-15 Runs the three together and hands each part to `on` the moment it is done.
+async fn fan_out<S, B, F>(s: S, b: B, f: F, on: impl Fn(Which, Fetched))
+where
+    S: Future<Output = Option<(Which, Fetched)>>,
+    B: Future<Output = Option<(Which, Fetched)>>,
+    F: Future<Output = Option<(Which, Fetched)>>,
+{
+    let each = |part: Option<(Which, Fetched)>| {
+        if let Some((which, part)) = part {
+            on(which, part);
         }
     };
-    let s = async {
-        if want.seventv {
-            Some(seventv::api::channel_raw(http, id, lane).await)
-        } else {
-            None
-        }
-    };
-    let (s, b, f) = tokio::join!(s, b, f);
-    let mut out = Fetched::default();
-    let key = |p: Provider| Key::Channel(p, id.to_owned());
-    match s.map(|r| parsed(r, seventv::api::parse_channel)) {
-        Some(Ok((ch, v))) => {
-            // No 7TV account (any more): nothing to keep, and the kept one goes.
-            out.save.push((key(Provider::Seventv), ch.is_some().then_some(v)));
-            out.seventv = ch;
-        }
-        Some(Err(e)) => {
-            out.failed.seventv = Service::SevenTv.transient(&e);
-            eprintln!("emotes: no 7TV emotes for {id}: {}", e.describe("7TV"));
-        }
-        None => {}
+    tokio::join!(async { each(s.await) }, async { each(b.await) }, async { each(f.await) });
+}
+
+impl Fetched {
+    /// V111-15 Another provider's part of the same fetch.
+    pub fn absorb(&mut self, part: Fetched) {
+        self.seventv = self.seventv.take().or(part.seventv);
+        self.bttv = self.bttv.take().or(part.bttv);
+        self.ffz = self.ffz.take().or(part.ffz);
+        self.badges = self.badges.take().or(part.badges);
+        self.failed = self.failed.or(part.failed);
+        self.save.extend(part.save);
     }
-    match b.map(|r| parsed(r, |v| bttv::api::parse_channel(id, v))) {
-        Some(Ok((s, v))) => {
-            out.save.push((key(Provider::Bttv), s.is_some().then_some(v)));
-            out.bttv = s.map(Arc::new);
-        }
-        Some(Err(e)) => {
-            out.failed.bttv = Service::Bttv.transient(&e);
-            eprintln!("emotes: no BTTV emotes for {id}: {}", e.describe("BTTV"));
-        }
-        None => {}
-    }
-    match f.map(|r| parsed(r, ffz::api::parse_room)) {
-        Some(Ok((room, v))) => {
-            out.save.push((key(Provider::Ffz), room.is_some().then_some(v)));
-            put_room(&mut out, room, sets_off);
-        }
-        Some(Err(e)) => {
-            out.failed.ffz = Service::Ffz.transient(&e);
-            eprintln!("emotes: no FFZ emotes for {id}: {}", e.describe("FFZ"));
-        }
-        None => {}
-    }
-    out
 }
 
 fn put_room(out: &mut Fetched, room: Option<ffz::api::Room>, sets_off: Which) {
@@ -573,8 +611,84 @@ fn change_channel(
 
 #[cfg(test)]
 mod tests {
-    use super::{Which, bttv_added_line, plan};
+    use super::{Fetched, Which, bttv_added_line, fan_out, plan};
+    use cyex_chat::model::Provider;
+    use cyex_emotes::{Emote, EmoteSet, Scope};
     use cyex_settings::schema::Chat;
+    use std::sync::{Arc, Mutex};
+    use std::time::Duration;
+
+    fn only(p: Provider) -> Which {
+        Which { seventv: p == Provider::Seventv, bttv: p == Provider::Bttv, ffz: p == Provider::Ffz }
+    }
+
+    fn named(p: Provider, id: &str) -> Arc<EmoteSet> {
+        Arc::new(EmoteSet::new(id, p, Scope::Channel, vec![Emote::new(p, id.to_owned(), "KEKW".to_owned())]))
+    }
+
+    /// V111-15 A slow 7TV doesn't hold back BTTV and FFZ: they go in first, 7TV's set later
+    /// takes its place by the emote order, and a provider that failed is still reported for
+    /// the retry loop.
+    #[tokio::test]
+    async fn v111_15_fast_providers_go_in_before_a_slow_7tv() {
+        let slow = async {
+            tokio::time::sleep(Duration::from_millis(300)).await;
+            Some((only(Provider::Seventv), Fetched { failed: only(Provider::Seventv), ..Fetched::default() }))
+        };
+        let bttv = async { Some((only(Provider::Bttv), Fetched { bttv: Some(named(Provider::Bttv, "b")), ..Fetched::default() })) };
+        let ffz = async {
+            tokio::time::sleep(Duration::from_millis(20)).await;
+            Some((only(Provider::Ffz), Fetched { ffz: Some(named(Provider::Ffz, "f")), ..Fetched::default() }))
+        };
+        let order = Mutex::new(Vec::new());
+        let all = Mutex::new(Fetched::default());
+        let t = std::time::Instant::now();
+        fan_out(slow, bttv, ffz, |which, part| {
+            order.lock().unwrap().push((which, t.elapsed()));
+            all.lock().unwrap().absorb(part);
+        })
+        .await;
+        let order = order.into_inner().unwrap();
+        assert_eq!(order.iter().map(|(w, _)| *w).collect::<Vec<_>>(), [only(Provider::Bttv), only(Provider::Ffz), only(Provider::Seventv)]);
+        assert!(order[0].1 < Duration::from_millis(100) && order[2].1 >= Duration::from_millis(250));
+        // The failed provider goes to the retry loop; the others' sets are in the union.
+        let all = all.into_inner().unwrap();
+        assert_eq!(all.failed, only(Provider::Seventv));
+        assert!(all.bttv.is_some() && all.ffz.is_some() && all.seventv.is_none());
+    }
+
+    /// V111-15 Sets merged one at a time end as the order says, whichever came first.
+    #[test]
+    fn v111_15_a_late_set_lands_by_priority() {
+        let lookup = |order: &[Provider]| {
+            let mut inner = super::super::Inner::default();
+            let (ready, _) = tokio::sync::watch::channel(false);
+            inner.priority = vec![Provider::Seventv, Provider::Bttv, Provider::Ffz];
+            inner.channels.insert(
+                "c".into(),
+                super::super::Channel {
+                    id: "1".into(),
+                    generation: 1,
+                    retry: None,
+                    sets: Vec::new(),
+                    seventv_user: None,
+                    seventv_switch: 0,
+                    ffz_badges: Default::default(),
+                    lookup: Arc::default(),
+                    whole: false,
+                    ready,
+                },
+            );
+            for p in order {
+                inner.channels.get_mut("c").unwrap().sets.push(named(*p, "x"));
+                inner.rebuild("c");
+            }
+            inner.channels["c"].lookup.get("KEKW").unwrap().provider
+        };
+        assert_eq!(lookup(&[Provider::Ffz, Provider::Bttv, Provider::Seventv]), Provider::Seventv);
+        assert_eq!(lookup(&[Provider::Seventv, Provider::Ffz, Provider::Bttv]), Provider::Seventv);
+        assert_eq!(lookup(&[Provider::Ffz, Provider::Bttv]), Provider::Bttv);
+    }
 
     #[test]
     fn v110_e13_plan_follows_the_switches() {

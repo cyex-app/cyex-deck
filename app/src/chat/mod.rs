@@ -875,6 +875,22 @@ pub fn retokenize_users(app: &AppHandle, users: &[String]) {
     }
 }
 
+/// V111-15 A channel's emote sets landed after its first lines: the lines kept in its rooms
+/// are read again for the emotes that were not known yet.
+pub fn retokenize_channel(app: &AppHandle, login: &str) {
+    let Some(chat) = app.try_state::<Chat>() else { return };
+    let keys: Vec<RoomKey> = chat.lock().rooms.keys().filter(|k| k.1 == login).cloned().collect();
+    for key in keys {
+        let emotes = crate::emotes::room(app, account_of(&key.0), &key.1);
+        let mut inner = chat.lock();
+        let Some(entry) = inner.rooms.get_mut(&key) else { continue };
+        let events = entry.room.retokenize_all(&emotes);
+        if !events.is_empty() {
+            queue(entry, events, &chat.wake);
+        }
+    }
+}
+
 /// The account reading a room, if any.
 fn account_of(identity: &Identity) -> Option<&str> {
     match identity {

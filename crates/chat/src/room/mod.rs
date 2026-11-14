@@ -307,6 +307,23 @@ impl Room {
         events
     }
 
+    /// V111-15 A provider's channel sets came in late: every kept line with a sender is read
+    /// again, so emotes that weren't known when it arrived show now. Everything already found
+    /// stays; only lines that gained an emote are sent as updates.
+    pub fn retokenize_all(&mut self, emotes: &dyn Emotes) -> Vec<RoomEvent> {
+        let mut events = Vec::new();
+        for slot in self.buffer.iter_mut() {
+            let Some(user) = slot.sender_id().map(str::to_owned) else { continue };
+            if let Some(body) = crate::tokenize::retokenize(&slot.body, &user, emotes) {
+                let mut m = (**slot).clone();
+                m.body = body;
+                *slot = Arc::new(m);
+                events.push(RoomEvent::Update { message: slot.clone() });
+            }
+        }
+        events
+    }
+
     /// The new status, and a line in chat when the link comes or goes (V101-32).
     pub fn set_status(&mut self, status: ConnStatus, now_ms: i64) -> Vec<RoomEvent> {
         if self.status == status {

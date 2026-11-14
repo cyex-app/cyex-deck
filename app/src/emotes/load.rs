@@ -18,6 +18,10 @@ use super::{Channel, Emotes};
 use crate::auth::{Auth, gql_token, helix_scoped};
 use crate::chat::identity;
 
+/// V111-15 A channel's emotes count as ready this long after the join even if a provider is
+/// still out, so history isn't held back by one slow one.
+const READY_CAP: Duration = Duration::from_millis(1500);
+
 /// An account's Twitch emotes are fetched again after this.
 const MINE_FRESH: Duration = Duration::from_secs(300);
 
@@ -67,10 +71,33 @@ pub(super) fn channel_of(app: AppHandle, login: String, id: String, generation: 
         }
         let http = http(&app);
         let lane = crate::chat::shown::lane(&app, &login);
-        let got = super::providers::channel(&http, &id, lane, want, sets_off).await;
-        let failed = got.failed;
-        super::cache::note_fallbacks(found, failed);
-        if super::retry::merge(&app, &login, generation, want, got) && failed.any() {
+        // V111-15 Each provider's set goes in the moment it answers. `ready` (history waits for
+        // it) is the last answer, or `READY_CAP` after the join if one is still out.
+        let cap = {
+            let (app, login) = (app.clone(), login.clone());
+            tauri::async_runtime::spawn(async move {
+                tokio::time::sleep(READY_CAP).await;
+                super::retry::mark_ready(&app, &login, generation);
+            })
+        };
+        let state = std::sync::Mutex::new((want, Which::default()));
+        super::providers::channel_each(&http, &id, lane, want, sets_off, |which, part| {
+            let pending = {
+                let mut s = state.lock().unwrap();
+                s.0 = s.0.minus(which);
+                s.1 = s.1.or(part.failed);
+                s.0
+            };
+            if !pending.any() {
+                cap.abort();
+            }
+            super::cache::note_fallbacks(found, part.failed);
+            super::retry::merge_part(&app, &login, generation, which, part, !pending.any());
+        })
+        .await;
+        cap.abort();
+        let failed = state.lock().unwrap().1;
+        if failed.any() {
             super::retry::spawn(app, login, id, generation, failed);
         }
     });

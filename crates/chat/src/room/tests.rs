@@ -624,3 +624,24 @@ fn v110_f95_a_channel_id_learned_elsewhere_counts_once() {
     assert!(r.learn_channel_id("8").is_none());
     assert_eq!(r.state.channel_id.as_deref(), Some("7"));
 }
+
+/// V111-15 A 7TV set that lands late turns words already in chat into emotes, and only the
+/// lines that gained one are sent again.
+#[test]
+fn v111_15_late_sets_update_lines_already_shown() {
+    struct Late;
+    impl Emotes for Late {
+        fn find(&self, word: &str, _: &str) -> Option<crate::tokenize::Found> {
+            (word == "peepoHappy").then(|| crate::tokenize::Found::plain(crate::model::Provider::Seventv, "01H"))
+        }
+    }
+    let mut r = room();
+    feed(&mut r, "@id=a;user-id=7;tmi-sent-ts=5 :u7!u@u PRIVMSG #chan :hi peepoHappy");
+    feed(&mut r, "@id=b;user-id=8;tmi-sent-ts=6 :u8!u@u PRIVMSG #chan :no emote here");
+    let events = r.retokenize_all(&Late);
+    assert_eq!(events.len(), 1, "only the line that gained an emote");
+    let RoomEvent::Update { message } = &events[0] else { panic!("an update") };
+    assert_eq!(message.id, "a");
+    assert!(message.body.iter().any(|f| matches!(f, crate::model::Fragment::Emote { id, .. } if id == "01H")));
+    assert!(r.retokenize_all(&Late).is_empty(), "nothing new the second time");
+}
