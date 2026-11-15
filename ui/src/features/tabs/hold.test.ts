@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { heldAfterStart, nextHeld, playingNow } from './hold.ts';
+import { heldAfterStart, nextHeld, PlayingTabs, playingNow } from './hold.ts';
 
 // a plays; b is chat only; c is offline; d shows a live stream; p is live in its own window.
 const playing = (t: string) => t === 'a';
@@ -60,4 +60,23 @@ test('the held tab itself or a view leaves it playing', () => {
 
 test('nothing held: nothing changes', () => {
   assert.equal(start(null, 'd', 'd'), null);
+});
+
+test('V111-27 a tab whose view is gone before the switch is read still counts as playing', () => {
+  const seen = new PlayingTabs();
+  seen.mark('a', true);
+  const playsNow = (t: string) => seen.resolve(t, null);
+  // new offline or chat-only tab b, picked from outside the tab bar: a's view is already off the page
+  assert.equal(nextHeld({ held: null, from: 'a', to: 'b', playing: playsNow, playsElsewhere }), 'a');
+  // asked once: it was used up
+  assert.equal(seen.resolve('a', null), false);
+});
+
+test('the page wins over what was remembered', () => {
+  const seen = new PlayingTabs();
+  seen.mark('a', true);
+  assert.equal(seen.resolve('a', false), false, 'its view says nothing plays');
+  assert.equal(seen.resolve('a', null), false);
+  assert.equal(seen.resolve('c', null), false, 'never seen');
+  assert.equal(seen.resolve('a', true), true);
 });

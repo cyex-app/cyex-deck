@@ -1,17 +1,19 @@
-<!-- V111-24 A quick look at the highlighted suggestion in Add a tab: Twitch's live thumbnail with title,
-     category, viewers and uptime; offline, its banner or the picture. The 16:9 box is always there, so
-     nothing jumps when it fills. -->
+<!-- V111-24 A quick look at the highlighted live suggestion in Add a tab: Twitch's live thumbnail with
+     title, category, viewers, uptime and followers. Offline channels have none (the picker leaves it out
+     and keeps no room); the 16:9 box is there while a live one is highlighted, so nothing jumps when it fills. -->
 <script lang="ts">
-  import Avatar from '../../components/Avatar.svelte';
   import type { ChannelInfo } from '../../ipc/bindings/ChannelInfo';
+  import { followersText } from './channelFollowers';
   import { previewFacts } from './channelPreview';
 
   interface Props {
     /** The channel to show; null keeps the empty box. */
     channel: ChannelInfo | null;
+    /** V111-29 Its follower count, when known. */
+    followers?: number | null;
   }
 
-  let { channel }: Props = $props();
+  let { channel, followers = null }: Props = $props();
 
   /** The box is about this wide (css px) in the dialog. */
   const BOX = 190;
@@ -37,8 +39,6 @@
             onerror={() => (failed = image)}
           />
         {/key}
-      {:else if !facts.live}
-        <span class="face"><Avatar src={channel.avatar} name={channel.name} size={48} /></span>
       {/if}
       {#if facts.live}
         <span class="badge" class:rerun={facts.rerun}>{facts.rerun ? 'Rerun' : 'Live'}</span>
@@ -52,11 +52,8 @@
         <span class="title" title={facts.title}>{facts.title || 'No title'}</span>
         {#if facts.game}<span class="line">{facts.game}</span>{/if}
         <span class="line">{[facts.viewers, facts.uptime && `up ${facts.uptime}`].filter(Boolean).join(' · ')}</span>
-      {:else}
-        <span class="line">Offline</span>
+        {#if followers}<span class="line">{followersText(followers)}</span>{/if}
       {/if}
-    {:else}
-      <span class="line">Point at a result to preview it.</span>
     {/if}
   </div>
 </div>
@@ -89,12 +86,6 @@
   }
   img.in {
     opacity: 1;
-  }
-  .face {
-    position: absolute;
-    inset: 0;
-    display: grid;
-    place-items: center;
   }
   .badge {
     position: absolute;

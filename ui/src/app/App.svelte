@@ -48,7 +48,7 @@
   import { BAR_SLOT, BarSlots } from '../features/tabs/aboveChat.svelte';
   import { barPlace, sideBarWidth } from '../features/tabs/barLayout';
   import { moveSlot, stepTab } from '../features/tabs/cycle';
-  import { heldAfterStart, nextHeld, playingNow } from '../features/tabs/hold';
+  import { heldAfterStart, nextHeld, PlayingTabs, playingNow } from '../features/tabs/hold';
   import { audioFocus } from '../features/tabs/audioFocus.svelte';
   import { heardTile } from '../features/tabs/audioFocus';
   import { streamIds, tabs, tiles } from '../features/tabs/tabs.svelte';
@@ -159,6 +159,7 @@
   // stops once the tab on screen plays a live stream (below), or at once for a tab picked
   // while it's in its own window and live: its stream plays there.
   let shownBefore: string | null = null;
+  const seen = new PlayingTabs();
   $effect.pre(() => {
     const to = current;
     const now = shownTab;
@@ -177,10 +178,24 @@
       if (!(v instanceof HTMLVideoElement)) return;
       const tab = v.closest('[data-tab-view]')?.getAttribute('data-tab-view') ?? null;
       const live = v.hasAttribute('data-live-stream');
+      if (tab) seen.mark(tab, true);
       tabs.held = heldAfterStart({ held: tabs.held, shown: shownTab, tab, live });
     };
+    // V111-27 A video stopping on its own updates what is remembered about its tab.
+    const stopped = (e: Event) => {
+      const v = e.target;
+      if (!(v instanceof HTMLVideoElement)) return;
+      const view = v.closest('[data-tab-view]');
+      const tab = view?.getAttribute('data-tab-view');
+      if (view && tab) seen.mark(tab, playingNow(view.querySelectorAll('video')));
+    };
+    const STOPS = ['pause', 'ended', 'emptied', 'abort'] as const;
     document.addEventListener('playing', started, true);
-    return () => document.removeEventListener('playing', started, true);
+    for (const n of STOPS) document.addEventListener(n, stopped, true);
+    return () => {
+      document.removeEventListener('playing', started, true);
+      for (const n of STOPS) document.removeEventListener(n, stopped, true);
+    };
   });
 
   // Closed or popped out: nothing left to keep playing here.
@@ -203,7 +218,9 @@
 
   /** A stream or video plays in the tab now, muted or not. */
   function playing(id: string): boolean {
-    return playingNow(document.querySelector(`[data-tab-view="${CSS.escape(id)}"]`)?.querySelectorAll('video') ?? []);
+    const view = document.querySelector(`[data-tab-view="${CSS.escape(id)}"]`);
+    // V111-27 A view already off the page (a tab opened from outside the bar) falls back to what was seen.
+    return seen.resolve(id, view ? playingNow(view.querySelectorAll('video')) : null);
   }
 
   /** The tab is in its own window, shows a stream there and that channel is live. */

@@ -43,3 +43,10 @@ test('an offline channel keeps its banner or none', () => {
   assert.equal(f.live, false);
   assert.equal(f.image, 'https://x/o.png');
 });
+
+test('V111-28 only a live channel gets a preview', async () => {
+  const { showsPreview } = await import('./channelPreview.ts');
+  assert.equal(showsPreview(null), false);
+  assert.equal(showsPreview(base), false);
+  assert.equal(showsPreview({ ...base, stream: { rerun: false, title: '', game: null, viewers: 1, startedAt: '2026-11-15T10:00:00Z' } }), true);
+});

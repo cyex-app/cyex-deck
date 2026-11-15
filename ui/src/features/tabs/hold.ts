@@ -24,6 +24,30 @@ export function playingNow(videos: Iterable<{ paused: boolean; ended: boolean }>
   return false;
 }
 
+/** V111-27 Which tabs have a video playing, as media events told it. A tab can leave the page
+ * before the switch is looked at (a new tab picked from outside the tab bar: the view is gone
+ * when `nextHeld` asks), so what it was doing is remembered, not only read from the page. */
+export class PlayingTabs {
+  readonly #on = new Set<string>();
+
+  mark(tab: string, on: boolean): void {
+    if (on) this.#on.add(tab);
+    else this.#on.delete(tab);
+  }
+
+  /** Whether `tab` plays. `onPage` is what its view on the page says, or `null` when the view
+   * is already gone: then the last thing seen counts, once. */
+  resolve(tab: string, onPage: boolean | null): boolean {
+    if (onPage !== null) {
+      this.mark(tab, onPage);
+      return onPage;
+    }
+    const was = this.#on.has(tab);
+    this.#on.delete(tab);
+    return was;
+  }
+}
+
 /** The tab to keep playing after the switch, if any. */
 export function nextHeld(s: Switch): string | null {
   if (s.to !== null && (s.to === s.held || s.playsElsewhere(s.to))) return null;

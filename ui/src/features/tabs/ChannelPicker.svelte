@@ -11,10 +11,13 @@
   import type { ChannelInfo } from '../../ipc/bindings/ChannelInfo';
   import type { ChannelCard } from '../../ipc/bindings/ChannelCard';
   import { discoverIpc } from '../../ipc/browse';
+  import { channelIpc } from '../../ipc/player';
   import { tabsIpc } from '../../ipc/tabs';
   import { formatNumber } from '../../lib/format';
   import { errorText } from '../../lib/errors';
   import ChannelPreview from './ChannelPreview.svelte';
+  import { FollowerCounts, followersText } from './channelFollowers';
+  import { showsPreview } from './channelPreview';
   import { enterMayTakeFirst, enterTarget, loginFromLink, manyNames, matchChannels } from './channelMatch';
 
   interface Props {
@@ -24,6 +27,9 @@
   }
 
   let { text = $bindable(), picked = $bindable(), onsubmit }: Props = $props();
+
+  // V111-29 Follower counts, asked for the highlighted channel only; 0 is Twitch giving none.
+  const followerCounts = new FollowerCounts((login) => channelIpc.about(login).then((a) => (a?.followers ? a.followers : null)));
 
   const DEBOUNCE_MS = 300;
   /** V111-24 The preview follows the highlighted or hovered result after this pause. */
@@ -139,14 +145,25 @@
 
   let hovered = $state<ChannelInfo | null>(null);
   let previewed = $state<ChannelInfo | null>(null);
+  /** Login → followers, for the channels looked at so far. */
+  let counts = $state<Record<string, number>>({});
   const aim = $derived(shown.length ? (hovered ?? picked) : null);
+  // V111-28 Only a live channel has a preview, and only then is room kept for it: moving between
+  // two live ones keeps the box, an offline one shows nothing.
+  const reserve = $derived(showsPreview(aim));
   $effect(() => {
     const next = aim;
     if (!next) {
       previewed = null;
       return;
     }
-    const t = setTimeout(() => (previewed = next), PREVIEW_MS);
+    const t = setTimeout(() => {
+      previewed = showsPreview(next) ? next : null;
+      if (next.login in counts) return;
+      void followerCounts.get(next.login).then((n) => {
+        if (n !== null) counts[next.login] = n;
+      });
+    }, PREVIEW_MS);
     return () => clearTimeout(t);
   });
 </script>
@@ -191,7 +208,7 @@
                 .filter(Boolean)
                 .join(' · ')}
             {:else}
-              Offline · id {c.id}
+              {#if counts[c.login]}Offline · {followersText(counts[c.login])} · id {c.id}{:else}Offline · id {c.id}{/if}
             {/if}
           </span>
         </span>
@@ -199,7 +216,9 @@
       </button>
     {/each}
   </div>
-  <div class="pv"><ChannelPreview channel={previewed} /></div>
+  {#if reserve}
+    <div class="pv"><ChannelPreview channel={previewed} followers={previewed ? (counts[previewed.login] ?? null) : null} /></div>
+  {/if}
   </div>
 {/if}
 

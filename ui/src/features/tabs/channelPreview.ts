@@ -49,3 +49,8 @@ export function previewFacts(c: ChannelInfo, cssWidth: number, dpr: number, now 
     image: previewUrl(c.login, cssWidth, dpr, now),
   };
 }
+
+/** V111-28 Only a live channel has a preview. */
+export function showsPreview(c: ChannelInfo | null): boolean {
+  return !!c?.stream;
+}
