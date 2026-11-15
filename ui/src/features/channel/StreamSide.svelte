@@ -46,9 +46,11 @@
     onbringchat?: () => void;
     /** P4 #18 Shown in a mod view's Stream panel: the player, nothing around it. */
     bare?: boolean;
+    /** V111-26 In a pop-out window: no Hide chat button. */
+    popout?: boolean;
   }
 
-  let { tile, actions, onheaderdown, onpopchat, onbringchat, bare = false }: Props = $props();
+  let { tile, actions, onheaderdown, onpopchat, onbringchat, bare = false, popout = false }: Props = $props();
 
   const shared = $derived(tileState(tile.id));
   const info = $derived(tabs.live[tile.channel.id]);
@@ -79,12 +81,18 @@
     account === null ? 'Open this tab signed in to clip.' : canClip ? null : 'This account can’t clip. Check Settings → Accounts.',
   );
   const hushed = $derived(shared.overlay !== null || shared.stories);
-  /** V110-B10 Theatre: the button in the player that folds this tile's chat away and back. */
+  /** V110-B10 The button in the player that folds this tile's chat away and back.
+   *  V111-26 In every view, not only theatre; never in a pop-out. */
   const chatButton = $derived(
-    !bare && page.kind === 'stream' && tile.show.player
-      ? chatToggle(theatre.tile, tile.id, tile.show.chat && !tabs.chats.has(tile.id), theatre.chatHidden)
+    !bare && !popout && !tile.feed && page.kind === 'stream'
+      ? chatToggle(theatre.tile, tile.id, tile.show, tabs.chats.has(tile.id), theatre.chatHidden)
       : null,
   );
+  /** Theatre folds the chat for its length; elsewhere it is the tab menu's Hide chat / Show chat. */
+  function toggleChat() {
+    if (theatre.tile === tile.id && tile.show.chat) theatre.toggleChat();
+    else void tabs.apply({ op: 'show', tile: tile.id, show: { player: true, chat: !tile.show.chat } });
+  }
 
   /** V110-B11 The button fades out after the pointer has rested on the player for 1 s; a move brings it back. */
   let restTimer: ReturnType<typeof setTimeout> | undefined;
@@ -220,7 +228,7 @@
         onpointermove={(e) => e.stopPropagation()}
         onpointerleave={stir}
         aria-label={chatButton}
-        onclick={() => theatre.toggleChat()}
+        onclick={toggleChat}
         use:tooltip={{ label: chatButton }}
       >
         <Icon name={chatButton === 'Hide chat' ? 'arrowRightToBar' : 'arrowLeftToBar'} size={16} />

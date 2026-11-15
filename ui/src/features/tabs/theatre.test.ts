@@ -53,12 +53,24 @@ test('V110-B2 the stream page header hides for the tile in theatre, unless it ca
   assert.match(src, /headerHidden\(theatre\.tile, tile\.id, !actions\)/);
 });
 
-test('V110-B10 the chat button exists only in theatre, for its tile, and says what a click does', () => {
-  assert.equal(chatToggle(null, 'a', true, false), null);
-  assert.equal(chatToggle('b', 'a', true, false), null);
-  assert.equal(chatToggle('a', 'a', false, false), null);
-  assert.equal(chatToggle('a', 'a', true, false), 'Hide chat');
-  assert.equal(chatToggle('a', 'a', true, true), 'Show chat');
+test('V110-B10 in theatre the chat button is for its tile only and says what a click does', () => {
+  const on = { player: true, chat: true };
+  assert.equal(chatToggle('b', 'a', on, false, false), null);
+  assert.equal(chatToggle('a', 'a', on, true, false), null, 'chat in its own window');
+  assert.equal(chatToggle('a', 'a', on, false, false), 'Hide chat');
+  assert.equal(chatToggle('a', 'a', on, false, true), 'Show chat');
+});
+
+test('V111-26 the chat button shows in a normal view, as the tab menu offers Hide chat / Show chat', () => {
+  assert.equal(chatToggle(null, 'a', { player: true, chat: true }, false, false), 'Hide chat');
+  assert.equal(chatToggle(null, 'a', { player: true, chat: true }, false, true), 'Hide chat', 'a stale theatre fold does not count');
+  assert.equal(chatToggle(null, 'a', { player: true, chat: false }, false, false), 'Show chat');
+  assert.equal(chatToggle('a', 'a', { player: true, chat: false }, false, false), 'Show chat', 'hidden by the menu, then theatre');
+  assert.equal(chatToggle(null, 'a', { player: false, chat: true }, false, false), null, 'chat-only tile has no player');
+  assert.equal(chatToggle(null, 'a', { player: true, chat: true }, true, false), null);
+  const src = readFileSync(new URL('../channel/StreamSide.svelte', import.meta.url), 'utf8');
+  assert.ok(src.includes("op: 'show', tile: tile.id, show: { player: true, chat: !tile.show.chat }"), 'same op as the menu');
+  assert.ok(src.includes('!popout'), 'not in a pop-out');
 });
 
 test('V110-B10 a hidden chat is hidden only in the theatre tile', () => {

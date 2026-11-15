@@ -471,6 +471,7 @@
         onpopchat={tile.show.chat && !chatPopped && !popout ? popChat : undefined}
         onbringchat={chatPopped ? () => tabs.dockChat(tile.id) : undefined}
         bare={slot !== null}
+        {popout}
       />
     {:else}
       {@render beside()}

@@ -54,11 +54,20 @@ export function chatHiddenIn(current: string | null, tile: string, hidden: boole
   return current !== null && current === tile && hidden;
 }
 
-/** V110-B10 The button in the player: only in theatre, for the theatre tile, with a chat to hide
- *  (or one hidden by this button). Its label says what a click does. */
-export function chatToggle(current: string | null, tile: string, chatOn: boolean, hidden: boolean): 'Hide chat' | 'Show chat' | null {
-  if (current === null || current !== tile || !chatOn) return null;
-  return hidden ? 'Show chat' : 'Hide chat';
+/** V110-B10 The button in the player. V111-26 In every view, as the tab menu's Hide chat / Show chat
+ *  decides (a stream with its chat, or a stream whose chat was hidden); not while the chat is in its
+ *  own window, and not for a tile other than the theatre one. In theatre, `hidden` is the
+ *  theatre's fold. Its label says what a click does. */
+export function chatToggle(
+  current: string | null,
+  tile: string,
+  show: { player: boolean; chat: boolean },
+  popped: boolean,
+  hidden: boolean,
+): 'Hide chat' | 'Show chat' | null {
+  if (!show.player || popped || (current !== null && current !== tile)) return null;
+  if (!show.chat) return 'Show chat';
+  return current !== null && hidden ? 'Show chat' : 'Hide chat';
 }
 
 /** V110-B11 How long the pointer may rest on the player before the Hide chat / Show chat button fades out. */
