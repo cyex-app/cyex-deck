@@ -12,6 +12,8 @@ pub mod whisper;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 pub use moderation::duration_text;
+#[cfg(test)]
+pub(crate) use moderation::seconds_in;
 pub use sender::Colors;
 pub use state::{RoomStateUpdate, UserState};
 
@@ -105,7 +107,8 @@ pub enum Incoming {
     RoomState(RoomStateUpdate),
     UserState(UserState),
     /// NOTICE from Twitch, e.g. why a message wasn't sent.
-    Notice { msg_id: String, notice: ChatMessage },
+    /// `secs`: the wait its text names (slow mode, a timeout).
+    Notice { msg_id: String, secs: Option<i64>, notice: ChatMessage },
     /// C37 Someone else opened or left the chat (JOIN, PART with `twitch.tv/membership`).
     Presence { login: String, joined: bool },
 }

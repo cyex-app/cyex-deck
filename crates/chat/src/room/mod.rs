@@ -13,10 +13,12 @@ mod keep;
 mod moments;
 mod presence;
 mod role;
+mod sends;
 mod stack;
 
 pub use hook::{LineChange, LineHook};
 pub use keep::BACKGROUND;
+pub use sends::CONFIRM_MS;
 
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::sync::Arc;
@@ -37,8 +39,6 @@ use crate::tokenize::{Emotes, Input, tokenize};
 /// Fewest messages kept per room, for new views and usercards. The scrollback setting
 /// can raise it (V101-02).
 pub const BUFFER: usize = 500;
-/// A send without an answer from Twitch after this long is forgotten.
-const PENDING_TTL_MS: i64 = 15_000;
 /// C16 Gift subs arrive right after their mass gift; later ones stand alone.
 const GIFT_MERGE_MS: i64 = 30_000;
 
@@ -59,14 +59,22 @@ pub struct RoomSnapshot {
 }
 
 /// A message we sent that Twitch hasn't confirmed yet.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct PendingSend {
+    /// The text without `/me`, as our line shows it.
     pub text: String,
     pub action: bool,
     pub reply: Option<Reply>,
     pub at_ms: i64,
     /// The `client-nonce` it went out with; Twitch's USERSTATE names it back.
     pub nonce: Option<String>,
+    /// V111-30 As it was asked to be sent (`/me ` included): a "Not sent" line's Copy and Retry.
+    pub typed: String,
+    /// V111-30 The wording that went out (a repeat's invisible change), before the command escape.
+    pub sent_as: String,
+    /// V111-30 When it was written to Twitch: its answer is due [`CONFIRM_MS`] later. `None`
+    /// while it waits for its turn.
+    pub written_ms: Option<i64>,
 }
 
 /// C16 A mass gift waiting for its single gifts.
@@ -92,6 +100,11 @@ pub struct Room {
     /// V107-M1 When the first live line came, so refilled lines from then on aren't dimmed.
     live_from: Option<i64>,
     pending: VecDeque<PendingSend>,
+    /// V111-30 Sends already called "not sent" for want of an answer, with their line, in
+    /// case Twitch answers late after all.
+    unconfirmed: VecDeque<(PendingSend, String)>,
+    /// V111-30 The wording Twitch last took here and when: a repeat must differ from it.
+    taken: Option<(String, i64)>,
     gifts: Vec<GiftGroup>,
     /// 1.9 Reward titles and costs by id, to name redemptions.
     rewards: HashMap<String, (String, u32)>,
@@ -136,6 +149,8 @@ impl Room {
             trimmed: false,
             live_from: None,
             pending: VecDeque::new(),
+            unconfirmed: VecDeque::new(),
+            taken: None,
             gifts: Vec::new(),
             rewards: HashMap::new(),
             pinned: None,
@@ -485,40 +500,18 @@ impl Room {
         RoomEvent::Message { message: m }
     }
 
-    pub fn sending(&mut self, send: PendingSend) {
-        self.expire(send.at_ms);
-        self.pending.push_back(send);
-    }
-
-    /// The send with `nonce` didn't go out: Twitch won't answer it.
-    pub fn unsend(&mut self, nonce: &str) {
-        self.pending.retain(|p| p.nonce.as_deref() != Some(nonce));
-    }
-
-    /// The send a USERSTATE answers: the one with its nonce, or without one the oldest.
-    fn answered(&mut self, nonce: Option<&str>) -> Option<PendingSend> {
-        match nonce {
-            Some(n) => {
-                let i = self.pending.iter().position(|p| p.nonce.as_deref() == Some(n))?;
-                self.pending.remove(i)
-            }
-            None => self.pending.pop_front(),
-        }
-    }
-
-    fn expire(&mut self, now_ms: i64) {
-        while self.pending.front().is_some_and(|p| now_ms - p.at_ms > PENDING_TTL_MS) {
-            self.pending.pop_front();
-        }
-    }
-
     pub fn handle_line(&mut self, line: &Line<'_>, now_ms: i64, emotes: &dyn Emotes) -> Vec<RoomEvent> {
+        // V111-30 Our line relayed by the reader confirms its send too.
+        let mut events = self.relayed(line, now_ms);
         let incoming = {
             let mut ctx = Ctx::new(self.me.as_ref(), &mut self.colors, now_ms);
             ctx.emotes = emotes;
             build::build(line, &mut ctx)
         };
-        incoming.map_or_else(Vec::new, |i| self.apply(i, now_ms, emotes))
+        if let Some(i) = incoming {
+            events.extend(self.apply(i, now_ms, emotes));
+        }
+        events
     }
 
     pub fn apply(&mut self, incoming: Incoming, now_ms: i64, emotes: &dyn Emotes) -> Vec<RoomEvent> {
@@ -566,7 +559,7 @@ impl Room {
                 });
             }
             Incoming::UserState(us) => events.extend(self.user_state(&us, now_ms, emotes)),
-            Incoming::Notice { msg_id, notice } => events.extend(self.notice(&msg_id, notice, now_ms, emotes)),
+            Incoming::Notice { msg_id, secs, notice } => events.extend(self.notice(&msg_id, secs, notice, now_ms, emotes)),
             Incoming::Presence { login, joined } => events.extend(self.presence(login, joined, now_ms)),
         }
         events
@@ -614,9 +607,10 @@ impl Room {
             let own = us.to_self(&me.login, self.owner());
             events.extend(self.set_own(own));
         }
+        // Only the writer that sent a line gets a USERSTATE with its id.
         if let Some(id) = us.sent_id.clone() {
             self.expire(now_ms);
-            if let Some(p) = self.answered(us.nonce.as_deref()) {
+            if let Some(p) = self.answered(us.nonce.as_deref(), now_ms, &mut events) {
                 // V105-06 The reader may have brought our line already.
                 if !self.buffer.iter().any(|b| b.id == id) {
                     // V111-08 Twitch took it: the reader should bring it back soon.
@@ -624,24 +618,33 @@ impl Room {
                     let m = self.echo(p, us, id, now_ms, emotes);
                     events.extend(self.add(m, now_ms, emotes));
                 }
-                let slow = self.state.slow;
-                let exempt = self.state.own.as_ref().is_some_and(|o| o.fast_lane());
-                if slow > 0 && !exempt {
-                    events.extend(self.wait(until(now_ms, u64::from(slow))));
-                }
+            }
+            let slow = self.state.slow;
+            let exempt = self.state.own.as_ref().is_some_and(|o| o.fast_lane());
+            if slow > 0 && !exempt {
+                events.extend(self.wait(until(now_ms, u64::from(slow))));
             }
         }
         events
     }
 
     /// A NOTICE: the answer to a send, a refusal to let us in, a wait or a lock, and its line.
-    fn notice(&mut self, msg_id: &str, notice: ChatMessage, now_ms: i64, emotes: &dyn Emotes) -> Vec<RoomEvent> {
+    fn notice(
+        &mut self,
+        msg_id: &str,
+        secs: Option<i64>,
+        mut notice: ChatMessage,
+        now_ms: i64,
+        emotes: &dyn Emotes,
+    ) -> Vec<RoomEvent> {
         let mut events = Vec::new();
-        // A send's answer (V105-06 the writer's NOTICE for a pending line).
-        let answered = msg_id.starts_with("msg_") && {
-            self.expire(now_ms);
-            self.pending.pop_front().is_some()
-        };
+        // A send's answer (V105-06 the writer's NOTICE for a pending line). V111-30 Only a
+        // line already written can be refused; the line says which one, with Copy and Retry.
+        let refused = msg_id.starts_with("msg_").then(|| self.refused(now_ms)).flatten();
+        let answered = refused.is_some();
+        if let (Some(p), Some(n)) = (refused, notice.notice.as_mut()) {
+            n.unsent = Some(sends::unsent(&p, sends::retry_helps(msg_id)));
+        }
         if msg_id == "msg_channel_suspended" {
             events.extend(self.set_status(ConnStatus::Unavailable, now_ms));
         } else if !answered && self.me.is_some() && self.waiting() {
@@ -653,14 +656,13 @@ impl Room {
                 events.extend(self.set_status(status, now_ms));
             }
         }
-        let said = notice.notice.as_ref().map_or("", |n| n.text.as_str());
         if matches!(msg_id, "msg_slowmode" | "msg_timedout")
-            && let Some(secs) = seconds_in(said)
+            && let Some(secs) = secs
         {
             events.extend(self.wait(until(now_ms, u64::try_from(secs).unwrap_or(0))));
         }
         if self.me.is_some()
-            && let Some(how) = restriction(msg_id, said)
+            && let Some(how) = restriction(msg_id, secs)
         {
             events.push(RoomEvent::Restricted { how });
         }
@@ -956,19 +958,13 @@ fn until(now_ms: i64, secs: u64) -> i64 {
     now_ms.saturating_add(i64::try_from(secs).unwrap_or(i64::MAX).saturating_mul(1000))
 }
 
-/// "…talk again in 10 seconds." or "…for 600 more seconds." → the number.
-fn seconds_in(text: &str) -> Option<i64> {
-    let words: Vec<&str> = text.split_whitespace().collect();
-    let at = words.iter().position(|w| w.starts_with("second"))?;
-    words[at.saturating_sub(2)..at].iter().rev().find_map(|w| w.parse().ok())
-}
 
 /// V108-C40 A NOTICE saying our account can't talk here. `msg_banned` and `msg_timedout` are
 /// Twitch's documented ids; a warning's id isn't known, so any `msg_` id naming one counts.
-fn restriction(msg_id: &str, text: &str) -> Option<Restriction> {
+fn restriction(msg_id: &str, secs: Option<i64>) -> Option<Restriction> {
     match msg_id {
         "msg_banned" => Some(Restriction::Banned),
-        "msg_timedout" => seconds_in(text).map(|s| Restriction::TimedOut { secs: s.max(0) as u64 }),
+        "msg_timedout" => secs.map(|s| Restriction::TimedOut { secs: s.max(0) as u64 }),
         id if id.starts_with("msg_") && id.contains("warn") => Some(Restriction::Warned),
         _ => None,
     }
@@ -1001,7 +997,7 @@ fn refusal(msg_id: &str) -> Option<ConnStatus> {
     ];
     match msg_id {
         "msg_banned" | "msg_channel_blocked" => Some(ConnStatus::Banned),
-        id if KNOWN.contains(&id) || restriction(id, "").is_some() => None,
+        id if KNOWN.contains(&id) || restriction(id, None).is_some() => None,
         _ => Some(ConnStatus::Refused),
     }
 }

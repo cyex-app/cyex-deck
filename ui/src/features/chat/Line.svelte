@@ -175,6 +175,7 @@
     <!-- V111-17 AutoMod held it: Approve and Deny where this account moderates. -->
     <HeldLine held={notice.held} {channel} account={mod?.me ?? null} {time} ts={m.ts} />
   {:else if notice}
+    <!-- V111-30 A send that didn't go through ends in its text, Retry where it can help, and Copy. -->
     <div class="notice-text">
       {#if !sender && time}<span class="ts" data-stamp={m.ts}>{time}</span>{/if}{#if upLine}Uploaded <a class="up" href={upLine.link} data-upload={upLine.link}>{upLine.link}</a>{#if upLine.deletion}
         · delete: <a class="up" href={upLine.deletion} data-upload={upLine.deletion}>{upLine.deletion}</a>{/if}{:else if presence}{presence.joined ? 'joined: ' : 'parted: '}{#each presenceFold.shown as login, i (presenceKeys[i])}{i ? ', ' : ''}<span
@@ -186,7 +187,8 @@
           >{:else}{p.text}{/if}{/each}{:else}{notice.text}{/if}{#if notice.action === 'signIn'}{' '}<button
           class="more"
           onclick={() => void notifyEvents.open({ kind: 'settings', page: 'accounts' })}>Sign in again</button
-        >{/if}
+        >{/if}{#if notice.unsent}{' '}<span class="unsent">“<bdi>{notice.unsent.text}</bdi>”</span>{#if notice.unsent.retry}<button class="more" data-retry>Retry</button
+          >{/if}<button class="more" data-unsent-copy>Copy</button>{/if}
     </div>
     {#if recipients.length}
       <!-- C16 One recipient per line, the long lists folded. -->
@@ -474,6 +476,11 @@
   }
   .kind-error .notice-text {
     color: var(--red);
+  }
+  /* V111-30 The text that didn't go out, readable inside the red line. */
+  .unsent {
+    color: var(--text);
+    overflow-wrap: anywhere;
   }
   /* 2.6 Highlights: a rule's own color, or the kind's. */
   .hl {

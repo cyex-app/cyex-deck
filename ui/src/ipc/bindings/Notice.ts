@@ -5,6 +5,7 @@ import type { NoticeEmote } from "./NoticeEmote";
 import type { NoticeKind } from "./NoticeKind";
 import type { NoticeUser } from "./NoticeUser";
 import type { Presence } from "./Presence";
+import type { Unsent } from "./Unsent";
 
 export type Notice = { kind: NoticeKind, 
 /**
@@ -38,4 +39,8 @@ held?: HeldNote,
 /**
  * V111-17 A button after the text, e.g. "Sign in again".
  */
-action?: NoticeAction, };
+action?: NoticeAction, 
+/**
+ * V111-30 A send of ours that didn't go through: its text, for Copy and Retry.
+ */
+unsent?: Unsent, };

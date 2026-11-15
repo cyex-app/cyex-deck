@@ -1,12 +1,13 @@
 //! Sending (1.8, 1.9): checks before a message leaves, so problems show right away
 //! instead of as a Twitch notice. Sends go out on the account's writer connection (V105-06).
-//! C21 dodges Twitch's 30 s duplicate check.
+//! C21 dodges Twitch's 30 s duplicate check. V111-30 Every written line is answered within
+//! `CONFIRM_MS` (USERSTATE or the relayed line) or gets a "Not sent" line with Copy and Retry.
 
-use cyex_chat::PendingSend;
 use cyex_chat::irc::{Window, write};
 use cyex_chat::model::ConnStatus;
+use cyex_chat::{CONFIRM_MS, PendingSend};
 use tauri::{AppHandle, Manager};
-use tokio::time::Instant;
+use tokio::time::{Duration, Instant};
 
 use super::{Chat, Identity, RoomKey, now_ms, pace, typed};
 
@@ -42,6 +43,50 @@ pub async fn send_to_until(
         entry.room.unsend(&nonce);
     }
     Err(NOT_SENT.into())
+}
+
+/// V111-30 The chat box's send: done once the line is checked and queued, so the box clears and
+/// the next one can be typed while this one waits its turn. What happens after (the link
+/// dropped, Twitch refused it or never answered) shows as a "Not sent" line with Retry.
+pub fn send_queued(app: &AppHandle, key: &RoomKey, text: &str, reply_to: Option<String>) -> Result<(), String> {
+    let Some((sent, nonce)) = queue(app, key, text, reply_to, None)? else {
+        return Ok(());
+    };
+    let (app, key) = (app.clone(), key.clone());
+    tauri::async_runtime::spawn(async move {
+        if sent.await {
+            return;
+        }
+        let chat = app.state::<Chat>();
+        let mut inner = chat.lock();
+        if let Some(entry) = inner.rooms.get_mut(&key)
+            && let Some(ev) = entry.room.not_written(&nonce, now_ms())
+        {
+            super::queue(entry, [ev], &chat.wake);
+        }
+    });
+    Ok(())
+}
+
+/// V111-30 Retry on a "Not sent" line in `view`: the text as it was asked to be sent.
+pub fn retry(app: &AppHandle, view: u32, text: &str, reply_to: Option<String>) -> Result<(), String> {
+    let key = app.state::<Chat>().lock().views.get(&view).map(|v| v.0.clone()).ok_or("This chat is closed.")?;
+    send_queued(app, &key, text, reply_to)
+}
+
+/// V111-30 After `CONFIRM_MS` the room's written sends without an answer say so.
+fn confirm_later(app: AppHandle, key: RoomKey) {
+    tauri::async_runtime::spawn(async move {
+        tokio::time::sleep(Duration::from_millis(CONFIRM_MS as u64 + 50)).await;
+        let chat = app.state::<Chat>();
+        let mut inner = chat.lock();
+        if let Some(entry) = inner.rooms.get_mut(&key) {
+            let events = entry.room.unanswered(now_ms());
+            if !events.is_empty() {
+                super::queue(entry, events, &chat.wake);
+            }
+        }
+    });
 }
 
 /// Checks and queues the line; `None` when there was nothing to send.
@@ -103,6 +148,20 @@ fn queue(
     } else {
         pacer.take(Instant::now()).ok_or("Slow down: too many waiting.")?
     };
+    let delay_ms = slot.saturating_duration_since(Instant::now()).as_millis() as i64;
+    // C21, V111-30 A repeat changes invisibly, unlike the last one queued and the last one
+    // Twitch took; the wording must fit the limit once sent.
+    let at_ms = now + delay_ms;
+    let taken = entry.room.last_taken(at_ms - pace::DUPLICATE_MS);
+    let fits = |w: &str| {
+        let n = outgoing(w, action).chars().count();
+        if n <= max { Ok(()) } else { Err(n) }
+    };
+    let picked = pace::pick(entry.last_sent.as_ref(), taken, at_ms, |v| wording(body, v), fits);
+    let (_, sent_as) = picked.map_err(|e| match e {
+        pace::NoWording::TooLong { chars } => format!("Too long: {chars}/{max}."),
+        pace::NoWording::Repeat => "Same message as before. Change it a little.".to_owned(),
+    })?;
 
     let session = inner.sessions.get_mut(&key.0).ok_or("Not connected yet.")?;
     // V105-06 Sends go out on the account's writer.
@@ -121,13 +180,9 @@ fn queue(
 
     let entry = inner.rooms.get_mut(&key).ok_or("This chat is closed.")?;
     entry.pacer = pacer;
-    let delay_ms = slot.saturating_duration_since(Instant::now()).as_millis() as i64;
-    let variant = pace::LastSent::next_variant(entry.last_sent.as_ref(), body, now + delay_ms);
-    let out = wording(body, variant);
     entry.last_sent = Some(pace::LastSent {
-        body: body.to_owned(),
-        variant,
-        at_ms: now + delay_ms,
+        sent_as: sent_as.clone(),
+        at_ms,
     });
     let nonce = nonce();
     entry.room.sending(PendingSend {
@@ -136,38 +191,57 @@ fn queue(
         reply,
         at_ms: now,
         nonce: Some(nonce.clone()),
+        typed: text.to_owned(),
+        sent_as: sent_as.clone(),
+        written_ms: None,
     });
     if let Identity::Account(account) = &key.0 {
         // V106-08 O4 In a shared chat, 7TV hears about every channel of it.
         let shared = entry.room.shared_rooms(now - SHARED_SEEN_MS);
         crate::emotes::presence::touch(app, account, &key.1, crate::emotes::presence::Why::Sent, &shared);
     }
-    // F20 ".gg" as text, not as Twitch's command.
-    let out = if action { out } else { typed::escape(out) };
     let line = write::privmsg(
         &key.1,
         &write::Outgoing {
-            text: out,
+            text: outgoing(&sent_as, action),
             reply_to,
             nonce: Some(nonce.clone()),
             action,
         },
     );
-    let (app, room) = (app.clone(), key);
+    let (app, room, id) = (app.clone(), key, nonce.clone());
     let sent = async move {
         if slot > Instant::now() {
             tokio::time::sleep_until(slot).await;
-            // The chat was closed while the line waited.
-            if !app.state::<Chat>().lock().rooms.contains_key(&room) {
-                return false;
-            }
         }
         if cancel.is_some_and(|c| c()) {
             return false;
         }
-        client.send(line).await
+        // The chat was closed while the line waited. V111-30 Twitch's answer is due from here,
+        // marked before the write so an answer racing the write's ack still finds it.
+        match app.state::<Chat>().lock().rooms.get_mut(&room) {
+            Some(e) => e.room.wrote(&id, now_ms()),
+            None => return false,
+        }
+        // V111-30 Test builds with the chat injector send to it, never to Twitch.
+        #[cfg(feature = "mocks")]
+        let ok = match super::chat_mock::trap_send(&app, &line).await {
+            Some(ok) => ok,
+            None => client.send(line).await,
+        };
+        #[cfg(not(feature = "mocks"))]
+        let ok = client.send(line).await;
+        if ok {
+            confirm_later(app, room);
+        }
+        ok
     };
     Ok(Some((sent, nonce)))
+}
+
+/// The text as written to Twitch: F20 ".gg" as text, not as Twitch's command.
+fn outgoing(sent_as: &str, action: bool) -> String {
+    if action { sent_as.to_owned() } else { typed::escape(sent_as.to_owned()) }
 }
 
 /// A `client-nonce` unique to this send, so its USERSTATE finds it: 32 random lowercase hex, as

@@ -828,11 +828,13 @@
 
   function onclick(e: MouseEvent) {
     const el = (e.target as HTMLElement).closest<HTMLElement>(
-      `${PARTS},[data-reply],[data-thread],[data-jump],[data-whisper],[data-mod],[data-pin],[data-act]`,
+      `${PARTS},[data-reply],[data-thread],[data-jump],[data-whisper],[data-mod],[data-pin],[data-act],[data-retry],[data-unsent-copy]`,
     );
     if (!el) return;
     const d = el.dataset;
-    if (d.mod) {
+    if (d.retry !== undefined || d.unsentCopy !== undefined) {
+      unsentClick(el, d.retry !== undefined);
+    } else if (d.mod) {
       modClick(el, d.mod);
     } else if (d.act) {
       const act = readData<Act>(d.act);
@@ -905,6 +907,15 @@
     held = 0;
   }
   onDestroy(letGo);
+
+  /** V111-30 Retry or Copy on a "Not sent" line. */
+  function unsentClick(el: HTMLElement, retry: boolean) {
+    const id = el.closest<HTMLElement>('[data-id]')?.dataset.id;
+    const u = id ? room.find(id)?.notice?.unsent : undefined;
+    if (!u) return;
+    if (!retry) return void copy(u.text, 'Text');
+    chatIpc.retry(room.view, u.text, u.replyTo).catch((err) => toast.error(errorText(err)));
+  }
 
   /** S7 A plugin's piece was clicked. Links go through the link path instead. */
   function actClick(a: Act) {

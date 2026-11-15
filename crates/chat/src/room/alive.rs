@@ -95,7 +95,7 @@ mod tests {
     const ME: &str = "1";
 
     fn send(text: &str, nonce: &str, at_ms: i64) -> crate::room::PendingSend {
-        crate::room::PendingSend { text: text.into(), action: false, reply: None, at_ms, nonce: Some(nonce.into()) }
+        crate::room::PendingSend { text: text.into(), at_ms, nonce: Some(nonce.into()), written_ms: Some(at_ms), ..Default::default() }
     }
 
     fn room() -> Room {

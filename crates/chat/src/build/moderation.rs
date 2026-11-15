@@ -33,32 +33,55 @@ pub fn clearmsg(line: &Line<'_>) -> Option<Incoming> {
 
 pub fn notice(line: &Line<'_>, ctx: &mut Ctx<'_>) -> Incoming {
     let msg_id = line.tag_nonempty("msg-id").unwrap_or("").to_owned();
-    let text = short_notice(&msg_id)
-        .map(str::to_owned)
-        .unwrap_or_else(|| line.trailing().unwrap_or("").to_owned());
+    let said = line.trailing().unwrap_or("");
+    let secs = seconds_in(said);
+    let text = short_notice(&msg_id, secs).unwrap_or_else(|| said.to_owned());
     let kind = if msg_id.starts_with("msg_") {
         NoticeKind::Error
     } else {
         NoticeKind::Info
     };
     let notice: ChatMessage = system(kind, text, timestamp(line, ctx.now_ms));
-    Incoming::Notice { msg_id, notice }
+    Incoming::Notice { msg_id, secs, notice }
 }
 
-/// Shorter wording for the notices people see most. Others keep Twitch's text.
-fn short_notice(msg_id: &str) -> Option<&'static str> {
+/// Shorter wording for the notices people see most. Others keep Twitch's text. `secs`: the
+/// wait Twitch named (slow mode, a timeout). V111-30 A refused send says "Not sent".
+fn short_notice(msg_id: &str, secs: Option<i64>) -> Option<String> {
+    let wait = secs.filter(|s| *s > 0).map(|s| s as u64);
     Some(match msg_id {
-        "msg_duplicate" => "Not sent: same as your last message.",
-        "msg_ratelimit" => "Not sent: you’re sending too fast.",
-        "msg_emoteonly" => "Not sent: emote-only mode is on.",
-        "msg_subsonly" => "Not sent: this chat is subscribers-only.",
-        "msg_r9k" => "Not sent: unique-chat mode is on and that message isn’t unique.",
-        "msg_banned" => "You’re banned from this chat.",
-        "msg_channel_suspended" => "This channel is suspended.",
-        "msg_verified_email" => "Not sent: this chat needs a verified email.",
-        "msg_requires_verified_phone_number" => "Not sent: this chat needs a verified phone number.",
+        "msg_duplicate" => "Not sent: same message as before.".into(),
+        "msg_ratelimit" => "Not sent: you’re sending too fast.".into(),
+        "msg_slowmode" => match wait {
+            Some(s) => format!("Not sent: slow mode, wait {s} s."),
+            None => "Not sent: slow mode is on.".into(),
+        },
+        "msg_timedout" => match wait {
+            Some(s) => format!("Not sent: you’re timed out for {}.", duration_text(s)),
+            None => "Not sent: you’re timed out.".into(),
+        },
+        "msg_followersonly" | "msg_followersonly_zero" | "msg_followersonly_followed" => {
+            "Not sent: this chat is followers-only.".into()
+        }
+        "msg_emoteonly" => "Not sent: emote-only mode is on.".into(),
+        "msg_subsonly" => "Not sent: this chat is subscribers-only.".into(),
+        "msg_r9k" => "Not sent: unique-chat mode is on and that message isn’t unique.".into(),
+        "msg_rejected" => "Held by AutoMod until a mod checks it.".into(),
+        "msg_rejected_mandatory" => "Not sent: the channel’s moderation settings blocked it.".into(),
+        "msg_bad_characters" => "Not sent: it has characters Twitch doesn’t allow.".into(),
+        "msg_banned" => "You’re banned from this chat.".into(),
+        "msg_channel_suspended" => "This channel is suspended.".into(),
+        "msg_verified_email" => "Not sent: this chat needs a verified email.".into(),
+        "msg_requires_verified_phone_number" => "Not sent: this chat needs a verified phone number.".into(),
         _ => return None,
     })
+}
+
+/// "…talk again in 10 seconds." or "…for 600 more seconds." → the number.
+pub(crate) fn seconds_in(text: &str) -> Option<i64> {
+    let words: Vec<&str> = text.split_whitespace().collect();
+    let at = words.iter().position(|w| w.starts_with("second"))?;
+    words[at.saturating_sub(2)..at].iter().rev().find_map(|w| w.parse().ok())
 }
 
 /// `90` → `1m 30s`, `86400` → `1d`.
@@ -122,7 +145,7 @@ mod tests {
 
     #[test]
     fn notices() {
-        let Incoming::Notice { msg_id, notice } =
+        let Incoming::Notice { msg_id, notice, .. } =
             run("@msg-id=msg_duplicate :tmi.twitch.tv NOTICE #c :Your message was not sent because it is identical")
         else {
             panic!()
@@ -134,6 +157,32 @@ mod tests {
             panic!()
         };
         assert_eq!(text(&notice), "This room is now in emote-only mode.");
+    }
+
+    /// V111-30 What a refused send says, by Twitch's msg-id.
+    #[test]
+    fn refusals_name_the_reason() {
+        let said = |raw: &str| {
+            let Incoming::Notice { notice, secs, .. } = run(raw) else { panic!() };
+            (text(&notice).to_owned(), secs)
+        };
+        let n = |id: &str, t: &str| said(&format!("@msg-id={id} :tmi.twitch.tv NOTICE #c :{t}")).0;
+        assert_eq!(n("msg_duplicate", "Your message was not sent because it is identical"), "Not sent: same message as before.");
+        assert_eq!(n("msg_ratelimit", "Your message was not sent because you are sending messages too quickly."), "Not sent: you’re sending too fast.");
+        assert_eq!(
+            said("@msg-id=msg_slowmode :tmi.twitch.tv NOTICE #c :This room is in slow mode and you are sending messages too quickly. You will be able to talk again in 3 seconds."),
+            ("Not sent: slow mode, wait 3 s.".to_owned(), Some(3))
+        );
+        assert_eq!(n("msg_slowmode", "Slow mode."), "Not sent: slow mode is on.");
+        assert_eq!(n("msg_timedout", "You are timed out for 90 more seconds."), "Not sent: you’re timed out for 1m 30s.");
+        assert_eq!(n("msg_followersonly", "This room is in followers-only mode."), "Not sent: this chat is followers-only.");
+        assert_eq!(n("msg_followersonly_zero", "x"), "Not sent: this chat is followers-only.");
+        assert_eq!(n("msg_subsonly", "x"), "Not sent: this chat is subscribers-only.");
+        assert_eq!(n("msg_emoteonly", "x"), "Not sent: emote-only mode is on.");
+        assert_eq!(n("msg_rejected", "Your message is being checked by mods and has not been sent."), "Held by AutoMod until a mod checks it.");
+        assert_eq!(n("msg_r9k", "x"), "Not sent: unique-chat mode is on and that message isn’t unique.");
+        // Unknown ids keep Twitch's words.
+        assert_eq!(n("msg_something_new", "Twitch says no."), "Twitch says no.");
     }
 
     #[test]

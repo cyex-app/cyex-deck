@@ -14,8 +14,8 @@ use crate::auth::Auth;
 pub const VAR: &str = "CYEX_CHAT_MOCK";
 const WHAT: &str = "chat";
 const EVERY: Duration = Duration::from_millis(500);
-/// What the injector may feed: incoming lines only.
-const COMMANDS: [&str; 5] = ["PRIVMSG", "CLEARCHAT", "CLEARMSG", "USERNOTICE", "NOTICE"];
+/// What the injector may feed: incoming lines only. V111-30 USERSTATE answers a trapped send.
+const COMMANDS: [&str; 6] = ["PRIVMSG", "CLEARCHAT", "CLEARMSG", "USERNOTICE", "NOTICE", "USERSTATE"];
 
 #[derive(Deserialize)]
 struct Batch {
@@ -41,6 +41,25 @@ pub fn target(raw: &str) -> Option<String> {
         return None;
     }
     line.channel().filter(|c| !c.is_empty() && *c != "jtv").map(str::to_ascii_lowercase)
+}
+
+/// V111-30 With the injector on, a chat send never reaches Twitch: the line goes to the mock
+/// (`POST /_mock/sent`), which answers the way it is told to (USERSTATE, a NOTICE or nothing)
+/// through the injected lines. `None`: no injector, the real writer sends. Fails closed: an
+/// injector that can't run here, or a mock that doesn't answer, means not written.
+pub async fn trap_send(app: &AppHandle, line: &str) -> Option<bool> {
+    let base = match crate::mock_url::gated(app, &[VAR], WHAT) {
+        Ok(Some(base)) => base,
+        Ok(None) => return None,
+        Err(_) => return Some(false),
+    };
+    let http = app.state::<Auth>().http.clone();
+    let body = serde_json::json!({ "line": line });
+    let ok = http
+        .post_json::<serde_json::Value>(&format!("{base}/_mock/sent"), &body)
+        .await
+        .is_ok_and(|v| v["ok"].as_bool() == Some(true));
+    Some(ok)
 }
 
 /// Starts asking the mock for lines (once, in `setup`).
@@ -81,6 +100,7 @@ mod tests {
         assert_eq!(target("@login=a;target-msg-id=1 :tmi.twitch.tv CLEARMSG #chan :hi").as_deref(), Some("chan"));
         for refused in [
             ":tmi.twitch.tv NOTICE * :all chats",
+            ":tmi.twitch.tv USERSTATE *",
             ":a!a@a.tmi.twitch.tv JOIN #chan",
             ":tmi.twitch.tv RECONNECT",
             "PING :x",

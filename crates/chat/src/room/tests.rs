@@ -1,4 +1,5 @@
 use super::*;
+use crate::build::seconds_in;
 use crate::model::plain;
 use crate::tokenize::NoEmotes;
 
@@ -106,6 +107,8 @@ fn send_answer_before_join_is_not_a_refusal() {
         reply: None,
         at_ms: 900,
         nonce: None,
+        written_ms: Some(0),
+        ..PendingSend::default()
     });
     feed(&mut r, &notice("msg_duplicate"));
     assert_eq!(r.status, ConnStatus::Connecting);
@@ -233,6 +236,8 @@ fn own_messages_are_echoed_from_userstate() {
         reply: None,
         at_ms: 900,
         nonce: None,
+        written_ms: Some(0),
+        ..PendingSend::default()
     });
     let ev = feed(&mut r, "@badges=moderator/1;color=#FF0000;display-name=Me;id=sent1;mod=1 :tmi.twitch.tv USERSTATE #chan");
     let RoomEvent::Message { message } = &ev[0] else { panic!("{ev:?}") };
@@ -252,6 +257,8 @@ fn echo_is_matched_by_nonce_after_a_lost_send() {
         reply: None,
         at_ms: 900,
         nonce: Some(nonce.into()),
+        written_ms: Some(0),
+        ..PendingSend::default()
     };
     r.sending(send("lost", "n1"));
     r.sending(send("dropped", "n2"));
@@ -285,6 +292,8 @@ fn sent(r: &mut Room) {
         reply: None,
         at_ms: 900,
         nonce: None,
+        written_ms: Some(0),
+        ..PendingSend::default()
     });
 }
 
@@ -368,6 +377,8 @@ fn a_refused_send_is_dropped_and_explained() {
         reply: None,
         at_ms: 900,
         nonce: None,
+        written_ms: Some(0),
+        ..PendingSend::default()
     });
     let ev = feed(&mut r, "@msg-id=msg_duplicate :tmi.twitch.tv NOTICE #chan :Your message was not sent");
     assert_eq!(ev.len(), 1);
@@ -429,6 +440,8 @@ fn cooldowns_from_slow_mode_and_timeouts() {
         reply: None,
         at_ms: 1_000,
         nonce: None,
+        written_ms: Some(0),
+        ..PendingSend::default()
     });
     feed(&mut r, "@id=s1 :tmi.twitch.tv USERSTATE #chan");
     assert_eq!(r.state.wait_until, Some(11_000));

@@ -73,6 +73,12 @@ pub async fn chat_send(app: AppHandle, view: u32, text: String, reply_to: Option
     chat::run::input(&app, view, &text, reply_to).await
 }
 
+/// V111-30 Retry on a "Not sent" line: the same text once more, as plain chat (no commands).
+#[tauri::command]
+pub fn chat_retry(app: AppHandle, view: u32, text: String, reply_to: Option<String>) -> CmdResult<()> {
+    chat::retry(&app, view, &text, reply_to)
+}
+
 /// S1 A menu entry or usercard button.
 #[tauri::command]
 pub async fn chat_menu(app: AppHandle, view: u32, command: String, context: MenuContext) -> CmdResult<Option<UiAction>> {

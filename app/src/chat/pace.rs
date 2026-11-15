@@ -35,61 +35,95 @@ impl Pacer {
     }
 }
 
-/// The last text sent in a room: what the user typed, which wording went out, and when.
+/// The last wording queued in a room and when it goes out.
 #[derive(Clone, Debug)]
 pub struct LastSent {
-    pub body: String,
-    pub variant: u8,
+    pub sent_as: String,
     pub at_ms: i64,
 }
 
-impl LastSent {
-    /// Which wording the next send of `body` at `at_ms` takes: plain, or the one after the
-    /// last when it repeats the last text inside Twitch's duplicate window.
-    pub fn next_variant(last: Option<&LastSent>, body: &str, at_ms: i64) -> u8 {
-        match last {
-            Some(l) if l.body == body && at_ms - l.at_ms < DUPLICATE_MS => (l.variant + 1) % VARIANTS,
-            _ => 0,
-        }
+/// Why no wording of a send can go out.
+#[derive(Debug, PartialEq, Eq)]
+pub enum NoWording {
+    /// Even the plain one is over the limit once sent (`chars` with the command escape).
+    TooLong { chars: usize },
+    /// Every wording that fits repeats the last one: a text at the limit sent twice.
+    Repeat,
+}
+
+/// Which wording goes out at `at_ms`: the first of the [`VARIANTS`] (`wording(0)` is the
+/// user's own text) that `fits` and differs from the last one queued and, V111-30, the last one
+/// Twitch took (`taken`), each only inside the duplicate window. A refused send in between
+/// doesn't count: Twitch compares with what it took.
+pub fn pick(
+    last: Option<&LastSent>,
+    taken: Option<&str>,
+    at_ms: i64,
+    wording: impl Fn(u8) -> String,
+    fits: impl Fn(&str) -> Result<(), usize>,
+) -> Result<(u8, String), NoWording> {
+    let queued = last.filter(|l| at_ms - l.at_ms < DUPLICATE_MS).map(|l| l.sent_as.as_str());
+    let plain = wording(0);
+    if let Err(chars) = fits(&plain) {
+        return Err(NoWording::TooLong { chars });
     }
+    (0..VARIANTS)
+        .map(|v| (v, if v == 0 { plain.clone() } else { wording(v) }))
+        .find(|(_, w)| fits(w).is_ok() && Some(w.as_str()) != queued && Some(w.as_str()) != taken)
+        .ok_or(NoWording::Repeat)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    fn last(variant: u8, at_ms: i64) -> LastSent {
-        LastSent {
-            body: "A".into(),
-            variant,
-            at_ms,
-        }
+    fn word(v: u8) -> String {
+        format!("A{}", "+".repeat(v as usize))
+    }
+
+    fn ok(_: &str) -> Result<(), usize> {
+        Ok(())
+    }
+
+    fn last(sent_as: &str, at_ms: i64) -> LastSent {
+        LastSent { sent_as: sent_as.into(), at_ms }
     }
 
     #[test]
-    fn repeats_cycle_through_wordings() {
-        let mut l = None;
+    fn repeats_never_match_the_last_queued() {
+        let mut l: Option<LastSent> = None;
         let mut seen = vec![];
-        for i in 0..6 {
-            let v = LastSent::next_variant(l.as_ref(), "A", i * 1100);
+        for i in 0..4 {
+            let (v, w) = pick(l.as_ref(), None, i * 1100, word, ok).unwrap();
             seen.push(v);
-            l = Some(last(v, i * 1100));
+            l = Some(last(&w, i * 1100));
         }
-        assert_eq!(seen, [0, 1, 2, 0, 1, 2]);
+        assert_eq!(seen, [0, 1, 0, 1]);
+    }
+
+    /// V111-30 "A" taken, "A+" refused: the next "A" can't be plain (Twitch still has "A").
+    #[test]
+    fn a_refused_send_in_between_is_skipped() {
+        let (v, _) = pick(Some(&last("A+", 1000)), Some("A"), 2000, word, ok).unwrap();
+        assert_eq!(v, 2);
+        // A different text goes out plain.
+        let (v, _) = pick(Some(&last("A+", 1000)), Some("A"), 2000, |_| "B".into(), ok).unwrap();
+        assert_eq!(v, 0);
     }
 
     #[test]
-    fn a_different_or_old_text_goes_out_plain() {
-        assert_eq!(LastSent::next_variant(Some(&last(1, 0)), "B", 1000), 0);
-        assert_eq!(LastSent::next_variant(Some(&last(1, 0)), "A", DUPLICATE_MS), 0);
-        assert_eq!(LastSent::next_variant(None, "A", 0), 0);
+    fn an_old_text_goes_out_plain() {
+        assert_eq!(pick(Some(&last("A", 0)), None, DUPLICATE_MS, word, ok).unwrap().0, 0);
+        assert_eq!(pick(None, None, 0, word, ok).unwrap().0, 0);
     }
 
     #[test]
-    fn two_in_a_row_never_match() {
-        for a in 0..VARIANTS {
-            assert_ne!(a, LastSent::next_variant(Some(&last(a, 0)), "A", 1));
-        }
+    fn wordings_over_the_limit_are_skipped() {
+        let fits = |w: &str| if w.len() <= 2 { Ok(()) } else { Err(w.len()) };
+        assert_eq!(pick(Some(&last("A", 0)), None, 1, word, fits).unwrap().0, 1);
+        assert_eq!(pick(Some(&last("A+", 0)), Some("A"), 1, word, fits), Err(NoWording::Repeat));
+        let fits = |w: &str| if w.is_empty() { Ok(()) } else { Err(w.len()) };
+        assert_eq!(pick(None, None, 1, word, fits), Err(NoWording::TooLong { chars: 1 }));
     }
 
     #[test]
@@ -102,6 +136,15 @@ mod tests {
         // After a pause the next one goes at once.
         let later = t0 + Duration::from_secs(60);
         assert_eq!(p.take(later), Some(later));
+    }
+
+    /// V111-30 Lines typed in a burst go out in the order typed, each its own gap after the last.
+    #[test]
+    fn a_burst_keeps_its_order() {
+        let t0 = Instant::now();
+        let mut p = Pacer::default();
+        let slots: Vec<_> = (0..5).map(|i| p.take(t0 + Duration::from_millis(i * 50)).unwrap()).collect();
+        assert!(slots.windows(2).all(|w| w[1] - w[0] == GAP), "{slots:?}");
     }
 
     #[test]

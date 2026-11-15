@@ -12,7 +12,7 @@ pub use message::{
     Badge, ChatMessage, Client, Flag, Gone, GoneHow, Highlight, HighlightKind, Meta, NameColor, PluginTag, Reply,
     RewardRef, Sender, SharedSource, Translation, WordMark,
 };
-pub use notice::{HeldNote, HeldStatus, Notice, NoticeAction, NoticeEmote, NoticeKind, NoticeUser, Presence};
+pub use notice::{HeldNote, HeldStatus, Notice, NoticeAction, NoticeEmote, NoticeKind, NoticeUser, Presence, Unsent};
 pub use quote::{QUOTE_MAX, quote};
 pub(crate) use role::MOD_SETS;
 pub use role::ModRole;

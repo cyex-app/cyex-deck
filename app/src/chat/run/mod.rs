@@ -387,6 +387,10 @@ fn known(app: &AppHandle, place: &Place, name: &str, custom: bool) -> bool {
 /// Plain text (or `/me`) to Twitch, after plugins had their say (S5).
 async fn send(app: &AppHandle, place: &Place, text: &str, reply_to: Option<String>) -> Result<(), String> {
     let text = crate::plugins::calls::sending(app, place.channel(), text).await?;
+    // V111-30 The chat view's own line is done once queued; how it went shows in the chat.
+    if place.ui {
+        return super::send::send_queued(app, &place.key, &text, reply_to);
+    }
     super::send_to(app, &place.key, &text, reply_to).await
 }
 

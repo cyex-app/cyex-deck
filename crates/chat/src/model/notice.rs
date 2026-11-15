@@ -37,6 +37,25 @@ pub struct Notice {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub action: Option<NoticeAction>,
+    /// V111-30 A send of ours that didn't go through: its text, for Copy and Retry.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub unsent: Option<Unsent>,
+}
+
+/// V111-30 The line a "Not sent" notice is about.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct Unsent {
+    /// As it was sent, `/me ` in front of an action: Retry sends it as is.
+    pub text: String,
+    /// The message it answered, for a retry.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub reply_to: Option<String>,
+    /// Trying again can help (a wait, a lost reply); not after a ban or an AutoMod hold.
+    pub retry: bool,
 }
 
 /// V111-17 What a notice's button does.
@@ -149,6 +168,7 @@ impl Notice {
             emote: None,
             held: None,
             action: None,
+            unsent: None,
         }
     }
 }

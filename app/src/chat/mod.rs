@@ -56,7 +56,7 @@ mod writer;
 
 use writer::Writer;
 
-pub use send::{send_to, send_to_until};
+pub use send::{retry, send_to, send_to_until};
 pub use session::retry_refused;
 
 use unread::{News, Unread};
