@@ -23,7 +23,7 @@
 
 <button class="btn {variant}" class:small class:hit {type} {disabled} {onclick}>
   {#if icon}<Icon name={icon} size={small ? 14 : 15} />{/if}
-  {@render children()}
+  <span class="cap">{@render children()}</span>
 </button>
 
 <style>
@@ -49,6 +49,14 @@
   .btn:active:not(:disabled):not(.link) {
     transform: scale(0.97);
     transition: none;
+  }
+  /* The text box is trimmed to cap height above the baseline, so the label sits at the optical
+     centre in every font (the line box is not centred: ascent and descent differ per font and
+     an odd content height rounds the text up). The link keeps its line box: it is inline text
+     with an underline and a hit area. */
+  .btn:not(.link) .cap {
+    display: block;
+    text-box: trim-both cap alphabetic;
   }
   .small {
     height: 27px;
