@@ -8,7 +8,9 @@
   import { moreBelow } from '../lib/moreBelow';
   import { quietScroll } from '../lib/quietScroll';
   import { grabFrom, usePanel } from './panel';
+  import Icon from './Icon.svelte';
   import IconButton from './IconButton.svelte';
+  import { tooltip } from './tooltip.svelte';
 
   interface Props {
     title: string;
@@ -31,13 +33,15 @@
 <section class="card">
   {#if !ctl?.bare || tools}
   <!-- svelte-ignore a11y_no_static_element_interactions -->
-  <header class:grab={!!grab} onpointerdown={grab}>
+  <header class:grab={!!grab} class:slim={ctl?.slim} onpointerdown={grab}>
     {#if ctl?.bare}<span class="room"></span>{:else}<h3>{title}</h3>{/if}
     {#if tools}<div class="tools">{@render tools()}</div>{/if}
     {#if ctl?.popout}
       <span class="out" class:shown={ctl.quick}><IconButton icon="popout" label="Pop out {title}" hint="Opens it in its own window." size={13} onclick={ctl.popout} /></span>
     {/if}
-    {#if ctl?.close}
+    {#if ctl?.close && ctl.slim}
+      <button class="round-x" aria-label="Close {title}" use:tooltip={{ label: 'Close' }} onclick={ctl.close}><Icon name="x" size={10} /></button>
+    {:else if ctl?.close}
       <IconButton icon="x" label="Close {title}" size={14} onclick={ctl.close} />
     {/if}
   </header>
@@ -85,6 +89,65 @@
   .out.shown,
   .out:focus-within {
     opacity: 1;
+  }
+  /* V111-39 The pop-ups' slim bar: 26 px, a small title, compact tools, a round x. */
+  header.slim {
+    align-items: center;
+    gap: 6px;
+    min-height: 0;
+    height: 26px;
+    padding: 0 6px 0 10px;
+    background: var(--page);
+    border-bottom: 0;
+    flex: none;
+  }
+  header.slim h3 {
+    flex: 1 1 auto;
+    min-width: 0;
+    line-height: 26px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  header.slim .tools {
+    flex-wrap: nowrap;
+    gap: 6px;
+  }
+  header.slim :global(.icon-btn) {
+    width: 22px;
+    height: 22px;
+  }
+  header.slim .tools :global(.check) {
+    font-size: 0.72rem;
+    color: var(--muted);
+  }
+  .round-x {
+    position: relative;
+    display: grid;
+    place-items: center;
+    flex: none;
+    width: 18px;
+    height: 18px;
+    padding: 0;
+    background: none;
+    border: 0;
+    border-radius: 50%;
+    color: var(--dim);
+    transition: background var(--fast) var(--ease), color var(--fast) var(--ease);
+  }
+  .round-x::before {
+    content: '';
+    position: absolute;
+    inset: -3px;
+  }
+  .round-x:hover {
+    background: var(--danger-solid);
+    color: var(--on-solid);
+  }
+  .round-x:active {
+    transform: scale(0.94);
   }
   /* The title keeps its words; tools wrap beside it. */
   h3 {

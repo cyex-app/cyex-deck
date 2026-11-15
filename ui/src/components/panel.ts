@@ -16,6 +16,8 @@ export interface PanelCtl {
   quick?: boolean;
   /** V107-R29 In a window of its own: no title (the window has it), tools only. */
   bare?: boolean;
+  /** V111-39 A thin title bar like the pop-ups' (title, small tools, round x). */
+  slim?: boolean;
   unlocked: boolean;
 }
 
@@ -42,7 +44,7 @@ export function usePanel(): (() => PanelCtl) | undefined {
 export function grabFrom(grab: ((e: PointerEvent) => void) | undefined): ((e: PointerEvent) => void) | undefined {
   if (!grab) return undefined;
   return (e) => {
-    if ((e.target as HTMLElement).closest('button, input, select, textarea, a, [role="slider"]')) return;
+    if ((e.target as HTMLElement).closest('button, input, select, textarea, label, a, [role="slider"], [role="button"], [role="checkbox"]')) return;
     grab(e);
   };
 }

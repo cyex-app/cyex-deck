@@ -230,7 +230,7 @@
   });
 </script>
 
-<FloatPanel bind:this={panel} label="Search #{channel}" {nth} width={440} height={520} min={{ w: 320, h: 260 }} place="search:{view}" {onclose}>
+<FloatPanel bind:this={panel} label="Search #{channel}" {nth} width={440} height={520} min={{ w: 320, h: 260 }} place="search:{view}" slim {onclose}>
   <Card title="Search #{channel}" flush>
     {#snippet tools()}
       <span class="all"><Checkbox label="All chats" checked={everywhere} onchange={(v) => (everywhere = v)} /></span>
@@ -286,6 +286,8 @@
     min-width: 0;
   }
   .all {
+    display: flex;
+    align-items: center;
     color: var(--muted);
     font-size: 0.78rem;
     white-space: nowrap;

@@ -18,11 +18,13 @@
     min?: Size;
     /** V111-33 Where it sat and how big it was is kept under this key until the window closes. */
     place?: string;
+    /** V111-39 A thin title bar like the pop-up windows'. */
+    slim?: boolean;
     onclose: () => void;
     children: Snippet;
   }
 
-  let { label, nth = 0, width = 340, height, min = { w: 300, h: 240 }, place, onclose, children }: Props = $props();
+  let { label, nth = 0, width = 340, height, min = { w: 300, h: 240 }, place, slim = false, onclose, children }: Props = $props();
 
   let box = $state<HTMLElement>();
   let at = $state<Pt | null>(null);
@@ -103,7 +105,7 @@
     el.addEventListener('pointercancel', done);
   }
 
-  const ctl = { grab, close: () => onclose(), unlocked: true };
+  const ctl = { grab, close: () => onclose(), unlocked: true, get slim() { return slim; } };
 
   /** Escape closes it, unless something inside used the key first (an open dropdown). */
   function key(e: KeyboardEvent) {
