@@ -381,9 +381,9 @@ export class Engine {
     }
   }
 
-  /** V111-32 Spare buffer a jump to the edge leaves: steering's upper band, so it doesn't speed
-   *  up right after, plus steering's extra (dry runs V108-LL6, out of sight V108-P10, a high level
-   *  V111-34), so a press never undoes what steering keeps. */
+  /** V111-32 Spare buffer a jump to the edge leaves: the middle of steering's 1× band (V111-38),
+   *  so it doesn't speed up or slow down right after, plus steering's extra (the margin a stream
+   *  earns, V108-LL6/V111-38, out of sight V108-P10), so a press never undoes what steering keeps. */
   private spare(): number {
     return this.steer.keep;
   }
@@ -574,8 +574,6 @@ export class Engine {
     });
     hls.on(Hls.Events.LEVEL_SWITCHED, (_, d) => {
       if (!this.replay) this.level = d.level;
-      // V111-34 1080p and up keeps more spare (steer.ts).
-      this.steer.height = hls.levels[d.level]?.height ?? 0;
     });
     // qd-2 The discontinuity the play head is in.
     hls.on(Hls.Events.FRAG_CHANGED, (_, d) => (this.playCc = d.frag.cc));

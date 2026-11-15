@@ -5,6 +5,8 @@
 // V108-LL6 A stream that once ran dry (a segment came a second or more late, 2026/11/01 on xQc:
 // 9 in 20 min) keeps more spare from then on: each dry run adds MARGIN_STEP to every threshold,
 // which wears off over minutes of clean play. Streams that arrive on time keep the small spare.
+// V111-38 The one way a stream earns more spare, at any level: a dry run or a reading under
+// NEAR_DRY adds a step, CALM s of steady play take one off.
 
 /** s of samples the spare buffer is judged over: two segments' worth of swing. */
 export const STEER_WINDOW = 4;
@@ -17,11 +19,24 @@ export const SPARE_LOW = 0.25;
 export const SPARE_SAFE = 0.4;
 export const RATE_FAST = 1.05;
 export const RATE_SLOW = 0.95;
-/** V108-LL6 s of spare added per dry run, the most it adds, and how fast it wears off (s per s:
- *  one step in 10 min). Halved (was 0.5 / 1.5) by the user: less delay on a bad stream. */
+/** V108-LL6, V111-38 s of spare added per dry run or near-dry reading, and the most it adds.
+ *  V111-38 replaces V111-34's fixed 1 s at 1080p and up: a large level that arrives on time keeps
+ *  the small spare, one that runs thin earns up to the same 1 s in steps. */
 export const MARGIN_STEP = 0.25;
-export const MARGIN_MAX = 0.75;
-export const MARGIN_DECAY = MARGIN_STEP / 600;
+export const MARGIN_MAX = 1;
+/** V111-38 A reading under this (s buffered) while steering counts as a dry run: the margin
+ *  grows before the picture stops, not after. Under SPARE_LOW, so the usual swing never reaches it. */
+export const NEAR_DRY = 0.1;
+/** V111-38 s after a step in which another dry or near-dry one adds nothing: one trough (or a
+ *  near-dry reading and the stall it ends in) counts once. */
+export const BUMP_GAP = STEER_WINDOW;
+/** V111-38 s of steady steered play without a dry or near-dry reading after which one step comes
+ *  off (was 10 min per step, V108-LL6): a stream that had one bad minute plays close again soon.
+ *  Only time steering counts (paused, rewound or out for a while: not calm, just not watched).
+ *  And only if the step wasn't used: the least reading over those CALM s stayed MARGIN_STEP over
+ *  NEAR_DRY (a step less would not have run near dry), else the count starts again. Mock, late
+ *  segments every 30 s: without that rule it stepped down between them and stalled again. */
+export const CALM = 60;
 /** V108-LL6 s at 1× before it speeds up again: the speed changed every few seconds at the band's
  *  edge (fast, 1×, slow within a second before a stall). */
 export const REST = 3;
@@ -32,39 +47,36 @@ export const REST = 3;
  *  playlist first: with the usual 0.5-1 s spare both ran dry. It slows to RATE_SLOW until the
  *  spare is there (about 50 s); back in sight it speeds up to the usual spare. */
 export const AWAY_SPARE = 2.5;
-/** V111-34 s of spare added while the playing level is HIGH_RES_HEIGHT px tall or more (the level's
- *  own height, not the player's): 1080p60 and source segments are large, a late one ran the
- *  usual 0.5-0.9 s dry and stuttered, mostly at fullscreen where Auto picks them. The user kept the
- *  quality and took the latency: a switch up slows to RATE_SLOW until the spare is there (no seek
- *  back), a switch down speeds up as usual. */
-export const HIGH_RES_SPARE = 1;
-export const HIGH_RES_HEIGHT = 1080;
-
-/** V111-34 Extra spare for a level height px tall (0: audio only or unknown). */
-export function highResSpare(height: number): number {
-  return height >= HIGH_RES_HEIGHT ? HIGH_RES_SPARE : 0;
-}
+/** V111-38 Least buffer a Live press's jump to the edge leaves above the extra: the middle of the
+ *  1× band (SPARE_DONE..SPARE_FAST), so it neither speeds up nor slows down right after
+ *  (V111-32 kept SPARE_FAST, 0,2 s more). */
+export const SPARE_KEEP = (SPARE_DONE + SPARE_FAST) / 2;
 
 export class Steer {
   private samples: { at: number; ahead: number }[] = [];
   rate = 1;
-  /** V108-LL6 Spare s added to every threshold after dry runs. */
+  /** V108-LL6, V111-38 Spare s added to every threshold after dry or near-dry readings. */
   margin = 0;
-  private marginAt: number | null = null;
+  /** V111-38 When the margin last grew (s), and s of steady steered play since then or the last step off. */
+  private bumpAt = -Infinity;
+  private calm = 0;
+  private calmLow = Infinity;
   /** V108-P10 Out of sight: AWAY_SPARE more spare. */
   away = false;
-  /** V111-34 Height of the level playing, in px (0 unknown): 1080 and up keeps HIGH_RES_SPARE more. */
-  height = 0;
   /** When it last went back to 1×. */
   private restAt = -Infinity;
 
   /** The rate for a sample of `ahead` s buffered at `now` (s). */
   step(now: number, ahead: number): number {
-    this.wear(now);
+    const last = this.samples.at(-1);
+    // Only steady play counts as calm: a gap (paused, hidden page timers) doesn't.
+    if (last && now > last.at && now - last.at <= 1) this.wear(now - last.at, ahead);
     this.samples.push({ at: now, ahead });
     while (this.samples.length && this.samples[0].at < now - STEER_WINDOW) this.samples.shift();
     // A full window first: a fresh start or seek has no swing to read yet.
     if (now - this.samples[0].at < STEER_WINDOW - 0.5) return this.rate;
+    // Out of sight the page's own timers run late (V108-P10): no word on the stream.
+    if (ahead < NEAR_DRY && !this.away) this.dry(now);
     const spare = Math.min(...this.samples.map((s) => s.ahead));
     const m = this.extra;
     const was = this.rate;
@@ -78,16 +90,17 @@ export class Steer {
     return this.rate;
   }
 
-  /** s of spare kept above the base bands: the dry-run margin (V108-LL6), out of sight (V108-P10)
-   *  and a high level (V111-34). The Live press keeps the same (V111-32). */
+  /** s of spare kept above the base bands: the margin this stream earned (V108-LL6, V111-38) and
+   *  out of sight (V108-P10). The Live press keeps the same (V111-32). */
   get extra(): number {
-    return this.margin + (this.away ? AWAY_SPARE : 0) + highResSpare(this.height);
+    return this.margin + (this.away ? AWAY_SPARE : 0);
   }
 
-  /** V111-32 Spare buffer a Live press's jump to the edge leaves: the upper band plus the extra,
-   *  so it doesn't speed up right after and never undoes what steering keeps. */
+  /** V111-32, V111-38 Spare buffer a Live press's jump to the edge leaves: the middle of the 1×
+   *  band plus the extra, so it neither speeds up nor slows down right after and never undoes
+   *  what steering keeps. */
   get keep(): number {
-    return SPARE_FAST + this.extra;
+    return SPARE_KEEP + this.extra;
   }
 
   /** V108-LL6 It is steering (sampled since the last reset). */
@@ -95,9 +108,13 @@ export class Steer {
     return this.samples.length > 0;
   }
 
-  /** V108-LL6 The buffer ran dry while it steered: more spare from now on. */
+  /** V108-LL6 The buffer ran dry (or, V111-38, nearly) while it steered: more spare from now on,
+   *  once per BUMP_GAP. */
   dry(now: number): void {
-    this.wear(now);
+    this.calm = 0;
+    this.calmLow = Infinity;
+    if (now - this.bumpAt < BUMP_GAP) return;
+    this.bumpAt = now;
     this.margin = Math.min(MARGIN_MAX, this.margin + MARGIN_STEP);
   }
 
@@ -108,8 +125,16 @@ export class Steer {
     this.rate = 1;
   }
 
-  private wear(now: number): void {
-    if (this.marginAt !== null) this.margin = Math.max(0, this.margin - Math.max(0, now - this.marginAt) * MARGIN_DECAY);
-    this.marginAt = now;
+  /** V111-38 `dt` s of steady play ending in a reading of `ahead` s: every CALM s in which the
+   *  last step went unused take it off. */
+  private wear(dt: number, ahead: number): void {
+    if (this.margin <= 0) return;
+    this.calm += dt;
+    this.calmLow = Math.min(this.calmLow, ahead);
+    if (this.calm < CALM) return;
+    const unused = this.calmLow >= NEAR_DRY + MARGIN_STEP;
+    this.calm = 0;
+    this.calmLow = Infinity;
+    if (unused) this.margin = Math.max(0, this.margin - MARGIN_STEP);
   }
 }
