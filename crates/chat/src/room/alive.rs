@@ -57,11 +57,18 @@ impl Room {
     /// V111-08 A forced rejoin goes out (F5, a ban, a dead room): the room waits for Twitch's
     /// answer, and what was said since it last heard anyone is a gap to fill once it's in.
     pub fn rejoin(&mut self, now_ms: i64) -> Vec<RoomEvent> {
-        let from = self.alive.heard_at.or(self.alive.joined_at).unwrap_or(now_ms).min(now_ms);
-        self.lost_at = Some(self.lost_at.map_or(from, |t| t.min(from)));
+        self.deaf_since_heard(now_ms);
         self.alive.echo = None;
         self.alive.quiet = true;
         self.set_status(ConnStatus::Connecting, now_ms)
+    }
+
+    /// V111-40 What was said since the room last heard anyone is a gap to fill later; an
+    /// earlier mark stays. Set the moment we're banned, before the anonymous read starts
+    /// (its lines count as heard).
+    pub fn deaf_since_heard(&mut self, now_ms: i64) {
+        let from = self.alive.heard_at.or(self.alive.joined_at).unwrap_or(now_ms).min(now_ms);
+        self.lost_at = Some(self.lost_at.map_or(from, |t| t.min(from)));
     }
 
     /// V111-08 Joined, and our line went out on the writer `ECHO_WAIT_MS` ago without coming
@@ -150,6 +157,19 @@ mod tests {
         r.set_status(ConnStatus::Joined, 9_500);
         assert_eq!(r.take_gap(9_500).map(|g| g.0), Some(5_000));
         assert_eq!(r.heard(), Some(9_500));
+    }
+
+    #[test]
+    fn v111_40_the_gap_starts_at_the_ban_not_at_the_anonymous_read() {
+        let mut r = room();
+        say(&mut r, "a", "7", 1_000);
+        feed(&mut r, &format!("@room-id=9;target-user-id={ME};tmi-sent-ts=2000 :tmi.twitch.tv CLEARCHAT #chan :me"), 2_000);
+        r.deaf_since_heard(2_000);
+        // The anonymous read's first lines arrive before the rejoin goes out.
+        say(&mut r, "b", "8", 3_000);
+        r.rejoin(4_000);
+        feed(&mut r, "@msg-id=msg_banned :tmi.twitch.tv NOTICE #chan :You are permanently banned from talking in chan.", 4_500);
+        assert_eq!(r.take_gap(4_500).map(|g| g.0), Some(1_000));
     }
 
     #[test]

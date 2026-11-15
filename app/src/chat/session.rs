@@ -409,15 +409,18 @@ enum Mirror {
 /// V110-M28 Whether a room starts or stops reading through the anonymous connection. Starts
 /// when Twitch keeps the chat from the account for a ban and the setting is on; stops once
 /// the account is in (or the setting is off). Trying to get back in (`Connecting`,
-/// `Reconnecting`) keeps it, so a failed rejoin leaves no gap.
-fn mirror_step(account: bool, status: ConnStatus, mirrored: bool, read: bool) -> Option<Mirror> {
+/// `Reconnecting`) keeps it, so a failed rejoin leaves no gap. V111-40 `held`: banned while
+/// in, so it starts (and stays) while IRC still says joined.
+fn mirror_step(account: bool, status: ConnStatus, mirrored: bool, read: bool, held: bool) -> Option<Mirror> {
     if !account {
         return None;
     }
     match (mirrored, status) {
         (false, ConnStatus::Banned) if read => Some(Mirror::Start),
+        (false, ConnStatus::Joined) if read && held => Some(Mirror::Start),
         (true, _) if !read => Some(Mirror::Stop),
         (true, ConnStatus::Banned | ConnStatus::Connecting | ConnStatus::Reconnecting) => None,
+        (true, ConnStatus::Joined) if held => None,
         (true, _) => Some(Mirror::Stop),
         _ => None,
     }
@@ -428,8 +431,9 @@ fn mirror_step(account: bool, status: ConnStatus, mirrored: bool, read: bool) ->
 pub(super) fn sync_mirror(app: &AppHandle, inner: &mut Inner, key: &RoomKey) {
     let read = app.state::<Chat>().read_banned.load(std::sync::atomic::Ordering::Relaxed);
     let Some(e) = inner.rooms.get_mut(key) else { return };
-    match mirror_step(matches!(key.0, Identity::Account(_)), e.room.status, e.mirror, read) {
+    match mirror_step(matches!(key.0, Identity::Account(_)), e.room.status, e.mirror, read, e.ban_hold) {
         Some(Mirror::Start) => {
+            eprintln!("chat: reading #{} anonymously (banned)", key.1);
             e.mirror = true;
             ensure(app, inner, &Identity::Anon).client.join(&key.1);
         }
@@ -517,6 +521,7 @@ fn room_line(app: &AppHandle, identity: &Identity, channel: &str, line: &Line<'_
     if line.command == "JOIN" && own(entry.room.me(), line.nick()) {
         entry.join_sent = None;
         entry.join_retried = false;
+        entry.ban_hold = false;
         let events = entry.room.set_status(ConnStatus::Joined, now_ms());
         queue(entry, events, &chat.wake);
         let gap = entry.room.take_gap(now_ms());
@@ -557,6 +562,12 @@ fn room_line(app: &AppHandle, identity: &Identity, channel: &str, line: &Line<'_
     let banned_in = was_joined
         && matches!(identity, Identity::Account(_))
         && events.iter().any(|e| matches!(e, RoomEvent::Restricted { how: Restriction::Banned }));
+    // V111-40 The anonymous read starts right away (`sync_mirror` below); what's said until
+    // its first line is a gap the rejoin's answer fills.
+    if banned_in {
+        entry.ban_hold = true;
+        entry.room.deaf_since_heard(now_ms());
+    }
     let refused = entry.room.status == ConnStatus::Refused;
     let role = entry.room.role();
     // V111-17 ROOMSTATE comes after USERSTATE: a mod room that only now knows its channel id
@@ -856,17 +867,24 @@ mod tests {
     fn v110_m28_a_banned_room_reads_anonymously_until_it_is_let_in() {
         use ConnStatus::*;
         // Starts on the ban, only with the setting on and only for an account.
-        assert_eq!(mirror_step(true, Banned, false, true), Some(Mirror::Start));
-        assert_eq!(mirror_step(true, Banned, false, false), None);
-        assert_eq!(mirror_step(false, Banned, false, true), None);
-        assert_eq!(mirror_step(true, Joined, false, true), None);
+        assert_eq!(mirror_step(true, Banned, false, true, false), Some(Mirror::Start));
+        assert_eq!(mirror_step(true, Banned, false, false, false), None);
+        assert_eq!(mirror_step(false, Banned, false, true, false), None);
+        assert_eq!(mirror_step(true, Joined, false, true, false), None);
         // Trying to get back in keeps it; being in, or the setting going off, ends it.
         for s in [Banned, Connecting, Reconnecting] {
-            assert_eq!(mirror_step(true, s, true, true), None, "{s:?}");
+            assert_eq!(mirror_step(true, s, true, true, false), None, "{s:?}");
         }
-        assert_eq!(mirror_step(true, Joined, true, true), Some(Mirror::Stop));
-        assert_eq!(mirror_step(true, AuthFailed, true, true), Some(Mirror::Stop));
-        assert_eq!(mirror_step(true, Banned, true, false), Some(Mirror::Stop));
+        assert_eq!(mirror_step(true, Joined, true, true, false), Some(Mirror::Stop));
+        assert_eq!(mirror_step(true, AuthFailed, true, true, false), Some(Mirror::Stop));
+        assert_eq!(mirror_step(true, Banned, true, false, false), Some(Mirror::Stop));
+        // V111-40 Banned while in: starts while IRC still says joined, and stays until the
+        // account's JOIN echo ends the hold.
+        assert_eq!(mirror_step(true, Joined, false, true, true), Some(Mirror::Start));
+        assert_eq!(mirror_step(true, Joined, false, false, true), None);
+        assert_eq!(mirror_step(true, Joined, true, true, true), None);
+        assert_eq!(mirror_step(true, Joined, true, false, true), Some(Mirror::Stop));
+        assert_eq!(mirror_step(false, Joined, false, true, true), None);
     }
 
     #[test]

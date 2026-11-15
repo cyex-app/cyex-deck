@@ -172,6 +172,9 @@ struct Entry {
     /// V110-M28 Banned here and read through the anonymous connection meanwhile: its lines
     /// are routed into this room (`session::mirror`).
     mirror: bool,
+    /// V111-40 Banned while in: IRC still says joined, but the anonymous read starts now,
+    /// not after the rejoin's answer. Ends with the account's JOIN echo.
+    ban_hold: bool,
     /// V111-08 F5 asked for a real rejoin: its answer says "Chat reloaded." (or that it failed).
     reload: bool,
     /// V111-08 When the app last forced a rejoin here (ms), so it doesn't keep doing it.
@@ -447,6 +450,7 @@ fn ensure_room(app: &AppHandle, inner: &mut Inner, key: &RoomKey, me: Option<Me>
             history,
             epoch,
             mirror: false,
+            ban_hold: false,
             reload: false,
             forced_at: 0,
         },
