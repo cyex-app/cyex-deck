@@ -32,6 +32,18 @@ export const REST = 3;
  *  playlist first: with the usual 0.5-1 s spare both ran dry. It slows to RATE_SLOW until the
  *  spare is there (about 50 s); back in sight it speeds up to the usual spare. */
 export const AWAY_SPARE = 2.5;
+/** V111-34 s of spare added while the playing level is HIGH_RES_HEIGHT px tall or more (the level's
+ *  own height, not the player's): 1080p60 and source segments are large, a late one ran the
+ *  usual 0.5-0.9 s dry and stuttered, mostly at fullscreen where Auto picks them. The user kept the
+ *  quality and took the latency: a switch up slows to RATE_SLOW until the spare is there (no seek
+ *  back), a switch down speeds up as usual. */
+export const HIGH_RES_SPARE = 1;
+export const HIGH_RES_HEIGHT = 1080;
+
+/** V111-34 Extra spare for a level height px tall (0: audio only or unknown). */
+export function highResSpare(height: number): number {
+  return height >= HIGH_RES_HEIGHT ? HIGH_RES_SPARE : 0;
+}
 
 export class Steer {
   private samples: { at: number; ahead: number }[] = [];
@@ -41,6 +53,8 @@ export class Steer {
   private marginAt: number | null = null;
   /** V108-P10 Out of sight: AWAY_SPARE more spare. */
   away = false;
+  /** V111-34 Height of the level playing, in px (0 unknown): 1080 and up keeps HIGH_RES_SPARE more. */
+  height = 0;
   /** When it last went back to 1×. */
   private restAt = -Infinity;
 
@@ -52,7 +66,7 @@ export class Steer {
     // A full window first: a fresh start or seek has no swing to read yet.
     if (now - this.samples[0].at < STEER_WINDOW - 0.5) return this.rate;
     const spare = Math.min(...this.samples.map((s) => s.ahead));
-    const m = this.margin + (this.away ? AWAY_SPARE : 0);
+    const m = this.extra;
     const was = this.rate;
     if (this.rate > 1) this.rate = spare <= SPARE_DONE + m ? 1 : this.rate;
     else if (this.rate < 1) this.rate = spare >= SPARE_SAFE + m ? 1 : this.rate;
@@ -62,6 +76,18 @@ export class Steer {
     }
     if (this.rate === 1 && was !== 1) this.restAt = now;
     return this.rate;
+  }
+
+  /** s of spare kept above the base bands: the dry-run margin (V108-LL6), out of sight (V108-P10)
+   *  and a high level (V111-34). The Live press keeps the same (V111-32). */
+  get extra(): number {
+    return this.margin + (this.away ? AWAY_SPARE : 0) + highResSpare(this.height);
+  }
+
+  /** V111-32 Spare buffer a Live press's jump to the edge leaves: the upper band plus the extra,
+   *  so it doesn't speed up right after and never undoes what steering keeps. */
+  get keep(): number {
+    return SPARE_FAST + this.extra;
   }
 
   /** V108-LL6 It is steering (sampled since the last reset). */

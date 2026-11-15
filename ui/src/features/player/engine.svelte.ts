@@ -40,7 +40,7 @@ import {
 } from './liveMachine';
 import { type Choice, levelFor, levelName, lowestLevel } from './quality';
 import { recoverMedia } from './mediaRecover';
-import { AWAY_SPARE, SPARE_FAST, Steer } from './steer';
+import { Steer } from './steer';
 import { exposeLive, ll7Old, streamFmp4 } from './fmp4Stream';
 import { dateAt, goneDue, isGone, nextAfter, type Piece, posAt, replayStart } from './replayClock';
 import { BUFFER_NOTE_MS, stallStart, stallStep } from './stall';
@@ -382,9 +382,10 @@ export class Engine {
   }
 
   /** V111-32 Spare buffer a jump to the edge leaves: steering's upper band, so it doesn't speed
-   *  up right after, plus what this stream earned by running dry (V108-LL6). */
+   *  up right after, plus steering's extra (dry runs V108-LL6, out of sight V108-P10, a high level
+   *  V111-34), so a press never undoes what steering keeps. */
   private spare(): number {
-    return SPARE_FAST + this.steer.margin + (this.steer.away ? AWAY_SPARE : 0);
+    return this.steer.keep;
   }
 
   private armEdge(): void {
@@ -573,6 +574,8 @@ export class Engine {
     });
     hls.on(Hls.Events.LEVEL_SWITCHED, (_, d) => {
       if (!this.replay) this.level = d.level;
+      // V111-34 1080p and up keeps more spare (steer.ts).
+      this.steer.height = hls.levels[d.level]?.height ?? 0;
     });
     // qd-2 The discontinuity the play head is in.
     hls.on(Hls.Events.FRAG_CHANGED, (_, d) => (this.playCc = d.frag.cc));

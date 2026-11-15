@@ -1,7 +1,19 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { AWAY_SPARE, MARGIN_MAX, MARGIN_STEP, RATE_FAST, RATE_SLOW, REST, Steer } from './steer.ts';
+import { edgeJump } from './liveEdge.ts';
+import {
+  AWAY_SPARE,
+  HIGH_RES_SPARE,
+  highResSpare,
+  MARGIN_MAX,
+  MARGIN_STEP,
+  RATE_FAST,
+  RATE_SLOW,
+  REST,
+  SPARE_FAST,
+  Steer,
+} from './steer.ts';
 
 /** Feeds a buffer that swings like whole 2 s segments: `low` right before a reload, `low + 2` after. */
 function feed(s: Steer, from: number, to: number, low: number): number {
@@ -106,4 +118,53 @@ test('V108-P10 the away spare is not a dry-run margin: it neither wears off nor 
   assert.equal(s.margin, 0);
   s.away = false;
   assert.equal(feed(s, 6, 12, 0.5), 1);
+});
+
+test('V111-34 1080p and up keeps HIGH_RES_SPARE more, by the level height', () => {
+  assert.equal(highResSpare(0), 0, 'audio only or unknown');
+  assert.equal(highResSpare(720), 0);
+  assert.equal(highResSpare(1079), 0);
+  assert.equal(highResSpare(1080), HIGH_RES_SPARE);
+  assert.equal(highResSpare(1440), HIGH_RES_SPARE);
+  const s = new Steer();
+  assert.equal(s.extra, 0);
+  s.height = 1080;
+  assert.equal(s.extra, HIGH_RES_SPARE);
+  s.dry(0);
+  s.away = true;
+  assert.equal(s.extra, MARGIN_STEP + AWAY_SPARE + HIGH_RES_SPARE, 'adds to the dry-run margin and the away spare');
+});
+
+test('V111-34 a high level: no speed up at a spare that does at 720p', () => {
+  const lo = new Steer();
+  lo.height = 720;
+  assert.equal(feed(lo, 0, 6, 1.7), RATE_FAST);
+  const hi = new Steer();
+  hi.height = 1080;
+  assert.equal(feed(hi, 0, 10, 1.7), 1, '1.7 s is in the band with the extra second');
+  assert.equal(feed(hi, 10, 20, 2.1), RATE_FAST, 'over 0.9 + 1: it catches up to there');
+});
+
+test('V111-34 switch up eases latency up by speed, switch down catches up again', () => {
+  const s = new Steer();
+  s.height = 720;
+  assert.equal(feed(s, 0, 10, 0.6), 1, 'the usual band at 720p');
+  s.height = 1080;
+  assert.equal(feed(s, 10, 16, 0.6), RATE_SLOW, 'up: 0.6 s is thin now, it slows (no seek back)');
+  assert.equal(feed(s, 16, 30, 0.6 + HIGH_RES_SPARE), 1, 'the extra second is there: 1x');
+  s.height = 720;
+  assert.equal(feed(s, 30, 40, 0.6 + HIGH_RES_SPARE), RATE_FAST, 'down: the extra goes, it speeds up');
+});
+
+test('V111-34 the Live press keeps the high level spare: no jump into what steering keeps', () => {
+  const s = new Steer();
+  s.height = 1080;
+  const aheads = [
+    { at: 0, ahead: 3 },
+    { at: 4, ahead: 3 },
+  ];
+  const d = edgeJump(aheads, s.keep)!;
+  assert.ok(Math.abs(d - (3 - SPARE_FAST - HIGH_RES_SPARE)) < 1e-9, `1.9 s kept, got ${3 - d}`);
+  s.height = 720;
+  assert.ok(Math.abs(edgeJump(aheads, s.keep)! - (3 - SPARE_FAST)) < 1e-9);
 });
