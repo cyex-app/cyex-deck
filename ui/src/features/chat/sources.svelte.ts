@@ -10,7 +10,8 @@ import { completionEmotes } from '../emotes/owned';
 import { providerRank } from '../emotes/priority';
 import { emoteMenu } from '../emotes/menus';
 import type { Word } from './completion';
-import { matchPeople, mentionName, type Person } from './people';
+import { settings } from '../../lib/settings.svelte';
+import { matchPeople, mentionName, mentionRank, type Person } from './people';
 import type { ChatRoom } from './room.svelte';
 import { commandItems, emoteList, type EmoteName, type Item, viewerLevel } from './suggestions';
 
@@ -40,6 +41,11 @@ export class Sources {
       .catch(() => (this.commands = []));
   }
 
+  /** V111-41 Who you mention most, by lowercase login (lower is more). */
+  mentioned(): Map<string, number> {
+    return mentionRank(settings.v.emotes.mentions ?? []);
+  }
+
   /** Recent chatters, newest first. V110-F86 `name` is what a mention says: the login for a localized display name. */
   people(): Person[] {
     const out: Person[] = [];
@@ -51,6 +57,11 @@ export class Sources {
         seen.add(s.id);
         out.push({ name: mentionName(s.display, s.login), display: s.display });
       }
+    }
+    // V111-41 People you mention often can be completed before they've talked here.
+    const here = new Set(out.map((p) => p.name.toLowerCase()));
+    for (const m of settings.v.emotes.mentions ?? []) {
+      if (!here.has(m.login)) out.push({ name: m.login, display: m.login });
     }
     return out;
   }
@@ -79,7 +90,7 @@ export class Sources {
   /** V110-A-idea The suggestions and how many more matched than they show. */
   list(word: Word): { items: Item[]; more: number } {
     if (word.text.startsWith('@') && word.text.length >= 2) {
-      return { items: matchPeople(word.text.slice(1), this.people()).map((n) => ({ value: `@${n}`, label: `@${n}` })), more: 0 };
+      return { items: matchPeople(word.text.slice(1), this.people(), 8, this.mentioned()).map((n) => ({ value: `@${n}`, label: `@${n}` })), more: 0 };
     }
     if (word.text.startsWith(':') && word.text.length >= 3) {
       const q = word.text.slice(1).replace(/:$/, '');

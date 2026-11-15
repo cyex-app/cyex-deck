@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { matchPeople, mentionName, tabNames, type Person } from './people.ts';
+import { matchPeople, mentionName, mentionRank, tabNames, type Person } from './people.ts';
 
 const people: Person[] = [
   { name: 'Alice', display: 'Alice' },
@@ -24,4 +24,19 @@ test('V110-F86 Tab on @name never offers an emote', () => {
   assert.deepEqual(tabNames('@rtl', ['RTLemote'], people), ['@rtl_arabic']);
   assert.ok(tabNames('al', ['ALO'], people).includes('ALO'));
   assert.deepEqual(tabNames('@', ['ALO'], people), []);
+});
+
+test('V111-41 people you mention most come first within the same kind of match', () => {
+  const crowd: Person[] = [
+    { name: 'Aaron', display: 'Aaron' },
+    { name: 'Abby', display: 'Abby' },
+    { name: 'Azure', display: 'Azure' },
+    { name: 'xab', display: 'xab' },
+  ];
+  assert.deepEqual(matchPeople('a', crowd), ['Abby', 'Aaron', 'Azure', 'xab']);
+  const used = mentionRank([{ login: 'azure' }, { login: 'aaron' }, { login: 'xab' }]);
+  assert.deepEqual(matchPeople('a', crowd, 8, used), ['Azure', 'Aaron', 'Abby', 'xab']);
+  // A prefix match still beats a mentioned name that only contains it.
+  assert.deepEqual(matchPeople('ab', crowd, 8, used), ['Abby', 'xab']);
+  assert.deepEqual(tabNames('@a', [], crowd, 30, used), ['@Azure', '@Aaron', '@Abby', '@xab']);
 });

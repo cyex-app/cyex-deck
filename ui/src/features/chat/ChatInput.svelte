@@ -431,7 +431,7 @@
       }
       if (!bare) return [];
       // V110-U71 Closest match first, the rest A-Z. V110-F86 After `@` only people.
-      return tabNames(word.text, sources.emotes().map((e) => e.name), sources.people(), 30);
+      return tabNames(word.text, sources.emotes().map((e) => e.name), sources.people(), 30, sources.mentioned());
     };
     const all = async () => {
       if (arg) {

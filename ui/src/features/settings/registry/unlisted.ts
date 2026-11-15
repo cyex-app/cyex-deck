@@ -11,6 +11,7 @@ export const UNLISTED: Record<string, string> = {
   combos: 'Saved in the 7TV paint and badge menu or with /combo.',
   'emotes.favorites': 'The emote menu’s favorites.',
   'emotes.usage': 'The emote menu’s most used.',
+  'emotes.mentions': 'Who you mention most, for @ completion.',
   modview: 'The mod view’s own layout and mod actions filter.',
   'windows.main': 'Where the main window was.',
   'windows.mainPinned': 'Pinned from the title bar.',

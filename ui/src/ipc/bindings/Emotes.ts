@@ -2,12 +2,17 @@
 import type { BadgeSets } from "./BadgeSets";
 import type { EmoteKey } from "./EmoteKey";
 import type { EmoteUse } from "./EmoteUse";
+import type { MentionUse } from "./MentionUse";
 
 export type Emotes = { favorites: Array<EmoteKey>, 
 /**
  * Most used first.
  */
 usage: Array<EmoteUse>, 
+/**
+ * V111-41 Who you `@` most in your own messages, most first: `@` completion ranks them first.
+ */
+mentions: Array<MentionUse>, 
 /**
  * V108-N06 Extra badge sets from community services. Each is its own switch, off until picked:
  * turning one on fetches that service’s list.

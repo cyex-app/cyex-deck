@@ -546,6 +546,14 @@ pub fn record_usage(app: &AppHandle, body: &[cyex_chat::model::Fragment]) {
     use cyex_chat::model::Fragment;
     use cyex_settings::schema::{EmoteKey, Emotes as EmoteSettings};
     let mut used: Vec<EmoteKey> = Vec::new();
+    // V111-41 Who the message mentions, for `@` completion.
+    let mentioned: Vec<String> = body
+        .iter()
+        .filter_map(|f| match f {
+            Fragment::Mention { login, .. } => Some(login.clone()),
+            _ => None,
+        })
+        .collect();
     for f in body {
         let Fragment::Emote {
             provider, id, name, ..
@@ -567,7 +575,7 @@ pub fn record_usage(app: &AppHandle, body: &[cyex_chat::model::Fragment]) {
             });
         }
     }
-    if used.is_empty() {
+    if used.is_empty() && mentioned.is_empty() {
         return;
     }
     let now = crate::auth::unix_now();
@@ -575,6 +583,7 @@ pub fn record_usage(app: &AppHandle, body: &[cyex_chat::model::Fragment]) {
         .state::<Settings>()
         .update::<EmoteSettings>(app, Partition::Emotes, |e| {
             e.record(&used, now);
+            e.record_mentions(&mentioned, now);
             true
         });
 }
