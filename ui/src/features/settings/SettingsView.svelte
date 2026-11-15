@@ -365,7 +365,7 @@
           {#each g.pages as p (p.id)}
             <button data-page={p.id} tabindex={stop === p.id ? 0 : -1} class:on={!searching && section === p.id} aria-label={p.label} aria-current={!searching && section === p.id ? 'page' : undefined} onclick={() => open(p.id)} use:tooltip={{ label: p.label, hint: p.hint, side: 'right', when: () => (nav?.offsetWidth ?? 999) < 100 || !!settings.v.general?.tooltips }}>
               <Icon name={p.icon} size={15} />
-              <span>{p.label}</span>
+              <span class="cap-text">{p.label}</span>
             </button>
           {/each}
         </div>

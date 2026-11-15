@@ -40,7 +40,7 @@
       use:tooltip={{ label: v.label, hint: v.hint }}
     >
       <Icon name={v.warn ? 'alert' : 'radio'} size={16} />
-      {v.text}
+      <span class="cap-text">{v.text}</span>
     </button>
     <Popover bind:open label="Joined chats">
       <div class="panel">

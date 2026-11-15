@@ -69,7 +69,7 @@
     {#if owner}
       <button class="account" disabled={able.length < 2} onclick={pickAccount}>
         <Avatar src={owner.avatar} name={owner.displayName} size={20} />
-        <span>{owner.displayName}</span>
+        <span class="cap-text">{owner.displayName}</span>
         {#if able.length > 1}<Icon name="chevronDown" size={14} />{/if}
       </button>
     {/if}

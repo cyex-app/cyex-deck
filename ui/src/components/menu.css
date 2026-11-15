@@ -81,6 +81,10 @@
   flex: 1;
   min-width: 0;
   overflow: hidden;
+  /* V111-35 Cap-centred like .cap-text; the padding keeps ascenders and descenders inside the clip. */
+  text-box: trim-both cap alphabetic;
+  padding-block: 0.3em;
+  margin-block: -0.3em;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -91,6 +95,7 @@
   font-size: 0.78rem;
 }
 .cx-hint {
+  text-box: trim-both cap alphabetic;
   color: var(--dim);
   font-size: 0.76rem;
 }

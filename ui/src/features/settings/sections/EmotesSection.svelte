@@ -82,7 +82,7 @@
   <ol class="order">
     {#each ranked as s, i (s)}
       <li>
-        <span>{i + 1}. {name(s)}</span>
+        <span class="cap-text">{i + 1}. {name(s)}</span>
         <button aria-label="Move {name(s)} up" disabled={i === 0} onclick={() => move(i, -1)}>
           <Icon name="chevronUp" size={14} />
         </button>

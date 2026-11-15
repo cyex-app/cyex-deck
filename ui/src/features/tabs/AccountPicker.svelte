@@ -65,7 +65,7 @@
       <div class="menu">
         <button class="trigger" bind:this={trigger} disabled={anon} onclick={() => (open = !open)} aria-haspopup="menu" aria-expanded={open}>
           <Avatar src={chosen.avatar} name={chosen.displayName} size={18} />
-          <span class="name">{chosen.displayName}</span>
+          <span class="name cap-text clip">{chosen.displayName}</span>
           {#if count(chosen.userId)}<span class="count" use:tooltip={'Chats open'}>{count(chosen.userId)}</span>{/if}
           <Icon name="chevronDown" size={14} />
         </button>
@@ -81,7 +81,7 @@
                 <!-- The check sits in its own slot on the left, so the counts line up on the right. -->
                 <span class="check">{#if a.userId === chosen.userId}<Icon name="check" size={14} />{/if}</span>
                 <Avatar src={a.avatar} name={a.displayName} size={20} />
-                <span class="name">{a.displayName}{#if a.isDefault}<span class="def">default</span>{/if}</span>
+                <span class="name cap-text clip">{a.displayName}{#if a.isDefault}<span class="def">default</span>{/if}</span>
                 {#if count(a.userId)}<span class="count" use:tooltip={'Chats open'}>{count(a.userId)}</span>{/if}
               </button>
             {/each}

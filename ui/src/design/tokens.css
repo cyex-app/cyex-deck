@@ -335,6 +335,20 @@ h2 {
   color: var(--dim);
 }
 
+/* V111-35 One text span centred on its cap height: the text box is trimmed to cap height above the
+   baseline, so the label sits at the optical centre in every font. Ascent and descent differ per font and
+   an odd content height rounds the text up, so a bare text node in a fixed-height flex control rides high.
+   Wrap only the text, never icons or inputs. `.clip` is for a span that also clips (ellipsis): the padding
+   brings back the ascender and descender room the trim removed, so nothing is cut off. */
+.cap-text {
+  display: block;
+  text-box: trim-both cap alphabetic;
+}
+.cap-text.clip {
+  padding-block: 0.3em;
+  margin-block: -0.3em;
+}
+
 .sr-only {
   position: absolute;
   width: 1px;

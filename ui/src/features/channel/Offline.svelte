@@ -31,9 +31,9 @@
     />
     <span>{tile.channel.name} is offline</span>
     <div class="go">
-      <button aria-label="Videos" use:tooltip={'Videos'} onclick={() => onpage({ kind: 'videos' })}><Icon name="film" size={14} /><span class="t">Videos</span></button>
-      <button aria-label="Clips" use:tooltip={'Clips'} onclick={() => onpage({ kind: 'clips' })}><Icon name="clapper" size={14} /><span class="t">Clips</span></button>
-      <button aria-label="About" use:tooltip={'About'} onclick={() => onpage({ kind: 'about' })}><Icon name="info" size={14} /><span class="t">About</span></button>
+      <button aria-label="Videos" use:tooltip={'Videos'} onclick={() => onpage({ kind: 'videos' })}><Icon name="film" size={14} /><span class="t cap-text">Videos</span></button>
+      <button aria-label="Clips" use:tooltip={'Clips'} onclick={() => onpage({ kind: 'clips' })}><Icon name="clapper" size={14} /><span class="t cap-text">Clips</span></button>
+      <button aria-label="About" use:tooltip={'About'} onclick={() => onpage({ kind: 'about' })}><Icon name="info" size={14} /><span class="t cap-text">About</span></button>
     </div>
   </div>
 </div>
@@ -83,6 +83,8 @@
     align-items: center;
     gap: 6px;
     padding: 4px 9px;
+    /* The label is trimmed to cap height: the height stays a line plus padding. */
+    min-height: calc(1lh + 10px);
     background: color-mix(in srgb, var(--on-video) 8%, transparent);
     /* V110-F90 Forced colours draws this edge; otherwise it's invisible. */
     border: 1px solid transparent;

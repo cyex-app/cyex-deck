@@ -341,7 +341,7 @@
           onfocus={reveal}><Icon name={t === 'favorites' ? 'star' : 'smile'} size={14} /></button
         >
       {:else}
-        <button role="tab" aria-selected={on} class:on onclick={() => choose(t)} onfocus={reveal}>{label(t)}</button>
+        <button role="tab" aria-selected={on} class:on onclick={() => choose(t)} onfocus={reveal}><span class="cap-text">{label(t)}</span></button>
       {/if}
     {/each}
   </div>

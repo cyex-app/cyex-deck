@@ -18,7 +18,7 @@
 
 <div class="wrap">
   <button class="pick" class:on={picked.length > 0} onclick={() => (open = !open)} aria-haspopup="dialog" aria-expanded={open}>
-    <Icon name="globe" size={14} />{languageLabel(picked)}<Icon name="chevronDown" size={13} />
+    <Icon name="globe" size={14} /><span class="cap-text">{languageLabel(picked)}</span><Icon name="chevronDown" size={13} />
   </button>
   <Popover bind:open align="end" label="Languages">
     <div class="list">

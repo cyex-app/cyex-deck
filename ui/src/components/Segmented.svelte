@@ -37,7 +37,7 @@
       class:on={value === option.value}
       onclick={() => onchange(option.value)}
     >
-      {option.label}
+      <span class="cap-text">{option.label}</span>
     </button>
   {/each}
 </div>

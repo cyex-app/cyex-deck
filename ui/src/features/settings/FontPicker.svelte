@@ -25,7 +25,7 @@
 
 <div class="wrap">
   <button class="field trigger" aria-haspopup="menu" aria-expanded={open} onclick={() => (open = !open)}>
-    <span class="name" style:font-family={face(current)}>{current}</span>
+    <span class="name cap-text clip" style:font-family={face(current)}>{current}</span>
     <Icon name="chevronDown" size={14} />
   </button>
   <Popover bind:open align="end" role="menu" label="Chat font">

@@ -59,7 +59,7 @@
 <div class="tray" class:inline>
   <div class="wrap">
     <button class="chip" aria-haspopup="dialog" aria-expanded={open} onclick={() => (open = !open)}>
-      Closed panels <span class="count">{items.length}</span>
+      <span class="cap-text">Closed panels <span class="count">{items.length}</span></span>
     </button>
     <Popover bind:open side="above" label="Closed panels">
       <p class="tip">Drag one onto a panel, or click to put it back.</p>

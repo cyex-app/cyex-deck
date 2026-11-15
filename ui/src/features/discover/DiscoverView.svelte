@@ -117,7 +117,7 @@
     <span class="grow"></span>
     {#if lists}
       <button class="menu" onclick={sortMenu}>
-        {SORTS.find(([v]) => v === discover.sort)?.[1]}<Icon name="chevronDown" size={13} />
+        <span class="cap-text">{SORTS.find(([v]) => v === discover.sort)?.[1]}</span><Icon name="chevronDown" size={13} />
       </button>
       <LanguagePicker />
     {/if}

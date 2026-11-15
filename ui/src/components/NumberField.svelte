@@ -118,7 +118,7 @@
         }
       : undefined}
   />
-  {#if unit}<span class="unit">{unit}</span>{/if}
+  {#if unit}<span class="unit cap-text">{unit}</span>{/if}
   {#if steppers}
     <span class="steps">
       <button type="button" tabindex="-1" aria-label="More" disabled={disabled || value >= max} onmousedown={(e) => e.preventDefault()} onclick={() => nudge(1)}>

@@ -151,7 +151,7 @@
     use:tooltip={{ label: shown, when: () => !open && !!text && text.scrollWidth > text.clientWidth }}
   >
     {#if shownPicture !== undefined}<span class="pic"><Avatar src={shownPicture} name={shown} size={20} /></span>{/if}
-    <span class="text" bind:this={text}>{shown}</span>
+    <span class="text cap-text clip" bind:this={text}>{shown}</span>
     <Icon name="chevronDown" size={14} />
   </button>
   {#if open}

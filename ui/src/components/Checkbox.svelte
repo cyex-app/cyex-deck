@@ -21,7 +21,7 @@
 <label class="check" class:disabled class:ellipsis use:tooltip={hint ?? ''}>
   <input type="checkbox" {checked} {disabled} indeterminate={indeterminate && !checked} onchange={(e) => onchange(e.currentTarget.checked)} />
   <span class="box">{#if checked}<Icon name="check" size={12} />{:else if indeterminate}<span class="dash"></span>{/if}</span>
-  {#if ellipsis}<span class="text">{label}</span>{:else}{label}{/if}
+  {#if ellipsis}<span class="text cap-text clip">{label}</span>{:else}<span class="cap-text">{label}</span>{/if}
 </label>
 
 <style>
@@ -32,6 +32,8 @@
     display: inline-flex;
     align-items: center;
     gap: 7px;
+    /* The text span is trimmed to cap height: keep the row's text height. */
+    min-height: 1lh;
     cursor: pointer;
   }
   .ellipsis {

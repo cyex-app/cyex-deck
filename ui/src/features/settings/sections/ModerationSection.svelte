@@ -194,18 +194,18 @@
   />
 </Row>
 <Row setting="chat.modButtons" label="Mod mode buttons" hint="In front of lines while mod mode is on. Up to 4 timeouts." stacked>
-  <button class="pick" aria-pressed={mb.delete} onclick={() => flipMod({ delete: !mb.delete })}>Delete</button>
+  <button class="pick" aria-pressed={mb.delete} onclick={() => flipMod({ delete: !mb.delete })}><span class="cap-text">Delete</span></button>
   {#each modTimes as secs (secs)}
     {@const on = mb.timeouts.includes(secs)}
     <button class="pick" aria-pressed={on} disabled={!on && mb.timeouts.length >= 4}
       title={!on && mb.timeouts.length >= 4 ? '4 timeouts max' : undefined}
-      onclick={() => flipTime(secs)}>{formatDuration(secs)}</button
+      onclick={() => flipTime(secs)}><span class="cap-text">{formatDuration(secs)}</span></button
     >
   {/each}
-  <button class="pick" aria-pressed={mb.warn} onclick={() => flipMod({ warn: !mb.warn })}>Warn</button>
-  <button class="pick" aria-pressed={mb.ban} onclick={() => flipMod({ ban: !mb.ban })}>Ban</button>
+  <button class="pick" aria-pressed={mb.warn} onclick={() => flipMod({ warn: !mb.warn })}><span class="cap-text">Warn</span></button>
+  <button class="pick" aria-pressed={mb.ban} onclick={() => flipMod({ ban: !mb.ban })}><span class="cap-text">Ban</span></button>
   <!-- V107-R22b Lifts a ban or timeout; off by default. -->
-  <button class="pick" aria-pressed={mb.unban} onclick={() => flipMod({ unban: !mb.unban })}>Unban</button>
+  <button class="pick" aria-pressed={mb.unban} onclick={() => flipMod({ unban: !mb.unban })}><span class="cap-text">Unban</span></button>
   {#if mb.timeouts.length >= 4 && modTimes.some((t) => !mb.timeouts.includes(t))}
     <span class="slot-hint" title="Remove a timeout to pick another">4 timeouts max</span>
   {:else if mb.timeouts.length < 4}
