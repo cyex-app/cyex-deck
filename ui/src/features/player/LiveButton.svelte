@@ -1,6 +1,7 @@
 <!-- V1061-02 Live, or how far behind it; a click goes back. -->
 <script lang="ts">
   import { tooltip } from '../../components/tooltip.svelte';
+  import { canGoLive } from './liveEdge';
   import { behindText } from './liveKeys';
 
   interface Props {
@@ -15,12 +16,17 @@
     /** rd-3 Stuck and reopening: it isn't live, whatever the play head says. */
     stalled?: boolean;
     hint: string;
+    /** V111-32 s a press would gain: from DRIFT_GAIN it works while it reads "Live". */
+    gain?: number;
     onlive: () => void;
   }
 
-  let { behind, atLive, ad, ended, failed = false, stalled = false, hint, onlive }: Props = $props();
+  let { behind, atLive, ad, ended, failed = false, stalled = false, hint, gain = 0, onlive }: Props = $props();
 
   const live = $derived(!stalled && !failed && (atLive || ad));
+  /** V111-32 "Live" but drifted behind the edge: a click still pulls it there. */
+  const drift = $derived(live && !ad && canGoLive(true, gain));
+  const usable = $derived(!ended && !failed && (!live || drift));
   const secs = $derived(behind === null ? null : Math.round(behind));
 
   const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? '' : 's'}`;
@@ -36,17 +42,18 @@
   const label = $derived(ended ? 'Stream offline' : failed ? 'Not playing' : stalled ? 'Stalled. Go to live' : live ? 'Live' : secs === null ? 'Behind live. Go to live' : `${spoken(secs)} behind. Go to live`);
   // rd-3 Stalled: the behind look (a click goes to live), and it doesn't say "Live".
   const text = $derived(ended ? 'Offline' : failed ? 'Not playing' : stalled ? 'Stalled' : live || secs === null ? 'Live' : behindText(secs));
-  const tip = $derived(ended || failed ? '' : live ? 'Live' : hint ? `Go to live (${hint})` : 'Go to live');
+  const tip = $derived(ended || failed ? '' : live && !drift ? 'Live' : hint ? `Go to live (${hint})` : 'Go to live');
 </script>
 
 <button
   class="live-btn"
   class:behind={!live && !ended && !failed}
   class:ended={ended || failed}
-  aria-label={label}
-  aria-disabled={live || ended || failed}
+  class:drift
+  aria-label={drift ? 'Live, a little behind. Go to live' : label}
+  aria-disabled={!usable}
   use:tooltip={tip}
-  onclick={() => !live && !ended && !failed && onlive()}
+  onclick={() => usable && onlive()}
 >
   <span class="dot" aria-hidden="true"></span>
   <span class="txt">{text}</span>
@@ -105,6 +112,14 @@
   .behind:active {
     background: color-mix(in srgb, var(--on-video) 30%, transparent);
     transform: scale(0.97);
+  }
+  /* V111-32 Still "Live", a click gets closer: only the hover says it works. */
+  .drift {
+    cursor: pointer;
+  }
+  .drift:hover {
+    background: color-mix(in srgb, var(--on-video) 14%, transparent);
+    color: var(--on-video);
   }
   .behind .dot {
     background: transparent;

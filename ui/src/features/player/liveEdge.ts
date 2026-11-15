@@ -171,3 +171,62 @@ export function rangeEnd(r: { length: number; start(i: number): number; end(i: n
   for (let i = 0; i < r.length; i++) if (r.start(i) <= t && t <= r.end(i)) end = r.end(i);
   return end;
 }
+
+/** V111-32 s a Live press must gain before it moves the play head forward inside the buffer
+ *  (smaller only stutters), and how long after the press it keeps looking. */
+export const EDGE_MIN = 0.5;
+export const EDGE_WINDOW_MS = 7000;
+/** V111-32 s of buffer readings a move needs: two segments' swing, as steering reads it (steer.ts). */
+export const EDGE_SPAN = 3.5;
+/** V111-32 Moves one press may make inside the buffer. */
+export const EDGE_SNAPS = 2;
+
+export interface Ahead {
+  /** s */
+  at: number;
+  /** s buffered past the play head */
+  ahead: number;
+}
+
+/** V111-32 Low latency: how far a Live press can move the play head forward inside the buffer.
+ *  hls.js's `liveSyncPosition` sits one target duration from the listed end, so a press landed 3 to
+ *  5 s behind and steering crept the rest at 1,05× (40 s for 2 s). The least buffer over the
+ *  readings is what is surely spare (segments land whole, the buffer swings by one); keeping
+ *  `spare` of it, the rest can go. null when the readings span under EDGE_SPAN or it gains under
+ *  EDGE_MIN. */
+export function edgeJump(aheads: readonly Ahead[], spare: number): number | null {
+  if (aheads.length < 2) return null;
+  const span = aheads[aheads.length - 1].at - aheads[0].at;
+  if (!(span >= EDGE_SPAN)) return null;
+  let least = Infinity;
+  for (const a of aheads) least = Math.min(least, a.ahead);
+  const d = least - Math.max(0, spare);
+  return Number.isFinite(d) && d >= EDGE_MIN ? d : null;
+}
+
+/** V111-32 Adds a reading, keeps the last `keep` s. A jump of `moved` s inside the buffer takes
+ *  as much off every earlier reading. */
+export function addAhead(aheads: Ahead[], at: number, ahead: number, keep = EDGE_SPAN + 0.5): Ahead[] {
+  const out = aheads.filter((a) => a.at >= at - keep);
+  out.push({ at, ahead });
+  return out;
+}
+
+export function shiftAheads(aheads: readonly Ahead[], moved: number): Ahead[] {
+  return aheads.map((a) => ({ at: a.at, ahead: a.ahead - moved }));
+}
+
+/** V111-32 s a Live press would gain now: behind hls.js's live point, or (low latency, `jump`)
+ *  spare buffer beyond what steering keeps. */
+export function liveGain(behind: number | null, jump: number | null): number {
+  return Math.max(behind ?? 0, jump ?? 0);
+}
+
+/** V111-32 s of gain from which the Live button works while it reads "Live" (drifted behind:
+ *  the hysteresis keeps "Live" up to ENTER_BEHIND). */
+export const DRIFT_GAIN = 1;
+
+/** V111-32 Whether a Live button click does anything. */
+export function canGoLive(atLive: boolean, gain: number): boolean {
+  return !atLive || gain >= DRIFT_GAIN;
+}

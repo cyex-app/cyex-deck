@@ -632,7 +632,7 @@
   <button class="ctl" aria-label={engine?.playing ? 'Pause' : 'Play'} use:tooltip={key('player.playPause', engine?.playing ? 'Pause' : 'Play')} onclick={controls.togglePlay}>
     <Icon name={engine?.playing ? 'pause' : 'play'} size={18} />
   </button>
-  <LiveButton behind={rewind.behind} atLive={rewind.atLive} stalled={!!engine?.stalled} ad={ad === 'waiting'} ended={rewind.over || failure === 'offline'} failed={!!failure} hint={bindingOf('player.live')} onlive={() => void rewind.toLive()} />
+  <LiveButton behind={rewind.behind} atLive={rewind.atLive} stalled={!!engine?.stalled} ad={ad === 'waiting'} ended={rewind.over || failure === 'offline'} failed={!!failure} hint={bindingOf('player.live')} gain={rewind.inVod ? 0 : (engine?.gain ?? 0)} onlive={() => void rewind.toLive()} />
   <LatencyStat on={!!engine && rewind.atLive && !failure} read={() => engine?.stats().latency ?? null} />
   <Volume volume={sound.volume} muted={sound.muted} boost={sound.boost} onchange={sound.set} onboost={sound.setBoost} />
   <span class="grow"></span>

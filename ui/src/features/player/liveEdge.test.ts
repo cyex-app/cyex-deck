@@ -6,6 +6,14 @@ import {
   beforeStart,
   behindLive,
   broadcastLatency,
+  canGoLive,
+  DRIFT_GAIN,
+  addAhead,
+  EDGE_MIN,
+  EDGE_SPAN,
+  edgeJump,
+  liveGain,
+  shiftAheads,
   chatBarText,
   CLOCK_SLACK,
   dvrConfig,
@@ -201,4 +209,40 @@ test('V109-F72 the bar’s live point counts to the ms; the same start written t
   assert.equal(sameStart('2026-11-07T10:00:00Z', '2026-11-07T10:05:00Z'), false);
   assert.equal(sameStart('x', 'x'), true);
   assert.equal(sameStart('x', 'y'), false);
+});
+
+test('V111-32 a Live press moves forward by the least buffer over the readings, less the spare', () => {
+  // Whole 2 s segments: the buffer swings 0,6 → 2,6 s.
+  const swing = Array.from({ length: 16 }, (_, i) => ({ at: i * 0.25, ahead: 2.6 - ((i * 0.25) % 2) }));
+  assert.equal(edgeJump(swing, 0.9), null, 'the trough (0,85 s) is at the spare: nothing to gain');
+  assert.ok(Math.abs(edgeJump(swing.map((x) => ({ ...x, ahead: x.ahead + 2 })), 0.9)! - 1.95) < 1e-9, 'trough 2,85 s: 1,95 s forward');
+  const steady = Array.from({ length: 16 }, (_, i) => ({ at: i * 0.25, ahead: 3 + (i % 2) * 0.4 }));
+  assert.ok(Math.abs(edgeJump(steady, 0.9)! - 2.1) < 1e-9, '3 s surely spare, 0,9 kept: 2,1 s forward');
+  assert.equal(edgeJump(steady.slice(0, 8), 0.9), null, 'under EDGE_SPAN of readings: not yet');
+  assert.equal(edgeJump([{ at: 0, ahead: 0.9 + EDGE_MIN - 0.01 }, { at: EDGE_SPAN, ahead: 2 }], 0.9), null, 'under EDGE_MIN: a seek only stutters');
+  assert.ok(Math.abs(edgeJump([{ at: 0, ahead: 1.5 }, { at: EDGE_SPAN, ahead: 5 }], 0.9)! - 0.6) < 1e-9, "the least reading counts");
+  assert.equal(edgeJump([], 0.9), null);
+  assert.equal(edgeJump([{ at: 0, ahead: 3 }, { at: EDGE_SPAN, ahead: 3 }], -1), 3, 'a negative spare counts as 0');
+});
+
+test('V111-32 readings: old ones drop, a jump inside the buffer takes its length off', () => {
+  let a = addAhead([], 0, 2);
+  a = addAhead(a, 2, 3);
+  a = addAhead(a, 10, 4);
+  assert.deepEqual(a, [{ at: 10, ahead: 4 }]);
+  assert.deepEqual(shiftAheads([{ at: 1, ahead: 3 }], 2), [{ at: 1, ahead: 1 }]);
+});
+
+test('V111-32 what a press gains: behind the live point, or (low latency) spare buffer', () => {
+  assert.equal(liveGain(null, null), 0);
+  assert.equal(liveGain(3, null), 3);
+  assert.equal(liveGain(0.2, 2.1), 2.1);
+  assert.equal(liveGain(3, 0.5), 3);
+});
+
+test('V111-32 the Live button works while "Live" once it drifted DRIFT_GAIN behind', () => {
+  assert.equal(canGoLive(false, 0), true);
+  assert.equal(canGoLive(true, 0), false);
+  assert.equal(canGoLive(true, DRIFT_GAIN - 0.1), false);
+  assert.equal(canGoLive(true, DRIFT_GAIN), true);
 });

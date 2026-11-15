@@ -12,7 +12,7 @@ import { onShown, pageHidden } from '../../lib/awake';
 import { settings } from '../../lib/settings.svelte';
 import { Away, awayMs, outOfSight } from './away';
 import { GRAPH_EVENT, graphDelay } from './gain';
-import { behindLive, broadcastLatency, dvrConfig, liveConfig, liveState, maxLatency, needsLiveSeek, PAUSE_STOP_MS, pausedBehind, rangeEnd } from './liveEdge';
+import { behindLive, broadcastLatency, dvrConfig, addAhead, type Ahead, EDGE_SNAPS, EDGE_WINDOW_MS, edgeJump, liveConfig, liveGain, shiftAheads, liveState, maxLatency, needsLiveSeek, PAUSE_STOP_MS, pausedBehind, rangeEnd } from './liveEdge';
 import { MANIFEST_POLICY } from './recheck';
 import {
   askPause,
@@ -40,7 +40,7 @@ import {
 } from './liveMachine';
 import { type Choice, levelFor, levelName, lowestLevel } from './quality';
 import { recoverMedia } from './mediaRecover';
-import { Steer } from './steer';
+import { AWAY_SPARE, SPARE_FAST, Steer } from './steer';
 import { exposeLive, ll7Old, streamFmp4 } from './fmp4Stream';
 import { dateAt, goneDue, isGone, nextAfter, type Piece, posAt, replayStart } from './replayClock';
 import { BUFFER_NOTE_MS, stallStart, stallStep } from './stall';
@@ -123,6 +123,16 @@ export class Engine {
   private pauseTick: ReturnType<typeof setInterval> | undefined;
   /** V108-LL2 */
   private readonly steer = new Steer();
+  /** V111-32 s a Live press would gain now (the button works at "Live" from DRIFT_GAIN). */
+  gain = $state(0);
+  /** V111-32 After a Live press (low latency): until when, and how many more moves, it may go
+   *  forward inside the buffer. */
+  private edgeUntil = 0;
+  private edgeLeft = 0;
+  /** V111-32 Buffer readings while playing live (low latency); emptied by a jump out of the buffer. */
+  private aheads: Ahead[] = [];
+  /** V111-32 Play head and clock at the last reading: a seek of anyone else's empties the readings. */
+  private aheadPos = { t: 0, at: 0 };
   /** d-4 Counts from when the player was made, not from when the app started: a player that
    *  hadn't moved by its first check (a tab opened while others load) read as stalled at once. */
   private stall = stallStart(performance.now());
@@ -245,6 +255,9 @@ export class Engine {
     if (replay) this.time = replay.at;
     else if (dvr) this.time = startAt;
     this.behind = null;
+    this.gain = 0;
+    this.edgeLeft = 0;
+    this.aheads = [];
     this.sync = null;
     this.atLive = !dvr;
     this.session = session;
@@ -325,6 +338,7 @@ export class Engine {
     const t = hls.liveSyncPosition;
     if (t === null) return void this.onreopen?.(null);
     const v = this.video;
+    if (play) this.armEdge();
     if (!needsLiveSeek(t, v.currentTime)) {
       hls.resumeBuffering();
       if (play) void v.play().catch(() => {});
@@ -333,6 +347,7 @@ export class Engine {
     // qd-2 Seek first, then buffer: resumed at the old spot, hls.js first fetched the segments
     // after the paused buffer, and the live ones waited behind them.
     if (rangeEnd(v.buffered, t) !== null) {
+      this.moveIn(t - v.currentTime);
       v.currentTime = t;
       hls.resumeBuffering();
       if (play) void v.play().catch(() => {});
@@ -347,6 +362,7 @@ export class Engine {
       return void this.load();
     }
     // Q14 a Silent while it loads there: no pop, no repeated seconds.
+    this.aheads = [];
     this.st = jumpBegin(this.st);
     this.quietPause();
     v.currentTime = t;
@@ -359,7 +375,55 @@ export class Engine {
     if (p.pending) this.markPaused();
     // qd-2 Still nothing there: the same, a new instance (the old wait was 4 s, then stuck).
     else if (!landed && play) void this.load();
-    else if (play) await v.play().catch(() => {});
+    else if (play) {
+      this.armEdge();
+      await v.play().catch(() => {});
+    }
+  }
+
+  /** V111-32 Spare buffer a jump to the edge leaves: steering's upper band, so it doesn't speed
+   *  up right after, plus what this stream earned by running dry (V108-LL6). */
+  private spare(): number {
+    return SPARE_FAST + this.steer.margin + (this.steer.away ? AWAY_SPARE : 0);
+  }
+
+  private armEdge(): void {
+    if (!this.lowLatency) return;
+    this.edgeUntil = performance.now() + EDGE_WINDOW_MS;
+    this.edgeLeft = EDGE_SNAPS;
+  }
+
+  /** V111-32 A seek of `d` s inside the buffer: the readings move along. */
+  private moveIn(d: number): void {
+    this.aheads = d > 0 ? shiftAheads(this.aheads, d) : [];
+    this.aheadPos.t += d;
+  }
+
+  /** V111-32 From `tick`: reads the buffer while playing live with low latency; after a Live
+   *  press, once the readings show more spare than steering keeps, the play head goes there. */
+  private edgeStep(end: number | null): number | null {
+    const v = this.video;
+    if (v.seeking) return null;
+    const now = performance.now() / 1000;
+    const last = this.aheadPos;
+    this.aheadPos = { t: v.currentTime, at: now };
+    const seeked = Math.abs(v.currentTime - last.t - (now - last.at) * v.playbackRate) > 0.5;
+    if (!this.lowLatency || v.paused || this.waiting || this.adBreak || this.holding || isJumping(this.st) || end === null || seeked) {
+      this.aheads = [];
+      return null;
+    }
+    this.aheads = addAhead(this.aheads, now, end - v.currentTime);
+    const d = edgeJump(this.aheads, this.spare());
+    if (d === null || !this.edgeLeft) return d;
+    if (performance.now() > this.edgeUntil) {
+      this.edgeLeft = 0;
+      return d;
+    }
+    this.edgeLeft--;
+    this.moveIn(d);
+    v.currentTime += d;
+    this.steer.reset();
+    return null;
   }
 
   /** V1061-03 A seek inside the rewind VOD. V108-N24 In the replay `t` counts from the
@@ -870,6 +934,7 @@ export class Engine {
     if (!this.liveSrc || !h || this.swapping) {
       this.sync = null;
       this.behind = null;
+      if (this.gain) this.gain = 0;
       this.unsteer();
       return;
     }
@@ -877,6 +942,10 @@ export class Engine {
     const held = this.behindAtPause !== null && v.paused && isPaused(this.st);
     this.behind = held ? pausedBehind(this.behindAtPause, performance.now() - this.st.pausedAt) : behindLive(this.sync, v.currentTime);
     this.atLive = liveState(this.atLive ? 'live' : 'behind', this.behind) === 'live';
+    const jump = this.edgeStep(rangeEnd(v.buffered, v.currentTime));
+    // Whole tenths: the button reads it, a state write per timeupdate for nothing otherwise.
+    const g = held ? 0 : Math.round(liveGain(this.behind, jump) * 10) / 10;
+    if (g !== this.gain) this.gain = g;
     this.steerRate();
   }
 
