@@ -54,3 +54,10 @@ export function previewFacts(c: ChannelInfo, cssWidth: number, dpr: number, now 
 export function showsPreview(c: ChannelInfo | null): boolean {
   return !!c?.stream;
 }
+
+/** V111-37 The follower count a result row shows: only the selected, offline one (a live one shows
+ *  it in the preview); every other row shows none. */
+export function rowFollowers(c: ChannelInfo, picked: ChannelInfo | null, counts: Record<string, number>): number | null {
+  if (c.stream || picked?.id !== c.id) return null;
+  return counts[c.login] || null;
+}

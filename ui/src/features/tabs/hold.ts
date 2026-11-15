@@ -55,6 +55,20 @@ export function nextHeld(s: Switch): string | null {
   return s.held;
 }
 
+/** V111-36 Remembers the tab shown before, so a switch can be decided more than once: the first
+ * decision (before the new tab draws) keeps the playing tab, and the repeat once the view has
+ * changed (`from === to`) leaves it be. */
+export class HoldKeeper {
+  #shown: string | null = null;
+
+  /** The tab to keep playing after a switch to `s.to`; `now` is the tab on screen after it. */
+  switch(s: Omit<Switch, 'from'>, now: string | null): string | null {
+    const held = nextHeld({ ...s, from: this.#shown });
+    this.#shown = now;
+    return held;
+  }
+}
+
 export interface Started {
   /** The tab kept playing now. */
   held: string | null;

@@ -50,3 +50,15 @@ test('V111-28 only a live channel gets a preview', async () => {
   assert.equal(showsPreview(base), false);
   assert.equal(showsPreview({ ...base, stream: { rerun: false, title: '', game: null, viewers: 1, startedAt: '2026-11-15T10:00:00Z' } }), true);
 });
+
+test('V111-37 only the selected offline row shows followers', async () => {
+  const { rowFollowers } = await import('./channelPreview.ts');
+  const other = { ...base, id: '2', login: 'other' };
+  const live = { ...base, stream: { rerun: false, title: '', game: null, viewers: 1, startedAt: '2026-11-15T10:00:00Z' } };
+  const counts = { [base.login]: 1500, other: 9 };
+  assert.equal(rowFollowers(base, base, counts), 1500);
+  assert.equal(rowFollowers(other, base, counts), null, 'not selected');
+  assert.equal(rowFollowers(base, null, counts), null, 'nothing selected');
+  assert.equal(rowFollowers(live, live, counts), null, 'live shows it in the preview');
+  assert.equal(rowFollowers(base, base, {}), null, 'not fetched yet');
+});

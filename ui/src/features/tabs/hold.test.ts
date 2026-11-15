@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { heldAfterStart, nextHeld, PlayingTabs, playingNow } from './hold.ts';
+import { heldAfterStart, HoldKeeper, nextHeld, PlayingTabs, playingNow } from './hold.ts';
 
 // a plays; b is chat only; c is offline; d shows a live stream; p is live in its own window.
 const playing = (t: string) => t === 'a';
@@ -79,4 +79,21 @@ test('the page wins over what was remembered', () => {
   assert.equal(seen.resolve('a', null), false);
   assert.equal(seen.resolve('c', null), false, 'never seen');
   assert.equal(seen.resolve('a', true), true);
+});
+
+test('V111-36 deciding a switch twice (before the new tab draws, then again) keeps the stream', () => {
+  const k = new HoldKeeper();
+  const ctx = { playing, playsElsewhere };
+  assert.equal(k.switch({ held: null, to: 'a', ...ctx }, 'a'), null, 'on a');
+  assert.equal(k.switch({ held: null, to: 'c', ...ctx }, 'c'), 'a', 'a new offline tab opens: a stays');
+  // The repeat after the view changed: the old tab is gone from the page, nothing may drop it.
+  const gone = { playing: () => false, playsElsewhere };
+  assert.equal(k.switch({ held: 'a', to: 'c', ...gone }, 'c'), 'a', 'same switch again');
+  assert.equal(k.switch({ held: 'a', to: 'b', ...gone }, 'b'), 'a', 'then another quiet tab');
+});
+
+test('V111-36 the new tab playing live is the only thing that lets the held one go', () => {
+  assert.equal(heldAfterStart({ held: 'a', shown: 'c', tab: 'c', live: false }), 'a', 'a VOD or clip');
+  assert.equal(heldAfterStart({ held: 'a', shown: 'c', tab: 'x', live: true }), 'a', 'another tab started');
+  assert.equal(heldAfterStart({ held: 'a', shown: 'c', tab: 'c', live: true }), null, 'its own live stream plays');
 });

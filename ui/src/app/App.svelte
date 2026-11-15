@@ -48,7 +48,7 @@
   import { BAR_SLOT, BarSlots } from '../features/tabs/aboveChat.svelte';
   import { barPlace, sideBarWidth } from '../features/tabs/barLayout';
   import { moveSlot, stepTab } from '../features/tabs/cycle';
-  import { heldAfterStart, nextHeld, PlayingTabs, playingNow } from '../features/tabs/hold';
+  import { heldAfterStart, HoldKeeper, PlayingTabs, playingNow } from '../features/tabs/hold';
   import { audioFocus } from '../features/tabs/audioFocus.svelte';
   import { heardTile } from '../features/tabs/audioFocus';
   import { streamIds, tabs, tiles } from '../features/tabs/tabs.svelte';
@@ -158,16 +158,17 @@
   // V102-15 Which tab plays out of sight, worked out before the old tab leaves the page. It
   // stops once the tab on screen plays a live stream (below), or at once for a tab picked
   // while it's in its own window and live: its stream plays there.
-  let shownBefore: string | null = null;
+  const keeper = new HoldKeeper();
   const seen = new PlayingTabs();
+  /** Works out what keeps playing for a switch to `to`; `now` is the tab that then shows. */
+  function switching(to: string | null, now: string | null) {
+    const held = tabs.held && tabs.tab(tabs.held) && !tabs.popped.has(tabs.held) ? tabs.held : null;
+    tabs.held = keeper.switch({ held, to, playing, playsElsewhere }, now);
+  }
   $effect.pre(() => {
     const to = current;
     const now = shownTab;
-    untrack(() => {
-      const held = tabs.held && tabs.tab(tabs.held) && !tabs.popped.has(tabs.held) ? tabs.held : null;
-      tabs.held = nextHeld({ held, from: shownBefore, to, playing, playsElsewhere });
-      shownBefore = now;
-    });
+    untrack(() => switching(to, now));
   });
 
   // V102-15 The tab on screen got its live stream playing: the one kept out of sight stops.
@@ -245,9 +246,19 @@
   });
 
   // Follow the active tab when an edit moves it, e.g. closing the shown tab.
+  // V111-36 A tab opened from outside the bar (Add a tab) becomes active here, after the old one drew:
+  // the hold is decided before `picked` changes, or the render in between drops the playing tab and
+  // brings it back a moment later with a new player (a stall).
   $effect(() => {
     const active = tabs.active;
-    if (active) untrack(() => (picked = active));
+    if (!active) return;
+    untrack(() => {
+      if (!fixed && picked !== active) {
+        const next = tabs.tab(active);
+        switching(active, next && !tabs.popped.has(active) ? active : null);
+      }
+      picked = active;
+    });
   });
 
   // The last tab closed: back to home.

@@ -17,7 +17,7 @@
   import { errorText } from '../../lib/errors';
   import ChannelPreview from './ChannelPreview.svelte';
   import { FollowerCounts, followersText } from './channelFollowers';
-  import { showsPreview } from './channelPreview';
+  import { rowFollowers, showsPreview } from './channelPreview';
   import { enterMayTakeFirst, enterTarget, loginFromLink, manyNames, matchChannels } from './channelMatch';
 
   interface Props {
@@ -28,11 +28,11 @@
 
   let { text = $bindable(), picked = $bindable(), onsubmit }: Props = $props();
 
-  // V111-29 Follower counts, asked for the highlighted channel only; 0 is Twitch giving none.
+  // V111-29 Follower counts, asked for the selected channel only (V111-37); 0 is Twitch giving none.
   const followerCounts = new FollowerCounts((login) => channelIpc.about(login).then((a) => (a?.followers ? a.followers : null)));
 
   const DEBOUNCE_MS = 300;
-  /** V111-24 The preview follows the highlighted or hovered result after this pause. */
+  /** V111-24 The preview follows the selected result after this pause (V111-37: never the hovered one). */
   const PREVIEW_MS = 150;
 
   let results = $state<ChannelInfo[]>([]);
@@ -143,11 +143,11 @@
 
   const shown = $derived(results.length ? results : picked ? [picked] : []);
 
-  let hovered = $state<ChannelInfo | null>(null);
   let previewed = $state<ChannelInfo | null>(null);
-  /** Login → followers, for the channels looked at so far. */
+  /** Login → followers, for the channels selected so far. */
   let counts = $state<Record<string, number>>({});
-  const aim = $derived(shown.length ? (hovered ?? picked) : null);
+  // V111-37 Only the selected channel (key or click) gets a preview or a follower fetch; hover does nothing.
+  const aim = $derived(shown.length ? picked : null);
   // V111-28 Only a live channel has a preview, and only then is room kept for it: moving between
   // two live ones keeps the box, an offline one shows nothing.
   const reserve = $derived(showsPreview(aim));
@@ -194,8 +194,6 @@
         class:on={picked?.id === c.id}
         role="radio"
         aria-checked={picked?.id === c.id}
-        onmouseenter={() => (hovered = c)}
-        onmouseleave={() => (hovered = null)}
         onclick={() => ((picked = c), (arrowed = true), (refused = false))}
       >
         <Avatar src={c.avatar} name={c.name} size={32} />
@@ -208,7 +206,7 @@
                 .filter(Boolean)
                 .join(' · ')}
             {:else}
-              {#if counts[c.login]}Offline · {followersText(counts[c.login])} · id {c.id}{:else}Offline · id {c.id}{/if}
+              {#if rowFollowers(c, picked, counts)}Offline · {followersText(rowFollowers(c, picked, counts) ?? 0)} · id {c.id}{:else}Offline · id {c.id}{/if}
             {/if}
           </span>
         </span>
