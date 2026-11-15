@@ -26,3 +26,19 @@ export function startAt(size: Size, view: Size, nth = 0): Pt {
   const step = 28 * nth;
   return clampInto({ x: (view.w - size.w) / 2 + step, y: view.h / 5 + step }, size, view);
 }
+
+/** V111-33 `size` held between `min` and the room left from `at` to the view's far edge. */
+export function clampSize(size: Size, min: Size, at: Pt, view: Size, margin = MARGIN): Size {
+  const fit = (len: number, lo: number, from: number, room: number) => Math.round(Math.max(Math.min(lo, room - margin * 2), Math.min(len, room - from - margin)));
+  return { w: fit(size.w, min.w, at.x, view.w), h: fit(size.h, min.h, at.y, view.h) };
+}
+
+/** V111-33 Where a panel sat and how big it was, by key, until the window closes. */
+export interface Placed {
+  at: Pt;
+  size: Size;
+}
+
+const placed = new Map<string, Placed>();
+export const recall = (key: string): Placed | undefined => placed.get(key);
+export const remember = (key: string, p: Placed): void => void placed.set(key, p);

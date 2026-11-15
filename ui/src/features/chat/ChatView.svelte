@@ -13,7 +13,7 @@
 </script>
 
 <script lang="ts">
-  import { onDestroy, tick, type Snippet } from 'svelte';
+  import { onDestroy, type Snippet } from 'svelte';
 
   import Button from '../../components/Button.svelte';
   import Icon from '../../components/Icon.svelte';
@@ -62,7 +62,7 @@
   import { hiddenCount, inSharedSession, listNames } from './sharedChat';
   import type { SharedParticipant } from '../../ipc/bindings/SharedParticipant';
   import { ChatRoom } from './room.svelte';
-  import SearchPopup from './SearchPopup.svelte';
+  import { closeSearch, openSearch } from './searchWindows.svelte';
   import ViewerList from './ViewerList.svelte';
   import { votes } from './votes.svelte';
   import VotesBanner from './VotesBanner.svelte';
@@ -156,7 +156,10 @@
   void catalogs.loadChannel(login);
   // svelte-ignore state_referenced_locally
   votes.watch(login);
-  onDestroy(() => room.close());
+  onDestroy(() => {
+    closeSearch(room.view);
+    room.close();
+  });
 
   /** V108-N19 */
   const lookStyle = $derived(
@@ -174,14 +177,9 @@
   let chartOpen = $state(false);
   let input = $state<ChatInput>();
   let replyTo = $state<ChatMessage | null>(null);
-  let search = $state<{ query: string; all: boolean } | null>(null);
-  /** V108-F21 Closing the search hands focus back to the chat input when the opener is gone. */
-  function closeSearch() {
-    search = null;
-    void tick().then(() => {
-      const at = document.activeElement;
-      if (!at || at === document.body) input?.focus();
-    });
+  /** V111-33 The search is a window of its own (one per chat) showing the chat as it was when it opened. */
+  function search(query = '', all = false) {
+    openSearch({ view: room.view, channel: login, account: account ?? null, query, all, lines: () => room.messages });
   }
   let recording = $state(false);
   /** 1.28 The subscribe dialog is open. */
@@ -226,8 +224,8 @@
   const mine = (run: () => unknown) => () => (hotkeyTarget() === el ? run() : false);
   let msgs = $state<MessageList>();
   useHotkeys({
-    'chat.search': mine(() => (search = { query: search?.query ?? '', all: false })),
-    'chat.searchAll': mine(() => (search = { query: search?.query ?? '', all: true })),
+    'chat.search': mine(() => search()),
+    'chat.searchAll': mine(() => search('', true)),
     // V108-F54 Keyboard line selection; the list takes the keys while a line is picked.
     'chat.lineUp': (e) => mine(() => msgs?.pickLine(-1, e.repeat) ?? false)(),
     'chat.lineDown': (e) => mine(() => msgs?.pickLine(1, e.repeat) ?? false)(),
@@ -246,7 +244,7 @@
   }
 
   function onaction(a: UiAction, retried = false) {
-    if (a.type === 'search') search = { query: a.query, all: false };
+    if (a.type === 'search') search(a.query);
     else if (a.type === 'cosmetics') cosmeticsOpen = true;
     // V108-C26 /mods, /vips, /roles. V108-C27 A card in its own window, in any chat.
     // V110-C67 `/roles forsen` lists another channel.
@@ -339,7 +337,7 @@
       tile: tileMenu ? tileMenu() : null,
       act: {
         viewers: () => (viewers = !viewers),
-        search: () => (search = { query: '', all: false }),
+        search: () => search(),
         record,
         translate: () => void settings.patch('chat', { translateChats: toggled(settings.v.chat.translateChats, !translating) }),
         mute: () => void settings.patch('highlights', { muted: toggled(settings.v.highlights.muted, !muted) }),
@@ -658,16 +656,6 @@
   <ResubBanner {account} {login} />
   <ChatInput bind:this={input} {room} bind:replyTo {onsignin} {onaction} />
   {#if subscribing && account}<SubDialog {account} {login} onclose={() => (subscribing = false)} />{/if}
-  {#if search}
-    <SearchPopup
-      view={room.view}
-      channel={login}
-      query={search.query}
-      all={search.all}
-      {account}
-      onclose={closeSearch}
-    />
-  {/if}
 </section>
 
 <style>

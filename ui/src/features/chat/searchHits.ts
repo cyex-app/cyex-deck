@@ -37,3 +37,13 @@ export const MAX_HITS = 300;
 
 /** A full answer means more may exist: the result carries no total, so exactly the cap counts as cut. */
 export const searchCapped = (n: number): boolean => n >= MAX_HITS;
+
+/** V111-33 When a search window's snapshot was taken: now, or the newest line when that is later (a fast clock). */
+export function cutoffOf(lines: readonly { ts: number }[], now: number): number {
+  return Math.max(now, lines.at(-1)?.ts ?? 0);
+}
+
+/** V111-33 The rows said up to the snapshot: results from Rust come live, the window shows the chat as it was. */
+export function upTo<T extends { message: { ts: number } }>(rows: readonly T[], cutoff: number): T[] {
+  return rows.filter((r) => r.message.ts <= cutoff);
+}
