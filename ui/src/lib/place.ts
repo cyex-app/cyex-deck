@@ -29,6 +29,10 @@ export interface PlaceOptions {
   gap?: number;
   /** Space kept free along the window's edges. */
   edge?: number;
+  /** V111-42 Beside its anchor it keeps its width (up to the window's): with no room on
+   * either side it goes above or below, shrunk in height, else over the anchor, never
+   * squeezed narrower than its content. */
+  rigid?: boolean;
 }
 
 export interface Placed {
@@ -54,7 +58,7 @@ export function point(x: number, y: number): Rect {
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(v, hi));
 
 export function place(anchor: Rect, size: Size, view: Size, o: PlaceOptions = {}): Placed {
-  const { side = 'below', align = 'start', gap = 6, edge = 8 } = o;
+  const { side = 'below', align = 'start', gap = 6, edge = 8, rigid = false } = o;
   const along = (x: Side) => x === 'below' || x === 'above';
   const need = (x: Side) => (along(x) ? size.height : size.width);
   const room = (x: Side) =>
@@ -67,10 +71,13 @@ export function place(anchor: Rect, size: Size, view: Size, o: PlaceOptions = {}
   // The preferred side, the other one, then beside: the first with room for all of it.
   // Else the larger of the first two, shrunk to fit if that leaves enough to use.
   const roomier = room(OPPOSITE[side]) > room(side) ? OPPOSITE[side] : side;
-  const s = [side, OPPOSITE[side], ...ACROSS[side]].find((x) => room(x) >= need(x)) ?? roomier;
+  // V111-42 A rigid box that fits on no side shrinks in height above or below, not in width.
+  const tall = room('below') >= room('above') ? 'below' : 'above';
+  const squeezed = rigid && !along(roomier) && room(tall) >= MIN_ROOM ? tall : roomier;
+  const s = [side, OPPOSITE[side], ...ACROSS[side]].find((x) => room(x) >= need(x)) ?? squeezed;
   const vertical = along(s);
   const fits = room(s) >= need(s);
-  const mainLen = fits || room(s) < Math.min(need(s), MIN_ROOM) ? need(s) : room(s);
+  const mainLen = fits || (rigid && !vertical) || room(s) < Math.min(need(s), MIN_ROOM) ? need(s) : room(s);
   const main = {
     below: anchor.bottom + gap,
     above: anchor.top - gap - mainLen,

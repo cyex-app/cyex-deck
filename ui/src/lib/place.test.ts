@@ -77,3 +77,21 @@ test('bigger than the window: shrunk to it, under its anchor', () => {
   const p = place(box(10, 10), { width: 900, height: 700 }, view);
   assert.deepEqual(p, { left: 8, top: 44, side: 'below', maxHeight: 548, maxWidth: 784 });
 });
+
+test('a rigid card in a narrow window keeps its width and moves above or below (V111-42)', () => {
+  const narrow = { width: 360, height: 480 };
+  const card = { width: 300, height: 260 };
+  // Beside the emote there is ~150 px each way; the old placement squeezed the card to that.
+  const squeezed = place(box(160, 200), card, narrow, { side: 'right', gap: 8 });
+  assert.equal(squeezed.maxWidth, 156);
+  const p = place(box(160, 200), card, narrow, { side: 'right', gap: 8, rigid: true });
+  assert.ok(p.side === 'below' || p.side === 'above');
+  assert.equal(p.maxWidth, undefined);
+  assert.ok(p.left >= 8 && p.left + card.width <= 360 - 8);
+  // No height either: shrunk in height, still full width.
+  const short = place(box(160, 100), { width: 300, height: 500 }, { width: 360, height: 400 }, { side: 'right', gap: 8, rigid: true });
+  assert.equal(short.maxWidth, undefined);
+  assert.ok(short.maxHeight !== undefined);
+  // Wide windows behave as before.
+  assert.deepEqual(place(box(100, 100), { width: 300, height: 200 }, view, { side: 'right', gap: 8, rigid: true }), { left: 136, top: 100, side: 'right' });
+});
