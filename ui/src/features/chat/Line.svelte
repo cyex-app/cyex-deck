@@ -301,8 +301,9 @@
   /* V111-43 A row with a full-size emote drops its 2px top and bottom padding: the emote
      already gives it room, and the row stays 4px taller than a text row instead of 8px, so the
      gaps between messages stop jumping. Never shorter than a text row (small emote size).
-     Emotes in rows next to each other touch, as on Twitch; nothing leaves its own row. */
-  .line:not(.effect):has(:global(img.emote:not(.smiley))) {
+     Emotes in rows next to each other touch, as on Twitch; nothing leaves its own row.
+     V111-44 A shorter emote (very wide or small) keeps the padding, like a smiley. */
+  .line:not(.effect):has(:global(img.emote:not(.smiley, .short))) {
     padding-block: 0;
     min-height: calc(1.45 * var(--chat-size) + 4px);
   }
