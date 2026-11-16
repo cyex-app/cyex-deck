@@ -14,6 +14,7 @@
   import { inStep, moves } from '../emotes/phase';
   import { emoteImg, emoteLarge } from './urls';
   import { isSmiley, smileys } from '../emotes/smiley';
+  import { height1x, sizeShare, smallSeen, smallShare } from '../emotes/drawSize';
 
   type EmoteFragment = Extract<Fragment, { t: 'emote' }>;
 
@@ -39,6 +40,25 @@
     img.classList.add('smiley');
   }
 
+  /** V111-44 A 7TV, BTTV or FFZ picture smaller than a full emote draws at its own size; the
+   *  zero-width emotes on it follow, so they stay over it. */
+  function small(img: HTMLImageElement, e: Layer) {
+    const h = height1x(e.provider, img.currentSrc || img.src, img.naturalHeight);
+    const share = h == null ? null : smallShare(e.provider, h);
+    if (share == null) return;
+    smallSeen.set(`${e.provider}:${e.id}`, share);
+    const now = Math.min(sizeShare(e.provider, e.size), share);
+    for (const el of img.closest('.emote-wrap')?.querySelectorAll<HTMLElement>('img.emote') ?? [img]) {
+      el.style.setProperty('--eh', String(now));
+      el.classList.toggle('short', now < 1);
+    }
+  }
+
+  /** V111-44 Share of a full emote's height: shorter when wider than 3:1 or small (drawSize.ts). */
+  function share(e: Layer): number {
+    return Math.min(sizeShare(e.provider, e.size), smallSeen.get(`${e.provider}:${e.id}`) ?? 1);
+  }
+
   const visible = $derived(shows(f.provider, f.id) && !(f.unlisted && c.unlistedEmotes === 'hide'));
   /** V111-20 BTTV and FFZ effects, unless turned off: then BTTV's words show as typed. */
   const look = $derived(modLook(c.emoteEffects ? f.mods : undefined, f.size));
@@ -53,20 +73,24 @@
   );
 </script>
 
-<!-- V111-20 `fx`: the base emote's modifiers. `copy`: FFZ Slide's second picture, right behind the first. -->
-{#snippet picture(e: Layer, classes: string, fx: ModLook | null = null, copy = false)}
+<!-- V111-20 `fx`: the base emote's modifiers. `copy`: FFZ Slide's second picture, right behind the first.
+     V111-44 `on`: the base under a zero-width emote, whose height it takes. -->
+{#snippet picture(e: Layer, classes: string, fx: ModLook | null = null, copy = false, on: Layer | null = null)}
   {@const img = emoteImg(e.provider, e.id, theme, { animated: e.animated, still, scale: density.scale })}
+  {@const eh = share(on ?? e)}
   {@const anim = fx?.animation ? (copy ? fx.animation.replace('emote-slide ', 'emote-slide-2 ') : fx.animation) : ''}
   <img
     class="emote {classes}"
     class:smiley={e.provider === 'twitch' && smileys.has(e.id)}
     class:fx-move={anim !== ''}
+    class:short={eh < 1}
     src={img.src}
     alt={bare || copy ? '' : e.name}
     aria-hidden={copy ? 'true' : undefined}
-    onload={(ev) => e.provider === 'twitch' && smiley(ev.currentTarget as HTMLImageElement, e.id)}
+    onload={(ev) => (e.provider === 'twitch' ? smiley(ev.currentTarget as HTMLImageElement, e.id) : !on && small(ev.currentTarget as HTMLImageElement, e))}
     style:aspect-ratio={fx?.ratio ? `${fx.ratio} / 1` : emoteRatio(e.size)}
     style:--fx-anim={anim || undefined}
+    style:--eh={eh < 1 ? String(eh) : undefined}
     loading="lazy"
     decoding="async"
     use:inStep={moves(classes)}
@@ -87,7 +111,7 @@
     data-tip-img={emoteLarge(f.provider, f.id, theme, { animated: f.animated, still })}
     data-hint={PROVIDER_NAMES[f.provider]}
     >{#if look.slide}<span class="slide-box">{@render picture(f, base, look)}{@render picture(f, base, look, true)}</span
-      >{:else}{@render picture(f, base, look)}{/if}{#each layers as l, i (i)}{@render picture(l, '')}{/each}</span
+      >{:else}{@render picture(f, base, look)}{/if}{#each layers as l, i (i)}{@render picture(l, '', null, false, f)}{/each}</span
   >
 {/if}
 

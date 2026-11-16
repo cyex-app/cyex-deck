@@ -6,8 +6,10 @@
 .stack {
   vertical-align: top;
 }
+/* V111-44 `--eh` (ChatEmote, drawSize.ts): shorter for an emote wider than 3:1 (7TV's 96 × 32 1x
+   box) and own size for a small picture, never under the text's x-height. */
 .emote {
-  height: calc(2.15em * var(--emote-scale, 1));
+  height: max(1ex, calc(2.15em * var(--emote-scale, 1) * var(--eh, 1)));
 }
 /* V110-N18 Twitch smileys (:) :/ and the monkey and purple sets) are small pictures: a bit
    bigger than Chatterino draws them, well under a full emote. */
