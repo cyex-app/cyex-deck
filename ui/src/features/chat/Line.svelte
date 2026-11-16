@@ -286,7 +286,7 @@
     position: relative;
     padding: 2px 10px;
     /* Text rows are normal height; a row with an emote grows to fit it (the emote sits on
-       the text's middle, margins off). */
+       the text's middle, margins off; V111-43 below). */
     font: var(--chat-size) / 1.45 var(--chat-font);
     overflow-wrap: anywhere;
     user-select: text;
@@ -297,6 +297,14 @@
   .line :global(.stack) {
     margin: 0;
     vertical-align: middle;
+  }
+  /* V111-43 A row with a full-size emote drops its 2px top and bottom padding: the emote
+     already gives it room, and the row stays 4px taller than a text row instead of 8px, so the
+     gaps between messages stop jumping. Never shorter than a text row (small emote size).
+     Emotes in rows next to each other touch, as on Twitch; nothing leaves its own row. */
+  .line:not(.effect):has(:global(img.emote:not(.smiley))) {
+    padding-block: 0;
+    min-height: calc(1.45 * var(--chat-size) + 4px);
   }
   /* V107-Mj Zalgo (a long run of combining marks) is cut at the line's edge, top and
      bottom only. Just these lines: a bouncing or turned emote may leave its line. */
