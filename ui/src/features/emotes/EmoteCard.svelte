@@ -300,7 +300,7 @@
 <div
   class="card"
   bind:this={box}
-  use:floating={{ anchor: target.rect, side: 'right', gap: 8 }}
+  use:floating={{ anchor: target.rect, side: 'right', gap: 8, rigid: true }}
   out:leave|global
   style:width="min({WIDTH}px, calc(100vw - 16px))"
   role="dialog"
