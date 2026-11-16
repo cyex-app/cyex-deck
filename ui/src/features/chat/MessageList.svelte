@@ -1069,6 +1069,10 @@
      position is kept when the strip comes or goes, so no line moves on screen. */
   .reserve {
     margin-bottom: 40px;
+    /* V111-45 (user) The last lines fade out into the pill's strip instead of a hard edge. A mask,
+       not a colour, so it fades to whatever is behind (theme or wallpaper). */
+    -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 32px), transparent);
+    mask-image: linear-gradient(to bottom, #000 calc(100% - 32px), transparent);
   }
   /* V110-A-idea The row that stands in for a line that failed to draw. */
   .broke {
