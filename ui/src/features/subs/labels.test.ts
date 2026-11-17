@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { canStop, months, standing, tierLabel } from './labels.ts';
+import { canStop, months, standing, subsGate, tierLabel } from './labels.ts';
 
 const base = { renewsAt: null, endsAt: null, prime: false, gifter: null, canceled: false, platform: 'WEB' };
 
@@ -29,4 +29,10 @@ test('months', () => {
   assert.equal(months(1), '1 month');
   assert.equal(months(14), '14 months');
   assert.equal(months(null), '');
+});
+
+test('the list opens with a GQL sign-in alone (V111-52)', () => {
+  assert.equal(subsGate(null, true), 'signedOut');
+  assert.equal(subsGate('1', true), 'list');
+  assert.equal(subsGate('1', false), 'needsGql');
 });

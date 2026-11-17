@@ -14,10 +14,10 @@
   import { formatDate } from '../../lib/format';
   import { latest } from '../../lib/latest';
   import { toast } from '../../lib/toast.svelte';
-  import { canStop, months, standing, tierLabel } from './labels';
+  import { canStop, months, standing, subsGate, tierLabel } from './labels';
   import { errorText } from '../../lib/errors';
   import Loading from '../../components/Loading.svelte';
-  import { unlock } from '../unlock/unlock.svelte';
+  import NeedsSignIn from '../../components/NeedsSignIn.svelte';
 
   interface Props {
     onchannel: (c: SubChannel) => void;
@@ -31,9 +31,11 @@
   let loading = $state(false);
 
   const account = $derived(accounts.current?.userId ?? null);
-  /** V102-20 The tab needs Sign in with Twitch; the list needs GQL on top. */
+  /** V111-52 The list is GQL data: Extra Twitch features alone open it. Twitch's own
+   *  sign-in only adds the pages that open on twitch.tv (V102-20). */
   const twitch = $derived(account !== null && accounts.can('wallet', account));
-  const can = $derived(twitch && account !== null && accounts.can('subs', account));
+  const gate = $derived(subsGate(account, account !== null && accounts.can('subs', account)));
+  const can = $derived(gate === 'list');
 
   $effect(() => {
     if (can) void load();
@@ -63,11 +65,6 @@
     }
   }
 
-  /** Subscriptions and wallet, and maybe 7TV: asked first. */
-  function ask() {
-    if (account) unlock.ask('twitch', account);
-  }
-
   function page(kind: TwitchPage, login: string | null = null) {
     if (account) subsIpc.page(account, kind, login).catch((e) => toast.error(errorText(e)));
   }
@@ -87,29 +84,23 @@
 <div class="subs">
   <header>
     <h2>Subscriptions</h2>
-    {#if account && twitch}
-      <Button small icon="card" onclick={() => page('wallet')}>Payment methods</Button>
-      <Button small variant="ghost" onclick={() => page('subscriptions')}>Twitch’s page</Button>
+    {#if account}
+      {#if twitch}
+        <Button small icon="card" onclick={() => page('wallet')}>Payment methods</Button>
+        <Button small variant="ghost" onclick={() => page('subscriptions')}>Twitch’s page</Button>
+      {/if}
       {#if can}<IconButton icon="refresh" label="Refresh" onclick={() => void load()} disabled={loading} />{/if}
     {/if}
   </header>
-  {#if !account}
+  {#if gate === 'signedOut'}
     <div class="none">
       <EmptyState icon="star" text="Sign in to see your subscriptions." />
       <Button variant="primary" icon="login" onclick={onsignin}>Sign in</Button>
     </div>
-  {:else if !twitch}
+  {:else if gate === 'needsGql'}
     <div class="none">
-      <EmptyState icon="star" text="Subscriptions and payment methods need the Twitch sign-in." />
-      <Button variant="primary" onclick={ask}>Unlock</Button>
-    </div>
-  {:else if !can}
-    <div class="none">
-      <EmptyState icon="star" text="Your subs show here with Extra Twitch features. Twitch’s page works either way." />
-      <div class="ways">
-        <Button variant="primary" onclick={ask}>Unlock</Button>
-        <Button onclick={() => page('subscriptions')}>Open Twitch’s page</Button>
-      </div>
+      <EmptyState icon="star" text="Your subs show here." />
+      <NeedsSignIn kind="gql" {account} centered />
     </div>
   {:else if error}
     <p class="note err">{error}</p>
@@ -117,6 +108,7 @@
     <Loading />
   {:else}
     <div class="body">
+      {#if !twitch}<p class="note lead"><NeedsSignIn kind="helix" {account} text="Paying and managing need it." /></p>{/if}
       <h3>Active <span class="n">{data.active.length}</span></h3>
       {#each data.active as s (s.id)}
         <div class="row">
@@ -130,7 +122,7 @@
               </span>
             </span>
           </button>
-          <Button small onclick={() => page('subscribe', s.channel.login)}>Manage</Button>
+          {#if twitch}<Button small onclick={() => page('subscribe', s.channel.login)}>Manage</Button>{/if}
           {#if canStop(s)}
             <ConfirmButton
               label="Stop renewal"
@@ -156,7 +148,7 @@
                 </span>
               </span>
             </button>
-            <Button small variant="primary" onclick={() => page('subscribe', s.channel.login)}>Resubscribe</Button>
+            {#if twitch}<Button small variant="primary" onclick={() => page('subscribe', s.channel.login)}>Resubscribe</Button>{/if}
           </div>
         {/each}
       {/if}
@@ -208,9 +200,8 @@
   .n {
     color: var(--dim);
   }
-  .ways {
-    display: flex;
-    gap: 8px;
+  .lead {
+    margin: 8px 0 0;
   }
   .row {
     display: flex;

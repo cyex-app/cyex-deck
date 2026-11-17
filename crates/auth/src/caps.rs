@@ -179,6 +179,17 @@ mod tests {
     }
 
     #[test]
+    fn the_subs_list_follows_gql_alone() {
+        // V111-52 The list is GQL data: Extra Twitch features open it, with or without Twitch's sign-in.
+        assert!(features(None, true).contains(&Feature::Subs));
+        assert!(features(Some(&all_scopes()), true).contains(&Feature::Subs));
+        // Twitch's sign-in alone has no path to it; that case shows the Needs line.
+        assert!(!features(Some(&all_scopes()), false).contains(&Feature::Subs));
+        // The pages on twitch.tv still wait for Twitch's sign-in.
+        assert!(!features(None, true).contains(&Feature::Wallet));
+    }
+
+    #[test]
     fn twitchs_sign_in_opens_the_wallet_with_any_scopes() {
         assert!(features(Some(&[]), false).contains(&Feature::Wallet));
         // Clips with Helix only when it was allowed to make them.

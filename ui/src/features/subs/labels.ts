@@ -26,3 +26,12 @@ export function canStop(s: Pick<MySub, 'renewsAt' | 'prime' | 'gifter' | 'cancel
 export function months(n: number | null): string {
   return n ? `${n} month${n === 1 ? '' : 's'}` : '';
 }
+
+/** V111-52 What the tab shows. The list is GQL data, so GQL alone opens it; Twitch's own
+ *  sign-in only adds the pages that open on twitch.tv (payment methods, manage, resub). */
+export type SubsGate = 'signedOut' | 'needsGql' | 'list';
+
+export function subsGate(account: string | null, gql: boolean): SubsGate {
+  if (account === null) return 'signedOut';
+  return gql ? 'list' : 'needsGql';
+}
