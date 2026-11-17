@@ -71,3 +71,9 @@ export function sinceText(rfc: string | null): string {
   const d = new Date(rfc);
   return Number.isNaN(d.getTime()) ? '' : `since ${formatDate(d)}`;
 }
+
+/** V111-13 The next page of channels added to the list: a channel that shows on two pages keeps its first row. */
+export function appendChannels<T extends { id: string }>(list: readonly T[], page: readonly T[]): T[] {
+  const seen = new Set(list.map((c) => c.id));
+  return [...list, ...page.filter((c) => !seen.has(c.id) && seen.add(c.id))];
+}

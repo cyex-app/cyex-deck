@@ -17,7 +17,7 @@
   import type { ChatMessage } from '../../ipc/bindings/ChatMessage';
   import type { UiAction } from '../../ipc/bindings/UiAction';
   import { accounts } from '../../lib/accounts.svelte';
-  import { missingSignIn } from '../../lib/gate';
+  import { missingSignIn, needsKind } from '../../lib/gate';
   import NeedsSignIn from '../../components/NeedsSignIn.svelte';
   import { settings } from '../../lib/settings.svelte';
   import { commaStart, commaStep, commaValue, insert, keepExact, startsMessage, wordAt, type CommaPlan, type Word } from './completion';
@@ -55,7 +55,8 @@
   import { tabNames } from './people';
   import { pinText } from './pinSend';
   import { plainText } from './text';
-  import { errorText } from '../../lib/errors';
+  import { errorText, rawError } from '../../lib/errors';
+  import type { TokenKind } from '../../ipc/bindings/TokenKind';
   import { standingIpc } from '../../ipc/standing';
   import ChatLock from './ChatLock.svelte';
   import { lockedWhy, refocusBox } from './chatLock';
@@ -257,10 +258,26 @@
   // V107-N2d An error shows 4 s; a newer one gets its own 4 s (an older timer can't clear it).
   let errorTimer: ReturnType<typeof setTimeout> | undefined;
   function flash(m: string) {
+    needs = null;
     error = m;
     clearTimeout(errorTimer);
     errorTimer = setTimeout(() => (error = ''), 4000);
   }
+
+  /** V111-47 A command that needs a sign-in the account lacks shows the Add line, not a 4 s note:
+   *  it stays until the text changes or a send works. */
+  let needs = $state<TokenKind | null>(null);
+  function failWith(e: unknown) {
+    const kind = needsKind(rawError(e));
+    if (!kind) return flash(errorText(e));
+    clearTimeout(errorTimer);
+    error = '';
+    needs = kind;
+  }
+  $effect(() => {
+    void text;
+    needs = null;
+  });
 
   /** Newest argument lookup; an older answer is dropped. */
   let argSeq = 0;
@@ -492,8 +509,8 @@
       const login = room.login;
       void cheers.load().then((fresh) => fresh && cheers.info && remember(login, { bits: cheers.info.enabled }));
     },
-    ok: () => (error = ''),
-    fail: (e) => flash(errorText(e)),
+    ok: () => ((error = ''), (needs = null)),
+    fail: failWith,
   });
 
   async function send(keep: boolean, repeat = false) {
@@ -551,7 +568,7 @@
       recall = -1;
       text = '';
     } catch (e) {
-      flash(errorText(e));
+      failWith(e);
     }
   }
 
@@ -729,6 +746,7 @@
   <!-- V1051-05 Over the box, so the box never moves. -->
   {#if up.upload.status}<p class="note uploading" role="status">{up.upload.status}</p>{/if}
   {#if error}<p class="note error" role="alert">{error}</p>{/if}
+  {#if needs}<p class="note act"><NeedsSignIn kind={needs} account={room.account} /></p>{/if}
   {#if askCheer}
     <CheerConfirm
       bits={askCheer.bits}
@@ -992,6 +1010,9 @@
     box-shadow: var(--shadow-pop);
     font-size: 0.8rem;
     pointer-events: none;
+  }
+  .act {
+    pointer-events: auto;
   }
   .uploading {
     color: var(--muted);

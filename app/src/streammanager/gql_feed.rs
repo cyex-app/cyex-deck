@@ -70,6 +70,7 @@ fn streak(id: String, who: &Who, streams: u64, text: &str, ts: i64) -> Item {
         kind: "streak".into(),
         text: with_text(line, text),
         user: Some(who.login.clone()),
+        name: Some(name.clone()),
         ts,
         alert: None,
         status: None,

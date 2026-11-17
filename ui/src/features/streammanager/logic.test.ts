@@ -3,7 +3,7 @@ import { test } from 'node:test';
 
 import type { ActivityFilters } from '../../ipc/bindings/ActivityFilters';
 import type { SmActivity } from '../../ipc/bindings/SmActivity';
-import { adIn, adIntervals, adLengths, alertAction, capPush, raidArmedDue, raidCountdown, raidMarkIn, raidMarkLabel, shares, visibleActivity } from './logic.ts';
+import { activityParts, adIn, adIntervals, adLengths, alertAction, capPush, raidArmedDue, raidCountdown, raidMarkIn, raidMarkLabel, shares, visibleActivity } from './logic.ts';
 
 const ALL: ActivityFilters = {
   follows: true,
@@ -19,7 +19,7 @@ const ALL: ActivityFilters = {
 };
 
 function item(id: string, kind: string): SmActivity {
-  return { id, kind, text: id, user: null, ts: 0, alert: null, status: null };
+  return { id, kind, text: id, user: null, name: null, ts: 0, alert: null, status: null };
 }
 
 test('alerts offer skip while waiting or playing, else replay (D4)', () => {
@@ -81,4 +81,14 @@ test('an armed Raid now fires at the 10 s mark, once, for its own raid (V110-N11
   assert.equal(raidArmedDue('b', r, 1050), false, 'another raid');
   assert.equal(raidArmedDue('a', null, 1050), false, 'raid gone');
   assert.equal(raidArmedDue('a', r, 1090), false, 'already going');
+});
+
+test('V111-16 the leading display name links, not the same word in a viewer message', () => {
+  const parts = activityParts({ text: 'Bobby cheered 100 bits: bobby is great', user: 'bobby', name: 'Bobby' });
+  assert.deepEqual(parts, [{ text: 'Bobby', login: 'bobby' }, { text: ' cheered 100 bits: bobby is great' }]);
+  // A display name that differs from the login.
+  assert.deepEqual(activityParts({ text: 'ひろ followed.', user: 'hiro_1', name: 'ひろ' })[0], { text: 'ひろ', login: 'hiro_1' });
+  // Anonymous or not leading: plain.
+  assert.deepEqual(activityParts({ text: 'Someone gifted a Tier 1 sub.', user: null, name: null }), [{ text: 'Someone gifted a Tier 1 sub.' }]);
+  assert.deepEqual(activityParts({ text: 'Hype train started.', user: 'x', name: 'X' }), [{ text: 'Hype train started.' }]);
 });

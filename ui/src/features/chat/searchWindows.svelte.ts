@@ -7,7 +7,9 @@ import type { ChatMessage } from '../../ipc/bindings/ChatMessage';
 import SearchFloat from './SearchFloat.svelte';
 
 interface Open {
-  win: { focus: () => void; set: (q: string, all: boolean) => void };
+  /** V111-33 Reactive props: `away` hides the window while its chat's tab is not shown. */
+  props: { away: boolean };
+  win: { focus: () => void; set: (q: string, all?: boolean) => void };
   /** Where focus was (the chat box): it goes back there on close when nothing else has it. */
   back: HTMLElement | null;
 }
@@ -23,6 +25,12 @@ export function closeSearch(view: number): void {
   if ((!at || at === document.body) && o.back?.isConnected) o.back.focus();
 }
 
+/** V111-33 The window of a chat in a tab that is not shown hides with it, and comes back with it. */
+export function searchAway(view: number, away: boolean): void {
+  const o = open.get(view);
+  if (o) o.props.away = away;
+}
+
 export interface SearchOpen {
   view: number;
   channel: string;
@@ -35,13 +43,11 @@ export interface SearchOpen {
 export function openSearch(o: SearchOpen): void {
   const have = open.get(o.view);
   if (have) {
-    have.win.set(o.query ?? '', o.all ?? false);
+    have.win.set(o.query ?? '', o.all);
     return;
   }
   const back = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-  const win = mount(SearchFloat, {
-    target: document.body,
-    props: { ...o, nth: open.size, onclose: () => closeSearch(o.view) },
-  });
-  open.set(o.view, { win, back });
+  const props = $state({ ...o, nth: open.size, away: false, onclose: () => closeSearch(o.view) });
+  const win = mount(SearchFloat, { target: document.body, props });
+  open.set(o.view, { props, win, back });
 }

@@ -29,6 +29,8 @@ pub struct Item {
     pub text: String,
     /// Login of who did it, for the usercard; `None` when anonymous.
     pub user: Option<String>,
+    /// V111-16 Their name as the line spells it (the line starts with it), for the link.
+    pub name: Option<String>,
     /// Unix ms.
     #[ts(type = "number")]
     pub ts: i64,
@@ -133,6 +135,7 @@ pub(crate) fn item(a: &Activity, id: String, ts: i64) -> Item {
         id,
         kind: kind.into(),
         text,
+        name: user.as_ref().and(actor(a)).map(name),
         user,
         ts,
         alert: None,
@@ -164,6 +167,16 @@ pub(crate) fn with_text(line: String, text: &str) -> String {
         line
     } else {
         format!("{}: {text}", line.trim_end_matches('.'))
+    }
+}
+
+/// V111-16 Who the line is about.
+fn actor(a: &Activity) -> Option<&Who> {
+    match a {
+        Activity::Follow { user, .. } | Activity::Subscribe { user, .. } | Activity::Resub { user, .. } | Activity::Redemption { user, .. } => Some(user),
+        Activity::SubGift { user, .. } | Activity::Cheer { user, .. } | Activity::PowerUp { user, .. } => user.as_ref(),
+        Activity::Raid { from, .. } => Some(from),
+        _ => None,
     }
 }
 
@@ -292,6 +305,16 @@ mod tests {
             login: login.into(),
             name: name.into(),
         }
+    }
+
+    /// V111-16 The item carries the display name the line starts with, apart from the login.
+    #[test]
+    fn the_item_names_its_actor_as_the_line_spells_it() {
+        let it = item(&Activity::Follow { user: who("bobby", "Bobby"), at: String::new() }, "1".into(), 0);
+        assert_eq!((it.user.as_deref(), it.name.as_deref()), (Some("bobby"), Some("Bobby")));
+        assert!(it.text.starts_with("Bobby"));
+        let it = item(&Activity::Cheer { user: None, bits: 1, text: String::new() }, "2".into(), 0);
+        assert_eq!(it.name, None);
     }
 
     #[test]

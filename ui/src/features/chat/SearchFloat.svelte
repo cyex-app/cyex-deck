@@ -22,7 +22,7 @@
   import EmoteCard from '../emotes/EmoteCard.svelte';
   import Line from './Line.svelte';
   import { emoteMenu, enterClicks, lineTips, notEmote, openPart, PARTS, type LineHost } from './lineEvents';
-  import { cutoffOf, findHits, MAX_HITS, searchCapped, searchTerms, upTo } from './searchHits';
+  import { cutoffOf, everywhereAfter, findHits, MAX_HITS, searchCapped, searchTerms, upTo } from './searchHits';
 
   interface Props {
     view: number;
@@ -34,10 +34,12 @@
     /** The chat's lines right now; read when the window opens and on Refresh. */
     lines: () => ChatMessage[];
     nth?: number;
+    /** V111-33 The chat's tab isn't shown: the window waits out of sight. */
+    away?: boolean;
     onclose: () => void;
   }
 
-  let { view, channel, query = '', all = false, account = null, lines, nth = 0, onclose }: Props = $props();
+  let { view, channel, query = '', all = false, account = null, lines, nth = 0, away = false, onclose }: Props = $props();
 
   // svelte-ignore state_referenced_locally
   let text = $state(query);
@@ -76,9 +78,9 @@
     field?.focus();
   }
   /** Ctrl+F again, or `/search words`: the window takes the text. */
-  export function set(q: string, every: boolean) {
+  export function set(q: string, every?: boolean) {
     if (q) text = q;
-    everywhere = every;
+    everywhere = everywhereAfter(everywhere, every);
     focus();
   }
 
@@ -126,7 +128,23 @@
       hits = findHits(el, terms);
       cur = lineCount(hits) - 1;
     });
-    return () => cancelAnimationFrame(raf);
+    // V111-33 A result line redrawn in place (an edit, a deletion mark) loses its ranges: look
+    // again, once per frame, keeping the current match where it is.
+    let again = 0;
+    const watch = new MutationObserver(() => {
+      if (again) return;
+      again = requestAnimationFrame(() => {
+        again = 0;
+        hits = findHits(el, terms);
+        cur = Math.min(cur, lineCount(hits) - 1);
+      });
+    });
+    watch.observe(el, { childList: true, characterData: true, subtree: true });
+    return () => {
+      cancelAnimationFrame(raf);
+      cancelAnimationFrame(again);
+      watch.disconnect();
+    };
   });
 
   $effect(() => {
@@ -230,6 +248,7 @@
   });
 </script>
 
+<div class="gate" style:display={away ? 'none' : 'contents'}>
 <FloatPanel bind:this={panel} label="Search #{channel}" {nth} width={440} height={520} min={{ w: 320, h: 260 }} place="search:{view}" slim {onclose}>
   <Card title="Search #{channel}" flush>
     {#snippet tools()}
@@ -265,6 +284,7 @@
     </div>
   </Card>
 </FloatPanel>
+</div>
 
 <style>
   .wrap {

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { cutoffOf, MAX_HITS, searchCapped, searchTerms, upTo } from './searchHits.ts';
+import { cutoffOf, everywhereAfter, MAX_HITS, searchCapped, searchTerms, upTo } from './searchHits.ts';
 
 test('keeps plain words and drops operators', () => {
   assert.deepEqual(searchTerms('from:bob hello World has:link'), ['hello', 'world']);
@@ -27,4 +27,10 @@ test('V111-33 the snapshot time is now, or the newest line if that is later', ()
   assert.equal(cutoffOf([{ ts: 5 }, { ts: 9 }], 7), 9);
   assert.equal(cutoffOf([{ ts: 5 }], 7), 7);
   assert.equal(cutoffOf([], 7), 7);
+});
+
+test('V111-33 a plain Ctrl+F leaves All chats as it is', () => {
+  assert.equal(everywhereAfter(true), true);
+  assert.equal(everywhereAfter(false), false);
+  assert.equal(everywhereAfter(false, true), true);
 });

@@ -15,10 +15,9 @@
   import { smIpc } from '../../ipc/streammanager';
   import { settings } from '../../lib/settings.svelte';
   import { toast } from '../../lib/toast.svelte';
-  import { ACTIVITY_KINDS, alertAction, visibleActivity } from './logic';
+  import { ACTIVITY_KINDS, activityParts, alertAction, visibleActivity } from './logic';
   import { sm } from './streammanager.svelte';
   import { errorText } from '../../lib/errors';
-  import { splitNames } from '../chat/noticeNames';
 
   let { login = '' }: { /** Your channel. */ login?: string } = $props();
 
@@ -32,7 +31,8 @@
     void settings.patch('streammanager', { activity: { [k]: !filters[k] } });
   }
 
-  const parts = (r: SmActivity) => (r.user && login ? splitNames(r.text, [{ name: r.user, login: r.user }]) : [{ text: r.text }]);
+  // V111-16 The leading name links; a viewer's own message after it never does.
+  const parts = (r: SmActivity) => (login ? activityParts(r) : [{ text: r.text }]);
 
   function alert(r: SmActivity, replay: boolean) {
     if (!r.alert) return;

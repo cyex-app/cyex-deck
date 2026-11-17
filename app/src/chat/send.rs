@@ -31,7 +31,7 @@ pub async fn send_to_until(
     reply_to: Option<String>,
     cancel: Option<Box<dyn Fn() -> bool + Send>>,
 ) -> Result<(), String> {
-    let Some((sent, nonce)) = queue(app, key, text, reply_to, cancel)? else {
+    let Some((sent, nonce)) = queue(app, key, text, reply_to, cancel, None)? else {
         return Ok(());
     };
     if sent.await {
@@ -49,7 +49,11 @@ pub async fn send_to_until(
 /// the next one can be typed while this one waits its turn. What happens after (the link
 /// dropped, Twitch refused it or never answered) shows as a "Not sent" line with Retry.
 pub fn send_queued(app: &AppHandle, key: &RoomKey, text: &str, reply_to: Option<String>) -> Result<(), String> {
-    let Some((sent, nonce)) = queue(app, key, text, reply_to, None)? else {
+    send_queued_as(app, key, text, reply_to, None)
+}
+
+fn send_queued_as(app: &AppHandle, key: &RoomKey, text: &str, reply_to: Option<String>, exact: Option<String>) -> Result<(), String> {
+    let Some((sent, nonce)) = queue(app, key, text, reply_to, None, exact)? else {
         return Ok(());
     };
     let (app, key) = (app.clone(), key.clone());
@@ -68,10 +72,32 @@ pub fn send_queued(app: &AppHandle, key: &RoomKey, text: &str, reply_to: Option<
     Ok(())
 }
 
-/// V111-30 Retry on a "Not sent" line in `view`: the text as it was asked to be sent.
-pub fn retry(app: &AppHandle, view: u32, text: &str, reply_to: Option<String>) -> Result<(), String> {
-    let key = app.state::<Chat>().lock().views.get(&view).map(|v| v.0.clone()).ok_or("This chat is closed.")?;
-    send_queued(app, &key, text, reply_to)
+/// V111-30 Retry on the "Not sent" line `line_id` in `view`: that line is taken (a second Retry
+/// finds it gone and sends nothing) and its text queued again. The line comes back when the
+/// send can't be queued. A send Twitch never answered may still have gone out, so it is sent
+/// again as worded: if it did, Twitch's duplicate check refuses the repeat; if not, it goes.
+/// (A late answer to the old send is dropped with its line, so it can't show twice.)
+pub fn retry(app: &AppHandle, view: u32, line_id: &str) -> Result<(), String> {
+    let chat = app.state::<Chat>();
+    let (key, text, unsent, exact) = {
+        let mut inner = chat.lock();
+        let key = inner.views.get(&view).map(|v| v.0.clone()).ok_or("This chat is closed.")?;
+        let entry = inner.rooms.get_mut(&key).ok_or("This chat is closed.")?;
+        let Some((text, unsent, exact, gone)) = entry.room.take_unsent(line_id) else {
+            return Ok(());
+        };
+        super::queue(entry, gone, &chat.wake);
+        (key, text, unsent, exact)
+    };
+    let sent = send_queued_as(app, &key, &unsent.text, unsent.reply_to.clone(), exact);
+    if sent.is_err() {
+        let mut inner = chat.lock();
+        if let Some(entry) = inner.rooms.get_mut(&key) {
+            let ev = entry.room.restore_unsent(&text, unsent, now_ms());
+            super::queue(entry, [ev], &chat.wake);
+        }
+    }
+    sent
 }
 
 /// V111-30 After `CONFIRM_MS` the room's written sends without an answer say so.
@@ -89,13 +115,15 @@ fn confirm_later(app: AppHandle, key: RoomKey) {
     });
 }
 
-/// Checks and queues the line; `None` when there was nothing to send.
+/// Checks and queues the line; `None` when there was nothing to send. V111-30 `exact` is a
+/// retried send's wording, sent as it was so Twitch's own duplicate check can catch a repeat.
 fn queue(
     app: &AppHandle,
     key: &RoomKey,
     text: &str,
     reply_to: Option<String>,
     cancel: Option<Box<dyn Fn() -> bool + Send>>,
+    exact: Option<String>,
 ) -> Result<Option<(impl Future<Output = bool> + use<>, String)>, String> {
     let text = text.trim();
     if text.is_empty() {
@@ -157,7 +185,10 @@ fn queue(
         let n = outgoing(w, action).chars().count();
         if n <= max { Ok(()) } else { Err(n) }
     };
-    let picked = pace::pick(entry.last_sent.as_ref(), taken, at_ms, |v| wording(body, v), fits);
+    let picked = match exact {
+        Some(w) => fits(&w).map(|()| (0, w)).map_err(|chars| pace::NoWording::TooLong { chars }),
+        None => pace::pick(entry.last_sent.as_ref(), taken, at_ms, |v| wording(body, v), fits),
+    };
     let (_, sent_as) = picked.map_err(|e| match e {
         pace::NoWording::TooLong { chars } => format!("Too long: {chars}/{max}."),
         pace::NoWording::Repeat => "Same message as before. Change it a little.".to_owned(),

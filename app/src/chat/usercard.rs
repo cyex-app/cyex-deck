@@ -97,20 +97,43 @@ pub async fn follow_age(app: &AppHandle, channel: &str, user_id: &str) -> Result
             since: None,
         });
     };
-    for account in mods {
-        let Some((token, client_id)) = crate::auth::helix_scoped(app, &account, "moderator:read:followers")
+    let mut scoped = 0;
+    for account in &mods {
+        let Some((token, client_id)) = crate::auth::helix_scoped(app, account, "moderator:read:followers")
         else {
             continue;
         };
+        scoped += 1;
         let auth = crate::auth::helix_auth(&token, &client_id);
         if let Ok(since) = helix::followed_at(&http(app), auth, &channel_id, user_id).await {
             return Ok(FollowAge { known: true, since });
         }
     }
+    // V111-47 Moderators here, but none signed in with the scope: the card says what is missing.
+    if needs_sign_in(mods.len(), scoped) {
+        return Err(crate::needs::NEEDS_HELIX.into());
+    }
     Ok(FollowAge {
         known: false,
         since: None,
     })
+}
+
+/// V111-47 Whether an account here moderates the channel but none can ask Twitch (no scoped sign-in).
+fn needs_sign_in(mods: usize, scoped: usize) -> bool {
+    mods > 0 && scoped == 0
+}
+
+#[cfg(test)]
+mod follow_age_tests {
+    use super::needs_sign_in;
+
+    #[test]
+    fn moderators_without_a_scoped_sign_in_need_it() {
+        assert!(needs_sign_in(2, 0));
+        assert!(!needs_sign_in(0, 0), "nobody moderates: not a sign-in problem");
+        assert!(!needs_sign_in(2, 1));
+    }
 }
 
 #[derive(Clone, Debug, Serialize, TS)]

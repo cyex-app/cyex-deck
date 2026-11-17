@@ -45,9 +45,8 @@ export const chatIpc = {
   /** Commands run in Rust (1.8); some ask the window to do something. */
   send: (view: number, text: string, replyTo?: string) =>
     invoke<UiAction | null>('chat_send', { view, text, replyTo }),
-  /** V111-30 Retry on a "Not sent" line: the same text once more, as plain chat. */
-  retry: (view: number, text: string, replyTo?: string | null) =>
-    invoke<void>('chat_retry', { view, text, replyTo: replyTo ?? null }),
+  /** V111-30 Retry on a "Not sent" line (by its id): the same text once more, as plain chat. */
+  retry: (view: number, lineId: string) => invoke<void>('chat_retry', { view, lineId }),
   /** S1 A menu entry or usercard button. */
   menu: (view: number, command: string, context: MenuContext) =>
     invoke<UiAction | null>('chat_menu', { view, command, context }),

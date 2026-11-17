@@ -7,7 +7,7 @@
   import type { OtherRole } from '../../ipc/bindings/OtherRole';
   import type { RoleChannel } from '../../ipc/bindings/RoleChannel';
   import { usercardIpc } from '../../ipc/rules';
-  import { ROLE_LABELS, roleSummary, sinceText } from './facts';
+  import { appendChannels, ROLE_LABELS, roleSummary, sinceText } from './facts';
 
   let { userId, channel }: { userId: string; channel: string } = $props();
 
@@ -36,7 +36,8 @@
       .rolePage(userId, role, after)
       .then((p) => {
         if (n !== asked) return;
-        list = after ? [...list, ...p.channels] : p.channels;
+        // V111-13 A channel can come on two pages: one row per id.
+        list = after ? appendChannels(list, p.channels) : appendChannels([], p.channels);
         next = p.next;
       })
       .catch(() => n === asked && (pageFailed = true))

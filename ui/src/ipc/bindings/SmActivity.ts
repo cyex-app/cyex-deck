@@ -14,6 +14,10 @@ kind: string, text: string,
  */
 user: string | null, 
 /**
+ * V111-16 Their name as the line spells it (the line starts with it), for the link.
+ */
+name: string | null, 
+/**
  * Unix ms.
  */
 ts: number, 

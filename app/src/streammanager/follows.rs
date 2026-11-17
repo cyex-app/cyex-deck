@@ -54,6 +54,7 @@ pub fn seen(app: &AppHandle, channel_id: &str, user: &Who) {
                 kind: "follow".into(),
                 text,
                 user: Some(user.login.clone()),
+                name: Some(name.clone()),
                 ts: crate::chat::now_ms(),
                 alert: None,
                 status: None,

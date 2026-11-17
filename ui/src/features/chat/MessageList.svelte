@@ -914,7 +914,9 @@
     const u = id ? room.find(id)?.notice?.unsent : undefined;
     if (!u) return;
     if (!retry) return void copy(u.text, 'Text');
-    chatIpc.retry(room.view, u.text, u.replyTo).catch((err) => toast.error(errorText(err)));
+    // The line goes once taken, and comes back if the send can't be queued; no second click.
+    if (el instanceof HTMLButtonElement) el.disabled = true;
+    chatIpc.retry(room.view, id!).catch((err) => toast.error(errorText(err)));
   }
 
   /** S7 A plugin's piece was clicked. Links go through the link path instead. */
@@ -1071,8 +1073,15 @@
     margin-bottom: 40px;
     /* V111-45 (user) The last lines fade out into the pill's strip instead of a hard edge. A mask,
        not a colour, so it fades to whatever is behind (theme or wallpaper). */
-    -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 32px), transparent);
-    mask-image: linear-gradient(to bottom, #000 calc(100% - 32px), transparent);
+    /* The scrollbar's 11px (design/tokens.css) is a second, solid layer, so it isn't faded. */
+    -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 32px), transparent), linear-gradient(#000, #000);
+    mask-image: linear-gradient(to bottom, #000 calc(100% - 32px), transparent), linear-gradient(#000, #000);
+    -webkit-mask-size: calc(100% - 11px) 100%, 11px 100%;
+    mask-size: calc(100% - 11px) 100%, 11px 100%;
+    -webkit-mask-position: left top, right top;
+    mask-position: left top, right top;
+    -webkit-mask-repeat: no-repeat;
+    mask-repeat: no-repeat;
   }
   /* V110-A-idea The row that stands in for a line that failed to draw. */
   .broke {

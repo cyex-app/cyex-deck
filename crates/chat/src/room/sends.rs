@@ -100,6 +100,31 @@ impl Room {
         events
     }
 
+    /// V111-30 Retry on the "Not sent" line `line_id`: the line goes (and with it any late answer
+    /// to the old send, so it can't show too), giving back its text and what to send again. `None`
+    /// when the line is already gone, so a second Retry sends nothing.
+    pub fn take_unsent(&mut self, line_id: &str) -> Option<(String, Unsent, Option<String>, Option<RoomEvent>)> {
+        let m = self.message(line_id)?;
+        let n = m.notice.as_ref()?;
+        let unsent = n.unsent.clone()?;
+        let text = n.text.clone();
+        // A send Twitch never answered may still have gone out: it is resent as worded.
+        let exact = self.unconfirmed.iter().find(|(_, id)| id == line_id).map(|(p, _)| p.sent_as.clone());
+        self.unconfirmed.retain(|(_, id)| id != line_id);
+        Some((text, unsent, exact, self.remove(line_id)))
+    }
+
+    /// V111-30 A Retry that couldn't be queued: the "Not sent" line comes back.
+    pub fn restore_unsent(&mut self, text: &str, unsent: Unsent, now_ms: i64) -> RoomEvent {
+        let mut m: ChatMessage = build::system(NoticeKind::Error, text, now_ms);
+        if let Some(n) = m.notice.as_mut() {
+            n.unsent = Some(unsent);
+        }
+        let m = Arc::new(m);
+        self.push(m.clone());
+        RoomEvent::Message { message: m }
+    }
+
     fn unsent_line(&mut self, text: &str, p: &PendingSend, retry: bool, now_ms: i64) -> (RoomEvent, String) {
         let mut m: ChatMessage = build::system(NoticeKind::Error, text, now_ms);
         if let Some(n) = m.notice.as_mut() {
@@ -332,6 +357,28 @@ mod tests {
         assert_eq!(got[0].0, LOST);
         assert_eq!(got[0].1.text, "/me waves");
         assert!(r.not_written("n1", 10).is_none());
+    }
+
+    /// V111-30 A second Retry on the same line is a no-op, and a late answer to the old send
+    /// shows nothing once the line was retried.
+    #[test]
+    fn retry_takes_the_line_once_and_drops_the_late_answer() {
+        let mut r = room();
+        send(&mut r, "hello", "n1", 0);
+        r.wrote("n1", 0);
+        let ev = r.unanswered(CONFIRM_MS);
+        let RoomEvent::Message { message: line } = &ev[0] else { panic!() };
+        let (text, u, exact, gone) = r.take_unsent(&line.id).unwrap();
+        assert_eq!(exact.as_deref(), Some("hello"));
+        assert_eq!((text.as_str(), u.text.as_str()), (NO_REPLY, "hello"));
+        assert!(matches!(gone, Some(RoomEvent::Remove { .. })));
+        assert!(r.take_unsent(&line.id).is_none());
+        // The old send's answer comes late: its line is gone, nothing to take back or show.
+        let ev = feed(&mut r, &userstate("n1", "s1"), CONFIRM_MS + 2_000);
+        assert!(!ev.iter().any(|e| matches!(e, RoomEvent::Message { message } if plain(&message.body) == "hello")), "{ev:?}");
+        // A failed retry puts the line back with Retry.
+        let back = r.restore_unsent(&text, u, 10);
+        assert_eq!(unsent_of(&[back])[0].1.text, "hello");
     }
 
     #[test]

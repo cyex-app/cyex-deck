@@ -47,3 +47,8 @@ export function cutoffOf(lines: readonly { ts: number }[], now: number): number 
 export function upTo<T extends { message: { ts: number } }>(rows: readonly T[], cutoff: number): T[] {
   return rows.filter((r) => r.message.ts <= cutoff);
 }
+
+/** V111-33 Ctrl+F or `/search` on an open window leaves "All chats" as it is; only the all-chats key (`true`) sets it. */
+export function everywhereAfter(current: boolean, asked?: boolean): boolean {
+  return asked ?? current;
+}

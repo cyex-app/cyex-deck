@@ -93,3 +93,13 @@ export function shares(points: number[]): number[] {
   const total = points.reduce((a, b) => a + b, 0);
   return points.map((p) => (total ? Math.round((p * 100) / total) : 0));
 }
+
+/** V111-16 A line cut into its leading actor name (linked to their usercard) and the rest. The name is
+ *  as the line spells it (display name), else the login; a name later in the line (a cheer's own
+ *  words) is never linked. */
+export function activityParts(r: { text: string; user: string | null; name?: string | null }): { text: string; login?: string }[] {
+  const name = [r.name, r.user].find((n): n is string => !!n && r.text.toLowerCase().startsWith(n.toLowerCase()));
+  if (!r.user || !name) return [{ text: r.text }];
+  const rest = r.text.slice(name.length);
+  return [{ text: r.text.slice(0, name.length), login: r.user }, ...(rest ? [{ text: rest }] : [])];
+}

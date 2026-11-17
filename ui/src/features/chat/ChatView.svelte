@@ -62,7 +62,7 @@
   import { hiddenCount, inSharedSession, listNames } from './sharedChat';
   import type { SharedParticipant } from '../../ipc/bindings/SharedParticipant';
   import { ChatRoom } from './room.svelte';
-  import { closeSearch, openSearch } from './searchWindows.svelte';
+  import { closeSearch, openSearch, searchAway } from './searchWindows.svelte';
   import ViewerList from './ViewerList.svelte';
   import { votes } from './votes.svelte';
   import VotesBanner from './VotesBanner.svelte';
@@ -178,9 +178,24 @@
   let input = $state<ChatInput>();
   let replyTo = $state<ChatMessage | null>(null);
   /** V111-33 The search is a window of its own (one per chat) showing the chat as it was when it opened. */
-  function search(query = '', all = false) {
+  function search(query = '', all?: boolean) {
     openSearch({ view: room.view, channel: login, account: account ?? null, query, all, lines: () => room.messages });
   }
+  // V111-33 Its search window hides while this chat's tab is not shown.
+  $effect(() => {
+    if (!el) return;
+    const me = el;
+    const view = room.view;
+    const sync = () => searchAway(view, !me.checkVisibility({ visibilityProperty: true }));
+    const ro = new ResizeObserver(sync);
+    const io = new IntersectionObserver(sync);
+    ro.observe(me);
+    io.observe(me);
+    return () => {
+      ro.disconnect();
+      io.disconnect();
+    };
+  });
   let recording = $state(false);
   /** 1.28 The subscribe dialog is open. */
   let subscribing = $state(false);

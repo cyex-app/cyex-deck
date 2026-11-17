@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import type { IvrUser } from '../../ipc/bindings/IvrUser.ts';
 import type { UsercardShow } from '../../ipc/bindings/UsercardShow.ts';
 import { setAppClock } from '../../lib/format.ts';
-import { chatHex, giftText, lastLiveHint, lastLiveText, lookups, roleSummary, sinceText } from './facts.ts';
+import { appendChannels, chatHex, giftText, lastLiveHint, lastLiveText, lookups, roleSummary, sinceText } from './facts.ts';
 
 const ALL: UsercardShow = {
   created: true,
@@ -90,4 +90,10 @@ test('V111-13 roles summary and dates', () => {
   assert.equal(sinceText(new Date(2020, 7, 11, 12).toISOString()), 'since 2020/08/11');
   assert.equal(sinceText(null), '');
   assert.equal(sinceText('x'), '');
+});
+
+test('V111-13 a channel on two pages is listed once', () => {
+  const ids = (l: { id: string }[]) => l.map((c) => c.id);
+  assert.deepEqual(ids(appendChannels([{ id: 'a' }, { id: 'b' }], [{ id: 'b' }, { id: 'c' }, { id: 'c' }])), ['a', 'b', 'c']);
+  assert.deepEqual(ids(appendChannels([], [{ id: 'a' }])), ['a']);
 });
