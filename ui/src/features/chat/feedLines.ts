@@ -25,8 +25,10 @@ export const FEED_CHAN = 'data-feed-channel';
 export interface FeedHost {
   find: (channel: string, id: string) => ChatMessage | undefined;
   openCard: LineHost['openCard'];
-  openMenu: LineHost['openMenu'];
+  openMenu: (at: { clientX: number; clientY: number }, items: MenuEntry[]) => void;
   openRoom: (channel: string) => void;
+  /** V111-53 Shows the line in its chat here, or null when no chat here still has it. */
+  inChat: (channel: string, m: ChatMessage) => Promise<(() => void) | null>;
 }
 
 const channelOf = (el: Element) => el.closest<HTMLElement>(`[${FEED_CHAN}]`)?.getAttribute(FEED_CHAN) ?? null;
@@ -62,7 +64,7 @@ export function nameEntries(channel: string, login: string, openRoom: (c: string
   );
 }
 
-export function messageEntries(channel: string, m: ChatMessage, openRoom: (c: string) => void): MenuEntry[] {
+export function messageEntries(channel: string, m: ChatMessage, openRoom: (c: string) => void, inChat: (() => void) | null = null): MenuEntry[] {
   const login = m.sender?.login ?? '';
   const logs = m.sender && !m.notice ? jumpInLogs(channel, m)[0] : undefined;
   return menuEntries(
@@ -70,8 +72,10 @@ export function messageEntries(channel: string, m: ChatMessage, openRoom: (c: st
     {
       // V108-N17 Global mentions are rarely in the chat's own scrollback.
       logsLink: !!logs,
+      inChat: !!inChat,
       act: {
         openChat: () => openRoom(channel),
+        showInChat: () => inChat?.(),
         showInLogs: () => logs?.run(),
         copyMessage: () => void copy(plainText(m.body), 'Message'),
         copyFull: () =>
@@ -116,7 +120,9 @@ export function feedEvents(h: FeedHost) {
       } else if (m && window.getSelection()?.isCollapsed !== false) {
         e.preventDefault();
         hideTip();
-        h.openMenu(e, messageEntries(host.channel, m, h.openRoom));
+        // V111-53 Whether the chat still has it decides the menu: one cached check.
+        const at = { clientX: e.clientX, clientY: e.clientY };
+        void h.inChat(host.channel, m).then((show) => h.openMenu(at, messageEntries(host.channel, m, h.openRoom, show)));
       }
     },
   };

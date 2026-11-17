@@ -859,6 +859,11 @@
     }
   }
 
+  /** V111-53 "Show in chat" from a feed tab: the same jump as a reply's. */
+  export function jumpTo(id: string) {
+    jump(id);
+  }
+
   function jump(id: string) {
     stopGlide();
     if (list) stopScroll(list);

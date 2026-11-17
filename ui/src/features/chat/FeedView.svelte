@@ -1,13 +1,15 @@
 <!-- F4 A feed tab: messages that highlight rules send here (“Custom feed”), from every
      joined chat. Read only; names and links open like in a chat. The Mentions tab (V104-01)
      is one too: global mentions (V104-02) are marked, and a channel opens its own small
-     chat window (V102-05). -->
+     chat window (V102-05). V111-53 Mention tabs list the newest line at the top; each line
+     has Show in logs, and Show in chat while its chat here still has it. -->
 <script lang="ts">
   import { onDestroy, tick, type Snippet } from 'svelte';
 
   import { ClearUndo } from '../feeds/clearUndo.svelte';
   import FeedHeader from '../feeds/FeedHeader.svelte';
   import Button from '../../components/Button.svelte';
+  import IconButton from '../../components/IconButton.svelte';
   import type { FeedEvent } from '../../ipc/bindings/FeedEvent';
   import type { FeedLine } from '../../ipc/bindings/FeedLine';
   import { popOut } from '../../app/panels';
@@ -23,6 +25,12 @@
   import { GLOBAL_FEED, feedKey, isMentionsFeed, whenText } from './mentionsTab';
   import { roomRoute } from './roomRoute';
   import { tooltip } from '../../components/tooltip.svelte';
+  import { currentWindow } from '../../lib/window.svelte';
+  import { tabs } from '../tabs/tabs.svelte';
+  import type { ChatMessage } from '../../ipc/bindings/ChatMessage';
+  import { chatJump } from './chatJump.svelte';
+  import { chatSpot, inChatCheck, newestFirst, ordered, type ChatSpot } from './feedJump';
+  import { jumpInLogs } from './inLogs';
 
   interface Props {
     name: string;
@@ -53,9 +61,30 @@
     (gone) => (lines = lines.filter((l) => !gone.has(lineKey(l)))),
   );
   const shown = $derived(undo.hidden ? lines.filter((l) => undo.shows(lineKey(l))) : lines);
+  const newest = $derived(newestFirst(name));
+  const drawn = $derived(ordered(shown, newest));
+
+  /** V111-53 Newest first: the row at the top of the view, to keep in place while lines come in
+   *  above it. None at the very top, where new lines are meant to show. The browser's scroll
+   *  anchoring also stays on: it covers rows that size in after the tick. */
+  function topRow(): { el: HTMLElement; off: number } | null {
+    if (!list || list.scrollTop < 2) return null;
+    const rows = list.children;
+    let lo = 0;
+    let hi = rows.length - 1;
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      const el = rows[mid] as HTMLElement;
+      if (el.offsetTop + el.offsetHeight <= list.scrollTop) lo = mid + 1;
+      else hi = mid;
+    }
+    const el = rows[lo] as HTMLElement | undefined;
+    return el ? { el, off: el.offsetTop - list.scrollTop } : null;
+  }
 
   async function apply(events: FeedEvent[]) {
-    const follow = atBottom();
+    const follow = !newest && atBottom();
+    const keep = newest ? topRow() : null;
     let next = lines;
     for (const e of events) {
       if (e.type === 'line') next = [...next, e.line].slice(-KEEP);
@@ -68,6 +97,9 @@
     if (follow) {
       await tick();
       list?.scrollTo({ top: list.scrollHeight });
+    } else if (keep) {
+      await tick();
+      if (list && keep.el.isConnected) list.scrollTop = keep.el.offsetTop - keep.off;
     }
   }
 
@@ -101,6 +133,33 @@
     void popOut(roomRoute(channel, null), `${channel} chat`);
   }
 
+  /** V111-53 Show in chat: a chat tile of the channel in this window whose room still has the line. */
+  const inChat = inChatCheck(
+    (c) =>
+      chatSpot(tabs.list, c, {
+        active: tabs.active,
+        popped: tabs.popped,
+        poppedChats: tabs.chats,
+        only: currentWindow.isMain ? null : (list?.closest('[data-tab-view]')?.getAttribute('data-tab-view') ?? ''),
+      }),
+    chatxIpc.hasLine,
+  );
+  const showIn = (spot: ChatSpot, id: string) => () => chatJump.go(spot, id);
+  async function inChatRun(channel: string, m: ChatMessage) {
+    const spot = await inChat(channel, m.id);
+    return spot ? showIn(spot, m.id) : null;
+  }
+  /** The row the pointer or focus is on, when its chat still has the line. */
+  let here = $state.raw<{ key: string; spot: ChatSpot } | null>(null);
+  function probe(l: FeedLine) {
+    const key = lineKey(l);
+    void inChat(l.channel, l.message.id).then((spot) => {
+      if (spot) here = { key, spot };
+      else if (here?.key === key) here = null;
+    });
+  }
+  const logsOf = (l: FeedLine) => (l.message.sender && !l.message.notice ? jumpInLogs(l.channel, l.message)[0] : undefined);
+
   /** The emote card on screen, with the channel of the line it came from. */
   let card = $state<{ target: CardTarget; channel: string } | null>(null);
   const events = feedEvents({
@@ -108,6 +167,7 @@
     openCard: (target) => (card = { target, channel: lastChannel }),
     openMenu,
     openRoom,
+    inChat: inChatRun,
   });
   let lastChannel = '';
   const chanOf = (e: Event) =>
@@ -139,13 +199,21 @@
     onmouseover={tips.onmouseover}
     onmouseout={tips.onmouseout}
   >
-    {#each shown as l (`${l.channel}/${l.message.id}`)}
-      <div {...{ [FEED_CHAN]: l.channel }}>
+    {#each drawn as l (`${l.channel}/${l.message.id}`)}
+      {@const logs = logsOf(l)}
+      <div class="row" {...{ [FEED_CHAN]: l.channel }} onpointerenter={() => probe(l)} onfocusin={() => probe(l)}>
         <div class="chan">
           <button class="room" use:tooltip={'Open this chat'} onclick={(e) => (e.stopPropagation(), openRoom(l.channel))}>
             #{l.channel}
           </button>
           {#if l.global}<span class="global" use:tooltip={'From logs.cyex.app'}>global</span>{/if}
+          <span class="acts">
+            {#if here?.key === lineKey(l)}
+              {@const spot = here.spot}
+              <IconButton icon="chat" label="Show in chat" size={13} onclick={(e) => (e.stopPropagation(), showIn(spot, l.message.id)())} />
+            {/if}
+            {#if logs}<IconButton icon="scroll" label="Show in logs" size={13} onclick={(e) => (e.stopPropagation(), logs.run())} />{/if}
+          </span>
           <span class="when">{whenText(l.message.ts, stamped)}</span>
         </div>
         <Line m={l.message} channel={l.channel} />
@@ -179,6 +247,7 @@
     background: var(--page);
   }
   .lines {
+    position: relative;
     flex: 1;
     overflow-y: auto;
     padding: 4px 0;
@@ -210,8 +279,25 @@
     border-radius: var(--radius);
     font-weight: 600;
   }
-  .when {
+  /* V111-53 Row actions: shown on hover or focus, in the gap before the time. */
+  .acts {
     margin-left: auto;
+    display: flex;
+    align-self: center;
+    gap: 2px;
+    opacity: 0;
+    transition: opacity var(--fast);
+  }
+  .row:hover .acts,
+  .row:focus-within .acts {
+    opacity: 1;
+  }
+  .acts :global(.icon-btn) {
+    width: 22px;
+    height: 18px;
+    margin: -3px 0;
+  }
+  .when {
     font-weight: 400;
     font-variant-numeric: tabular-nums;
   }

@@ -78,6 +78,7 @@
   import { lazy } from '../lib/lazy';
   import { toast } from '../lib/toast.svelte';
   import { currentWindow } from '../lib/window.svelte';
+  import { chatJump } from '../features/chat/chatJump.svelte';
   import DuplicatesDialog from '../features/settings/highlights/DuplicatesDialog.svelte';
   import { focusTabChat, inOtherField } from '../features/tabs/focusChat';
   import { popOut } from './panels';
@@ -243,6 +244,14 @@
   $effect(() => globalTab.show(over === 'mentions'));
   $effect(() => {
     if (!hasGlobalTab && over === 'mentions') untrack(() => (over = null));
+  });
+  // V111-53 A feed tab's "Show in chat": the tab with that chat comes up first, over any sheet.
+  $effect(() => {
+    const a = chatJump.ask;
+    if (!a || !currentWindow.isMain) return;
+    untrack(() => {
+      if (a.tab !== current || fixed || over || sheetPage || settingsOpen) open(a.tab);
+    });
   });
 
   // Follow the active tab when an edit moves it, e.g. closing the shown tab.

@@ -202,3 +202,9 @@ pub async fn chat_gif_send(
 pub fn chat_shared_state(app: AppHandle, channel: String) -> Vec<chat::shared::SharedParticipant> {
     chat::shared::state(&app, &channel)
 }
+
+/// V111-53 The line is still in a joined room of the channel, so a feed tab can show it in its chat.
+#[tauri::command]
+pub fn chat_has_line(app: AppHandle, channel: String, id: String) -> bool {
+    chat::peek::find(&app, &channel, &id).is_some()
+}

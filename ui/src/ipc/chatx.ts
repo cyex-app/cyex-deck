@@ -41,6 +41,8 @@ export const chatxIpc = {
   recording: (view: number) => invoke<boolean>('chat_recording_state', { view }),
   /** V108-N12 Who's in the channel's shared chat now (itself included); empty when none is known. */
   sharedState: (channel: string) => invoke<SharedParticipant[]>('chat_shared_state', { channel }),
+  /** V111-53 The line is still in a joined room of the channel. */
+  hasLine: (channel: string, id: string) => invoke<boolean>('chat_has_line', { channel, id }),
   onShared: (cb: (e: SharedChatUpdate) => void) => listen<SharedChatUpdate>('chat:shared', (e) => cb(e.payload)),
   recordings: () => invoke<RecordingMeta[]>('recordings_list'),
   /** X6 Meta and pictures; the events come over `onEvents` in parts, in order. */

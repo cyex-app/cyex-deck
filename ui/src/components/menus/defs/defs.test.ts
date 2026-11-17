@@ -128,7 +128,7 @@ test('the other menus keep their size', () => {
   ]);
   assert.deepEqual(names('browse.card', 'viewer'), ['Open', 'Open in the background', 'Open as', 'Favorite', 'Pick to watch side by side']);
   assert.deepEqual(names('feed.name', 'viewer'), ['Open usercard', 'Whisper', 'Open chat', 'Copy name']);
-  assert.deepEqual(names('feed.message', 'viewer'), ['Copy message', 'Copy full message', 'Open chat', 'Show message in logs']);
+  assert.deepEqual(names('feed.message', 'viewer'), ['Copy message', 'Copy full message', 'Open chat', 'Show in chat', 'Show message in logs']);
   assert.deepEqual(names('whispers.thread', 'viewer'), ['Archive', 'Mute alerts', 'Block on Twitch']);
   assert.deepEqual(names('clips.clip', 'viewer'), ['Play', 'Save as MP4', 'Copy link', 'Rename', 'Edit on Twitch', 'Delete clip']);
 });

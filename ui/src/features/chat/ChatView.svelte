@@ -13,7 +13,8 @@
 </script>
 
 <script lang="ts">
-  import { onDestroy, type Snippet } from 'svelte';
+  import { onDestroy, tick, untrack, type Snippet } from 'svelte';
+  import { chatJump } from './chatJump.svelte';
 
   import Button from '../../components/Button.svelte';
   import Icon from '../../components/Icon.svelte';
@@ -397,6 +398,13 @@
   }
   // svelte-ignore state_referenced_locally
   if (tile) onDestroy(chatReloads.add({ tile, run: reloadChat }));
+
+  // V111-53 A feed tab's "Show in chat" for this tile: once the lines are in, go to the line.
+  $effect(() => {
+    if (!chatJump.ask || !room.view || !msgs) return;
+    const a = untrack(() => chatJump.take(tile));
+    if (a) void tick().then(() => requestAnimationFrame(() => msgs?.jumpTo(a.id)));
+  });
 
   /** Hovering the name shows the stream, if the last live check found one (user, 2026/11/01):
    *  a chat-only tile still lights its tab's dot, and this says why. */
