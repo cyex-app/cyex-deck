@@ -4,7 +4,7 @@
 <script lang="ts">
   import Button from '../../components/Button.svelte';
   import ConfirmButton from '../../components/ConfirmButton.svelte';
-  import GateFlag from '../../components/GateFlag.svelte';
+  import NeedsSignIn from '../../components/NeedsSignIn.svelte';
   import IconButton from '../../components/IconButton.svelte';
   import Card from '../../components/PanelCard.svelte';
   import SearchField from '../../components/SearchField.svelte';
@@ -120,7 +120,7 @@
     {#if can}<IconButton icon="refresh" label="Refresh" size={14} disabled={loading} onclick={load} />{/if}
   {/snippet}
   {#if !can}
-    <p class="gate"><GateFlag kind="helix" /><span>Sign in with Twitch to manage blocked terms.</span></p>
+    <p class="gate"><NeedsSignIn kind="helix" {account} text="Blocked terms need it." /></p>
   {:else}
     <form
       class="add"

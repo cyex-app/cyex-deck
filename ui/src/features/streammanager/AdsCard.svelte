@@ -14,6 +14,9 @@
   import { smIpc } from '../../ipc/streammanager';
   import { formatDuration, formatSecs } from '../../lib/format';
   import { settings } from '../../lib/settings.svelte';
+  import NeedsSignIn from '../../components/NeedsSignIn.svelte';
+  import { accounts } from '../../lib/accounts.svelte';
+  import { useOwner } from './owner';
   import { everyShown } from '../../lib/awake';
   import { toast } from '../../lib/toast.svelte';
   import Card from '../../components/PanelCard.svelte';
@@ -34,6 +37,8 @@
   let now = $state(Date.now());
   let busy = $state(false);
 
+  const owner = useOwner();
+  const who = $derived(owner.who?.accountId ?? owner.account);
   const live = $derived(sm.stats?.live ?? false);
   const next = $derived(schedule ? adIn(schedule.nextAdAt, now) : null);
 
@@ -198,6 +203,9 @@
         {/if}
       </div>
     {/if}
+  {:else if !accounts.hasGql(who ?? undefined)}
+    <!-- V111-47 Twitch's ad schedule settings are read over the extra features. -->
+    <NeedsSignIn kind="gql" account={who} text="The ad schedule's settings need it." />
   {/if}
 </Card>
 

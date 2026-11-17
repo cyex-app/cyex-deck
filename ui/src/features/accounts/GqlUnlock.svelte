@@ -36,19 +36,19 @@
 
 <div class="unlock">
   <div class="head">
-    <strong>Unlock extra Twitch features</strong>
+    <strong>Add Extra Twitch features</strong>
     <span>The miner, following, channel points, GIFs and power-ups.</span>
   </div>
   <div class="way">
     <span>Approve a code on Twitch as {account.displayName}.</span>
-    <Button small disabled={signIn.kind !== null} onclick={() => signIn.start('gql', account.userId)}>Sign in with a code</Button>
+    <Button small disabled={signIn.kind !== null} onclick={() => signIn.start('gql', account.userId)}>Get a code</Button>
   </div>
   <form class="way" onsubmit={submit}>
     <input
       class="field mono"
       type="password"
-      placeholder="Or paste a GQL token"
-      aria-label="GQL token"
+      placeholder="Or paste a token"
+      aria-label="Token for Extra Twitch features"
       autocomplete="off"
       spellcheck="false"
       bind:value={token}

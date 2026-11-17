@@ -485,24 +485,31 @@ pub async fn block_user(app: &AppHandle, account: &str, login: &str, on: bool) -
     let account = account.to_owned();
     let target = user_id(app, login).await?;
     let http = app.state::<crate::auth::Auth>().http.clone();
-    let result = if let Some((token, client_id)) =
+    // V111-47 Helix first; when it fails and a GQL token exists, GQL tries the same.
+    let helix_res = if let Some((token, client_id)) =
         crate::auth::helix_scoped(app, &account, "user:manage:blocked_users")
     {
         let auth = crate::auth::helix_auth(&token, &client_id);
-        if on {
+        Some(if on {
             helix::blocks::block(&http, auth, &target).await
         } else {
             helix::blocks::unblock(&http, auth, &target).await
-        }
-    } else if let Some((token, client_id)) = crate::auth::gql_token(app, &account) {
-        let auth = crate::auth::gql_auth(&token, &client_id);
-        if on {
-            gql::blocks::block(&http, auth, &target).await
-        } else {
-            gql::blocks::unblock(&http, auth, &target).await
-        }
+        })
     } else {
-        return Err("This account can’t block people. Sign in again in Settings → Accounts.".into());
+        None
+    };
+    let result = match (helix_res, crate::auth::gql_token(app, &account)) {
+        (Some(Ok(())), _) => Ok(()),
+        (Some(Err(e)), None) => Err(e),
+        (Some(Err(_)) | None, Some((token, client_id))) => {
+            let auth = crate::auth::gql_auth(&token, &client_id);
+            if on {
+                gql::blocks::block(&http, auth, &target).await
+            } else {
+                gql::blocks::unblock(&http, auth, &target).await
+            }
+        }
+        (None, None) => return Err("This account can’t block people. Sign in again in Settings → Accounts.".into()),
     };
     result.map_err(|e| e.to_string())?;
     super::super::rules::note_block(app, &account, &target, on);

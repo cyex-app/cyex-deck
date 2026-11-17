@@ -16,17 +16,20 @@
   import Avatar from '../../components/Avatar.svelte';
   import Checkbox from '../../components/Checkbox.svelte';
   import ConfirmButton from '../../components/ConfirmButton.svelte';
+  import IconButton from '../../components/IconButton.svelte';
   import { hideTip, tooltip } from '../../components/tooltip.svelte';
   import { chatIpc } from '../../ipc/chat';
   import { raidIpc } from '../../ipc/raid';
   import { smIpc } from '../../ipc/streammanager';
   import { tabsIpc } from '../../ipc/tabs';
+  import { accounts } from '../../lib/accounts.svelte';
   import { nowSecond } from '../../lib/clock.svelte';
+  import { gate } from '../../lib/gate.svelte';
   import { errorText } from '../../lib/errors';
   import { formatNumber } from '../../lib/format';
   import { bannerIn, BASE, reduced } from '../../lib/motion';
   import { toast } from '../../lib/toast.svelte';
-  import { cancelShows, ownChannel, raidAbout, raidBar, raidFrac, raidLeft, tickShows, viewersText } from './raidBanner';
+  import { cancelShows, ownChannel, raidAbout, raidBar, raidFrac, raidLeft, tickLocked, tickShows, viewersText } from './raidBanner';
   import { raids } from './raids.svelte';
 
   interface Props {
@@ -52,7 +55,10 @@
   /** The tick while a join or leave is on its way, so a failed call puts it back. */
   let pending = $state<boolean | null>(null);
   const own = $derived(ownChannel(account, channelId));
-  const canTick = $derived(tickShows(raid?.id ?? null, account, own));
+  // V111-47 Joining goes over Extra Twitch features: without them the tick is locked.
+  const canJoin = $derived(accounts.can('joinRaids', account ?? undefined));
+  const canTick = $derived(tickShows(raid?.id ?? null, account, own, canJoin));
+  const tickLock = $derived(tickLocked(raid?.id ?? null, account, own, canJoin));
   const ticked = $derived(pending ?? raids.ticked(raid?.id ?? null));
 
   // The account that runs the stream manager, asked only in your own channel during a raid.
@@ -149,7 +155,7 @@
       if (on) await raidIpc.join(who, r.id);
       else await raidIpc.leave(r.id);
     } catch (e) {
-      toast.error(errorText(e));
+      gate.fail(e, who);
     } finally {
       busy = false;
       pending = null;
@@ -184,6 +190,8 @@
         <span class="left" aria-hidden="true">{left}</span>
         {#if canTick}
           <span class="tick"><Checkbox label="Join" hint="Go along when the raid goes" checked={ticked} disabled={busy} onchange={tick} /></span>
+        {:else if tickLock}
+          <span class="tick"><IconButton icon="login" label="Join the raid" size={13} lock="gql" {account} /></span>
         {:else if canCancel}
           <ConfirmButton label="Cancel raid" confirm="Click to cancel the raid" variant="danger" disabled={canceling} onconfirm={cancel} />
         {/if}

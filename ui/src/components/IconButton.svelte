@@ -24,6 +24,8 @@
     badge?: boolean;
     /** V102-20 Greyed out with a lock: a click goes to the sign-in that unlocks it. */
     lock?: TokenKind | null;
+    /** V111-47 With lock: the account that lacks the sign-in (the default one if left out). */
+    account?: string | null;
     /** The button opens a menu or popup. */
     haspopup?: 'menu' | 'dialog';
     /** V108-F60h The button opens a page or panel that is open now (aria-expanded). */
@@ -43,13 +45,14 @@
     chrome = false,
     badge = false,
     lock = null,
+    account = null,
     haspopup,
     expanded,
     onclick,
   }: Props = $props();
 
   function click(e: MouseEvent) {
-    if (lock) gate.ask(lock);
+    if (lock) gate.ask(lock, account);
     else onclick?.(e);
   }
 </script>

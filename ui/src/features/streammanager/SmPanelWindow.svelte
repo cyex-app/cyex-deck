@@ -30,7 +30,7 @@
     </PanelBox>
   </div>
 {:else if ready}
-  <p class="gone">Sign in with Twitch for your own channel to use this.</p>
+  <p class="gone">This needs the Twitch sign-in for your own channel.</p>
 {/if}
 
 <style>

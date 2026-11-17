@@ -12,6 +12,7 @@
   import type { Tile } from '../../ipc/bindings/Tile';
   import { playerIpc } from '../../ipc/player';
   import { accounts } from '../../lib/accounts.svelte';
+  import { missingSignIn, NEEDS_TEXT } from '../../lib/gate';
   import Icon from '../../components/Icon.svelte';
   import { tooltip } from '../../components/tooltip.svelte';
   import { toast } from '../../lib/toast.svelte';
@@ -76,10 +77,16 @@
 
   const account = $derived(tile.account && accounts.list.some((a) => a.userId === tile.account) ? tile.account : null);
   const canClip = $derived(live && account !== null && accounts.can('clips', account));
+  /** V111-47 The sign-in a clip is missing, so the greyed-out button can add it. */
+  const clipFix = $derived.by(() => {
+    const a = accounts.list.find((x) => x.userId === account);
+    return a && !canClip ? { kind: missingSignIn(a), account: a.userId } : null;
+  });
   /** V102-08 Why the clip button is greyed out, if it is: clips are made as the tab's account. */
   const clipOff = $derived(
-    account === null ? 'Open this tab signed in to clip.' : canClip ? null : 'This account can’t clip. Check Settings → Accounts.',
+    account === null ? 'Open this tab signed in to clip.' : canClip ? null : NEEDS_TEXT[clipFix?.kind ?? 'gql'].replace(/^Needs/, 'Clipping needs'),
   );
+
   const hushed = $derived(shared.overlay !== null || shared.stories);
   /** V110-B10 The button in the player that folds this tile's chat away and back.
    *  V111-26 In every view, not only theatre; never in a pop-out. */
@@ -210,6 +217,7 @@
         {onpopchat}
         onclip={canClip ? makeClip : undefined}
         {clipOff}
+        {clipFix}
       />
     {:else if page.kind === 'stream'}
       <Offline {tile} {info} onpage={go} onstories={() => (shared.stories = true)} />

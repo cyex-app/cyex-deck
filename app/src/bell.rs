@@ -20,7 +20,7 @@ use crate::whispers::GqlCall;
 
 const UNSEEN: &str = "bell:unseen";
 const LIVE: &str = "bell:live";
-const NO_ACCOUNT: &str = "The bell needs a GQL sign-in (Settings → Accounts).";
+const NO_ACCOUNT: &str = crate::needs::NEEDS_GQL;
 
 #[derive(Default)]
 struct Inner {
@@ -207,7 +207,7 @@ fn explain(e: &cyex_twitch::Error) -> String {
     match e {
         Error::Network(_) => "Couldn’t reach Twitch.".into(),
         e if e.is_unauthorized() || e.api_message() == Some("unauthenticated") => {
-            "Your GQL sign-in ran out. Sign in again in Settings → Accounts.".into()
+            "Your extra Twitch features ran out. Sign in again in Settings → Accounts.".into()
         }
         e if e.is_server_error() || e.is_rate_limited() => "Twitch didn’t answer. Try again in a bit.".into(),
         Error::Decode(_) => "Couldn’t read Twitch’s answer.".into(),

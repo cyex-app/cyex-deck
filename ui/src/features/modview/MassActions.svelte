@@ -9,9 +9,10 @@
   import { tooltip } from '../../components/tooltip.svelte';
   import type { MassbanProgress } from '../../ipc/bindings/MassbanProgress';
   import { modIpc } from '../../ipc/moderation';
+  import NeedsSignIn from '../../components/NeedsSignIn.svelte';
   import { accounts } from '../../lib/accounts.svelte';
+  import { gate } from '../../lib/gate.svelte';
   import { toast } from '../../lib/toast.svelte';
-  import { errorText } from '../../lib/errors';
   import NumberField from '../../components/NumberField.svelte';
   import Select from '../../components/Select.svelte';
   import { formatNumber } from '../../lib/format.ts';
@@ -96,7 +97,7 @@
         if (end.stopped) toast.info(end.line);
         else toast.success(end.line);
       })
-      .catch((e) => toast.error(errorText(e)))
+      .catch((e) => gate.fail(e, account))
       .finally(() => (running = false));
   }
 
@@ -150,7 +151,7 @@
     <p class="tally" use:tooltip={tallyDetail(progress.tally)}>{tallyParts(progress.tally, progress.unban ? 'unban' : kind === 'unban' ? 'ban' : kind).join(' · ')}</p>
   {/if}
   {#if !hasGql}
-    <p class="hint">Add a GQL sign-in to this account in Settings → Accounts to ban far faster.</p>
+    <p class="hint"><NeedsSignIn kind="gql" {account} text="Banning far faster needs it." /></p>
   {/if}
 </div>
 

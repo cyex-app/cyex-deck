@@ -23,7 +23,7 @@ use super::powerups::{Ctx, ctx, http};
 use attempts::{Attempts, Ended};
 use bits_on::BitsOn;
 
-const NO_GQL: &str = "Cheering needs the GQL sign-in (Settings → Accounts).";
+const NO_GQL: &str = crate::needs::NEEDS_GQL;
 const MOCK_TOKEN: &str = "mock-token";
 #[cfg(feature = "mocks")]
 const MOCK_VAR: &str = "CYEX_GQL_CHEER_MOCK";

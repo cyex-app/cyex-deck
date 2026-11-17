@@ -7,13 +7,13 @@
   import Icon from './Icon.svelte';
   import { tooltip } from './tooltip.svelte';
 
-  let { kind, still = false }: { kind: TokenKind; still?: boolean } = $props();
+  let { kind, still = false, account }: { kind: TokenKind; still?: boolean; account?: string | null } = $props();
 
   const flag = $derived(FLAGS[kind]);
 
   function go(e: MouseEvent) {
     e.stopPropagation();
-    gate.ask(kind);
+    gate.ask(kind, account);
   }
 </script>
 

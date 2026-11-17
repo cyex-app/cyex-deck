@@ -3,10 +3,9 @@
      one, the ticked ones or all shown, paced, with Stop: the stream manager's queue
      (RedemptionQueue) on a channel the account moderates. Reads again by itself when a
      redemption comes in or is settled (the chat's live points feed), and on Refresh. Bits
-     power-ups don't show: they can't be refunded. Needs the sign-in with a code (GQL). -->
+     power-ups don't show: they can't be refunded. Needs Extra Twitch features. -->
 <script lang="ts">
   import EmptyState from '../../components/EmptyState.svelte';
-  import GateFlag from '../../components/GateFlag.svelte';
   import IconButton from '../../components/IconButton.svelte';
   import Loading from '../../components/Loading.svelte';
   import Card from '../../components/PanelCard.svelte';
@@ -20,6 +19,7 @@
   import { type QueueSource, rewardOptions } from '../streammanager/rewardsLogic';
   import SmBar from '../streammanager/SmBar.svelte';
   import SmProblem from '../streammanager/SmProblem.svelte';
+  import NeedsSignIn from '../../components/NeedsSignIn.svelte';
 
   let { account, login }: { account: string; login: string } = $props();
 
@@ -93,11 +93,11 @@
     {#if can}<IconButton icon="refresh" label="Refresh" size={14} disabled={loading} onclick={refresh} />{/if}
   {/snippet}
   {#if !can}
-    <p class="gate"><GateFlag kind="gql" /><span>Reward requests need the sign-in with a code.</span></p>
+    <p class="gate"><NeedsSignIn kind="gql" {account} text="Reward requests need it." /></p>
   {:else if loading && !data}
     <Loading rows={4} label="Loading rewards" />
   {:else if failed && !data}
-    <SmProblem text={failed} onretry={() => void load()} />
+    <SmProblem text={failed} onretry={() => void load()} {account} />
   {:else if !data?.enabled}
     <EmptyState icon="gift" text="Channel points are off on this channel." />
   {:else}

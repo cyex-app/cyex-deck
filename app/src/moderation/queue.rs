@@ -73,14 +73,14 @@ pub async fn resolve_unban(app: &AppHandle, account: &str, login: &str, id: &str
 /// V108-C36 Every unban request a user made in the channel, newest first (GQL only).
 pub async fn unban_past(app: &AppHandle, account: &str, login: &str, user_id: &str) -> Result<Vec<PastUnban>, String> {
     let actor = super::actor(app, account, login)?;
-    let g = actor.gql().ok_or("Earlier requests need a GQL sign-in.")?;
+    let g = actor.gql().ok_or(crate::needs::NEEDS_GQL)?;
     gql::modlogs::unban_past(&http(app), g, &actor.channel_id, user_id).await.map_err(err)
 }
 
 /// M3 A user's mod history and comments (GQL only).
 pub async fn history(app: &AppHandle, account: &str, login: &str, target_id: &str) -> Result<ModHistory, String> {
     let actor = super::actor(app, account, login)?;
-    let g = actor.gql().ok_or("Mod history needs a GQL sign-in.")?;
+    let g = actor.gql().ok_or(crate::needs::NEEDS_GQL)?;
     let channel_id = actor.channel_id.clone();
     gql::modlogs::history(&http(app), g, &channel_id, target_id).await.map_err(err)
 }
@@ -94,7 +94,7 @@ pub async fn channel_history(app: &AppHandle, account: &str, login: &str, older:
         .iter()
         .any(|a| a.user_id == account && a.login.eq_ignore_ascii_case(login));
     let cid = if own { account.to_owned() } else { super::actor(app, account, login)?.channel_id };
-    let (token, client_id) = crate::auth::gql_token(app, account).ok_or("Earlier mod actions need a GQL sign-in.")?;
+    let (token, client_id) = crate::auth::gql_token(app, account).ok_or(crate::needs::NEEDS_GQL)?;
     let g = crate::auth::gql_auth(&token, &client_id);
     let Some(after) = super::view::history_next(app, &cid, older) else { return Ok(()) };
     match gql::modlogs::channel_actions(&http(app), g, &cid, after.as_deref()).await {
@@ -124,7 +124,7 @@ pub async fn mod_log_messages(
     cursor: Option<&str>,
 ) -> Result<gql::modlogs::ModLogPage, String> {
     let actor = super::actor(app, account, login)?;
-    let g = actor.gql().ok_or("Mod logs need a GQL sign-in.")?;
+    let g = actor.gql().ok_or(crate::needs::NEEDS_GQL)?;
     gql::modlogs::messages(&http(app), g, &actor.channel_id, target_id, cursor)
         .await
         .map_err(err)
@@ -133,13 +133,13 @@ pub async fn mod_log_messages(
 /// M3 Writes a mod comment on a user.
 pub async fn add_comment(app: &AppHandle, account: &str, login: &str, target_id: &str, text: &str, shareable: bool) -> Result<(), String> {
     let actor = super::actor(app, account, login)?;
-    let g = actor.gql().ok_or("Mod comments need a GQL sign-in.")?;
+    let g = actor.gql().ok_or(crate::needs::NEEDS_GQL)?;
     gql::modlogs::add_comment(&http(app), g, &actor.channel_id, target_id, text, shareable).await.map_err(err)
 }
 
 pub async fn delete_comment(app: &AppHandle, account: &str, login: &str, id: &str) -> Result<(), String> {
     let actor = super::actor(app, account, login)?;
-    let g = actor.gql().ok_or("Mod comments need a GQL sign-in.")?;
+    let g = actor.gql().ok_or(crate::needs::NEEDS_GQL)?;
     gql::modlogs::delete_comment(&http(app), g, &actor.channel_id, id).await.map_err(err)
 }
 

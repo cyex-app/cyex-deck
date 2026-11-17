@@ -7,6 +7,7 @@
   import type { PowerUps } from '../../ipc/bindings/PowerUps';
   import { chatxIpc } from '../../ipc/chatx';
   import { formatNumber } from '../../lib/format';
+  import { gate } from '../../lib/gate.svelte';
   import { toast } from '../../lib/toast.svelte';
   import { usable } from '../emotes/menu';
   import { emoteMenu } from '../emotes/menus';
@@ -94,7 +95,7 @@
       toast.info('Sent');
       ondone();
     } catch (e) {
-      toast.error(errorText(e));
+      gate.fail(e, room.account);
       sure = false;
     } finally {
       busy = false;

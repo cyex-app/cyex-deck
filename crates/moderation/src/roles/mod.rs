@@ -97,9 +97,9 @@ pub enum Path {
 }
 
 /// Lead mods without a GQL sign-in: Helix won't take their token.
-pub const LEAD_NEEDS_GQL: &str = "Lead mods change mods and VIPs with a GQL sign-in. Add one in Settings → Accounts.";
+pub const LEAD_NEEDS_GQL: &str = "Needs Extra Twitch features.";
 /// Lead mod, editor, artist and agent: GQL only (Helix has no endpoint, or not for us).
-pub const NEEDS_GQL: &str = "That needs a GQL sign-in. Add one in Settings → Accounts.";
+pub const NEEDS_GQL: &str = "Needs Extra Twitch features.";
 /// Signed in, but neither token can do it.
 pub const NO_TOKEN: &str = "This account can’t moderate. Sign in again in Settings → Accounts.";
 

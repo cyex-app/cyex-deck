@@ -3,6 +3,7 @@
   import { type Paged, nearView } from './paged.svelte';
   import Button from '../../components/Button.svelte';
   import Loading from '../../components/Loading.svelte';
+  import NeedsSignIn from '../../components/NeedsSignIn.svelte';
 
   /** `shown`: how many of the loaded items the page actually lists (some may be hidden). */
   let { list, empty, shown }: { list: Paged<{ id: string }>; empty: string; shown?: number } = $props();
@@ -19,7 +20,7 @@
 {:else if !(shown ?? list.items.length) && !list.cursor}
   <p class="end">{empty}</p>
 {:else if list.cursor && !list.canPage}
-  <p class="end">Twitch shows more with a GQL sign-in.</p>
+  <p class="end"><NeedsSignIn kind="gql" centered text="Twitch shows more with it." /></p>
 {:else if list.cursor}
   <div class="sentinel" use:nearView={() => void list.more()}></div>
 {/if}

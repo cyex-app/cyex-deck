@@ -31,10 +31,13 @@
   import { tooltip } from '../../components/tooltip.svelte';
   import type { IvrUser } from '../../ipc/bindings/IvrUser';
   import { settings } from '../../lib/settings.svelte';
+  import NeedsSignIn from '../../components/NeedsSignIn.svelte';
+  import { rawError } from '../../lib/errors';
+  import { needsKind } from '../../lib/gate';
   import { copied } from '../../lib/copied.svelte';
   import { chatHex, giftText, lastLiveHint, lastLiveText, lookups } from './facts';
 
-  let { profile, channel, ivr = null }: { profile: Profile; channel: string; ivr?: IvrUser | null } = $props();
+  let { profile, channel, ivr = null, account = null }: { profile: Profile; channel: string; ivr?: IvrUser | null; account?: string | null } = $props();
 
   const show = $derived(settings.v.chat.usercard);
   // What to ask is settled when the card opens; turning a row on later shows it on the next card.
@@ -45,6 +48,8 @@
   /** V107-R26 The channel's own profile: a channel that is neither affiliate nor partner has no subs. */
   let noSubs = $state(false);
   let follow = $state<FollowAge | null>(null);
+  /** V111-47 Follow age is read with the Twitch sign-in; a mod with only the extra features gets a line instead. */
+  let followNeeds = $state(false);
   let names = $state.raw<NameChange[]>([]);
   const nameKeys = $derived(uniqueKeys(names, (n) => n.login));
 
@@ -67,7 +72,7 @@
       usercardIpc
         .followAge(room, id)
         .then((f) => (follow = f))
-        .catch(() => {});
+        .catch((e) => (followNeeds = needsKind(rawError(e)) === 'helix'));
     }
   }
   if (ask.names) {
@@ -129,6 +134,9 @@
   {#if !own}
     {#if show.sub && ask.sub}
       <li class:dim={noSubs || !sub?.active}><Icon name="star" size={14} />{subText}</li>
+    {/if}
+    {#if show.followAge && followNeeds}
+      <li><Icon name="heart" size={14} /><NeedsSignIn kind="helix" {account} text="Follow age needs it." /></li>
     {/if}
     {#if show.followAge && follow?.known}
       <li>

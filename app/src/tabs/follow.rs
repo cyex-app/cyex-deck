@@ -19,7 +19,7 @@ pub async fn following(app: &AppHandle, channel_id: &str, account: &str) -> Resu
 
 pub async fn set(app: &AppHandle, channel_id: &str, account: &str, follow: bool) -> Result<(), String> {
     let (token, client_id) =
-        gql_token(app, account).ok_or("It needs a GQL sign-in. Add it in Settings → Accounts.")?;
+        gql_token(app, account).ok_or(crate::needs::NEEDS_GQL)?;
     let http = app.state::<Auth>().http.clone();
     let auth = crate::auth::gql_auth(&token, &client_id);
     let done = if follow {
@@ -35,7 +35,7 @@ fn error_text(e: &cyex_twitch::Error) -> String {
     match e.api_message() {
         None => "Twitch didn’t answer.".into(),
         Some(_) if e.is_integrity() => {
-            "Twitch wants a fresh GQL sign-in. Sign in again in Settings → Accounts.".into()
+            crate::needs::NEEDS_GQL.into()
         }
         Some("TOO_MANY_FOLLOWS") => "You follow too many channels.".into(),
         Some("FORBIDDEN") | Some("FOLLOW_BLOCKED") => "Twitch didn’t allow it.".into(),
@@ -62,7 +62,7 @@ mod tests {
         );
         assert_eq!(error_text(&api("FOLLOW_BLOCKED")), "Twitch didn’t allow it.");
         assert_eq!(error_text(&api("FORBIDDEN")), "Twitch didn’t allow it.");
-        assert!(error_text(&api("integrity check failed")).starts_with("Twitch wants a fresh GQL sign-in."));
+        assert_eq!(error_text(&api("integrity check failed")), "Needs Extra Twitch features.");
         assert_eq!(error_text(&api("WHATEVER")), "Twitch said WHATEVER.");
     }
 

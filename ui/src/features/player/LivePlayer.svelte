@@ -17,6 +17,9 @@
   import type { Tile } from '../../ipc/bindings/Tile';
   import { playerIpc } from '../../ipc/player';
   import { accounts } from '../../lib/accounts.svelte';
+  import { NEEDS_TEXT } from '../../lib/gate';
+  import { gate } from '../../lib/gate.svelte';
+  import type { TokenKind } from '../../ipc/bindings/TokenKind';
   import { bindingOf } from '../../lib/hotkeys.svelte';
   import { latest } from '../../lib/latest';
   import { BASE, reduced } from '../../lib/motion';
@@ -69,13 +72,15 @@
     onclip?: (at: number | null) => void;
     /** V102-08 Why clipping is off here, e.g. an anonymous tab: the button shows greyed. */
     clipOff?: string | null;
+    /** V111-47 With clipOff: the sign-in that would turn clipping on; the button adds it. */
+    clipFix?: { kind: TokenKind; account: string } | null;
     /** V103-07 Another player plays this stream: this one starts paused (and its tile muted). */
     held?: boolean;
     /** Over a listing page: a top corner sits below its filter bar. */
     listing?: boolean;
   }
 
-  let { tile, info, hushed = false, mini = false, onexpand, onclose, onpopchat, onclip, clipOff = null, held = false, listing = false }: Props = $props();
+  let { tile, info, hushed = false, mini = false, onexpand, onclose, onpopchat, onclip, clipOff = null, clipFix = null, held = false, listing = false }: Props = $props();
 
   let video = $state<HTMLVideoElement>();
   let shell = $state<Shell>();
@@ -293,7 +298,11 @@
     if (!rewind.inVod) return onclip?.(playingOffset(engine?.playingDate ?? null, rewind.origin));
     const plan = clipper ? hereClip(rewind.pos, rewind.uptime, rewind.vodId) : null;
     if (!clipper || !plan) {
-      toast.info('Can’t clip that far back. Go live to clip.');
+      // V111-47 With no extra features the reason is the sign-in, not the distance.
+      if (!clipper && tile.account && !accounts.hasGql(tile.account)) {
+        const who = tile.account;
+        toast.info(NEEDS_TEXT.gql.replace(/^Needs/, 'Clipping a moment needs'), { action: { label: 'Add', run: () => gate.ask('gql', who) } });
+      } else toast.info('Can’t clip that far back. Go live to clip.');
       return;
     }
     if (plan.kind === 'live') void clipLiveAt(tile, clipper, tile.channel.id, plan.offset);
@@ -645,7 +654,7 @@
       <ConfirmCallout anchor={clipArm.anchor} pressX={clipArm.pressX} label="Click to clip" onconfirm={clipArm.confirm} ondismiss={clipArm.disarm} />
     {/if}
   {:else if clipOff}
-    <button class="ctl sec-clip off" aria-label="Clip" aria-disabled="true" use:tooltip={{ label: 'Clip', hint: clipOff }}>
+    <button class="ctl sec-clip off" aria-label="Clip" aria-disabled={clipFix ? undefined : 'true'} use:tooltip={{ label: 'Clip', hint: clipFix ? `${clipOff} Click to add it.` : clipOff }} onclick={() => clipFix && gate.ask(clipFix.kind, clipFix.account)}>
       <Icon name="scissors" size={17} />
     </button>
   {/if}

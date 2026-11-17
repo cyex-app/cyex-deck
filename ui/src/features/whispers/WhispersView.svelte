@@ -14,6 +14,7 @@
   import { whispersIpc } from '../../ipc/whispers';
   import { ago } from '../../lib/format';
   import { currentWindow } from '../../lib/window.svelte';
+  import { gate } from '../../lib/gate.svelte';
   import { toast } from '../../lib/toast.svelte';
   import Conversation from './Conversation.svelte';
   import { whispers } from './whispers.svelte';
@@ -120,10 +121,10 @@
       {
         label: 'Block whispers from strangers',
         icon: 'lock',
-        note: s.history ? 'Only people you follow or whispered can whisper you.' : 'Needs a GQL sign-in.',
+        note: s.history ? 'Only people you follow or whispered can whisper you.' : undefined,
         checked: s.blockStrangers,
-        disabled: !s.history,
-        run: () => whispersIpc.blockStrangers(!s.blockStrangers).catch((err) => toast.error(errorText(err))),
+        ...(s.history ? {} : { lock: 'gql' as const, lockAccount: s.account?.id }),
+        run: () => whispersIpc.blockStrangers(!s.blockStrangers).catch((err) => gate.fail(err, s.account?.id)),
       },
       ...(!popout && !sheet && onpopout ? ['separator' as const, { label: 'Pop out', icon: 'popout' as const, run: () => onpopout(selected) }] : []),
     ]);
@@ -144,7 +145,7 @@
   </div>
 {:else if !s.account}
   <div class="none">
-    <EmptyState icon="whisper" text="Sign in to whisper. With a GQL sign-in, your past whispers load too." />
+    <EmptyState icon="whisper" text="Sign in to whisper. With Extra Twitch features, your past whispers load too." />
     {#if onsignin}<Button variant="primary" icon="login" onclick={onsignin}>Sign in</Button>{/if}
   </div>
 {:else}

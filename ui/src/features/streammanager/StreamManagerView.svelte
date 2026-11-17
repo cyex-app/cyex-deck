@@ -268,7 +268,7 @@
     <!-- Reading what Rust has. -->
   {:else if !m}
     <div class="empty">
-      <EmptyState icon="radio" text="Sign in with Twitch for your own channel to run your stream from here." />
+      <EmptyState icon="radio" text="Running your stream from here needs the Twitch sign-in for your own channel." />
       {#if onsignin}<Button small onclick={onsignin}>Sign in</Button>{/if}
     </div>
   {:else}

@@ -38,7 +38,7 @@ impl Ctx {
 
     fn signed_in(&self) -> Result<gql::Auth<'_>, String> {
         if self.token.is_none() {
-            return Err("This needs the GQL sign-in (Settings → Accounts).".into());
+            return Err(crate::needs::NEEDS_GQL.into());
         }
         Ok(self.auth())
     }
@@ -241,7 +241,7 @@ pub async fn gif_info(app: &AppHandle, view: u32) -> Result<GifInfo, String> {
     if c.token.is_none() {
         return Ok(GifInfo {
             can_send: false,
-            reason: Some("GIFs need the GQL sign-in.".into()),
+            reason: Some(crate::needs::NEEDS_GQL.into()),
         });
     }
     let a = access(app, &c).await?.in_room(room_gate(app, &c));

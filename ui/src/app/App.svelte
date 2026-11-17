@@ -373,9 +373,9 @@
 
   // V102-20 A greyed-out tool's flag, in any window: Settings → Accounts on that sign-in.
   $effect(() => {
-    const off = accountsIpc.onShowSignIn((kind) => {
+    const off = accountsIpc.onShowSignIn((kind, userId) => {
       manageAccounts();
-      gate.shown(kind);
+      gate.shown(kind, userId);
     });
     return () => void off.then((f) => f());
   });

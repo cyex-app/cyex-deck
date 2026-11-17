@@ -32,7 +32,7 @@ pub struct StandingChanged {
 }
 
 fn call(app: &AppHandle, account: &str) -> Result<GqlCall, String> {
-    GqlCall::new(app, account).map_err(|_| "This needs a GQL sign-in for the account (Settings → Accounts).".to_owned())
+    GqlCall::new(app, account).map_err(|_| crate::needs::NEEDS_GQL.to_owned())
 }
 
 fn failed(e: cyex_twitch::Error) -> String {

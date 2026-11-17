@@ -31,9 +31,12 @@ export const accountsIpc = {
   /** V102-19 A GQL token for an account signed in with Twitch. */
   addGqlToken: (userId: string, token: string) => invoke<SignedIn>('accounts_add_gql_token', { userId, token }),
   /** V102-20 Brings the main window up on the sign-in that unlocks a greyed-out tool. */
-  showSignIn: (kind: TokenKind) => invoke<void>('accounts_show_sign_in', { kind }),
-  onShowSignIn: (handler: (kind: TokenKind) => void) =>
-    listen<TokenKind>('accounts:sign-in', (e) => handler(e.payload)),
+  showSignIn: (kind: TokenKind, userId: string | null) => invoke<void>('accounts_show_sign_in', { kind, userId }),
+  /** V111-47 The ask names the account that lacks the sign-in (`null`: none). */
+  onShowSignIn: (handler: (kind: TokenKind, userId: string | null) => void) =>
+    listen<{ kind: TokenKind; userId: string | null }>('accounts:sign-in', (e) =>
+      handler(e.payload.kind, e.payload.userId ?? null),
+    ),
   remove: (userId: string) => invoke<void>('accounts_remove', { userId }),
   removeToken: (userId: string, kind: TokenKind) => invoke<void>('accounts_remove_token', { userId, kind }),
   setDefault: (userId: string) => invoke<void>('accounts_set_default', { userId }),

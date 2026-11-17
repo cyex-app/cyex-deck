@@ -15,6 +15,7 @@
   import type { TokenKind } from '../../ipc/bindings/TokenKind';
   import type { TokenView } from '../../ipc/bindings/TokenView';
   import { accounts } from '../../lib/accounts.svelte';
+  import { gate } from '../../lib/gate.svelte';
   import { toast } from '../../lib/toast.svelte';
   import { alsoSevenTv } from './alsoSevenTv.svelte';
   import GqlUnlock from './GqlUnlock.svelte';
@@ -39,8 +40,8 @@
   twitchPages.watch();
 
   const TOKENS: { kind: TokenKind; title: string; none: string; tip?: string }[] = [
-    { kind: 'helix', title: 'Twitch', none: 'Needed for payment methods, subscriptions and mod tools.' },
-    { kind: 'gql', title: 'Extra Twitch features', tip: 'The miner, following, channel points, GIFs, power-ups, votes, raids, badge picking and profile edits.', none: 'Not added. Unlocks the miner, following, channel points, GIFs and power-ups.' },
+    { kind: 'helix', title: 'Twitch sign-in', none: 'Needed for payment methods, subscriptions, blocked terms and chat-mode commands.' },
+    { kind: 'gql', title: 'Extra Twitch features', tip: 'The miner, following, channel points, GIFs, power-ups, votes, raids, badge picking and profile edits.', none: 'Not added. Unlocks the miner, following, channel points, GIFs, power-ups, votes and raids.' },
   ];
 
   const conn = $derived(accounts.connectionsOf(account.userId));
@@ -110,7 +111,7 @@
   }
 </script>
 
-<section class="card">
+<section class="card" data-account={account.userId}>
   <header>
     <Avatar src={account.avatar} name={account.displayName} size={36} />
     <div class="who">
@@ -126,7 +127,7 @@
 
   {#each TOKENS as t (t.kind)}
     {@const token = tokenOf(t.kind)}
-    <div class="line">
+    <div class="line" data-row={t.kind} class:lit={gate.lit?.userId === account.userId && gate.lit.kind === t.kind}>
       <span class="name" use:tooltip={{ label: t.title, hint: t.tip }}>{t.title}</span>
       {#if token}
         {@const status = tokenStatus(token)}
@@ -238,7 +239,7 @@
       </Button>
     {:else}
       <!-- V102-20 -->
-      <span class="locked"><Button small variant="ghost" icon="pencil" disabled>Twitch profile</Button><GateFlag kind="gql" /></span>
+      <span class="locked"><Button small variant="ghost" icon="pencil" disabled>Twitch profile</Button><GateFlag kind="gql" account={account.userId} /></span>
     {/if}
     <ConfirmButton label="Remove account" confirm="Click to remove" icon="trash" variant="ghost" onconfirm={removeAccount} />
   </footer>
@@ -305,6 +306,10 @@
     gap: 10px;
     min-height: 34px;
     border-top: 1px solid var(--border);
+    transition: background var(--fast);
+  }
+  .line.lit {
+    background: var(--accent-dim);
   }
   .name {
     flex: none;

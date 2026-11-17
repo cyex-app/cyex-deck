@@ -101,7 +101,7 @@ export function pick(item: MenuItem, viaKey = false): void {
   if (item.lock) {
     shut();
     if (item.unlock) item.unlock();
-    else gate.ask(item.lock);
+    else gate.ask(item.lock, item.lockAccount);
     return;
   }
   if (item.items) {

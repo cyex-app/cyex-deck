@@ -134,11 +134,8 @@ fn pick_account(app: &AppHandle, s: &MinerSettings) -> Result<String, String> {
         if has(id) {
             return Ok(id.clone());
         }
-        if let Some(a) = accounts.list.iter().find(|a| a.user_id == *id) {
-            return Err(format!(
-                "{} needs a GQL sign-in to mine (Settings → Accounts).",
-                a.display_name
-            ));
+        if accounts.list.iter().any(|a| a.user_id == *id) {
+            return Err(crate::needs::NEEDS_GQL.to_owned());
         }
     }
     if let Some(id) = accounts.default_id.as_deref().filter(|id| has(id)) {
@@ -150,7 +147,7 @@ fn pick_account(app: &AppHandle, s: &MinerSettings) -> Result<String, String> {
     Err(if accounts.list.is_empty() {
         "Sign in to mine.".into()
     } else {
-        "Mining needs a GQL sign-in (Settings → Accounts).".into()
+        crate::needs::NEEDS_GQL.into()
     })
 }
 

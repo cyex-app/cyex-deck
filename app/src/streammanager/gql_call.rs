@@ -8,7 +8,7 @@ use cyex_twitch::Http;
 use cyex_twitch::gql::{self, dashboard::Channel};
 use tauri::AppHandle;
 
-const GQL_ONLY: &str = "This needs the sign-in with a code (Settings → Accounts).";
+const GQL_ONLY: &str = crate::needs::NEEDS_GQL;
 /// The fake sign-in the mock gets.
 const MOCK_TOKEN: &str = "mock-token";
 #[cfg(feature = "mocks")]

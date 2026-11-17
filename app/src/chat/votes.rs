@@ -236,7 +236,7 @@ fn signed_in(app: &AppHandle, key: &super::RoomKey) -> Result<(String, (String, 
         return Err("Sign in to vote.".into());
     };
     let token =
-        crate::auth::gql_token(app, account).ok_or("Voting needs the GQL sign-in (Settings → Accounts).")?;
+        crate::auth::gql_token(app, account).ok_or(crate::needs::NEEDS_GQL)?;
     Ok((account.clone(), token))
 }
 

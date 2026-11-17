@@ -35,13 +35,13 @@ pub fn check(text: &str, list: &[BlockedTerm]) -> Result<String, String> {
 
 pub async fn list(app: &AppHandle, account: &str, login: &str) -> Result<Vec<BlockedTerm>, String> {
     let actor = super::actor(app, account, login)?;
-    let h = actor.helix_scoped(app, READ).ok_or("Blocked terms need Sign in with Twitch.")?;
+    let h = actor.helix_scoped(app, READ).ok_or(crate::needs::NEEDS_HELIX)?;
     hm::blocked_terms(&http(app), h, actor.room()).await.map_err(err)
 }
 
 pub async fn add(app: &AppHandle, account: &str, login: &str, text: &str) -> Result<BlockedTerm, String> {
     let actor = super::actor(app, account, login)?;
-    let h = actor.helix_scoped(app, MANAGE).ok_or("Blocked terms need Sign in with Twitch.")?;
+    let h = actor.helix_scoped(app, MANAGE).ok_or(crate::needs::NEEDS_HELIX)?;
     let now = hm::blocked_terms(&http(app), h, actor.room()).await.map_err(err)?;
     let text = check(text, &now)?;
     hm::add_blocked_term(&http(app), h, actor.room(), &text).await.map_err(err)
@@ -49,7 +49,7 @@ pub async fn add(app: &AppHandle, account: &str, login: &str, text: &str) -> Res
 
 pub async fn remove(app: &AppHandle, account: &str, login: &str, id: &str) -> Result<(), String> {
     let actor = super::actor(app, account, login)?;
-    let h = actor.helix_scoped(app, MANAGE).ok_or("Blocked terms need Sign in with Twitch.")?;
+    let h = actor.helix_scoped(app, MANAGE).ok_or(crate::needs::NEEDS_HELIX)?;
     hm::remove_blocked_term(&http(app), h, actor.room(), id).await.map_err(err)
 }
 

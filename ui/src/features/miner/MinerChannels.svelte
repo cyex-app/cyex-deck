@@ -16,12 +16,12 @@
   import { minerIpc } from '../../ipc/miner';
   import { formatNumber } from '../../lib/format';
   import { settings } from '../../lib/settings.svelte';
+  import { gate } from '../../lib/gate.svelte';
   import { toast } from '../../lib/toast.svelte';
   import ChannelPicker from '../tabs/ChannelPicker.svelte';
   import MinerBadges from './MinerBadges.svelte';
   import { miner } from './miner.svelte';
   import MinerRow from './MinerRow.svelte';
-  import { errorText } from '../../lib/errors';
 
   const SOURCES: { value: MineSource; label: string }[] = [
     { value: 'list', label: 'Your list' },
@@ -69,7 +69,7 @@
       if (!(await minerIpc.add(c))) toast.info(`${c.name} is on the list already.`);
     } catch (e) {
       // Kept in the box to try again.
-      return toast.error(errorText(e));
+      return gate.fail(e);
     }
     text = '';
     picked = null;
@@ -80,7 +80,7 @@
       const out = await minerIpc.first(strip(c), on);
       if (out) toast.info(`${out} isn’t first anymore.`);
     } catch (e) {
-      toast.error(errorText(e));
+      gate.fail(e);
     }
   }
 

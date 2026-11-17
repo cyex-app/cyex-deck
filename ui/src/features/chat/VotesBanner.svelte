@@ -4,23 +4,30 @@
 <script lang="ts">
   import Button from '../../components/Button.svelte';
   import Icon from '../../components/Icon.svelte';
+  import NeedsSignIn from '../../components/NeedsSignIn.svelte';
   import { tooltip } from '../../components/tooltip.svelte';
+  import { accounts } from '../../lib/accounts.svelte';
   import type { Outcome } from '../../ipc/bindings/Outcome';
   import { chatxIpc } from '../../ipc/chatx';
   import { everyShown } from '../../lib/awake';
   import { formatDecimal, formatDuration, formatNumber } from '../../lib/format';
   import { bannerIn } from '../../lib/motion';
-  import { toast } from '../../lib/toast.svelte';
   import { SvelteMap, SvelteSet } from 'svelte/reactivity';
   import { endPhase, pollEnded, predictionEnded } from './endedFold.ts';
   import { pollKey, pollLive, predictionKey, predictionLive, shows } from './eventStrip';
   import { eventStrip } from './eventStrip.svelte';
   import { focusStrip } from './bannerFocus';
   import { pollLeft, predictionLeft, votes } from './votes.svelte';
-  import { errorText } from '../../lib/errors';
+  import { access } from '../../lib/gate';
+  import { gate } from '../../lib/gate.svelte';
   import NumberField from '../../components/NumberField.svelte';
 
-  let { channel, view, signedIn }: { channel: string; view: () => number; signedIn: boolean } = $props();
+  let { channel, view, signedIn, account = null }: { channel: string; view: () => number; signedIn: boolean; account?: string | null } = $props();
+
+  // V111-47 Voting and betting go over the extra features: without them the controls are locked.
+  const status = $derived(access(signedIn, accounts.can('viewerVotes', account ?? undefined)));
+  const canVote = $derived(status === 'open');
+  const lockedOut = $derived(status === 'locked');
 
   const v = $derived(votes.byChannel.get(channel));
   const poll = $derived(v?.poll && !['ARCHIVED', 'MODERATED'].includes(v.poll.status) ? v.poll : null);
@@ -79,14 +86,14 @@
     try {
       await run();
     } catch (e) {
-      toast.error(errorText(e));
+      gate.fail(e, account);
     } finally {
       busy = false;
     }
   }
 
   function vote(choice: string) {
-    if (!poll || poll.status !== 'ACTIVE' || !signedIn) return;
+    if (!poll || poll.status !== 'ACTIVE' || !canVote) return;
     if (poll.mine.length && poll.pointsCost) {
       extra = choice;
       return;
@@ -158,7 +165,7 @@
             class="row"
             class:mine={poll.mine.includes(c.id)}
             class:won={poll.status !== 'ACTIVE' && c.votes === top && top > 0}
-            disabled={busy || poll.status !== 'ACTIVE' || !signedIn}
+            disabled={busy || poll.status !== 'ACTIVE' || !canVote}
             onclick={() => vote(c.id)}
             style:--fill="{pct(c.votes, total)}%"
           >
@@ -168,6 +175,9 @@
           </button>
         {/each}
       </div>
+      {#if lockedOut && poll.status === 'ACTIVE'}
+        <p class="foot"><NeedsSignIn kind="gql" {account} text="Voting needs it." /></p>
+      {/if}
       {#if extra}
         <div class="confirm">
           <span>Another vote costs {formatNumber(poll.pointsCost ?? 0)} points.</span>
@@ -211,7 +221,7 @@
             <span class="num">
               {pct(o.points, total)} % · {formatNumber(o.points)} · 1:{o.points ? formatDecimal(total / o.points, 2) : '–'}
             </span>
-            {#if open && signedIn && (!pred.mine || pred.mine.outcome === o.id)}
+            {#if open && canVote && (!pred.mine || pred.mine.outcome === o.id)}
               <Button small disabled={busy} onclick={() => predict(o)}>Bet</Button>
             {/if}
           </div>
@@ -225,7 +235,10 @@
             · refunded{/if}
         </p>
       {/if}
-      {#if open && signedIn}
+      {#if open && lockedOut}
+        <p class="foot"><NeedsSignIn kind="gql" {account} text="Betting needs it." /></p>
+      {/if}
+      {#if open && canVote}
         <div class="foot amount">
           Points
           <NumberField label="Points to bet" min={1} max={v?.balance ?? 1_000_000_000} width="104px" value={bet} onchange={(n) => (bet = n)} />

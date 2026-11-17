@@ -34,6 +34,8 @@ export interface MenuItem {
   disabled?: boolean;
   /** V102-20 Greyed out with the sign-in flag; picking it goes to that sign-in. */
   lock?: TokenKind | null;
+  /** V111-47 With lock: the account that lacks the sign-in (the default one if left out). */
+  lockAccount?: string | null;
   /** With `lock`: what picking it does instead of going to Settings, e.g. the sign-in choice. */
   unlock?: () => void;
   run?: () => void;

@@ -96,7 +96,7 @@
   </button>
 {:else if account && !can}
   <!-- V102-20 Greyed out until the account has a GQL sign-in. -->
-  <IconButton icon="heart" label="Follow" size={15} lock="gql" />
+  <IconButton icon="heart" label="Follow" size={15} lock="gql" {account} />
 {/if}
 
 <style>

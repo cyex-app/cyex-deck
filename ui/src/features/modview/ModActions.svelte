@@ -17,7 +17,7 @@
   import Button from '../../components/Button.svelte';
   import FeedList from '../../components/FeedList.svelte';
   import FilterChips from '../../components/FilterChips.svelte';
-  import GateFlag from '../../components/GateFlag.svelte';
+  import NeedsSignIn from '../../components/NeedsSignIn.svelte';
   import Card from '../../components/PanelCard.svelte';
   import type { ModActionFilters } from '../../ipc/bindings/ModActionFilters';
   import type { ModLine } from '../../ipc/bindings/ModLine';
@@ -126,8 +126,7 @@
     {/snippet}
     {#snippet foot()}
       {#if !gql}
-        <GateFlag kind="gql" />
-        <span>Earlier actions need a GQL sign-in.</span>
+        <NeedsSignIn kind="gql" {account} text="Earlier actions need it." />
       {:else if failed}
         <span>{failed}</span>
         <Button small variant="ghost" onclick={() => void load(older)}>Try again</Button>

@@ -17,7 +17,7 @@ use ts_rs::TS;
 
 use crate::whispers::GqlCall;
 
-const NO_GQL: &str = "This needs a GQL sign-in for the account (Settings → Accounts).";
+const NO_GQL: &str = crate::needs::NEEDS_GQL;
 
 fn call(app: &AppHandle, account: &str) -> Result<GqlCall, String> {
     GqlCall::new(app, account).map_err(|_| NO_GQL.to_owned())

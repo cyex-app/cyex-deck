@@ -355,7 +355,7 @@ pub async fn join(app: &AppHandle, account: &str, raid_id: &str) -> Result<(), S
     #[cfg(feature = "mocks")]
     let pair = pair.or_else(|| super::raid_mock::fake_token(app));
     let Some((token, client_id)) = pair else {
-        return Err("Sign in to join raids.".to_owned());
+        return Err(crate::needs::NEEDS_GQL.to_owned());
     };
     let auth = crate::auth::gql_auth(&token, &client_id);
     cyex_twitch::gql::miner::join_raid(&http(app), auth, raid_id).await.map_err(|e| {

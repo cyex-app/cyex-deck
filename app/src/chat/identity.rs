@@ -97,7 +97,7 @@ pub async fn pick_badge(
 ) -> Result<(), String> {
     let base = mock_base(app)?;
     let (token, client_id) =
-        gql(app, account, base.as_deref()).ok_or("Badges need a GQL sign-in. Add it in Settings → Accounts.")?;
+        gql(app, account, base.as_deref()).ok_or(crate::needs::NEEDS_GQL)?;
     let auth = crate::auth::gql_auth(&token, &client_id);
     let http = http(app);
     let base = base.as_deref();
@@ -177,7 +177,7 @@ pub async fn set_color(app: &AppHandle, account: &str, color: &str) -> Result<()
 pub async fn set_smilies(app: &AppHandle, account: &str, name: &str) -> Result<Smilies, String> {
     let base = mock_base(app)?;
     let (token, client_id) = gql(app, account, base.as_deref())
-        .ok_or("Smiley styles need a GQL sign-in. Add it in Settings → Accounts.")?;
+        .ok_or(crate::needs::NEEDS_GQL)?;
     let auth = crate::auth::gql_auth(&token, &client_id);
     let http = http(app);
     let base = base.as_deref();

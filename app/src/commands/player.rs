@@ -230,7 +230,7 @@ pub async fn channel_story_ring(app: AppHandle, channel_id: String, account: Opt
 
 #[tauri::command]
 pub async fn channel_stories(app: AppHandle, channel_id: String, account: String) -> CmdResult<Vec<Story>> {
-    let (token, client_id) = gql_token(&app, &account).ok_or("Stories need a GQL sign-in.")?;
+    let (token, client_id) = gql_token(&app, &account).ok_or(crate::needs::NEEDS_GQL)?;
     let auth = crate::auth::gql_auth(&token, &client_id);
     gql::stories(&http(&app), auth, &channel_id).await.map_err(message)
 }

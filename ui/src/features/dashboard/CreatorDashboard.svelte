@@ -2,10 +2,10 @@
      Sections on the left, the open one on the right; the last one opened opens next time. It
      acts on an account's own channel: the default, or the one picked in the header. Clips is
      the clips manager (V109-C03); Videos, Followers, Channel points and Moderation moved here
-     from the stream manager; Roles Manager is in both (one component). All need a GQL sign-in. -->
+     from the stream manager; Roles Manager is in both (one component). All need Extra Twitch features. -->
 <script lang="ts">
   import Avatar from '../../components/Avatar.svelte';
-  import GateFlag from '../../components/GateFlag.svelte';
+  import NeedsSignIn from '../../components/NeedsSignIn.svelte';
   import Icon from '../../components/Icon.svelte';
   import PanelBox from '../../components/PanelBox.svelte';
   import Select from '../../components/Select.svelte';
@@ -84,9 +84,9 @@
         <p>{open.hint}</p>
       </div>
       {#if !picked}
-        <p class="note">Sign in with Twitch for your channel to use this.</p>
+        <p class="note">This needs the Twitch sign-in for your own channel.</p>
       {:else if !gql}
-        <p class="note"><GateFlag kind="gql" /><span>This needs the sign-in with a code.</span></p>
+        <p class="note"><NeedsSignIn kind="gql" account={picked.userId} text="This needs it." /></p>
       {:else}
         <div class="panel">
           <!-- A new account starts each panel fresh. -->

@@ -83,7 +83,7 @@ pub(super) const CMDS: &[Cmd] = &[
         "1.49",
         &[ex("/clear", "Chat cleared.")],
     )
-    .errs(&["Clearing the whole chat needs a Helix sign-in with mod scopes."]),
+    .errs(&["Needs the Twitch sign-in."]),
     tw(
         "slow",
         "/slow [30]",
@@ -359,7 +359,7 @@ pub(super) const CMDS: &[Cmd] = &[
     .args(&[opt("seconds", "number").values(&["30", "60", "90", "120", "150", "180"])])
     .errs(&[
         "Usage: /commercial [30|60|90|120|150|180]",
-        "You need a Helix sign-in with mod scopes to run an ad.",
+        "Needs the Twitch sign-in.",
     ]),
     tw(
         "marker",
@@ -369,7 +369,7 @@ pub(super) const CMDS: &[Cmd] = &[
         &[ex("/marker big play", "Marker added.")],
     )
     .args(&[opt("text", "text")])
-    .errs(&["You need a Helix sign-in with mod scopes to add a marker."]),
+    .errs(&["Needs the Twitch sign-in."]),
     tw(
         "pin",
         "/pin message | /pin message-id [5m]",

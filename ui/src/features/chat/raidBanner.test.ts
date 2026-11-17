@@ -13,6 +13,7 @@ import {
   raidLeft,
   raidSlim,
   raidTabsToClose,
+  tickLocked,
   tickShows,
   viewersText,
 } from './raidBanner.ts';
@@ -22,6 +23,15 @@ test('the Join tick always shows in another channel while signed in, no setting'
   assert.equal(tickShows(null, '900'), false, 'no raid');
   assert.equal(tickShows('r1', null), false, 'signed out');
   assert.equal(tickShows('r1', '900', true), false, 'your own channel');
+});
+
+test('V111-47 the Join tick is locked, not shown, for an account without Extra Twitch features', () => {
+  assert.equal(tickShows('r1', '900', false, false), false);
+  assert.equal(tickLocked('r1', '900', false, false), true);
+  assert.equal(tickLocked('r1', '900', false, true), false, 'it can join');
+  assert.equal(tickLocked('r1', '900', true, false), false, 'your own channel');
+  assert.equal(tickLocked('r1', null, false, false), false, 'signed out');
+  assert.equal(tickLocked(null, '900', false, false), false, 'no raid');
 });
 
 test('countdown reads like a clock', () => {

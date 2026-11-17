@@ -10,7 +10,7 @@ use super::follows::error_text;
 use crate::auth::{Auth, gql_token};
 use crate::settings::Settings;
 
-const MORE_NEEDS_SIGN_IN: &str = "Twitch shows more with a GQL sign-in. Add it in Settings → Accounts.";
+const MORE_NEEDS_SIGN_IN: &str = crate::needs::NEEDS_GQL;
 
 /// A token and its client ID, for pages after the first.
 type Token = Option<(String, String)>;

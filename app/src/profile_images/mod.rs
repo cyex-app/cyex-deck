@@ -24,7 +24,7 @@ pub use check::{ImageError, ImageErrorKind};
 
 use crate::auth;
 
-const NO_GQL: &str = "This needs a GQL sign-in for the account (Settings → Accounts).";
+const NO_GQL: &str = crate::needs::NEEDS_GQL;
 const POLL_FOR: Duration = Duration::from_secs(15);
 const POLL_EVERY: Duration = Duration::from_millis(1500);
 /// V107-R19c History thumbs: 2x the 48 px they show at.

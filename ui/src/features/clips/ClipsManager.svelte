@@ -204,7 +204,7 @@
     </div>
   </div>
   {#if list.failed && !clips.length}
-    <SmProblem text={list.failed} onretry={() => void list.reload()} />
+    <SmProblem text={list.failed} onretry={() => void list.reload()} {account} />
   {:else if list.loading && !clips.length}
     <Loading rows={6} label="Loading clips" />
   {:else if !clips.length}

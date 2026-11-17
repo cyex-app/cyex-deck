@@ -4,13 +4,14 @@
 
 use cyex_moderation::command::{ModCommand, Treatment};
 use cyex_moderation::roles::Role;
-use cyex_twitch::gql;
+use cyex_twitch::gql::{self, dashboard as dash};
 use cyex_twitch::helix::modes::ModeChange;
 use cyex_twitch::helix::moderation as hm;
 use cyex_twitch::helix::roles::{self as hr, Role as HRole};
 use tauri::AppHandle;
 
 use super::{Actor, codes, http};
+use crate::needs::{self, Needs, Route};
 
 /// Looks up a login's user id (for actions that need an id).
 async fn user_id(app: &AppHandle, login: &str) -> Result<String, String> {
@@ -68,20 +69,20 @@ pub async fn command(app: &AppHandle, account: &str, login: &str, cmd: ModComman
         }
         C::SetLead { login: who, on } => super::roles::command(app, &actor, &who, Role::LeadMod, on).await,
         C::Announce { color, text } => {
-            let (auth, room) = helix_for(&actor, "announce")?;
+            let (auth, room) = helix_for(&actor)?;
             let http = http(app);
             cyex_twitch::helix::modes::announce(&http, auth, room, &text, color).await.map_err(helix_err)?;
             Ok(None)
         }
         C::Shoutout { login: who } => {
             let to = user_id(app, &who).await?;
-            let (auth, room) = helix_for(&actor, "shout out")?;
+            let (auth, room) = helix_for(&actor)?;
             let http = http(app);
             cyex_twitch::helix::modes::shoutout(&http, auth, room, &to).await.map_err(helix_err)?;
             Ok(Some(format!("Shouted out {who}.")))
         }
         C::Shield(on) => {
-            let (auth, room) = helix_for(&actor, "use shield mode")?;
+            let (auth, room) = helix_for(&actor)?;
             let http = http(app);
             hm::set_shield(&http, auth, room, on).await.map_err(helix_err)?;
             Ok(Some(if on { "Shield mode on.".into() } else { "Shield mode off.".into() }))
@@ -95,37 +96,83 @@ pub async fn command(app: &AppHandle, account: &str, login: &str, cmd: ModComman
         C::Unpin => unpin(app, &actor).await.map(|()| Some("Unpinned.".into())),
         C::Raid { login: who } => {
             let to = user_id(app, &who).await?;
-            let (auth, _) = helix_for(&actor, "raid")?;
-            let http = http(app);
-            hr::raid(&http, auth, &actor.channel_id, &to).await.map_err(helix_err)?;
+            twin(
+                &actor,
+                async |a, r| hr::raid(&http(app), a, r.broadcaster_id, &to).await,
+                async |g| dash::raids::start(&http(app), g, &actor.channel_id, &to).await,
+            )
+            .await?;
             Ok(Some(format!("Raiding {who}…")))
         }
         C::Unraid => {
-            let (auth, _) = helix_for(&actor, "cancel a raid")?;
-            let http = http(app);
-            hr::unraid(&http, auth, &actor.channel_id).await.map_err(helix_err)?;
+            twin(
+                &actor,
+                async |a, r| hr::unraid(&http(app), a, r.broadcaster_id).await,
+                async |g| dash::raids::cancel(&http(app), g, &actor.channel_id).await,
+            )
+            .await?;
             Ok(Some("Raid canceled.".into()))
         }
         C::Commercial { secs } => {
-            let (auth, _) = helix_for(&actor, "run an ad")?;
-            let http = http(app);
-            let got = hr::commercial(&http, auth, &actor.channel_id, secs).await.map_err(helix_err)?;
+            let got = twin(
+                &actor,
+                async |a, r| hr::commercial(&http(app), a, r.broadcaster_id, secs).await,
+                async |g| dash::ads::start(&http(app), g, &actor.channel_id, secs).await,
+            )
+            .await?;
             Ok(Some(format!("Ad started ({got}s).")))
         }
         C::Marker { text } => {
-            let (auth, _) = helix_for(&actor, "add a marker")?;
-            let http = http(app);
-            hr::marker(&http, auth, &actor.channel_id, &text).await.map_err(helix_err)?;
+            twin(
+                &actor,
+                async |a, r| hr::marker(&http(app), a, r.broadcaster_id, &text).await.map(drop),
+                async |g| dash::info::marker(&http(app), g, &actor.channel_id, &text).await,
+            )
+            .await?;
             Ok(Some("Marker added.".into()))
         }
     }
 }
 
-/// A Helix mod auth and room, or a clear message when the account has no Helix sign-in.
-fn helix_for<'a>(actor: &'a Actor, what: &str) -> Result<(cyex_twitch::helix::Auth<'a>, cyex_twitch::helix::Room<'a>), String> {
-    actor
-        .helix_any()
-        .ok_or_else(|| format!("You need a Helix sign-in with mod scopes to {what}."))
+/// A Helix mod auth and room, or the line that says the account needs the Twitch sign-in.
+/// V111-47 (announce, shoutout and shield have no GQL twin in the repo.)
+fn helix_for<'a>(actor: &'a Actor) -> Result<(cyex_twitch::helix::Auth<'a>, cyex_twitch::helix::Room<'a>), String> {
+    actor.helix_any().ok_or_else(|| Needs::Helix.into())
+}
+
+/// V111-47 Whether the acting account is on its own channel.
+fn own_channel(actor: &Actor) -> bool {
+    actor.channel_id == actor.account
+}
+
+/// V111-47 Runs a command over Helix, or over its GQL twin on the account's own channel when
+/// there's no Twitch sign-in or Helix refused the token (`needs::route`). Else says which
+/// sign-in is missing. The twins are the Stream manager's calls, no new GQL operations.
+async fn twin<T>(
+    actor: &Actor,
+    helix: impl AsyncFnOnce(cyex_twitch::helix::Auth<'_>, cyex_twitch::helix::Room<'_>) -> cyex_twitch::Result<T>,
+    gql_run: impl AsyncFnOnce(gql::Auth<'_>) -> cyex_twitch::Result<T>,
+) -> Result<T, String> {
+    let (own, has_h, has_g) = (own_channel(actor), actor.helix_any().is_some(), actor.gql().is_some());
+    let mut over_gql = match needs::route(own, has_h, has_g, false) {
+        Route::Needs(n) => return Err(n.into()),
+        Route::Gql => true,
+        Route::Helix => false,
+    };
+    if !over_gql {
+        let (auth, room) = helix_for(actor)?;
+        match helix(auth, room).await {
+            Ok(v) => return Ok(v),
+            Err(e) => {
+                over_gql = needs::helix_refused(status_code(&e)) && needs::route(own, has_h, has_g, true) == Route::Gql;
+                if !over_gql {
+                    return Err(helix_err(e));
+                }
+            }
+        }
+    }
+    let g = actor.gql().ok_or_else(|| String::from(Needs::Gql))?;
+    gql_run(g).await.map_err(|e| crate::streammanager::words::gql(&e))
 }
 
 fn helix_err(e: cyex_twitch::Error) -> String {
@@ -156,7 +203,8 @@ async fn delete(app: &AppHandle, actor: &Actor, msg_id: Option<&str>) -> Result<
     }
     match (actor.gql(), msg_id) {
         (Some(g), Some(id)) => refuse(gql::moderation::delete_message(&http(app), g, &actor.channel_id, id).await, "that message"),
-        (Some(_), None) => Err("Clearing the whole chat needs a Helix sign-in with mod scopes.".into()),
+        // V111-47 No GQL operation clears the chat.
+        (Some(_), None) => Err(Needs::Helix.into()),
         _ => Err(no_token()),
     }
 }
@@ -298,9 +346,12 @@ async fn unpin_once(app: &AppHandle, actor: &Actor) -> Result<(), String> {
 
 async fn mode(app: &AppHandle, actor: &Actor, change: ModeChange) -> Result<String, String> {
     let name = mode_name(change);
-    let (auth, room) = helix_for(actor, "change chat modes")?;
-    let http = http(app);
-    cyex_twitch::helix::modes::set_mode(&http, auth, room, change).await.map_err(helix_err)?;
+    twin(
+        actor,
+        async |a, r| cyex_twitch::helix::modes::set_mode(&http(app), a, r, change).await.map(drop),
+        async |g| dash::modes::set_mode(&http(app), g, &actor.channel_id, change).await.map(drop),
+    )
+    .await?;
     Ok(name)
 }
 

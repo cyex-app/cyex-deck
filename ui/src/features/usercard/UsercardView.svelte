@@ -37,7 +37,10 @@
   import { theirIds, touches } from './userWatch';
   import { LOCAL_MS, shown } from './optimistic';
   import type { BanStatus } from '../../ipc/bindings/BanStatus';
-  import { errorText } from '../../lib/errors';
+  import { errorText, rawError } from '../../lib/errors';
+  import { needsKind } from '../../lib/gate';
+  import type { TokenKind } from '../../ipc/bindings/TokenKind';
+  import NeedsSignIn from '../../components/NeedsSignIn.svelte';
   import Loading from '../../components/Loading.svelte';
   import Button from '../../components/Button.svelte';
   import { ownNameColor } from '../chat/ownColor';
@@ -152,17 +155,19 @@
     };
   });
 
-  // M3 Mod history over GQL; silent where the account can't read it.
+  // M3 Mod history over GQL. V111-47 Where the account can't read it, a line says why.
+  let historyNeeds = $state<TokenKind | null>(null);
   function readHistory() {
     if (!modAccount || !profile) return;
     modIpc
       .history(modAccount, channel, profile.id)
       .then((h) => {
         history = h;
+        historyNeeds = null;
         // V107-R45 The log caught up: it speaks again.
         if (local && !!h.ban === !!local.ban) local = null;
       })
-      .catch(() => {});
+      .catch((e) => (historyNeeds = needsKind(rawError(e))));
   }
   $effect(() => {
     if (modAccount && profile?.id) untrack(readHistory);
@@ -188,6 +193,7 @@
     clearTimeout(localEnds);
   });
 
+  const lackGql = $derived(!!modAccount && show.modTabs && !history && (historyNeeds === 'gql' || !accounts.hasGql(modAccount)));
   const tabs = $derived<{ key: Tab; label: string; count: string }[]>(
     history && show.modTabs
       ? [
@@ -231,7 +237,7 @@
         verifiedBot={!!ivr?.verifiedBot}
         {isSelf}
       />
-      <Facts {profile} {channel} {ivr} />
+      <Facts {profile} {channel} {ivr} account={modAccount} />
       {#if ask.roles && show.roles}
         <OtherRoles userId={profile.id} {channel} />
       {/if}
@@ -288,6 +294,8 @@
             onchange={(e) => saveNote('note', e.currentTarget.value)}
           ></textarea>
         </div>
+      {:else if lackGql}
+        <p class="needs"><NeedsSignIn kind="gql" account={modAccount} text="Mod history needs it." /></p>
       {:else if tabs.length}
         <nav class="tabs">
           {#each tabs as t (t.key)}
@@ -345,6 +353,13 @@
     flex-direction: column;
     border-top: 1px solid var(--border);
     background: var(--page);
+  }
+  .needs {
+    flex: none;
+    margin: 0;
+    padding: 6px 8px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
   }
   .tabs {
     display: grid;

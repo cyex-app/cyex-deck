@@ -17,6 +17,8 @@
   import type { ChatMessage } from '../../ipc/bindings/ChatMessage';
   import type { UiAction } from '../../ipc/bindings/UiAction';
   import { accounts } from '../../lib/accounts.svelte';
+  import { missingSignIn } from '../../lib/gate';
+  import NeedsSignIn from '../../components/NeedsSignIn.svelte';
   import { settings } from '../../lib/settings.svelte';
   import { commaStart, commaStep, commaValue, insert, keepExact, startsMessage, wordAt, type CommaPlan, type Word } from './completion';
   import { formatNumber } from '../../lib/format';
@@ -138,6 +140,10 @@
   });
 
   const canChat = $derived(room.account !== null && accounts.can('sendChat', room.account));
+  const cantChat = $derived.by(() => {
+    const a = accounts.list.find((x) => x.userId === room.account);
+    return a ? { kind: missingSignIn(a), account: a.userId } : null;
+  });
   // V109-F81 Sends can't go out from a chat that isn't in: the box says so instead of taking a
   // line that only gets "Not connected yet." (the header names why and offers Reconnect).
   const out = $derived(['banned', 'noAnswer', 'refused', 'unavailable', 'authFailed'].includes(room.status));
@@ -711,9 +717,12 @@
           }}
         />
       {/if}
+    {:else if room.account && cantChat}
+      <!-- V111-47 The sign-in it lacks is one click away. -->
+      <div class="cant"><span>This account can’t chat yet.</span><NeedsSignIn kind={cantChat.kind} account={cantChat.account} /></div>
     {:else}
       <button class="signin" onclick={onsignin}>
-        {room.account ? 'This account can’t chat yet. Check Settings → Accounts.' : accounts.list.length ? 'Pick an account to chat' : 'Sign in to chat'}
+        {accounts.list.length ? 'Pick an account to chat' : 'Sign in to chat'}
       </button>
     {/if}
   </div>
@@ -906,6 +915,21 @@
   }
   .count.over {
     color: var(--red);
+  }
+  .cant {
+    display: flex;
+    flex: 1;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 6px 10px;
+    min-height: 34px;
+    padding: 2px 8px;
+    background: var(--surface);
+    border: 1px dashed var(--border-strong);
+    border-radius: var(--radius);
+    color: var(--muted);
+    font-size: var(--text-sub);
   }
   .signin {
     flex: 1;

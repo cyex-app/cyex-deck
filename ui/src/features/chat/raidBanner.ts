@@ -3,8 +3,14 @@
 
 /** The "Join" tick shows while a raid counts down, in a signed-in chat of another channel.
  * It is always there (no setting); nothing joins until it is ticked. */
-export function tickShows(raidId: string | null, account: string | null, own = false): boolean {
-  return !!raidId && !!account && !own;
+export function tickShows(raidId: string | null, account: string | null, own = false, canJoin = true): boolean {
+  return !!raidId && !!account && !own && canJoin;
+}
+
+/** V111-47 The tick is there but locked: the account is signed in, but joining a raid needs
+ * Extra Twitch features it lacks. */
+export function tickLocked(raidId: string | null, account: string | null, own: boolean, canJoin: boolean): boolean {
+  return !!raidId && !!account && !own && !canJoin;
 }
 
 /** The chat's account is the channel's broadcaster: the raid is theirs, they are the one raiding. */

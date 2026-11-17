@@ -2,7 +2,7 @@
      it closes. V103-09 A clip just made without Sign in with Twitch shows here as made (the
      last 30 seconds), with a note that the sign-in lets you pick the start and end. -->
 <script lang="ts">
-  import GateFlag from '../../components/GateFlag.svelte';
+  import NeedsSignIn from '../../components/NeedsSignIn.svelte';
   import IconButton from '../../components/IconButton.svelte';
   import type { ClipPlayback } from '../../ipc/bindings/ClipPlayback';
   import type { Tile } from '../../ipc/bindings/Tile';
@@ -60,8 +60,8 @@
         {/if}
       </div>
       {#if made}
-        <span class="note">Last 30 seconds. Sign in with Twitch to pick the start and end.</span>
-        <GateFlag kind="helix" />
+        <span class="note">Last 30 seconds.</span>
+        <NeedsSignIn kind="helix" account={tile?.account ?? null} text="Picking the start and end needs it." />
       {/if}
       <IconButton icon="twitch" label="Open on Twitch" size={15} onclick={() => open(`https://clips.twitch.tv/${slug}`)} />
       <IconButton icon="x" label="Close" hint="Esc" size={16} onclick={onclose} />

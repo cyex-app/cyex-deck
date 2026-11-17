@@ -15,7 +15,7 @@
   import { signIn } from '../../accounts/signIn.svelte';
   import { accounts } from '../../../lib/accounts.svelte';
   import { signInTarget } from '../../../lib/gate';
-  import { gate } from '../../../lib/gate.svelte';
+  import { gate, type Want } from '../../../lib/gate.svelte';
   import { scrollBehavior } from '../../../lib/motion';
   import { scrollWithin } from '../../../lib/scrollWithin';
   import { settingsPlace } from '../place.svelte';
@@ -36,17 +36,26 @@
 
   $effect(() => {
     if (!gate.asks || !gate.want) return;
-    const target = signInTarget(gate.want, accounts.current);
+    const want = gate.want;
     gate.want = null;
-    void show(target);
+    const account = accounts.list.find((a) => a.userId === want.userId);
+    void show(signInTarget(want.kind, account), want, account?.userId);
   });
 
-  async function show(target: 'account' | 'twitch' | 'code') {
-    if (target === 'account' && accounts.current) signIn.offer = accounts.current.userId;
+  /** V111-47 With an account: its own card, the row of the sign-in it lacks lit for a moment
+   * (Extra Twitch features also opens its options). */
+  async function show(target: 'account' | 'twitch' | 'code', want: Want, userId?: string) {
+    if (target === 'account' && userId && want.kind === 'gql') signIn.offer = userId;
     await tick();
-    const el = target === 'account' ? cards : target === 'twitch' ? twitchWay : codeWay;
+    const row = userId ? cards?.querySelector<HTMLElement>(`[data-account="${userId}"] [data-row="${want.kind}"]`) : null;
+    const el = target === 'account' ? (row ?? cards) : target === 'twitch' ? twitchWay : codeWay;
     if (el) scrollWithin(el, 'center', scrollBehavior());
-    if (target === 'account') return;
+    if (target === 'account') {
+      if (!row) return;
+      gate.lit = want;
+      setTimeout(() => (gate.lit = null), 1600);
+      return;
+    }
     lit = target;
     setTimeout(() => (lit = null), 1600);
   }
@@ -69,8 +78,8 @@
   <div class="way" class:lit={lit === 'twitch'} bind:this={twitchWay} data-setting="accounts:twitch">
     <Icon name="login" size={18} />
     <div class="text">
-      <strong>Sign in with Twitch</strong>
-      <span>Chat, mod tools, your follows, payment methods and subscriptions. Add a code sign-in later for the rest.</span>
+      <strong>Twitch sign-in</strong>
+      <span>Chat, mod tools, your follows, payment methods and subscriptions. Add Extra Twitch features later for the rest.</span>
     </div>
     <Button variant="primary" small disabled={signIn.kind !== null} onclick={() => signIn.start('helix')}>
       Sign in
@@ -79,8 +88,8 @@
   <div class="way" class:lit={lit === 'code'} bind:this={codeWay} data-setting="accounts:code">
     <Icon name="key" size={18} />
     <div class="text">
-      <strong>Sign in with a code</strong>
-      <span>Approve a short code on Twitch to add the miner, following, channel points, GIFs and power-ups.</span>
+      <strong>Extra Twitch features</strong>
+      <span>Approve a short code on Twitch to add the miner, following, channel points, GIFs, power-ups, votes and raids.</span>
     </div>
     <Button small disabled={signIn.kind !== null} onclick={() => signIn.start('gql')}>Get a code</Button>
   </div>

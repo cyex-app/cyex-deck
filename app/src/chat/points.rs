@@ -146,7 +146,7 @@ pub async fn redeem(
     let account = account.ok_or("Sign in to use channel points.")?;
     let mock = mock(app)?;
     let (token, client_id) =
-        token(app, mock.as_ref(), &account).ok_or("Channel points need a GQL sign-in. Add it in Settings → Accounts.")?;
+        token(app, mock.as_ref(), &account).ok_or(crate::needs::NEEDS_GQL)?;
     let c = channel(app, mock.as_ref(), &login, true).await?.ok_or("Channel not found.")?;
     let points = c.points.as_ref().ok_or("This channel has no channel points.")?;
     let http = http(app, mock.as_ref());

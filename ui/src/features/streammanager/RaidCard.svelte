@@ -15,9 +15,14 @@
   import Card from '../../components/PanelCard.svelte';
   import { raidArmedDue, raidCountdown, raidMarkLabel } from './logic';
   import { sm } from './streammanager.svelte';
-  import { errorText } from '../../lib/errors';
+  import NeedsSignIn from '../../components/NeedsSignIn.svelte';
+  import { accounts } from '../../lib/accounts.svelte';
+  import { useOwner } from './owner';
+  import { gate } from '../../lib/gate.svelte';
 
   const PICKS = 6;
+  const owner = useOwner();
+  const who = $derived(owner.who?.accountId ?? owner.account);
 
   let target = $state('');
   /** Started here, until Twitch's first update comes. */
@@ -66,7 +71,7 @@
   function act(p: Promise<void>, after: () => void) {
     busy = true;
     p.then(after)
-      .catch((e) => toast.error(errorText(e)))
+      .catch((e) => gate.fail(e, who))
       .finally(() => (busy = false));
   }
 
@@ -138,6 +143,9 @@
           </li>
         {/each}
       </ul>
+    {:else if !accounts.hasGql(who ?? undefined)}
+      <!-- V111-47 Twitch's suggestions come over the extra features. -->
+      <NeedsSignIn kind="gql" account={who} text="Suggested channels need it." />
     {/if}
   {/if}
 </Card>

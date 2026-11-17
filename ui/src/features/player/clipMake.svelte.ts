@@ -3,7 +3,7 @@
 // player, like the clip button's (P9) or beside the chat of a chat-only tile.
 
 import { playerIpc } from '../../ipc/player';
-import { errorText } from '../../lib/errors';
+import { gate } from '../../lib/gate.svelte';
 import { toast } from '../../lib/toast.svelte';
 import { markFresh } from './freshClips';
 import { openTarget } from './players.svelte';
@@ -28,7 +28,7 @@ export const clipMaking = {
 
 type Where = Parameters<typeof openTarget>[0];
 
-async function make(tile: Where, ask: () => Promise<{ slug: string }>): Promise<void> {
+async function make(tile: Where, ask: () => Promise<{ slug: string }>, account: string): Promise<void> {
   if (busy) return;
   busy = true;
   toast.info('Making a clip…');
@@ -38,7 +38,7 @@ async function make(tile: Where, ask: () => Promise<{ slug: string }>): Promise<
     // Over the stream, or beside the chat of a chat-only tile.
     openTarget(tile, { kind: 'clip', slug: clip.slug });
   } catch (e) {
-    toast.error(errorText(e));
+    gate.fail(e, account);
   } finally {
     busy = false;
   }
@@ -46,10 +46,10 @@ async function make(tile: Where, ask: () => Promise<{ slug: string }>): Promise<
 
 /** The live stream up to `offset` s into the broadcast. */
 export function clipLiveAt(tile: Where, account: string, channelId: string, offset: number): Promise<void> {
-  return make(tile, () => playerIpc.createClipAt(account, channelId, offset));
+  return make(tile, () => playerIpc.createClipAt(account, channelId, offset), account);
 }
 
 /** The video up to `offset` s into it. */
 export function clipVideoAt(tile: Where, account: string, channelId: string, videoId: string, offset: number): Promise<void> {
-  return make(tile, () => playerIpc.createClipFromVideo(account, channelId, videoId, offset));
+  return make(tile, () => playerIpc.createClipFromVideo(account, channelId, videoId, offset), account);
 }

@@ -17,6 +17,7 @@
   import type { ChatIdentity } from '../../ipc/bindings/ChatIdentity';
   import type { SmileyChoice } from '../../ipc/bindings/SmileyChoice';
   import { chatIpc } from '../../ipc/chat';
+  import NeedsSignIn from '../../components/NeedsSignIn.svelte';
   import { accounts } from '../../lib/accounts.svelte';
   import { density } from '../../lib/density.svelte';
   import { errorText } from '../../lib/errors';
@@ -241,7 +242,7 @@
           {/if}
           {@render refused('badge')}
         {:else}
-          <p class="note">Picking a badge needs a GQL sign-in.</p>
+          <p class="note"><NeedsSignIn kind="gql" {account} text="Picking a badge needs it." /></p>
         {/if}
       </section>
 
@@ -299,6 +300,12 @@
             {/each}
           </div>
           {@render refused('smiley')}
+        </section>
+      {:else if !me.channelId}
+        <!-- V111-47 Smileys are read over the extra features; without them the part says so. -->
+        <section aria-labelledby="{uid}-smiley">
+          <h3 class="label" id="{uid}-smiley">Smileys</h3>
+          <p class="note"><NeedsSignIn kind="gql" {account} text="Smileys need it." /></p>
         </section>
       {/if}
     {/if}

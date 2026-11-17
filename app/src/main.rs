@@ -26,6 +26,7 @@ mod miner;
 #[cfg(feature = "mocks")]
 mod mock_url;
 mod moderation;
+mod needs;
 mod paths;
 #[cfg(feature = "mocks")]
 mod perf_probe;

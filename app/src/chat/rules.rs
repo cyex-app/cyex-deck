@@ -87,16 +87,24 @@ pub fn load_blocked(app: AppHandle) {
         let http = app.state::<crate::auth::Auth>().http.clone();
         let mut lists = Vec::new();
         for id in crate::auth::accounts(&app).list.iter().map(|a| a.user_id.clone()) {
-            let ids = if let Some((token, client_id)) =
+            // V111-47 Helix first; when it fails and a GQL token exists, the list comes over GQL.
+            let helix_ids = if let Some((token, client_id)) =
                 crate::auth::helix_scoped(&app, &id, "user:read:blocked_users")
             {
                 let auth = crate::auth::helix_auth(&token, &client_id);
-                helix::blocks::blocked_ids(&http, auth, &id).await
-            } else if let Some((token, client_id)) = crate::auth::gql_token(&app, &id) {
-                let auth = crate::auth::gql_auth(&token, &client_id);
-                gql::blocks::blocked_ids(&http, auth).await
+                Some(helix::blocks::blocked_ids(&http, auth, &id).await)
             } else {
-                continue;
+                None
+            };
+            let gql_auth = crate::auth::gql_token(&app, &id);
+            let ids = match (helix_ids, gql_auth) {
+                (Some(Ok(ids)), _) => Ok(ids),
+                (Some(Err(e)), None) => Err(e),
+                (Some(Err(_)) | None, Some((token, client_id))) => {
+                    let auth = crate::auth::gql_auth(&token, &client_id);
+                    gql::blocks::blocked_ids(&http, auth).await
+                }
+                (None, None) => continue,
             };
             match ids {
                 Ok(ids) => lists.push((id, ids.into_iter().collect())),

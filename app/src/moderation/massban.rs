@@ -267,7 +267,7 @@ impl run::Singles for Live<'_, '_> {
 
 async fn gql_path(job: &mut Job<'_>, logins: &[String]) -> Result<(), String> {
     let actor = job.actor;
-    let g = actor.gql().ok_or("No GQL token.")?;
+    let g = actor.gql().ok_or(crate::needs::NEEDS_GQL)?;
     let order = job.order;
     let mut tally = std::mem::take(&mut job.tally);
     let res = {
@@ -301,7 +301,7 @@ async fn gql_path(job: &mut Job<'_>, logins: &[String]) -> Result<(), String> {
 
 async fn helix_path(job: &mut Job<'_>, logins: &[String], pacer: &mut Pacer) -> Result<(), String> {
     let actor = job.actor;
-    let (auth, room) = actor.helix_any().ok_or("No Helix token.")?;
+    let (auth, room) = actor.helix_any().ok_or(crate::needs::NEEDS_HELIX)?;
     let unban = job.order.unban;
     let mut tally = std::mem::take(&mut job.tally);
     let res = {

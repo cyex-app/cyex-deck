@@ -2,7 +2,7 @@
      1.33, 1.44, W3), stats (1.32) and log (W4). Settings → Miner has the rest. -->
 <script lang="ts">
   import Avatar from '../../components/Avatar.svelte';
-  import GateFlag from '../../components/GateFlag.svelte';
+  import NeedsSignIn from '../../components/NeedsSignIn.svelte';
   import Icon from '../../components/Icon.svelte';
   import IconButton from '../../components/IconButton.svelte';
   import { type MenuEntry, openMenuAt } from '../../components/menu.svelte';
@@ -86,8 +86,7 @@
   <div class="scroll">
     {#if !able.length}
       <div class="note">
-        <span>The miner needs an account with a GQL sign-in.</span>
-        <GateFlag kind="gql" />
+        <NeedsSignIn kind="gql" text="The miner needs it." />
       </div>
     {:else if page === 'channels'}
       <MinerChannels />

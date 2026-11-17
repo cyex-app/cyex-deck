@@ -100,12 +100,12 @@
     </div>
   {:else if !twitch}
     <div class="none">
-      <EmptyState icon="star" text="Subscriptions and payment methods need Sign in with Twitch." />
+      <EmptyState icon="star" text="Subscriptions and payment methods need the Twitch sign-in." />
       <Button variant="primary" onclick={ask}>Unlock</Button>
     </div>
   {:else if !can}
     <div class="none">
-      <EmptyState icon="star" text="Your subs show here with a GQL sign-in. Twitch’s page works either way." />
+      <EmptyState icon="star" text="Your subs show here with Extra Twitch features. Twitch’s page works either way." />
       <div class="ways">
         <Button variant="primary" onclick={ask}>Unlock</Button>
         <Button onclick={() => page('subscriptions')}>Open Twitch’s page</Button>

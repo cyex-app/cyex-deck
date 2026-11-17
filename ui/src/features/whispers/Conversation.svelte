@@ -7,6 +7,7 @@
   import Avatar from '../../components/Avatar.svelte';
   import Button from '../../components/Button.svelte';
   import IconButton from '../../components/IconButton.svelte';
+  import NeedsSignIn from '../../components/NeedsSignIn.svelte';
   import { openMenuAt } from '../../components/menu.svelte';
   import { WHISPER_DEF } from '../../components/menus/defs/whispers';
   import { menuEntries } from '../../components/menus/use';
@@ -17,6 +18,7 @@
   import { whispersIpc } from '../../ipc/whispers';
   import DateRow from '../../components/DateRow.svelte';
   import { formatDate } from '../../lib/format';
+  import { gate } from '../../lib/gate.svelte';
   import { toast } from '../../lib/toast.svelte';
   import Line from '../chat/Line.svelte';
   import { withUndo } from '../chat/undo';
@@ -183,7 +185,7 @@
       await whispersIpc.edit(conv.thread.id, change);
       if (done) toast.info(done);
     } catch (e) {
-      toast.error(errorText(e));
+      gate.fail(e, account);
     }
   }
 
@@ -216,6 +218,7 @@
           archived: t.archived,
           temporary: t.temporary,
           muted: t.muted,
+          account,
           act: {
             archive: () => void edit({ archived: !t.archived }),
             revoke: () => void edit({ revoke: true }, 'They can’t whisper you anymore.'),
@@ -290,8 +293,9 @@
       <Loading />
     {:else if !messages.length}
       <p class="note">
-        {history ? 'No whispers yet. Say hi.' : 'Whispers from this session show here. Past ones need a GQL sign-in.'}
+        {history ? 'No whispers yet. Say hi.' : 'Whispers from this session show here.'}
       </p>
+      {#if !history}<p class="note"><NeedsSignIn kind="gql" {account} text="Past ones need it." /></p>{/if}
     {/if}
     {#each messages as m, i (m.id)}
       {#if dates.has(i)}<DateRow label={dates.get(i) ?? ''} />{/if}

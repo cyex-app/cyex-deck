@@ -5,7 +5,7 @@
 <script lang="ts">
   import { enterKey } from '../../lib/keys';
   import Button from '../../components/Button.svelte';
-  import GateFlag from '../../components/GateFlag.svelte';
+  import NeedsSignIn from '../../components/NeedsSignIn.svelte';
   import Icon from '../../components/Icon.svelte';
   import Popover from '../../components/Popover.svelte';
   import Segmented from '../../components/Segmented.svelte';
@@ -16,13 +16,13 @@
   import { accounts } from '../../lib/accounts.svelte';
   import { formatNumber } from '../../lib/format';
   import { ARROWS, nearest } from '../../lib/gridNav';
+  import { gate } from '../../lib/gate.svelte';
   import { toast } from '../../lib/toast.svelte';
   import EmotePick from './EmotePick.svelte';
   import { btnMemo, remember } from './btnCache';
   import PowerUps from './PowerUps.svelte';
   import { blocked, NOT_ENOUGH, short } from './rewards';
   import type { ChatRoom } from './room.svelte';
-  import { errorText } from '../../lib/errors';
   import Loading from '../../components/Loading.svelte';
 
   /** V108-F55 Arrows move through the tiles as they sit (three a row), not one long list. */
@@ -187,7 +187,7 @@
       picked = null;
       void load();
     } catch (e) {
-      toast.error(errorText(e));
+      gate.fail(e, room.account);
     } finally {
       busy = false;
     }
@@ -230,7 +230,7 @@
       </header>
       {#if !canRedeem}
         <!-- V102-20 -->
-        <p class="note locked">Redeeming needs a GQL sign-in for this account. <GateFlag kind="gql" /></p>
+        <p class="note locked"><NeedsSignIn kind="gql" account={room.account} text="Redeeming needs it." /></p>
       {/if}
       {#if locked}<p class="note">{locked}</p>{/if}
       {#if page === 'bits'}

@@ -619,7 +619,7 @@
         raiding={!!raids.of(room.state.channelId)}
       />
     {/if}
-    <VotesBanner channel={login} view={() => room.view} signedIn={room.account !== null} />
+    <VotesBanner channel={login} view={() => room.view} signedIn={room.account !== null} account={room.account} />
     <LiveChatBar channel={login} />
   </div>
   <div class="body">

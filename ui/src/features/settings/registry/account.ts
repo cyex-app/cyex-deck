@@ -21,9 +21,9 @@ export const ACCOUNT: Entry[] = [
   {
     id: 'accounts:twitch',
     page: 'accounts',
-    label: 'Sign in with Twitch',
+    label: 'Twitch sign-in',
     description: 'Chat, mod tools, your follows, payment methods and subscriptions.',
-    keywords: ['log in', 'login', 'add account'],
+    keywords: ['log in', 'login', 'add account', 'sign in with twitch', 'helix'],
   },
   {
     id: 'accounts:seventv',
@@ -36,9 +36,9 @@ export const ACCOUNT: Entry[] = [
   {
     id: 'accounts:code',
     page: 'accounts',
-    label: 'Sign in with a code',
-    description: 'Approve a short code on Twitch. Chat and the extra Twitch features.',
-    keywords: ['gql', 'token', 'log in', 'login', 'add account'],
+    label: 'Extra Twitch features',
+    description: 'Approve a short code on Twitch. The miner, following, channel points, GIFs, power-ups, votes and raids.',
+    keywords: ['gql', 'token', 'code', 'sign in with a code', 'log in', 'login', 'add account'],
   },
   {
     id: 'accounts:profile',

@@ -11,7 +11,7 @@ use ts_rs::TS;
 use crate::auth;
 use crate::whispers::GqlCall;
 
-const NO_GQL: &str = "This needs a GQL sign-in for the account (Settings → Accounts).";
+const NO_GQL: &str = crate::needs::NEEDS_GQL;
 
 #[derive(Clone, Debug, Serialize, TS)]
 #[serde(rename_all = "camelCase")]

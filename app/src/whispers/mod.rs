@@ -392,7 +392,7 @@ pub async fn mark_read(app: &AppHandle, thread_id: &str) -> Result<(), String> {
 pub async fn edit(app: &AppHandle, thread_id: &str, e: WhisperEdit) -> Result<(), String> {
     let me = current(app)?;
     if !me.gql {
-        return Err("Thread options need a GQL sign-in.".into());
+        return Err(crate::needs::NEEDS_GQL.into());
     }
     let c = GqlCall::new(app, &me.id).map_err(|e| failed(&e))?;
     let edit = api::ThreadEdit {
@@ -444,7 +444,7 @@ pub async fn read_all(app: &AppHandle) -> Result<(), String> {
 pub async fn block_strangers(app: &AppHandle, on: bool) -> Result<(), String> {
     let me = current(app)?;
     if !me.gql {
-        return Err("This needs a GQL sign-in.".into());
+        return Err(crate::needs::NEEDS_GQL.into());
     }
     let c = GqlCall::new(app, &me.id).map_err(|e| failed(&e))?;
     api::block_strangers(&c.http, c.auth(), on)

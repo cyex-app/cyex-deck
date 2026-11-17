@@ -61,12 +61,21 @@ pub fn accounts_cancel_sign_in(auth: State<Auth>) {
     auth.cancel_sign_in();
 }
 
+/// V111-47 What the main window gets: the sign-in that's missing and the account it's
+/// missing on (`None`: no particular account).
+#[derive(Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct SignInAsk {
+    kind: TokenKind,
+    user_id: Option<String>,
+}
+
 /// V102-20 A greyed-out tool's flag was clicked, in any window: the main window comes up
-/// on the sign-in that unlocks it.
+/// on the sign-in that unlocks it. V111-47 `user_id`: the account that lacks it.
 #[tauri::command]
-pub fn accounts_show_sign_in(app: AppHandle, kind: TokenKind) {
+pub fn accounts_show_sign_in(app: AppHandle, kind: TokenKind, user_id: Option<String>) {
     crate::windows::show_main(&app);
-    let _ = app.emit_to(crate::windows::MAIN, "accounts:sign-in", kind);
+    let _ = app.emit_to(crate::windows::MAIN, "accounts:sign-in", SignInAsk { kind, user_id });
 }
 
 /// V102-19 A GQL token pasted for an account signed in with Twitch.

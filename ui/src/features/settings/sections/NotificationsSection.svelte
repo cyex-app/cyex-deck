@@ -212,7 +212,7 @@
       {#if twitch}
         The switch alerts you here. The list is what Twitch sends {account.displayName} for the channel.
       {:else}
-        Twitch’s own choice per channel needs the extra Twitch features. <GateFlag kind="gql" />
+        Twitch’s own choice per channel needs Extra Twitch features. <GateFlag kind="gql" />
       {/if}
     </p>
     {#if channels.length > 8}
