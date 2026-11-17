@@ -20,6 +20,8 @@ const TIMEOUT: Duration = Duration::from_secs(4);
 const MAX_BODY: usize = 256 * 1024;
 const TITLE_MAX: usize = 200;
 const TEXT_MAX: usize = 400;
+/// V111-58 An author's or community's name on a card.
+const NAME_MAX: usize = 60;
 
 /// The Worker; in mocks builds `CYEX_EMBED_MOCK=http://127.0.0.1:<port>` stands in.
 fn base() -> String {
@@ -136,6 +138,13 @@ enum Fact {
     Views { n: u64 },
     Likes { n: u64 },
     Date { at: String },
+    // V111-58
+    Comments { n: u64 },
+    Reposts { n: u64 },
+    Author { name: String },
+    Community { name: String },
+    Media { photos: u64, videos: u64 },
+    Spoiler,
 }
 
 /// Plain text: no control characters, runs of space collapsed, at most `max` characters.
@@ -159,6 +168,15 @@ fn fact(v: Value) -> Option<PreviewFact> {
         Fact::Length { secs } => PreviewFact::Length { secs: n(secs) },
         Fact::Views { n: v } => PreviewFact::Views { n: n(v) },
         Fact::Likes { n: v } => PreviewFact::Likes { n: n(v) },
+        Fact::Comments { n: v } => PreviewFact::Comments { n: n(v) },
+        Fact::Reposts { n: v } => PreviewFact::Reposts { n: n(v) },
+        Fact::Author { name } => PreviewFact::Author { name: clean(Some(name), NAME_MAX)? },
+        Fact::Community { name } => PreviewFact::Community { name: clean(Some(name), NAME_MAX)? },
+        Fact::Media { photos, videos } => PreviewFact::Media {
+            photos: n(photos),
+            videos: n(videos),
+        },
+        Fact::Spoiler => PreviewFact::Spoiler,
         Fact::Date { at } => {
             let at = at.trim();
             if at.is_empty() || at.len() > 40 || at.contains(char::is_control) {
@@ -262,6 +280,51 @@ mod tests {
         assert_eq!(p.avatar.as_deref(), Some(IMG));
         assert!(p.nsfw && !p.live);
         assert_eq!(p.final_url.as_deref(), Some("https://www.youtube.com/watch?v=a"));
+    }
+
+    #[test]
+    fn v111_57_youtube_likes_present_missing_or_garbage() {
+        let yt = |facts: &str| card(&body(&format!(r#""title":"x","subtitle":"RiceLive","facts":{facts}"#))).unwrap();
+        let p = yt(r#"[{"t":"length","secs":546},{"t":"views","n":6234567},{"t":"date","at":"2016-09-07T12:00:00Z"},{"t":"likes","n":148100}]"#);
+        assert_eq!(p.subtitle.as_deref(), Some("RiceLive"));
+        assert_eq!(p.facts.last(), Some(&PreviewFact::Likes { n: 148_100 }));
+        assert_eq!(p.facts.len(), 4);
+        // No likes: the rest stays.
+        let p = yt(r#"[{"t":"views","n":5}]"#);
+        assert_eq!(p.facts, [PreviewFact::Views { n: 5 }]);
+        // Garbage likes are dropped one by one, never the card.
+        let p = yt(r#"[{"t":"likes","n":"148100"},{"t":"likes","n":-1},{"t":"likes","n":1.5},{"t":"likes"},{"t":"likes","n":null},{"t":"views","n":5}]"#);
+        assert_eq!(p.facts, [PreviewFact::Views { n: 5 }]);
+        // facts not a list is not a v1 card: Chatterino's resolver answers instead.
+        assert!(card(&body(r#""title":"x","facts":{"t":"likes","n":1}"#)).is_none());
+    }
+
+    #[test]
+    fn v111_58_post_facts_present_missing_or_garbage() {
+        let p = card(&body(
+            r#""title":"x","facts":[{"t":"comments","n":120},{"t":"reposts","n":15},{"t":"author","name":" u/some\u0007one "},{"t":"community","name":"r/LivestreamFail"},{"t":"media","photos":3,"videos":1},{"t":"spoiler"}]"#,
+        ))
+        .unwrap();
+        assert_eq!(
+            p.facts,
+            [
+                PreviewFact::Comments { n: 120 },
+                PreviewFact::Reposts { n: 15 },
+                PreviewFact::Author { name: "u/some one".into() },
+                PreviewFact::Community {
+                    name: "r/LivestreamFail".into()
+                },
+                PreviewFact::Media { photos: 3, videos: 1 },
+                PreviewFact::Spoiler,
+            ]
+        );
+        // Bad ones drop alone: an empty or non-text name, counts that aren't counts, a half media.
+        let long = "n".repeat(300);
+        let p = card(&body(&format!(
+            r#""title":"x","facts":[{{"t":"author","name":"  "}},{{"t":"author","name":7}},{{"t":"comments","n":-1}},{{"t":"reposts"}},{{"t":"media","photos":2}},{{"t":"community","name":"{long}"}}]"#
+        )))
+        .unwrap();
+        assert_eq!(p.facts, [PreviewFact::Community { name: "n".repeat(NAME_MAX) }]);
     }
 
     #[test]

@@ -156,6 +156,15 @@ export function formatDuration(totalSeconds: number): string {
   return parts.slice(0, 2).join(' ') || '0s';
 }
 
+/** V111-57 A video's length as a clock: 19 → "0:19", 546 → "9:06", 3723 → "1:02:03". */
+export function formatLength(totalSeconds: number): string {
+  if (unreadable(totalSeconds)) return '-';
+  const s = Math.max(0, Math.round(totalSeconds));
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  return h ? `${h}:${pad(m)}:${pad(s % 60)}` : `${m}:${pad(s % 60)}`;
+}
+
 /** "30s", "5m", "1h 30m", "2d", or a bare number of seconds. Null if unreadable. */
 export function parseDuration(text: string): number | null {
   const input = text.trim().toLowerCase();

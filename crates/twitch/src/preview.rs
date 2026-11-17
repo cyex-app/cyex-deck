@@ -42,6 +42,29 @@ pub enum PreviewFact {
     Likes {
         n: u32,
     },
+    /// V111-58 Comments, or replies on X. This and the ones below only come from our own resolver.
+    Comments {
+        n: u32,
+    },
+    /// V111-58 Reposts (quotes included).
+    Reposts {
+        n: u32,
+    },
+    /// V111-58 Who posted it ("u/name", a GIF's uploader).
+    Author {
+        name: String,
+    },
+    /// V111-58 Where it was posted ("r/sub").
+    Community {
+        name: String,
+    },
+    /// V111-58 A post's photos and videos, when there is more than one.
+    Media {
+        photos: u32,
+        videos: u32,
+    },
+    /// V111-58 Marked as a spoiler.
+    Spoiler,
     Game {
         name: String,
     },

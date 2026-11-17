@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { ago, formatBytes, formatCount, formatDate, formatDuration, formatFactor, formatNumber, formatSecs, formatShort, formatStamp, formatTime, parseDuration, setAppClock, useClockSource } from './format.ts';
+import { ago, formatBytes, formatCount, formatDate, formatDuration, formatFactor, formatLength, formatNumber, formatSecs, formatShort, formatStamp, formatTime, parseDuration, setAppClock, useClockSource } from './format.ts';
 
 const at = new Date(2026, 9, 9, 14, 3, 7);
 const morning = new Date(2026, 0, 2, 0, 5, 0);
@@ -164,4 +164,14 @@ test('V110-A19 formatCount gives the full grouped number and a singular for 1', 
   assert.equal(formatCount(1, 'view'), '1 view');
   assert.equal(formatCount(0, 'viewer'), '0 viewers');
   assert.equal(formatCount(1_300_000, 'viewer'), '1.300.000 viewers');
+});
+
+test('V111-57 a video length is a clock', () => {
+  assert.equal(formatLength(0), '0:00');
+  assert.equal(formatLength(19), '0:19');
+  assert.equal(formatLength(546), '9:06');
+  assert.equal(formatLength(3723), '1:02:03');
+  assert.equal(formatLength(36_000), '10:00:00');
+  assert.equal(formatLength(-5), '0:00');
+  assert.equal(formatLength(Number.NaN), '-');
 });

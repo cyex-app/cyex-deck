@@ -5,7 +5,7 @@
 import type { LinkThumbs } from '../../ipc/bindings/LinkThumbs';
 import type { LinkPreview } from '../../ipc/bindings/LinkPreview';
 import { previewPic } from './previewPic.ts';
-import { factText } from './linkFacts.ts';
+import { factText, inlineFact } from './linkFacts.ts';
 
 /** The card's picture box, px: always drawn at this size, loaded or not. */
 export const CARD_PIC = { w: 96, h: 54 } as const;
@@ -31,7 +31,11 @@ export function cardLines(info: LinkPreview | null): string[] {
 }
 
 function factsText(info: LinkPreview): string {
-  return info.facts.map(factText).filter(Boolean).join(' · ');
+  return info.facts
+    .filter(inlineFact)
+    .map((f) => factText(f, info.site))
+    .filter(Boolean)
+    .join(' · ');
 }
 
 /** V110-U70 The card's last line: a web page's host and its facts ("x.com · 325.006 likes · 2006/03/21"),

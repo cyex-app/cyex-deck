@@ -33,6 +33,8 @@ pub const MEDIA_HOSTS: &[&str] = &[
     "*.cdninstagram.com",
     "*.fbcdn.net",
     "*.giphy.com",
+    // V111-58 Tenor serves GIF previews from media1.tenor.com and the like.
+    "*.tenor.com",
     "*.twimg.com",
     "*.ytimg.com",
     "cdn.7tv.app",

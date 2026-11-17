@@ -2,7 +2,7 @@
      title and subtitle, the picture at its own shape (blurred when the page says NSFW), facts.
      A skeleton while it loads, a short line when there's nothing. -->
 <script lang="ts">
-  import { factText, kindText, numeric } from '../features/chat/linkFacts';
+  import { factRows, factText, kindText, numeric } from '../features/chat/linkFacts';
   import { previewPic } from '../features/chat/previewPic';
   import type { TipCard } from './tooltip.svelte';
 
@@ -23,6 +23,11 @@
   {@const pic = previewPic(p.thumbnail)}
   {@const face = previewPic(p.avatar)}
   {@const facts = p.facts.map((f) => ({ text: factText(f), num: numeric(f) })).filter((f) => f.text)}
+  <!-- V111-57 V111-58 A card from our resolver lists its facts as labelled lines, like Chatterino's;
+       who posted it and where are rows too, so the subtitle steps back when a row says it. -->
+  {@const fr = factRows(p)}
+  {@const rows = fr?.rows}
+  {@const sub = fr ? fr.sub : p.subtitle}
   <!-- V110-C66 With a picture the card is as wide as the picture size asked for.
        V110-U70 The size is the picture's height; it may be up to 1.6 times as wide, so wide
        pictures (screenshots) aren't drawn tiny. Never cropped. -->
@@ -45,12 +50,12 @@
         {/if}
       </span>
     {/if}
-    {#if p.title || p.subtitle || face}
+    {#if p.title || sub || face}
       <div class="head">
         {#if face}<img class="avatar" src={face} alt="" referrerpolicy="no-referrer" />{/if}
         <div class="names">
           {#if p.title}<b class="title">{p.title}</b>{/if}
-          {#if p.subtitle}<span class="sub">{p.subtitle}</span>{/if}
+          {#if sub}<span class="sub">{sub}</span>{/if}
         </div>
       </div>
     {/if}
@@ -60,7 +65,18 @@
         {#if c.blur}<span class="flag">NSFW</span>{/if}
       </div>
     {/if}
-    {#if facts.length}
+    {#if rows}
+      {#if rows.length}
+        <dl class="rows">
+          {#each rows as r, i (i)}
+            <div>
+              {#if r.label}<dt>{r.label}:</dt>{/if}
+              <dd class:num={r.num}>{r.text}</dd>
+            </div>
+          {/each}
+        </dl>
+      {/if}
+    {:else if facts.length}
       <p class="facts">
         {#each facts as f, i (i)}{#if i}<span class="dot" aria-hidden="true"> · </span>{/if}<span class:num={f.num}
             >{f.text}</span
@@ -195,6 +211,26 @@
   }
   .facts {
     color: var(--dim);
+  }
+  .rows {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    margin: 0;
+  }
+  .rows div {
+    display: flex;
+    gap: 4px;
+    min-width: 0;
+  }
+  .rows dt {
+    flex: none;
+    color: var(--dim);
+  }
+  .rows dd {
+    margin: 0;
+    min-width: 0;
+    overflow-wrap: anywhere;
   }
   .num {
     font-family: var(--font-mono);
