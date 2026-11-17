@@ -5,12 +5,14 @@
 mod embed;
 mod links;
 mod ranges;
+pub mod roster;
 mod targets;
 
 pub use embed::{MEDIA_HOSTS, TRUSTED_HOSTS, media_host, trusted as trusted_link, trusted_host, trusted_media};
 pub use links::detect as detect_link;
 
 use ranges::RangeKind;
+use roster::Known;
 
 use crate::model::{EmoteLook, Fragment, Layer, Provider, mods};
 
@@ -108,6 +110,11 @@ pub fn shown(s: &str) -> std::borrow::Cow<'_, str> {
 
 /// `me`: the account's login and display name, lowercase. Empty when anonymous.
 pub fn tokenize(input: &Input<'_>, me: &[String], emotes: &dyn Emotes) -> Tokens {
+    tokenize_with(input, me, emotes, None)
+}
+
+/// V111-48 `known`: names of the room, so a bare one becomes a mention too.
+pub fn tokenize_with(input: &Input<'_>, me: &[String], emotes: &dyn Emotes, known: Option<Known<'_>>) -> Tokens {
     let text = input.text;
     let mut found = ranges::emotes(input.emotes);
     found.extend(ranges::gifs(input.gifs));
@@ -120,6 +127,7 @@ pub fn tokenize(input: &Input<'_>, me: &[String], emotes: &dyn Emotes) -> Tokens
         sender: input.sender,
         bits_left: input.bits,
         mentions_me: false,
+        known,
         base: None,
         held: None,
     };
@@ -160,6 +168,7 @@ struct Builder<'a> {
     sender: &'a str,
     bits_left: u32,
     mentions_me: bool,
+    known: Option<Known<'a>>,
     /// C7 The emote zero-width emotes and modifiers land on: the last one, as long as
     /// only spaces followed it.
     base: Option<usize>,
@@ -295,6 +304,15 @@ impl Builder<'_> {
                 target: link.target,
             });
             self.pending.push_str(link.tail);
+            return;
+        }
+        if let Some((core, login)) = self.known.and_then(|k| k.find(word)) {
+            self.check_me(&login);
+            self.push(Fragment::Mention {
+                text: core.to_owned(),
+                login,
+            });
+            self.pending.push_str(&word[core.len()..]);
             return;
         }
         self.check_me(word);
@@ -857,5 +875,79 @@ mod tests {
         assert_eq!(again.len(), 4);
         assert!(matches!(&again[2], Fragment::Emote { id, .. } if id == "mine"));
         assert!(retokenize(&body, "8", &Stack).is_none());
+    }
+
+    // V111-48
+    fn bare(text: &str, names: &[&str], sender: &str) -> Tokens {
+        let mut r = roster::Roster::new();
+        for n in names {
+            r.add(n);
+        }
+        tokenize_with(
+            &Input { text, sender: "", emotes: "", gifs: "", bits: 0 },
+            &["meee".to_owned()],
+            &NoEmotes,
+            Some(Known { roster: &r, sender }),
+        )
+    }
+
+    fn mention_frag(text: &str, login: &str) -> Fragment {
+        Fragment::Mention { text: text.into(), login: login.into() }
+    }
+
+    #[test]
+    fn v111_48_known_bare_names_become_mentions() {
+        let t = bare("hi Bob, how is Carl?! and ghost", &["bob", "CARL"], "");
+        assert_eq!(
+            t.body,
+            [
+                Fragment::text("hi "),
+                mention_frag("Bob", "bob"),
+                Fragment::text(", how is "),
+                mention_frag("Carl", "carl"),
+                Fragment::text("?! and ghost"),
+            ]
+        );
+    }
+
+    #[test]
+    fn v111_48_unknown_short_and_embedded_names_stay_text() {
+        let t = bare("ab xyz bobby (bob) bob's", &["ab", "bob"], "");
+        assert_eq!(t.body, [Fragment::text("ab xyz bobby (bob) bob's")]);
+        // Without a roster nothing changes.
+        assert_eq!(run("bob", ""), [Fragment::text("bob")]);
+    }
+
+    #[test]
+    fn v111_48_not_the_sender_links_emotes_or_at_names() {
+        let t = bare("bob", &["bob"], "Bob");
+        assert_eq!(t.body, [Fragment::text("bob")]);
+        let t = bare("bob.tv @bob", &["bob", "bob.tv"], "");
+        assert!(matches!(&t.body[0], Fragment::Link { .. }));
+        assert_eq!(t.body[2], mention_frag("@bob", "bob"));
+        struct Kappa;
+        impl Emotes for Kappa {
+            fn find(&self, word: &str, _: &str) -> Option<Found> {
+                (word == "kappa").then(|| Found::plain(Provider::Twitch, "25"))
+            }
+        }
+        let mut r = roster::Roster::new();
+        r.add("kappa");
+        let t = tokenize_with(
+            &Input { text: "kappa", sender: "", emotes: "", gifs: "", bits: 0 },
+            &[],
+            &Kappa,
+            Some(Known { roster: &r, sender: "" }),
+        );
+        assert!(matches!(&t.body[0], Fragment::Emote { .. }));
+    }
+
+    #[test]
+    fn v111_48_your_own_name_still_counts() {
+        let t = bare("hey me", &["me"], "");
+        assert!(!t.mentions_me);
+        let t = bare("hey Meee", &["meee"], "");
+        assert!(t.mentions_me);
+        assert_eq!(t.body[1], mention_frag("Meee", "meee"));
     }
 }

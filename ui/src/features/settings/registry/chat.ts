@@ -122,6 +122,13 @@ export const CHAT: Entry[] = [
     keywords: ['hype', 'train', 'level', 'bar', 'bits', 'subs'],
   },
   {
+    id: 'chat.plainNames',
+    page: 'chat',
+    label: 'Clickable names without @',
+    description: 'A name typed without @ opens the usercard when that person is in the chat.',
+    keywords: ['mention', 'username', 'usercard', 'click', 'at', 'names'],
+  },
+  {
     id: 'chat.showClient',
     page: 'chat',
     label: 'Show where it was sent from',

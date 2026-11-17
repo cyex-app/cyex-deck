@@ -658,3 +658,33 @@ fn v111_15_late_sets_update_lines_already_shown() {
     assert!(message.body.iter().any(|f| matches!(f, crate::model::Fragment::Emote { id, .. } if id == "01H")));
     assert!(r.retokenize_all(&Late).is_empty(), "nothing new the second time");
 }
+
+// V111-48 Names typed without `@`: known from who chatted or joined, off unless the rule is on.
+#[test]
+fn v111_48_bare_names_follow_chatters_and_joins() {
+    use crate::model::Fragment;
+    use crate::rules::Rules;
+    use cyex_settings::schema::Highlights;
+    let mut r = room();
+    let mut rules = Rules::new(&Highlights::default());
+    rules.plain_names = true;
+    r.set_rules(Arc::new(rules));
+    let mention = |evs: &[RoomEvent]| {
+        evs.iter().any(|e| {
+            matches!(e, RoomEvent::Message { message }
+                if message.body.iter().any(|f| matches!(f, Fragment::Mention { login, .. } if login == "u777")))
+        })
+    };
+    feed(&mut r, &msg("1", "777"));
+    let evs = feed(&mut r, "@id=2;user-id=8;tmi-sent-ts=5 :u8!u@u PRIVMSG #chan :hello U777 and joiner");
+    assert!(mention(&evs));
+    // Joined later: lines already tokenized aren't redone, new ones link.
+    r.presence("joiner".into(), true, 2_000);
+    let evs = feed(&mut r, "@id=3;user-id=8;tmi-sent-ts=5 :u8!u@u PRIVMSG #chan :hi joiner");
+    assert!(evs.iter().any(|e| matches!(e, RoomEvent::Message { message }
+        if message.body.iter().any(|f| matches!(f, Fragment::Mention { login, .. } if login == "joiner")))));
+    // Setting off: plain text.
+    r.set_rules(Arc::new(Rules::new(&Highlights::default())));
+    let evs = feed(&mut r, "@id=4;user-id=8;tmi-sent-ts=5 :u8!u@u PRIVMSG #chan :hello u777");
+    assert!(!mention(&evs));
+}

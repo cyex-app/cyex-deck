@@ -161,6 +161,8 @@ pub struct Chat {
     pub rate_meter: bool,
     /// V108-N04 The hype train bar over the chat while a train runs.
     pub hype_train_bar: bool,
+    /// V111-48 A name typed without `@` opens the usercard when that user is in the chat.
+    pub plain_names: bool,
     /// 1.52 Hover a link for a preview.
     pub link_previews: bool,
     /// 1.52
@@ -252,6 +254,7 @@ impl Default for Chat {
             show_client: false,
             rate_meter: false,
             hype_train_bar: true,
+            plain_names: true,
             link_previews: true,
             link_thumbnails: LinkThumbs::Medium,
             link_cards: false,

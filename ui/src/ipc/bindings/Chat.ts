@@ -217,6 +217,10 @@ rateMeter: boolean,
  */
 hypeTrainBar: boolean, 
 /**
+ * V111-48 A name typed without `@` opens the usercard when that user is in the chat.
+ */
+plainNames: boolean, 
+/**
  * 1.52 Hover a link for a preview.
  */
 linkPreviews: boolean, 

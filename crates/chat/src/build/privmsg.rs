@@ -3,7 +3,8 @@
 
 use crate::irc::Line;
 use crate::model::{ChatMessage, Client, Flag, Fragment, Gone, GoneHow, Meta, Reply, RewardRef, SharedSource};
-use crate::tokenize::{Input, is_me, shown, tokenize};
+use crate::tokenize::roster::Known;
+use crate::tokenize::{Input, is_me, shown, tokenize_with};
 
 use super::sender::{badges, sender};
 use super::{Ctx, timestamp};
@@ -16,7 +17,8 @@ pub fn privmsg(line: &Line<'_>, ctx: &mut Ctx<'_>) -> Option<ChatMessage> {
     };
     let sender = sender(line, ctx.colors)?;
     let me = ctx.me;
-    let tokens = tokenize(
+    let known = ctx.roster.map(|roster| Known { roster, sender: &sender.login });
+    let tokens = tokenize_with(
         &Input {
             text,
             sender: &sender.id,
@@ -26,6 +28,7 @@ pub fn privmsg(line: &Line<'_>, ctx: &mut Ctx<'_>) -> Option<ChatMessage> {
         },
         ctx.me_names(),
         ctx.emotes,
+        known,
     );
     let mut body = tokens.body;
 
@@ -203,7 +206,7 @@ mod tests {
     }
 
     fn strip(text: &str, login: &str, display: &str) -> String {
-        let mut body = tokenize(&Input { text, sender: "7", emotes: "", gifs: "", bits: 0 }, &[], &crate::tokenize::NoEmotes).body;
+        let mut body = crate::tokenize::tokenize(&Input { text, sender: "7", emotes: "", gifs: "", bits: 0 }, &[], &crate::tokenize::NoEmotes).body;
         strip_reply_mention(&mut body, login, display);
         plain(&body)
     }

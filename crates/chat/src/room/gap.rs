@@ -47,6 +47,7 @@ impl Room {
             let incoming = {
                 let mut ctx = Ctx::new(self.me.as_ref(), &mut self.colors, now_ms);
                 ctx.emotes = emotes;
+                ctx.roster = self.rules.plain_names.then_some(&self.roster);
                 build::build(&line, &mut ctx)
             };
             match incoming {

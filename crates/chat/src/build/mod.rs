@@ -50,6 +50,8 @@ pub struct Ctx<'a> {
     pub colors: &'a mut Colors,
     /// Emotes matched by name (phase 7 providers).
     pub emotes: &'a dyn Emotes,
+    /// V111-48 The room's names, when bare ones should be mentions.
+    pub roster: Option<&'a crate::tokenize::roster::Roster>,
     /// Unix ms, used when a line has no timestamp.
     pub now_ms: i64,
 }
@@ -60,6 +62,7 @@ impl<'a> Ctx<'a> {
             me,
             colors,
             emotes: &NoEmotes,
+            roster: None,
             now_ms,
         }
     }

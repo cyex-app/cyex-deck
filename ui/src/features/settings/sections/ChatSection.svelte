@@ -233,6 +233,9 @@
 <Row setting="chat.hypeTrainBar" label="Show hype trains" hint="A bar over the chat with the level, progress and time left while a hype train runs.">
   <Toggle label="Show hype trains" checked={c.hypeTrainBar} onchange={(v) => settings.patch('chat', { hypeTrainBar: v })} />
 </Row>
+<Row setting="chat.plainNames" label="Clickable names without @" hint="A name typed without @ opens the usercard when that person is in the chat.">
+  <Toggle label="Clickable names without @" checked={c.plainNames} onchange={(v) => settings.patch('chat', { plainNames: v })} />
+</Row>
 <Row setting="chat.showClient" label="Show where it was sent from" hint="An icon for messages from the website or the phone apps.">
   <Toggle label="Show where it was sent from" checked={c.showClient} onchange={(v) => settings.patch('chat', { showClient: v })} />
 </Row>

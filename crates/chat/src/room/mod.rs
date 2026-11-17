@@ -134,6 +134,8 @@ pub struct Room {
     stream: Option<(bool, Option<String>)>,
     /// V110-C59 Senders' recent message times, while a rule counts bursts.
     bursts: crate::rules::when::Bursts,
+    /// V111-48 Who chatted or joined here, for names typed without `@`.
+    roster: crate::tokenize::roster::Roster,
 }
 
 impl Room {
@@ -168,6 +170,7 @@ impl Room {
             followed: HashSet::new(),
             stream: None,
             bursts: crate::rules::when::Bursts::default(),
+            roster: crate::tokenize::roster::Roster::new(),
         };
         room.state.own = room.initial_own();
         room
@@ -506,6 +509,7 @@ impl Room {
         let incoming = {
             let mut ctx = Ctx::new(self.me.as_ref(), &mut self.colors, now_ms);
             ctx.emotes = emotes;
+            ctx.roster = self.rules.plain_names.then_some(&self.roster);
             build::build(line, &mut ctx)
         };
         if let Some(i) = incoming {
@@ -518,6 +522,9 @@ impl Room {
         let mut events = Vec::new();
         match incoming {
             Incoming::Message(m) => {
+                if let Some(s) = &m.sender {
+                    self.roster.add(&s.login);
+                }
                 // V111-08 A live line from the channel: the room still hears it.
                 if !m.has(Flag::History) && m.sender.is_some() {
                     if m.has(Flag::Own) {
@@ -689,6 +696,7 @@ impl Room {
             let incoming = {
                 let mut ctx = Ctx::new(self.me.as_ref(), &mut self.colors, now_ms);
                 ctx.emotes = emotes;
+                ctx.roster = self.rules.plain_names.then_some(&self.roster);
                 build::build(&line, &mut ctx)
             };
             match incoming {

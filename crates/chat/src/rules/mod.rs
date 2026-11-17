@@ -108,6 +108,8 @@ pub struct Rules {
     pub similar: Option<SimilarCheck>,
     pub similar_own: bool,
     pub repeat: Option<RepeatCheck>,
+    /// V111-48 Names typed without `@` open the usercard when the room knows them.
+    pub plain_names: bool,
 }
 
 impl Rules {
@@ -183,6 +185,7 @@ impl Rules {
             }),
             similar_own: s.own,
             repeat: None,
+            plain_names: false,
         }
     }
 

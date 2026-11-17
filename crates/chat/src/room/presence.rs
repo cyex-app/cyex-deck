@@ -51,6 +51,9 @@ fn fill(notice: &mut Notice, joined: bool, list: &[String]) {
 
 impl Room {
     pub(super) fn presence(&mut self, login: String, joined: bool, now_ms: i64) -> Option<RoomEvent> {
+        if joined {
+            self.roster.add(&login);
+        }
         let slot = if joined { &mut self.presence.joined } else { &mut self.presence.parted };
         if let Some(open) = slot.as_mut().filter(|o| now_ms - o.since_ms < WINDOW_MS && o.names.len() < MAX_NAMES)
             && let Some(line) = self.buffer.iter_mut().rev().find(|m| m.id == open.id)

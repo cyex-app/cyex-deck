@@ -46,6 +46,7 @@ pub fn rebuild(app: &AppHandle) {
         threshold: f32::from(c.repeat_similarity) / 100.0,
         min: 2,
     });
+    rules.plain_names = c.plain_names;
     let state = app.state::<RuleState>();
     let blocked: HashSet<String> = state
         .blocked
