@@ -445,6 +445,26 @@ fn snapshot_before_restore_holds_unsaved_changes_and_restores() {
     assert_eq!(store.read::<General>(Partition::General).chat_font_size, 11);
     assert!(matches!(store.restore_snapshot("../x"), Err(Error::NoBackup(_))));
 }
+
+/// V111-51 The upgrade copy is listed and restores; the daily rotation doesn't touch it.
+#[test]
+fn version_snapshot_is_listed_and_restores() {
+    let tmp = TempDir::new("store-version-snap");
+    let clock = Arc::new(FakeClock::at(day(1)));
+    {
+        let (mut store, _) = open(tmp.path(), &clock);
+        store.patch(Partition::General, &json!({"chatFontSize": 11})).unwrap();
+        store.flush().unwrap();
+    }
+    let name = Store::snapshot_for_version(tmp.path(), "0.1.10").unwrap().unwrap();
+    let (mut store, _) = open(tmp.path(), &clock);
+    assert_eq!(store.version_snapshots().unwrap(), vec![name.clone()]);
+    assert!(store.snapshots().unwrap().is_empty());
+    store.patch(Partition::General, &json!({"chatFontSize": 20})).unwrap();
+    store.restore_snapshot(&name).unwrap();
+    assert_eq!(store.read::<General>(Partition::General).chat_font_size, 11);
+}
+
 /// V107-Mc A restore (daily or snapshot) leaves accounts, plugins and the uploader as they are,
 /// and Undo of it brings the rest back.
 #[test]

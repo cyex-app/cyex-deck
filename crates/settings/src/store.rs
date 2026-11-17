@@ -568,8 +568,19 @@ impl Store {
         backup::list_snapshots(&self.dir)
     }
 
+    /// V111-51 Names of the `before-<new>-from-<old>` snapshots, newest version first.
+    pub fn version_snapshots(&self) -> Result<Vec<String>> {
+        backup::list_version_snapshots(&self.dir)
+    }
+
+    /// V111-51 Run before [`Store::open`] on every start: the first start on a new app version
+    /// copies the settings as they are into `before-<new>-from-<old>` (two kept). Returns its name.
+    pub fn snapshot_for_version(dir: &Path, version: &str) -> Result<Option<String>> {
+        backup::snapshot_for_version(dir, version)
+    }
+
     pub fn restore_snapshot(&mut self, name: &str) -> Result<Vec<Partition>> {
-        if !backup::is_snapshot_name(name) {
+        if !backup::is_snapshot_name(name) && !backup::is_version_name(name) {
             return Err(Error::NoBackup(name.to_owned()));
         }
         self.restore_from(backup::named_dir(&self.dir, name), name.to_owned())

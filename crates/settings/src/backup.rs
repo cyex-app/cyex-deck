@@ -234,14 +234,7 @@ pub(crate) fn named_dir(settings_dir: &Path, name: &str) -> PathBuf {
 /// Accounts, plugins and the uploader stay out (they can hold secrets). Returns the folder
 /// name, or `None` when there is nothing to save.
 pub(crate) fn snapshot_now(settings_dir: &Path, now: OffsetDateTime) -> Result<Option<String>> {
-    let files: Vec<PathBuf> = Partition::ALL
-        .iter()
-        .filter(|p| p.is_portable())
-        .map(|p| p.file_name())
-        .chain([legacy::mentions::FILE.to_owned()])
-        .map(|name| settings_dir.join(name))
-        .filter(|f| f.is_file())
-        .collect();
+    let files = portable_files(settings_dir);
     if files.is_empty() {
         return Ok(None);
     }
@@ -261,6 +254,109 @@ pub(crate) fn snapshot_now(settings_dir: &Path, now: OffsetDateTime) -> Result<O
         fs::remove_dir_all(named_dir(settings_dir, &old))?;
     }
     Ok(Some(name))
+}
+
+/// The settings files a snapshot takes (no accounts, plugins or uploader: they can hold secrets).
+fn portable_files(settings_dir: &Path) -> Vec<PathBuf> {
+    Partition::ALL
+        .iter()
+        .filter(|p| p.is_portable())
+        .map(|p| p.file_name())
+        .chain([legacy::mentions::FILE.to_owned()])
+        .map(|name| settings_dir.join(name))
+        .filter(|f| f.is_file())
+        .collect()
+}
+
+/// How many version snapshots to keep (V111-51). They are not part of the 3-day rotation.
+pub const VERSION_KEEP: usize = 2;
+
+const VERSION_PREFIX: &str = "before-";
+const VERSION_SEP: &str = "-from-";
+const VERSION_FILE: &str = ".last-version";
+
+/// V111-51 Keeps a folder name safe: version text from the build, never a path.
+fn clean_version(v: &str) -> String {
+    let v: String = v.trim().chars().filter(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '+' | '_')).collect();
+    if v.is_empty() { "unknown".to_owned() } else { v }
+}
+
+/// V111-51 `before-<new>-from-<old>`, e.g. `before-0.1.10-from-0.1.9`.
+fn version_name(new: &str, old: &str) -> String {
+    format!("{VERSION_PREFIX}{new}{VERSION_SEP}{old}")
+}
+
+/// V111-51 (new, old) from a version snapshot's folder name.
+fn parse_version_name(name: &str) -> Option<(&str, &str)> {
+    let rest = name.strip_prefix(VERSION_PREFIX)?;
+    if rest.starts_with("restore-") {
+        return None;
+    }
+    let (new, old) = rest.split_once(VERSION_SEP)?;
+    let ok = |s: &str| !s.is_empty() && s.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '+' | '_'));
+    (ok(new) && ok(old)).then_some((new, old))
+}
+
+pub(crate) fn is_version_name(name: &str) -> bool {
+    parse_version_name(name).is_some()
+}
+
+/// Dotted numbers for ordering ("0.1.10" after "0.1.9").
+fn version_key(v: &str) -> Vec<u64> {
+    v.split(['.', '+']).map(|p| p.parse().unwrap_or(0)).collect()
+}
+
+/// V111-51 Version snapshot folder names, newest version first.
+pub(crate) fn list_version_snapshots(settings_dir: &Path) -> Result<Vec<String>> {
+    let root = settings_dir.join(BACKUP_DIR);
+    if !root.is_dir() {
+        return Ok(Vec::new());
+    }
+    let mut names: Vec<String> = fs::read_dir(&root)?
+        .filter_map(|entry| entry.ok())
+        .filter(|entry| entry.path().is_dir())
+        .map(|entry| entry.file_name().to_string_lossy().into_owned())
+        .filter(|name| is_version_name(name))
+        .collect();
+    names.sort_by_cached_key(|n| {
+        let (new, _) = parse_version_name(n).expect("filtered");
+        std::cmp::Reverse((version_key(new), n.clone()))
+    });
+    Ok(names)
+}
+
+/// V111-51 The first start on a new app version copies the settings as they are, before they
+/// load or migrate, into `before-<new>-from-<old>` (old = the version that last wrote them, or
+/// `unknown` when no record exists). Same version: nothing. Only the newest [`VERSION_KEEP`]
+/// stay. A fresh install (no files) records the version and copies nothing. A failed copy
+/// leaves the record alone, so the next start tries again. Returns the folder name if one was made.
+pub(crate) fn snapshot_for_version(settings_dir: &Path, current: &str) -> Result<Option<String>> {
+    let current = clean_version(current);
+    let marker = settings_dir.join(BACKUP_DIR).join(VERSION_FILE);
+    let last = fs::read_to_string(&marker).ok().map(|s| clean_version(&s));
+    if last.as_deref() == Some(current.as_str()) {
+        return Ok(None);
+    }
+    let files = portable_files(settings_dir);
+    let mut made = None;
+    if !files.is_empty() {
+        let name = version_name(&current, last.as_deref().unwrap_or("unknown"));
+        let root = settings_dir.join(BACKUP_DIR);
+        fs::create_dir_all(&root)?;
+        let target = named_dir(settings_dir, &name);
+        if target.exists() {
+            // Same step taken again (a downgrade and back): the newer state replaces it.
+            fs::remove_dir_all(&target)?;
+        }
+        stage(&root, &format!(".partial-{name}"), &files, &target)?;
+        made = Some(name);
+    }
+    fs::create_dir_all(settings_dir.join(BACKUP_DIR))?;
+    fs::write(&marker, &current)?;
+    for old in list_version_snapshots(settings_dir)?.into_iter().skip(VERSION_KEEP) {
+        fs::remove_dir_all(named_dir(settings_dir, &old))?;
+    }
+    Ok(made)
 }
 
 /// Snapshot folder names, newest first.
@@ -298,6 +394,62 @@ mod tests {
 
     fn write_settings(dir: &Path, contents: &str) {
         fs::write(dir.join("general.json"), contents).unwrap();
+    }
+
+    #[test]
+    fn v111_51_a_new_version_takes_one_snapshot_named_after_the_old() {
+        let tmp = TempDir::new("ver-once");
+        write_settings(tmp.path(), r#"{"a":1}"#);
+        // No record: the old version is unknown, a snapshot is taken.
+        let first = snapshot_for_version(tmp.path(), "0.1.9").unwrap();
+        assert_eq!(first.as_deref(), Some("before-0.1.9-from-unknown"));
+        // Same version again: nothing.
+        assert_eq!(snapshot_for_version(tmp.path(), "0.1.9").unwrap(), None);
+        // Settings change after the daily copy; the upgrade copy holds them.
+        write_settings(tmp.path(), r#"{"a":2}"#);
+        let up = snapshot_for_version(tmp.path(), "0.1.10").unwrap().unwrap();
+        assert_eq!(up, "before-0.1.10-from-0.1.9");
+        let saved = fs::read_to_string(named_dir(tmp.path(), &up).join("general.json")).unwrap();
+        assert_eq!(saved, r#"{"a":2}"#);
+        assert_eq!(snapshot_for_version(tmp.path(), "0.1.10").unwrap(), None);
+    }
+
+    #[test]
+    fn v111_51_a_fresh_install_records_the_version_without_a_copy() {
+        let tmp = TempDir::new("ver-fresh");
+        assert_eq!(snapshot_for_version(tmp.path(), "0.1.10").unwrap(), None);
+        write_settings(tmp.path(), "{}");
+        assert_eq!(snapshot_for_version(tmp.path(), "0.1.10").unwrap(), None);
+        assert!(list_version_snapshots(tmp.path()).unwrap().is_empty());
+    }
+
+    #[test]
+    fn v111_51_only_the_last_two_version_snapshots_stay() {
+        let tmp = TempDir::new("ver-prune");
+        write_settings(tmp.path(), "{}");
+        for v in ["0.1.8", "0.1.9", "0.1.10", "0.1.11"] {
+            snapshot_for_version(tmp.path(), v).unwrap();
+        }
+        // Numeric order: 0.1.10 is newer than 0.1.9.
+        assert_eq!(
+            list_version_snapshots(tmp.path()).unwrap(),
+            vec!["before-0.1.11-from-0.1.10", "before-0.1.10-from-0.1.9"]
+        );
+    }
+
+    #[test]
+    fn v111_51_version_snapshots_stay_out_of_the_daily_and_restore_lists() {
+        let tmp = TempDir::new("ver-lists");
+        write_settings(tmp.path(), "{}");
+        snapshot_for_version(tmp.path(), "0.1.10").unwrap();
+        let restore = snapshot_now(tmp.path(), at(2, 10, 0, 0)).unwrap().unwrap();
+        snapshot_if_due(tmp.path(), day(2)).unwrap();
+        assert!(list(tmp.path()).unwrap().len() == 1);
+        assert_eq!(list_snapshots(tmp.path()).unwrap(), vec![restore.clone()]);
+        assert_eq!(list_version_snapshots(tmp.path()).unwrap(), vec!["before-0.1.10-from-unknown"]);
+        assert!(!is_version_name(&restore));
+        assert!(!is_snapshot_name("before-0.1.10-from-unknown"));
+        assert!(!is_version_name("before-../x-from-y"));
     }
 
     #[test]

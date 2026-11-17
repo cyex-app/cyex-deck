@@ -235,6 +235,7 @@
   /** t5 A snapshot by its time, not its folder name ("before-restore-2026-10-20-021030"). */
   function restoredText(id: string): string {
     const snap = /^before-restore-\d{4}-\d{2}-\d{2}-(\d{2})(\d{2})/.exec(id);
+    if (!snap && dayName(id).startsWith('Before ')) return `Restored your settings from ${dayName(id).toLowerCase()}.`;
     if (!snap) return `Restored settings from ${id}.`;
     const when = dayName(id).split(' · ')[1] ?? '';
     return `Restored your settings from ${/^\d/.test(when) ? when : when.toLowerCase()}, ${snap[1]}:${snap[2]}.`;
@@ -251,6 +252,9 @@
 
   /** D2 "2026/10/16 · Today"; V1052-03 snapshots read "Before restore · Today". */
   function dayName(id: string): string {
+    // V111-51 "before-0.1.10-from-0.1.9" reads "Before 0.1.10".
+    const ver = /^before-(?!restore-)([^-]+)-from-/.exec(id);
+    if (ver) return `Before ${ver[1]}`;
     const snap = /^before-restore-(\d{4})-(\d{2})-(\d{2})-(\d{2})?(\d{2})?/.exec(id);
     const date = snap ? `${snap[1]}/${snap[2]}/${snap[3]}` : id;
     const day = (back: number) => {

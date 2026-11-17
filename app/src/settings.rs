@@ -145,6 +145,10 @@ struct Changed<'a> {
 
 pub fn init(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
     let dir = crate::paths::config(app)?.join("settings");
+    // V111-51 First start on a new version: copy the settings as they are, before anything loads.
+    if let Err(e) = Store::snapshot_for_version(&dir, env!("CARGO_PKG_VERSION")) {
+        eprintln!("settings: V111-51 version backup: {e}");
+    }
     // V106-08 Chat saved before presence was turned on for everyone; sanitize turns it on.
     let presence_was = presence_pending(&dir.join(Partition::Chat.file_name()));
     // A settings folder it can't open ends the start with a message box, not a bare panic.

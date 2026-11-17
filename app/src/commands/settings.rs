@@ -243,10 +243,12 @@ pub fn settings_import_code(
 pub fn settings_backups(settings: State<Settings>) -> CmdResult<Vec<String>> {
     let dates = settings.with(|s| s.backups()).map_err(|e| e.to_string())?;
     let snaps = settings.with(|s| s.snapshots()).map_err(|e| e.to_string())?;
+    let versions = settings.with(|s| s.version_snapshots()).map_err(|e| e.to_string())?;
     Ok(dates
         .into_iter()
         .map(|d| d.format(UI_DATE).expect("date formats"))
         .chain(snaps)
+        .chain(versions)
         .collect())
 }
 
@@ -287,7 +289,7 @@ pub fn settings_restore_backup(
     settings: State<Settings>,
     date: String,
 ) -> CmdResult<Vec<Partition>> {
-    let restored = if date.starts_with("before-restore-") {
+    let restored = if date.starts_with("before-") {
         settings.restore_snapshot(&app, &date)?
     } else {
         let date = Date::parse(&date, UI_DATE).map_err(|_| format!("\"{date}\" isn’t a backup date"))?;
