@@ -67,13 +67,18 @@ pub fn decide(status: Option<u16>, body: &str) -> Next {
 
 /// Ask the Worker for `url`'s card.
 pub async fn lookup(http: &Http, url: &str) -> Next {
+    lookup_at(http, &base(), url).await
+}
+
+/// V111-54 The same against `base`, so tests can stand a local server in.
+async fn lookup_at(http: &Http, base: &str, url: &str) -> Next {
     let breaker = &http.2.embed;
     if !breaker.allow(std::time::Instant::now()) {
         return Next::Down;
     }
     // V110-F96 Any answer, even an error status, shows the Worker is up; only a timeout or no
     // connection counts against it.
-    let got = fetch(http, url).await;
+    let got = fetch(http, base, url).await;
     breaker.report(got.is_ok(), std::time::Instant::now());
     match got {
         Ok((status, body)) => decide(Some(status), &body),
@@ -81,11 +86,11 @@ pub async fn lookup(http: &Http, url: &str) -> Next {
     }
 }
 
-async fn fetch(http: &Http, url: &str) -> Result<(u16, String)> {
+async fn fetch(http: &Http, base: &str, url: &str) -> Result<(u16, String)> {
     let encoded: String = url::form_urlencoded::byte_serialize(url.as_bytes()).collect();
     let mut res = http
         .0
-        .get(format!("{}/v1/card?url={encoded}", base()))
+        .get(format!("{base}/v1/card?url={encoded}"))
         .timeout(TIMEOUT)
         .send()
         .await
@@ -210,6 +215,21 @@ mod tests {
     use super::*;
 
     const IMG: &str = "https://embed.cyex.app/v1/img?u=https%3A%2F%2Fi.ytimg.com%2Fvi%2Fa%2Fhqdefault.jpg";
+
+    #[tokio::test]
+    async fn v111_54_our_resolver_answers_through_http() {
+        use crate::resolver::tests::serve_json;
+        let (base, h) = serve_json("200 OK", r#"{"v":1,"site":"GitHub","title":"Where code lives"}"#);
+        let Next::Use(p) = lookup_at(&Http::new().unwrap(), &base, "https://github.com").await else {
+            panic!("no card")
+        };
+        assert_eq!((p.site.as_str(), p.title.as_deref()), ("GitHub", Some("Where code lives")));
+        assert_eq!(h.join().unwrap(), "GET /v1/card?url=https%3A%2F%2Fgithub.com HTTP/1.1");
+        let (base, _h) = serve_json("404 Not Found", "{}");
+        assert_eq!(lookup_at(&Http::new().unwrap(), &base, "https://github.com").await, Next::Nothing);
+        let (base, _h) = serve_json("500 Internal Server Error", "{}");
+        assert_eq!(lookup_at(&Http::new().unwrap(), &base, "https://github.com").await, Next::Fallback);
+    }
 
     fn body(extra: &str) -> String {
         format!(r#"{{"v":1,"kind":"video","site":"YouTube",{extra}}}"#)

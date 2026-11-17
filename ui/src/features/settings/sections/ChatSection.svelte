@@ -6,6 +6,7 @@
   import Toggle from '../../../components/Toggle.svelte';
   import type { DeletedStyle } from '../../../ipc/bindings/DeletedStyle';
   import type { GifMode } from '../../../ipc/bindings/GifMode';
+  import type { LinkResolver } from '../../../ipc/bindings/LinkResolver';
   import type { LinkThumbs } from '../../../ipc/bindings/LinkThumbs';
   import type { NameClick } from '../../../ipc/bindings/NameClick';
   import type { NameClicks } from '../../../ipc/bindings/NameClicks';
@@ -90,6 +91,11 @@
     { value: 'small', label: 'Small' },
     { value: 'medium', label: 'Medium' },
     { value: 'large', label: 'Large' },
+  ];
+  /** V111-54 Who builds link previews. */
+  const RESOLVERS: { value: LinkResolver; label: string }[] = [
+    { value: 'cyex', label: 'cyex' },
+    { value: 'chatterino', label: 'Chatterino' },
   ];
   // V107-B "Every cheer" is 1.
   const CHEER_ASK = [1, 100, 500, 1000, 5000, 10000].map((n) => ({ value: n, label: n === 1 ? 'Every cheer' : `${formatNumber(n)} Bits` }));
@@ -345,6 +351,18 @@
   hint="Shows a card below the message for links from trusted sites. Needs Previews."
 >
   <Toggle label="Cards under messages" disabled={!c.linkPreviews} checked={c.linkCards} onchange={(v) => settings.patch('chat', { linkCards: v })} />
+</Row>
+<Row
+  setting="chat.linkResolver"
+  label="Link previews from"
+  hint="cyex uses its own server for trusted sites and Chatterino’s for the rest. Twitch links always use their own lookups."
+>
+  <Segmented
+    label="Link previews from"
+    options={RESOLVERS}
+    value={c.linkResolver}
+    onchange={(v) => settings.patch('chat', { linkResolver: v })}
+  />
 </Row>
 
 <SectionHead title="GIFs and effects">Moving emotes and message effects.</SectionHead>

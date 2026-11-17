@@ -36,7 +36,7 @@ pub use builtin_themes::{builtin_theme, builtin_themes, is_builtin_id};
 pub use browse::{Browse, HiddenCategory, HomeLayout, LiveSort, OfflineSort};
 pub use chat::{
     BadgeToggles, Chat, DeletedStyle, GifMode, LinkThumbs, ModButtons, NameStyle, Overlay, PaintToggles, SuggestStyle,
-    PauseKey, Timestamps, UnlistedEmotes, UserNote,
+    LinkResolver, PauseKey, Timestamps, UnlistedEmotes, UserNote,
 };
 pub use combos::{
     Combo, ComboDone, ComboError, ComboItem, ComboOp, Combos, MAX_COMBOS, MAX_NAME, NameError, WORDS, clean_name,

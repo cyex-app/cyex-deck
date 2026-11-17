@@ -169,6 +169,9 @@ pub struct Chat {
     pub link_thumbnails: LinkThumbs,
     /// C30 Link cards under messages too. Setting, off.
     pub link_cards: bool,
+    /// V111-54 Who builds link previews: our own resolver (Chatterino's as its fallback) or
+    /// Chatterino's alone. Twitch links use our own lookups either way.
+    pub link_resolver: LinkResolver,
     /// C17 Language to translate into. Empty: the app's language.
     pub translate_to: String,
     /// C17 Chats (logins) whose messages are translated as they arrive.
@@ -258,6 +261,7 @@ impl Default for Chat {
             link_previews: true,
             link_thumbnails: LinkThumbs::Medium,
             link_cards: false,
+            link_resolver: LinkResolver::Cyex,
             translate_to: String::new(),
             translate_chats: Vec::new(),
             mod_mode: Vec::new(),
@@ -602,6 +606,18 @@ pub enum LinkThumbs {
     Large,
 }
 
+/// V111-54 Where link previews come from.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub enum LinkResolver {
+    /// embed.cyex.app for trusted sites, Chatterino's resolver for the rest and as fallback.
+    #[default]
+    Cyex,
+    /// Chatterino's resolver for every link that isn't Twitch's.
+    Chatterino,
+}
+
 /// V108-N09 How `:` suggestions are laid out.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
@@ -725,6 +741,16 @@ mod tests {
         assert_eq!(v["timestamps"]["clock"], "h12");
         assert_eq!(v["timestamps"].get("hour12"), None);
         assert_eq!(Chat::default().timestamps.clock, ClockFormat::H24);
+    }
+
+    #[test]
+    fn v111_54_link_resolver_starts_on_ours_and_keeps_chatterino() {
+        let old: Chat = serde_json::from_str(r#"{"linkPreviews":true}"#).unwrap();
+        assert_eq!(old.link_resolver, LinkResolver::Cyex);
+        let c: Chat = serde_json::from_str(r#"{"linkResolver":"chatterino"}"#).unwrap();
+        assert_eq!(c.link_resolver, LinkResolver::Chatterino);
+        assert_eq!(serde_json::to_value(&c).unwrap()["linkResolver"], "chatterino");
+        assert!(serde_json::from_str::<Chat>(r#"{"linkResolver":"other"}"#).is_err());
     }
 
     #[test]

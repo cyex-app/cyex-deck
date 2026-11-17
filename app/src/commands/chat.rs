@@ -203,8 +203,10 @@ pub fn chat_thread_followed(app: AppHandle, channel: String, thread: String) -> 
 #[tauri::command]
 pub async fn chat_resolve_link(app: AppHandle, url: String) -> Option<LinkPreview> {
     let http = app.state::<Auth>().http.clone();
+    // V111-54 The resolver the settings pick.
+    let via = chat::link_preview::via(&app);
     // V110-F75 Pictures only through the resolver's proxy.
-    chat::link_preview::get(&http, url).await.map(LinkPreview::through_proxy)
+    chat::link_preview::get(&http, url, via).await.map(LinkPreview::through_proxy)
 }
 
 /// V110-C66 The same card for a card under a message or an ask ahead of a hover: only for
@@ -216,7 +218,8 @@ pub async fn chat_embed_link(app: AppHandle, url: String) -> Option<LinkPreview>
     }
     let http = app.state::<Auth>().http.clone();
     // V110-F15 It loads unasked, so its picture must come from a known host.
-    let mut card = chat::link_preview::get(&http, url).await?;
+    let via = chat::link_preview::via(&app);
+    let mut card = chat::link_preview::get(&http, url, via).await?;
     card.thumbnail = card
         .thumbnail
         .filter(|t| {

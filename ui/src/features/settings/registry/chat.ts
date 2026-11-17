@@ -238,6 +238,13 @@ export const CHAT: Entry[] = [
     keywords: ['embed', 'inline', 'trusted'],
   },
   {
+    id: 'chat.linkResolver',
+    page: 'chat',
+    label: 'Link previews from',
+    description: 'cyex uses its own server for trusted sites and Chatterino’s for the rest. Twitch links always use their own lookups.',
+    keywords: ['resolver', 'chatterino', 'embed', 'cards', 'source', 'server'],
+  },
+  {
     id: 'chat.gifs',
     page: 'chat',
     label: 'GIFs',

@@ -4,6 +4,7 @@ import type { DeletedStyle } from "./DeletedStyle";
 import type { EmoteKey } from "./EmoteKey";
 import type { EmoteSource } from "./EmoteSource";
 import type { GifMode } from "./GifMode";
+import type { LinkResolver } from "./LinkResolver";
 import type { LinkThumbs } from "./LinkThumbs";
 import type { ModButtons } from "./ModButtons";
 import type { NameClicks } from "./NameClicks";
@@ -232,6 +233,11 @@ linkThumbnails: LinkThumbs,
  * C30 Link cards under messages too. Setting, off.
  */
 linkCards: boolean, 
+/**
+ * V111-54 Who builds link previews: our own resolver (Chatterino's as its fallback) or
+ * Chatterino's alone. Twitch links use our own lookups either way.
+ */
+linkResolver: LinkResolver, 
 /**
  * C17 Language to translate into. Empty: the app's language.
  */

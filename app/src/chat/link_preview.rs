@@ -1,6 +1,7 @@
 //! V108-C25 Link cards (1.52): Twitch clips, VODs and channels from our own lookups; trusted
 //! sites from our own resolver (V110-U70); then Chatterino's resolver (D8) for the rest or
-//! when those fail. One answer per link is shared
+//! when those fail. V111-54 Settings > Chat > Link previews from: "Chatterino" skips our own
+//! resolver, Twitch links keep their lookups. One answer per link is shared
 //! by everyone asking at once; good answers last 30 minutes (a channel's 2, it goes live),
 //! misses 2, so a hiccup doesn't stick for the whole run.
 
@@ -10,12 +11,18 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use cyex_chat::model::LinkTarget;
+use cyex_settings::Partition;
+pub use cyex_settings::schema::LinkResolver;
 use cyex_chat::tokenize::detect_link;
 use cyex_twitch::channel_input::{ChannelQuery, parse};
 use cyex_twitch::preview::{self, LinkPreview, PreviewKind};
 use cyex_twitch::embed::{self, Next};
+use cyex_twitch::resolver::LinkInfo;
 use cyex_twitch::{Http, gql, resolver};
+use tauri::{AppHandle, Manager};
 use tokio::sync::OnceCell;
+
+use crate::settings::Settings;
 
 const HIT_TTL: Duration = Duration::from_secs(30 * 60);
 const LIVE_TTL: Duration = Duration::from_secs(2 * 60);
@@ -93,18 +100,39 @@ fn asks_worker(url: &str) -> bool {
         && !preview::host(url).is_some_and(|h| h == "twitch.tv" || h.ends_with(".twitch.tv"))
 }
 
+/// V111-54 The three places a card can come from, so the order can be tested without them.
+trait Sources {
+    async fn twitch(&self, link: &TwitchLink) -> Option<LinkPreview>;
+    async fn ours(&self, url: &str) -> Next;
+    async fn chatterino(&self, url: &str) -> cyex_twitch::Result<Option<LinkInfo>>;
+}
+
+struct Live<'a>(&'a Http);
+
+impl Sources for Live<'_> {
+    async fn twitch(&self, link: &TwitchLink) -> Option<LinkPreview> {
+        twitch(self.0, link).await
+    }
+    async fn ours(&self, url: &str) -> Next {
+        embed::lookup(self.0, url).await
+    }
+    async fn chatterino(&self, url: &str) -> cyex_twitch::Result<Option<LinkInfo>> {
+        resolver::resolve(self.0, url).await
+    }
+}
+
 /// Twitch first, then our own resolver for trusted sites, Chatterino's after. `None` when
-/// none has anything.
-async fn load(http: &Http, url: &str) -> Found {
+/// none has anything. V111-54 With `LinkResolver::Chatterino` our own resolver is never asked.
+async fn load(src: &impl Sources, url: &str, via: LinkResolver) -> Found {
     let hit = |card| Found { card, down: false };
     if let Some(link) = twitch_link(url)
-        && let Some(p) = twitch(http, &link).await
+        && let Some(p) = src.twitch(&link).await
     {
         return hit(Some(p));
     }
     let mut down = false;
-    if asks_worker(url) {
-        match embed::lookup(http, url).await {
+    if via == LinkResolver::Cyex && asks_worker(url) {
+        match src.ours(url).await {
             Next::Use(p) => return hit(Some(*p)),
             // "Nothing to show" is an answer, not a failure.
             Next::Nothing => return hit(None),
@@ -112,7 +140,7 @@ async fn load(http: &Http, url: &str) -> Found {
             Next::Down => down = true,
         }
     }
-    match resolver::resolve(http, url).await {
+    match src.chatterino(url).await {
         Ok(Some(info)) => hit(preview::from_resolver(url, info)),
         Ok(None) => hit(None),
         Err(e) => Found {
@@ -193,11 +221,33 @@ impl<V: Clone> Cache<V> {
     }
 }
 
+/// V111-54 Which resolver the settings pick, read on every ask so a switch applies at once.
+pub fn via(app: &AppHandle) -> LinkResolver {
+    app.state::<Settings>().with(|s| {
+        s.get(Partition::Chat)
+            .get("linkResolver")
+            .and_then(|v| serde_json::from_value(v.clone()).ok())
+            .unwrap_or_default()
+    })
+}
+
+/// V111-54 Answers are kept per resolver, so a switch never shows the other one's old card.
+fn key(via: LinkResolver, url: &str) -> String {
+    match via {
+        LinkResolver::Cyex => format!("cyex {url}"),
+        LinkResolver::Chatterino => format!("chatterino {url}"),
+    }
+}
+
 /// The card for `url`, cached.
-pub async fn get(http: &Http, url: String) -> Option<LinkPreview> {
+pub async fn get(http: &Http, url: String, via: LinkResolver) -> Option<LinkPreview> {
     static CACHE: std::sync::OnceLock<Cache<Found>> = std::sync::OnceLock::new();
     let cache = CACHE.get_or_init(|| Cache::new(CAP, found_ttl));
-    cache.get_at(&url, Instant::now(), || load(http, &url)).await.card
+    let live = Live(http);
+    cache
+        .get_at(&key(via, &url), Instant::now(), || load(&live, &url, via))
+        .await
+        .card
 }
 
 #[cfg(test)]
@@ -258,6 +308,106 @@ mod tests {
         assert_eq!(found_ttl(&miss(false)), MISS_TTL);
         assert_eq!(found_ttl(&miss(true)), DOWN_TTL);
         assert!(DOWN_TTL < MISS_TTL && DOWN_TTL < cyex_twitch::breaker::PAUSE);
+    }
+
+    /// V111-54 Canned answers; remembers who was asked.
+    struct Fake {
+        ours: fn() -> Next,
+        chatterino: fn() -> cyex_twitch::Result<Option<LinkInfo>>,
+        asked: Mutex<Vec<&'static str>>,
+    }
+
+    fn card(title: &str) -> LinkPreview {
+        preview::from_resolver(
+            "https://www.youtube.com/watch?v=a",
+            LinkInfo {
+                lines: vec![vec![cyex_twitch::resolver::LinkText { text: title.into(), bold: true }]],
+                ..Default::default()
+            },
+        )
+        .unwrap()
+    }
+
+    impl Fake {
+        fn new(ours: fn() -> Next) -> Self {
+            Self {
+                ours,
+                chatterino: || Ok(Some(LinkInfo {
+                    lines: vec![vec![cyex_twitch::resolver::LinkText { text: "From Chatterino".into(), bold: true }]],
+                    ..Default::default()
+                })),
+                asked: Mutex::default(),
+            }
+        }
+        fn asked(&self) -> Vec<&'static str> {
+            std::mem::take(&mut self.asked.lock().unwrap())
+        }
+    }
+
+    impl Sources for Fake {
+        async fn twitch(&self, _: &TwitchLink) -> Option<LinkPreview> {
+            self.asked.lock().unwrap().push("twitch");
+            Some(card("From Twitch"))
+        }
+        async fn ours(&self, _: &str) -> Next {
+            self.asked.lock().unwrap().push("ours");
+            (self.ours)()
+        }
+        async fn chatterino(&self, _: &str) -> cyex_twitch::Result<Option<LinkInfo>> {
+            self.asked.lock().unwrap().push("chatterino");
+            (self.chatterino)()
+        }
+    }
+
+    fn title(f: &Found) -> Option<&str> {
+        f.card.as_ref().and_then(|c| c.title.as_deref())
+    }
+
+    #[tokio::test]
+    async fn v111_54_each_resolver_mode_asks_the_right_service() {
+        let yt = "https://www.youtube.com/watch?v=a";
+        let src = Fake::new(|| Next::Use(Box::new(card("From cyex"))));
+        // Ours: our resolver answers, Chatterino's isn't asked.
+        let f = load(&src, yt, LinkResolver::Cyex).await;
+        assert_eq!((title(&f), src.asked()), (Some("From cyex"), vec!["ours"]));
+        // Chatterino: ours is never asked, even for a trusted link.
+        let f = load(&src, yt, LinkResolver::Chatterino).await;
+        assert_eq!((title(&f), src.asked()), (Some("From Chatterino"), vec!["chatterino"]));
+        // Twitch links keep their own lookups in both modes.
+        for via in [LinkResolver::Cyex, LinkResolver::Chatterino] {
+            let f = load(&src, "https://clips.twitch.tv/Funny-AbC", via).await;
+            assert_eq!((title(&f), src.asked()), (Some("From Twitch"), vec!["twitch"]));
+        }
+        // Untrusted links go to Chatterino's in both modes.
+        for via in [LinkResolver::Cyex, LinkResolver::Chatterino] {
+            let f = load(&src, "https://example.com/", via).await;
+            assert_eq!((title(&f), src.asked()), (Some("From Chatterino"), vec!["chatterino"]));
+        }
+    }
+
+    #[tokio::test]
+    async fn v111_54_ours_falls_back_to_chatterino_and_404_does_not() {
+        let yt = "https://www.youtube.com/watch?v=a";
+        let src = Fake::new(|| Next::Fallback);
+        let f = load(&src, yt, LinkResolver::Cyex).await;
+        assert_eq!((title(&f), src.asked()), (Some("From Chatterino"), vec!["ours", "chatterino"]));
+        let src = Fake::new(|| Next::Down);
+        let f = load(&src, yt, LinkResolver::Cyex).await;
+        assert_eq!((title(&f), f.down, src.asked()), (Some("From Chatterino"), false, vec!["ours", "chatterino"]));
+        let src = Fake::new(|| Next::Nothing);
+        let f = load(&src, yt, LinkResolver::Cyex).await;
+        assert_eq!((title(&f), src.asked()), (None, vec!["ours"]));
+        // Chatterino mode: Chatterino down is a short miss, with nothing else asked.
+        let mut src = Fake::new(|| Next::Nothing);
+        src.chatterino = || Err(cyex_twitch::Error::Api { status: 503, message: "paused".into() });
+        let f = load(&src, yt, LinkResolver::Chatterino).await;
+        assert_eq!((title(&f), f.down, src.asked()), (None, true, vec!["chatterino"]));
+    }
+
+    #[test]
+    fn v111_54_cache_keys_differ_by_resolver() {
+        let u = "https://www.youtube.com/watch?v=a";
+        assert_ne!(key(LinkResolver::Cyex, u), key(LinkResolver::Chatterino, u));
     }
 
     fn short(v: &u32) -> Duration {

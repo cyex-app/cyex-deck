@@ -113,6 +113,11 @@ const PAUSED: &str = "paused";
 /// `None` if the resolver has nothing on it. V110-F96 Two timeouts or failed connections in a
 /// row pause it for a minute; asks in that time fail at once (`is_down`).
 pub async fn resolve(http: &Http, url: &str) -> Result<Option<LinkInfo>> {
+    resolve_at(http, &base(), url).await
+}
+
+/// V111-54 The same against `base`, so tests can stand a local server in.
+async fn resolve_at(http: &Http, base: &str, url: &str) -> Result<Option<LinkInfo>> {
     let breaker = &http.2.resolver;
     if !breaker.allow(Instant::now()) {
         return Err(crate::Error::Api {
@@ -121,7 +126,7 @@ pub async fn resolve(http: &Http, url: &str) -> Result<Option<LinkInfo>> {
         });
     }
     let encoded: String = url::form_urlencoded::byte_serialize(url.as_bytes()).collect();
-    let got: Result<Response> = json(http.0.get(format!("{}/{encoded}", base())).timeout(TIMEOUT)).await;
+    let got: Result<Response> = json(http.0.get(format!("{base}/{encoded}")).timeout(TIMEOUT)).await;
     breaker.report(!got.as_ref().is_err_and(crate::Error::is_network), Instant::now());
     Ok(info(got?))
 }
@@ -255,8 +260,52 @@ fn entities(s: &str) -> String {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
+    use std::io::{Read, Write};
+
     use super::*;
+
+    /// V111-54 A one-shot local server: answers the first request with `status` and a JSON
+    /// `body`; the handle gives back the request line it got.
+    pub(crate) fn serve_json(status: &str, body: &str) -> (String, std::thread::JoinHandle<String>) {
+        let l = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let base = format!("http://{}", l.local_addr().unwrap());
+        let reply = format!(
+            "HTTP/1.1 {status}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+            body.len()
+        );
+        let h = std::thread::spawn(move || {
+            let (mut s, _) = l.accept().unwrap();
+            let mut got = Vec::new();
+            let mut buf = [0u8; 2048];
+            while !got.ends_with(b"\r\n\r\n") {
+                let n = s.read(&mut buf).unwrap();
+                if n == 0 {
+                    break;
+                }
+                got.extend_from_slice(&buf[..n]);
+            }
+            s.write_all(reply.as_bytes()).unwrap();
+            let _ = s.flush();
+            String::from_utf8_lossy(&got).lines().next().unwrap_or_default().to_owned()
+        });
+        (base, h)
+    }
+
+    #[tokio::test]
+    async fn v111_54_chatterino_answers_through_http() {
+        let (base, h) = serve_json(
+            "200 OK",
+            r#"{"status":200,"link":"https://github.com/","tooltip":"%3Cb%3EGitHub%3C%2Fb%3E%3Cbr%3EWhere%20code%20lives"}"#,
+        );
+        let info = resolve_at(&Http::new().unwrap(), &base, "https://github.com").await.unwrap().unwrap();
+        assert_eq!(info.link.as_deref(), Some("https://github.com/"));
+        assert_eq!(info.lines[0][0], LinkText { text: "GitHub".into(), bold: true });
+        assert_eq!(h.join().unwrap(), "GET /https%3A%2F%2Fgithub.com HTTP/1.1");
+        // Its "nothing here" answer is no card, not an error.
+        let (base, _h) = serve_json("200 OK", r#"{"status":404,"message":"no"}"#);
+        assert_eq!(resolve_at(&Http::new().unwrap(), &base, "https://github.com").await.unwrap(), None);
+    }
 
     #[tokio::test]
     async fn v110_f96_a_paused_resolver_fails_at_once_as_down() {
