@@ -90,11 +90,11 @@
     max-height: 18px;
     overflow: hidden;
   }
-  /* V111-18 Opened: 3 rows at most, then it scrolls inside, so the card's top part keeps its size. */
+  /* V111-18 Opened: every badge shows and the row grows, pushing the logs down (no inner
+     scroll). The logs area keeps its minimum height in UsercardView. */
   .row.open {
-    max-height: 60px;
-    overflow-y: auto;
-    overscroll-behavior: contain;
+    max-height: none;
+    overflow: visible;
   }
   .badge {
     width: 18px;

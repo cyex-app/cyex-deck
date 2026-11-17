@@ -340,9 +340,9 @@
   .data {
     display: flex;
     flex: 1 1 0;
+    /* V111-18 The logs give way to a tall badge row, but never below this. */
     min-height: 3.5rem;
     flex-direction: column;
-    min-height: 0;
     border-top: 1px solid var(--border);
     background: var(--page);
   }
