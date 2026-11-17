@@ -170,6 +170,10 @@ fn read_again(app: &AppHandle, account: Option<&str>) {
 
 async fn pump(app: AppHandle, mut rx: mpsc::UnboundedReceiver<Event>) {
     while let Some(e) = rx.recv().await {
+        // V111-17 A refused subscription has no payload: only the mod feed acts on it (it logged).
+        if e.refusal.is_some() && !matches!(e.topic.kind, Kind::ModActions | Kind::AutomodQueue) {
+            continue;
+        }
         match e.topic.kind {
             Kind::Polls | Kind::Celebrations => crate::chat::votes::on_event(&app, &e),
             Kind::Predictions => {

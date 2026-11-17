@@ -62,7 +62,7 @@ pub fn start(app: &AppHandle) {
             after = batch.next;
             for m in batch.events {
                 let kind = topic(m.user, m.kind.as_deref());
-                let e = Event { topic: Topic::new(kind, &m.id), payload: m.payload };
+                let e = Event { topic: Topic::new(kind, &m.id), payload: m.payload, refusal: None };
                 match kind {
                     Kind::HypeRewards => super::hype_unlock::on_user_event(&app, &e),
                     Kind::Pins => super::live::on_event(&app, &e),

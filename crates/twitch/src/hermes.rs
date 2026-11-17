@@ -203,6 +203,9 @@ pub struct Event {
     pub topic: Topic,
     /// The topic's own JSON, e.g. `{"type":"POLL_UPDATE","data":{…}}`.
     pub payload: Value,
+    /// V111-17 Set when Hermes refused this topic's subscription (the response's result and
+    /// error, e.g. `error: ERR_BADAUTH`); `payload` is then null.
+    pub refusal: Option<String>,
 }
 
 /// Reads the token fresh on each sign-in, so a refreshed one is used after reconnects.
@@ -310,6 +313,28 @@ impl Protocol for Hermes {
                     Step::Reconnect
                 }
             },
+            "subscribeResponse" => {
+                let Some(r) = frame.subscribe_response.as_ref().filter(|r| r.result != "ok") else {
+                    return Step::Continue;
+                };
+                // The request's id is `r<subscription id>` (`subscribe`).
+                let topic = frame.parent_id.as_deref().and_then(|id| id.strip_prefix('r')).and_then(Topic::from_sub_id);
+                if let Some(topic) = topic {
+                    let why = match r.error.as_deref() {
+                        Some(e) if !e.is_empty() => format!("{}: {e}", r.result),
+                        _ => r.result.clone(),
+                    };
+                    // Only a refusal that a new sign-in can fix stops the topic; anything else
+                    // (a busy server, an unknown error) is logged and the topic stays.
+                    if refused_for_good(&why) {
+                        eprintln!("hermes: topic refused ({}): {why}", topic.sub_id());
+                        let _ = out.send(Event { topic, payload: Value::Null, refusal: Some(why) });
+                    } else {
+                        eprintln!("hermes: subscribe not ok ({}): {why}", topic.sub_id());
+                    }
+                }
+                Step::Continue
+            }
             "reconnect" => Step::Reconnect,
             "notification" => {
                 if let Some(e) = frame.notification.and_then(Notification::event) {
@@ -339,6 +364,21 @@ struct Frame {
     kind: String,
     notification: Option<Notification>,
     authenticate_response: Option<AuthResponse>,
+    parent_id: Option<String>,
+    subscribe_response: Option<SubResponse>,
+}
+
+/// V111-17 Whether a subscribe result means the sign-in can't have this topic (bad auth,
+/// forbidden, missing permission) rather than a passing failure.
+fn refused_for_good(why: &str) -> bool {
+    let w = why.to_ascii_uppercase();
+    ["AUTH", "FORBIDDEN", "PERMISSION", "UNAUTHORIZED", "NOT_ALLOWED"].iter().any(|k| w.contains(k))
+}
+
+#[derive(Deserialize)]
+struct SubResponse {
+    result: String,
+    error: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -362,6 +402,7 @@ impl Notification {
         Some(Event {
             topic: Topic::from_sub_id(&self.subscription.id)?,
             payload: serde_json::from_str(&self.pubsub?).ok()?,
+            refusal: None,
         })
     }
 }
@@ -405,6 +446,31 @@ mod tests {
         let bad = r#"{"id":"c","type":"authenticateResponse","authenticateResponse":{"result":"error","error":"bad"}}"#;
         assert!(matches!(h.read(bad, &tx), Step::Reconnect));
         assert!(!Hermes::anonymous().gated());
+    }
+
+    #[test]
+    fn v111_17_a_refused_subscribe_names_its_topic() {
+        let mut h = Hermes::signed_in(Box::new(|| Some("tok".into())));
+        let (tx, mut rx) = mpsc::unbounded_channel();
+        let t = Topic::new(Kind::AutomodQueue, "1294600497.71092938");
+        let bad = format!(
+            r#"{{"id":"x","type":"subscribeResponse","parentId":"r{}","subscribeResponse":{{"result":"error","error":"ERR_BADAUTH"}}}}"#,
+            t.sub_id()
+        );
+        assert!(matches!(h.read(&bad, &tx), Step::Continue));
+        let e = rx.try_recv().unwrap();
+        assert_eq!(e.topic, t);
+        assert!(e.payload.is_null());
+        assert_eq!(e.refusal.as_deref(), Some("error: ERR_BADAUTH"));
+        // An accepted one, and one for a topic we don't know, say nothing.
+        let ok = format!(r#"{{"type":"subscribeResponse","parentId":"r{}","subscribeResponse":{{"result":"ok"}}}}"#, t.sub_id());
+        h.read(&ok, &tx);
+        h.read(r#"{"type":"subscribeResponse","parentId":"r?zz","subscribeResponse":{"result":"error"}}"#, &tx);
+        h.read(r#"{"type":"subscribeResponse","subscribeResponse":{"result":"error"}}"#, &tx);
+        // A passing failure keeps the topic.
+        let busy = format!(r#"{{"type":"subscribeResponse","parentId":"r{}","subscribeResponse":{{"result":"error","error":"ERR_SERVER"}}}}"#, t.sub_id());
+        h.read(&busy, &tx);
+        assert!(rx.try_recv().is_err());
     }
 
     #[test]

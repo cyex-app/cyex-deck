@@ -57,7 +57,7 @@ pub fn start(app: &AppHandle) {
             let Ok(batch) = http.get_json::<Batch>(&format!("{base}/_mock/events?after={after}")).await else { continue };
             after = batch.next;
             for m in batch.events {
-                let e = Event { topic: Topic::new(Kind::Raid, &m.id), payload: m.payload };
+                let e = Event { topic: Topic::new(Kind::Raid, &m.id), payload: m.payload, refusal: None };
                 super::raid::on_event(&app, &e);
             }
         }

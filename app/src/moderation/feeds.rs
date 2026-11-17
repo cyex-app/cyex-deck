@@ -40,6 +40,10 @@ pub struct HermesFeeds(Mutex<HashMap<(String, String), String>>);
 #[derive(Default)]
 pub struct Refused(Mutex<plan::Refused>);
 
+/// V111-17 (account, channel id) → the GQL token's key Hermes refused the mod topics for.
+#[derive(Default)]
+pub struct HermesRefused(Mutex<plan::Refused>);
+
 /// V111-17 (account, login) pairs whose chat has said a fresh sign-in is needed.
 #[derive(Default)]
 struct Prompted(Mutex<HashSet<(String, String)>>);
@@ -48,6 +52,7 @@ pub fn init(app: &AppHandle) {
     app.manage(Feeds::default());
     app.manage(HermesFeeds::default());
     app.manage(Refused::default());
+    app.manage(HermesRefused::default());
     app.manage(Prompted::default());
     app.manage(Own::default());
     sockets::init(app);
@@ -145,7 +150,8 @@ pub fn sync(app: &AppHandle) {
     // V111-17 Every mod account's feed: EventSub, Hermes where EventSub can't carry AutoMod and
     // mod actions, else a prompt in that chat (`plan`).
     let refused = app.try_state::<Refused>().map(|r| r.0.lock().unwrap_or_else(|p| p.into_inner()).clone()).unwrap_or_default();
-    let plan::Plan { eventsub: wanted, hermes: topics, prompts } = plan::plan(&pairs, |acc| tokens(app, acc), &refused);
+    let hermes_refused = app.try_state::<HermesRefused>().map(|r| r.0.lock().unwrap_or_else(|p| p.into_inner()).clone()).unwrap_or_default();
+    let plan::Plan { eventsub: wanted, hermes: topics, prompts } = plan::plan(&pairs, |acc| tokens(app, acc), &refused, &hermes_refused);
     sync_hermes(app, topics);
     prompt(app, prompts);
     let mut map = feeds.0.lock().unwrap_or_else(|p| p.into_inner());
@@ -177,7 +183,7 @@ fn tokens(app: &AppHandle, account: &str) -> plan::Tokens {
     let scopes = auth::accounts(app).get(account).and_then(|a| a.helix.as_ref()).map(|m| m.scopes.clone()).unwrap_or_default();
     plan::Tokens {
         helix: auth::helix_token(app, account).map(|(token, _)| (scopes, plan::key_of(&token))),
-        gql: auth::gql_token(app, account).is_some(),
+        gql: auth::gql_token(app, account).map(|(token, _)| plan::key_of(&token)),
     }
 }
 
@@ -210,6 +216,22 @@ pub(super) fn refused(app: &AppHandle, account: &str, channel_id: &str, kind: &s
     let key = plan::key_of(&token);
     let new = state.0.lock().unwrap_or_else(|p| p.into_inner()).insert((account.to_owned(), channel_id.to_owned()), key) != Some(key);
     if new {
+        let app = app.clone();
+        tauri::async_runtime::spawn(async move { sync(&app) });
+    }
+}
+
+/// V111-17 Hermes refused a mod topic (bad auth, forbidden, bad topic): that pair stops using
+/// Hermes for this GQL token and the chat says to sign in again; no resubscribe until the
+/// sign-in changes.
+pub(super) fn hermes_refused(app: &AppHandle, e: &cyex_twitch::hermes::Event) {
+    let Some((account, channel_id)) = e.topic.channel_id.split_once('.') else { return };
+    let Some((token, _)) = auth::gql_token(app, account) else { return };
+    let Some(state) = app.try_state::<HermesRefused>() else { return };
+    let key = plan::key_of(&token);
+    let new = state.0.lock().unwrap_or_else(|p| p.into_inner()).insert((account.to_owned(), channel_id.to_owned()), key) != Some(key);
+    if new {
+        eprintln!("mod feeds: {account}: Hermes refused {channel_id}: {}", e.refusal.as_deref().unwrap_or(""));
         let app = app.clone();
         tauri::async_runtime::spawn(async move { sync(&app) });
     }
@@ -310,6 +332,10 @@ fn sync_hermes(app: &AppHandle, want: HashMap<(String, String), String>) {
 /// V103-15 A message on a GQL-only mod's Hermes topic: a mod action (PubSub's shapes) or
 /// an AutoMod decision.
 pub fn on_hermes(app: &AppHandle, e: &cyex_twitch::hermes::Event) {
+    if e.refusal.is_some() {
+        hermes_refused(app, e);
+        return;
+    }
     let Some((acc, cid)) = e.topic.channel_id.split_once('.') else { return };
     let login = app.try_state::<HermesFeeds>().and_then(|s| {
         let map = s.0.lock().unwrap_or_else(|p| p.into_inner());
