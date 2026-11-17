@@ -423,10 +423,28 @@ async fn run_mod(app: &AppHandle, place: &Place, name: &str, args: &str) -> Resu
     let cmd = parsed?;
     // V111-16 The person the reply names opens their usercard.
     let named = cmd.clone();
-    if let Some(line) = crate::moderation::run::command(app, &account, place.channel(), cmd).await? {
-        crate::chat::local_linked(app, &place.key, NoticeKind::Info, &line, named.named_in(&line));
+    match crate::moderation::run::command(app, &account, place.channel(), cmd).await {
+        Ok(Some(line)) => crate::chat::local_linked(app, &place.key, NoticeKind::Info, &line, named.named_in(&line)),
+        Ok(None) => {}
+        Err(e) => {
+            // V111-49 The input still flashes the error; a grey line in the room keeps it.
+            if let Some(links) = error_links(&named, &e) {
+                crate::chat::local_linked(app, &place.key, NoticeKind::Error, &e, links);
+            }
+            return Err(e);
+        }
     }
     Ok(None)
+}
+
+/// V111-49 Whether a failed mod command also gets a local line, and the names in it that
+/// open a usercard. None for the two missing-sign-in texts: those stay in the input
+/// (V111-47, it shows the Add button).
+fn error_links(cmd: &cyex_moderation::command::ModCommand, err: &str) -> Option<Vec<cyex_chat::model::NoticeUser>> {
+    if err == crate::needs::NEEDS_HELIX || err == crate::needs::NEEDS_GQL {
+        return None;
+    }
+    Some(cmd.named_in(err))
 }
 
 /// The name after `/user`, `/logs`, `/block` and the like: `@Name`, `name` or `name,`,
@@ -589,6 +607,18 @@ fn roles_channel(args: &str) -> Result<Option<String>, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn v111_49_failed_mod_commands_get_a_line_naming_the_target() {
+        let ban = cyex_moderation::command::parse("ban", "@Spammer spam").unwrap().unwrap();
+        let links = error_links(&ban, "Spammer is already banned.").expect("a line");
+        assert_eq!((links.len(), links[0].login.as_str()), (1, "spammer"));
+        // No name in the text: still a line, nothing to click.
+        assert!(error_links(&ban, "You can’t do that here.").unwrap().is_empty());
+        // The sign-in texts stay in the input.
+        assert!(error_links(&ban, crate::needs::NEEDS_HELIX).is_none());
+        assert!(error_links(&ban, crate::needs::NEEDS_GQL).is_none());
+    }
 
     #[test]
     fn roles_takes_an_optional_channel() {
