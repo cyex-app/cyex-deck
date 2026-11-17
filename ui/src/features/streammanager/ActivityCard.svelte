@@ -2,12 +2,14 @@
      redemptions and watch streaks, and with the sign-in with a code power-ups, hype trains
      and goals (D3), newest first. The chips filter by kind and are saved. D4 Once the
      channel's alerts play in Twitch's alert box, each alert can be played again or skipped.
-     V103-15 Mod actions have their own panel; chips and list are shared with it. -->
+     V103-15 Mod actions have their own panel; chips and list are shared with it.
+     V111-16 A line's person opens their usercard in your channel. -->
 <script lang="ts">
   import FeedList from '../../components/FeedList.svelte';
   import FilterChips from '../../components/FilterChips.svelte';
   import IconButton from '../../components/IconButton.svelte';
   import Card from '../../components/PanelCard.svelte';
+  import UserLink from '../../components/UserLink.svelte';
   import type { ActivityFilters } from '../../ipc/bindings/ActivityFilters';
   import type { SmActivity } from '../../ipc/bindings/SmActivity';
   import { smIpc } from '../../ipc/streammanager';
@@ -16,6 +18,9 @@
   import { ACTIVITY_KINDS, alertAction, visibleActivity } from './logic';
   import { sm } from './streammanager.svelte';
   import { errorText } from '../../lib/errors';
+  import { splitNames } from '../chat/noticeNames';
+
+  let { login = '' }: { /** Your channel. */ login?: string } = $props();
 
   const filters = $derived(settings.v.streammanager.activity);
   const rows = $derived(visibleActivity(sm.activity, filters).map((a) => ({ ...a, key: a.id })));
@@ -26,6 +31,8 @@
     const k = key as keyof ActivityFilters;
     void settings.patch('streammanager', { activity: { [k]: !filters[k] } });
   }
+
+  const parts = (r: SmActivity) => (r.user && login ? splitNames(r.text, [{ name: r.user, login: r.user }]) : [{ text: r.text }]);
 
   function alert(r: SmActivity, replay: boolean) {
     if (!r.alert) return;
@@ -47,7 +54,7 @@
     {#snippet row(r)}
       {@const action = alertBox ? alertAction(r.status) : null}
       <span class="line">
-        <span class="what">{r.text}</span>
+        <span class="what">{#each parts(r) as p}{#if 'login' in p && p.login}<UserLink channel={login} login={p.login}>{p.text}</UserLink>{:else}{p.text}{/if}{/each}</span>
         {#if action === 'replay'}
           <IconButton icon="refresh" label="Play the alert again" size={13} onclick={() => alert(r, true)} />
         {:else if action === 'skip'}

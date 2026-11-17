@@ -64,7 +64,7 @@ pub(super) async fn apply(app: &AppHandle, actor: &Actor, who: &str, wanted: &Wa
     }
     if out.ok() {
         let others = roles::as_seen_by_others(&out.line, login);
-        crate::chat::notice_line_by(app, &actor.account, &actor.channel, NoticeKind::Moderation, &out.line, &others);
+        crate::chat::notice_line_by(app, &actor.account, &actor.channel, NoticeKind::Moderation, &out.line, &others, roles::named_in(&out.line, login));
     }
     out
 }

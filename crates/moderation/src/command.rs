@@ -86,6 +86,29 @@ impl Need {
 }
 
 impl ModCommand {
+    /// V111-16 The person the command acts on, when it has one.
+    pub fn target(&self) -> Option<&str> {
+        match self {
+            ModCommand::Ban { login, .. }
+            | ModCommand::Timeout { login, .. }
+            | ModCommand::Unban { login }
+            | ModCommand::Shoutout { login }
+            | ModCommand::Raid { login }
+            | ModCommand::Warn { login, .. }
+            | ModCommand::Treat { login, .. }
+            | ModCommand::SetRole { login, .. }
+            | ModCommand::SetLead { login, .. } => Some(login),
+            _ => None,
+        }
+    }
+
+    /// V111-16 The names in `line` (our own reply to this command) that open a usercard:
+    /// the target, when the line says it.
+    pub fn named_in(&self, line: &str) -> Vec<cyex_chat::model::NoticeUser> {
+        let hit = |t: &&str| line.to_lowercase().contains(&t.to_lowercase());
+        self.target().filter(hit).map(|t| vec![cyex_chat::model::NoticeUser::new(t, t)]).unwrap_or_default()
+    }
+
     /// What the app checks before trying. V107 Role changes are open to every mod: a lead
     /// mod may wear the plain mod badge, so Twitch decides (`roles`).
     pub fn needs(&self) -> Need {
@@ -326,6 +349,17 @@ mod tests {
     fn err(line: &str) -> String {
         let (n, a) = line.split_once(' ').unwrap_or((line, ""));
         parse(n, a).unwrap().unwrap_err()
+    }
+
+    #[test]
+    fn v111_16_a_reply_links_the_person_it_names() {
+        let ban = ok("ban @Spammer buying followers");
+        assert_eq!(ban.target(), Some("spammer"));
+        let n = ban.named_in("Spammer is already banned.");
+        assert_eq!((n.len(), n[0].login.as_str()), (1, "spammer"));
+        assert!(ban.named_in("You can’t do that here.").is_empty());
+        assert_eq!(ok("clear").target(), None);
+        assert!(ok("clear").named_in("Chat cleared.").is_empty());
     }
 
     #[test]

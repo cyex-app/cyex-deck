@@ -78,3 +78,11 @@ test('V111-16 a name spelled as the line spells it wins over a word in another c
   assert.deepEqual(t.filter((p) => p.login).map((p) => p.text), ['A']);
   assert.equal(t.map((p) => p.text).join(''), 'Kuni deleted a message from A.');
 });
+
+// V111-16 The stream manager's activity line names its person by login: a display name in
+// another case still links, and a line without them stays plain.
+test('V111-16 an activity line links its person whatever the case', () => {
+  const parts = splitNames('Kuni_X followed.', [u('kuni_x', 'kuni_x')]);
+  assert.deepEqual(parts, [{ text: 'Kuni_X', login: 'kuni_x' }, { text: ' followed.' }]);
+  assert.deepEqual(splitNames('Someone cheered 100 Bits.', [u('kuni_x', 'kuni_x')]), [{ text: 'Someone cheered 100 Bits.' }]);
+});

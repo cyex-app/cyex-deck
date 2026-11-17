@@ -237,7 +237,7 @@
   {#if m}
     {#if id === 'stream'}<StreamCard />
     {:else if id === 'info'}<InfoCard />
-    {:else if id === 'activity'}<ActivityCard />
+    {:else if id === 'activity'}<ActivityCard login={m.login} />
     {:else if id === 'actions' && failed}
       <Card title="Mod actions" flush>
         <p class="bad">Couldn’t load the mod actions. <Button small variant="link" onclick={() => retry++}>Retry</Button></p>

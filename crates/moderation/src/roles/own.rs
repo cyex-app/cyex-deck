@@ -52,6 +52,12 @@ pub fn as_seen_by_others(line: &str, login: &str) -> String {
     }
 }
 
+/// V111-16 Who a step-down line names for the other accounts' rooms: [`as_seen_by_others`]
+/// puts `login` first, so their name opens their usercard. Yours ("You …") names nobody.
+pub fn named_in(line: &str, login: &str) -> Vec<cyex_chat::model::NoticeUser> {
+    if line.starts_with("You ") && !login.is_empty() { vec![cyex_chat::model::NoticeUser::new(login, login)] } else { Vec::new() }
+}
+
 fn outcome(done: Vec<Change>, line: String, failed: Vec<Role>) -> Outcome {
     Outcome { done, line, slots: VipSlots::unknown(), failed }
 }
@@ -166,6 +172,14 @@ mod tests {
         assert_eq!(o.done, [Change::new(LeadMod, false)]);
         let f = Fake::new(vec![code("TARGET_NOT_MOD")]);
         assert_eq!(run(&f, Mod, false).line, "You aren’t a mod here.");
+    }
+
+    #[test]
+    fn v111_16_others_step_down_line_links_the_name() {
+        let n = named_in("You stepped down as mod.", "caressz");
+        assert_eq!((n.len(), n[0].login.as_str()), (1, "caressz"));
+        assert!(named_in("Couldn't step down.", "caressz").is_empty());
+        assert!(named_in("You stepped down as mod.", "").is_empty());
     }
 
     #[test]

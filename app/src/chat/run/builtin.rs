@@ -421,8 +421,10 @@ async fn run_mod(app: &AppHandle, place: &Place, name: &str, args: &str) -> Resu
         return Err(format!("/{name} isn’t supported yet."));
     };
     let cmd = parsed?;
+    // V111-16 The person the reply names opens their usercard.
+    let named = cmd.clone();
     if let Some(line) = crate::moderation::run::command(app, &account, place.channel(), cmd).await? {
-        local(app, &place.key, NoticeKind::Info, &line);
+        crate::chat::local_linked(app, &place.key, NoticeKind::Info, &line, named.named_in(&line));
     }
     Ok(None)
 }

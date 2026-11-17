@@ -644,6 +644,16 @@ pub fn local_line(app: &AppHandle, key: &RoomKey, kind: NoticeKind, text: &str) 
     }
 }
 
+/// V111-16 [`local_line`] whose `links` (names in `text`) open their usercards.
+pub fn local_linked(app: &AppHandle, key: &RoomKey, kind: NoticeKind, text: &str, links: Vec<NoticeUser>) {
+    let Some(chat) = app.try_state::<Chat>() else { return };
+    let mut inner = chat.lock();
+    if let Some(entry) = inner.rooms.get_mut(key) {
+        let ev = entry.room.linked_line(kind, text, links, now_ms());
+        queue(entry, [ev], &chat.wake);
+    }
+}
+
 /// S7 A plugin's line in every room of the channel, anonymous and signed in. `false`:
 /// none is open.
 pub fn plugin_line(app: &AppHandle, login: &str, m: Arc<ChatMessage>) -> bool {
@@ -817,11 +827,16 @@ pub fn notice_line(app: &AppHandle, login: &str, kind: NoticeKind, text: &str) {
 }
 
 /// V107-H3g [`notice_line`] in `account`'s own rooms, `others` in the other accounts' rooms
-/// of that channel ("You …" read as theirs there).
-pub fn notice_line_by(app: &AppHandle, account: &str, login: &str, kind: NoticeKind, text: &str, others: &str) {
+/// of that channel ("You …" read as theirs there). V111-16 `links` are the names in `others`
+/// that open their usercard.
+pub fn notice_line_by(app: &AppHandle, account: &str, login: &str, kind: NoticeKind, text: &str, others: &str, links: Vec<NoticeUser>) {
     let now = now_ms();
     each_room(app, login, |room, id| {
-        vec![room.system(kind, if account_of(id) == Some(account) { text } else { others }, now)]
+        vec![if account_of(id) == Some(account) {
+            room.system(kind, text, now)
+        } else {
+            room.linked_line(kind, others, links.clone(), now)
+        }]
     });
 }
 
