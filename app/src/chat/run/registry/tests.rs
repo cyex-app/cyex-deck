@@ -86,7 +86,7 @@ fn variables_match_the_code() {
         display_name: "Me".into(),
         ..Default::default()
     };
-    let p = values("c", &["c".into()], Some(&live), Some(&me));
+    let p = values("c", Some("1"), &["c".into()], Some(&live), Some(&me));
     assert_eq!(set(p.keys()), names("everywhere", false), "everywhere");
     assert_eq!(
         set(MENU_VALUES.into_iter().chain([MSG_TIME])),
@@ -107,7 +107,7 @@ fn variables_match_the_code() {
 fn help_line_reads_as_before() {
     assert_eq!(
         help_line(),
-        "/me, /echo, /set var, /chain, /foreach, /runin, /timer, /user, /logs, /block, /unblock, /hideuser, /unhideuser, /mutepings, /tl, /translate, /vote, /search, /popout, /mods, /vips, /roles, /spam, /color, /cosmetics, /combo, /paint, /badge, /add, /remove, /rename, /steal, /whoadded, /w, /r. Mods: /ban, /timeout, /unban, /warn and Twitch’s other mod commands. Your own commands are in Settings → Commands."
+        "/me, /echo, /set var, /chain, /foreach, /runin, /timer, /user, /logs, /namehistory, /follow, /unfollow, /copy, /block, /unblock, /hideuser, /unhideuser, /mutepings, /tl, /translate, /vote, /search, /popout, /mods, /vips, /roles, /spam, /color, /cosmetics, /combo, /paint, /badge, /add, /remove, /rename, /steal, /whoadded, /w, /r. Mods: /ban, /timeout, /unban, /warn and Twitch’s other mod commands. Your own commands are in Settings → Commands."
     );
 }
 

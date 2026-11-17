@@ -286,6 +286,8 @@
     else if (a.type === 'poll' || a.type === 'prediction') {
       if (account) openVote(a.type, login, account, a.question);
     }
+    // V111-56 /copy (Chatterino's), typed or from a menu entry.
+    else if (a.type === 'copy') void copy(a.text, 'Text');
     else if (a.type === 'popout') {
       if (onpopout) onpopout();
       else toast.info('Only a chat next to a stream pops out.');

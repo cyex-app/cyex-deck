@@ -91,6 +91,10 @@ pub struct Place {
     /// someone else's (their message, their names), so `guard` holds here as in an automation.
     /// Also a line that came with marks on it (a `/set var` value an automation stored).
     pub taint: bool,
+    /// V111-56 The message or name a menu entry or usercard button was picked on. Every
+    /// command the entry runs reads it (`$(msg-id)`, `$(nick)` …), your own ones too, the
+    /// way Chatterino's `{msg.id}` works in a command run from its menu. `None` typed: they're empty.
+    pub menu: Option<Arc<MenuContext>>,
 }
 
 impl Place {
@@ -142,6 +146,8 @@ pub enum UiAction {
     /// question (maybe empty) filled in.
     Poll { question: String },
     Prediction { question: String },
+    /// V111-56 `/copy text`: the chat view puts it on the clipboard.
+    Copy { text: String },
 }
 
 /// S1 Who and what a menu entry was picked on.
@@ -188,16 +194,13 @@ async fn menu_at(
     ui: bool,
 ) -> Result<Option<UiAction>, String> {
     // V110-F94 The entry's own text names the command; the clicked message and names fill it in.
-    let place = Place { taint: true, ..place_of(app, view, ui)? };
-    let mut p = params(app, &place, ctx.login.as_deref().unwrap_or(""));
-    for (k, v) in MENU_VALUES.into_iter().zip([&ctx.login, &ctx.display, &ctx.user_id, &ctx.msg_id, &ctx.msg]) {
-        if let Some(v) = v {
-            p.set(k, v.clone());
-        }
-    }
-    if let Some(t) = ctx.msg_time {
-        p.set(MSG_TIME, t.to_string());
-    }
+    let login = ctx.login.clone().unwrap_or_default();
+    let place = Place {
+        taint: true,
+        menu: Some(Arc::new(ctx)),
+        ..place_of(app, view, ui)?
+    };
+    let p = params(app, &place, &login);
     let filled = fill(app, &place, command, p)
         .await?
         .ok_or("Something this needs is missing.")?;
@@ -216,6 +219,7 @@ pub async fn automation(app: &AppHandle, key: RoomKey, f: Fired, nick: &str) {
         ui: false,
         plugins: Vec::new(),
         taint: false,
+        menu: None,
     };
     let mut p = params(app, &place, args);
     let [nick_key, count_key] = AUTOMATION_VALUES;
@@ -273,6 +277,7 @@ fn place_of(app: &AppHandle, view: u32, ui: bool) -> Result<Place, String> {
         ui,
         plugins: Vec::new(),
         taint: false,
+        menu: None,
     })
 }
 
@@ -423,15 +428,36 @@ fn params(app: &AppHandle, place: &Place, args: &str) -> Params {
     let me = place
         .account()
         .and_then(|id| crate::auth::accounts(app).get(id).cloned());
-    let mut p = values(place.channel(), &super::open_channels(app), live.as_ref(), me.as_ref());
+    let id = super::channel_id_of(app, place.channel());
+    let mut p = values(place.channel(), id.as_deref(), &super::open_channels(app), live.as_ref(), me.as_ref());
+    if let Some(ctx) = &place.menu {
+        menu_values(&mut p, ctx);
+    }
     p.set_args(args);
     p
 }
 
-/// The pure part of `params`: the channel, the open chats, the stream and the account.
-fn values(channel: &str, open: &[String], live: Option<&ChannelInfo>, me: Option<&Account>) -> Params {
+/// V111-56 What the menu entry was picked on, for the entry and every command it runs.
+fn menu_values(p: &mut Params, ctx: &MenuContext) {
+    for (k, v) in MENU_VALUES.into_iter().zip([&ctx.login, &ctx.display, &ctx.user_id, &ctx.msg_id, &ctx.msg]) {
+        if let Some(v) = v {
+            p.set(k, v.clone());
+        }
+    }
+    if let Some(t) = ctx.msg_time {
+        p.set(MSG_TIME, t.to_string());
+    }
+}
+
+/// The pure part of `params`: the channel (and its id once known), the open chats, the stream
+/// and the account.
+fn values(channel: &str, id: Option<&str>, open: &[String], live: Option<&ChannelInfo>, me: Option<&Account>) -> Params {
     let mut p = Params::default();
     p.set("chan", channel);
+    // V111-56 Chatterino's {channel.id}.
+    if let Some(id) = id {
+        p.set("chan-id", id);
+    }
     p.set("stream", channel);
     p.set("chans", open.join(" "));
     if let Some(info) = live {

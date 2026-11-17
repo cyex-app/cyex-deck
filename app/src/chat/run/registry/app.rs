@@ -109,6 +109,32 @@ pub(super) const BEFORE: &[Cmd] = &[
         .changes(Window, "Opens the logs page in your browser.")
         .ex(&[ex("/logs someone", "(opens the logs page)")])
         .errs(&[WHO, NOT_A_NAME]),
+    // V111-56 Chatterino's /namehistory, /follow, /unfollow and /copy.
+    Cmd::new("namehistory", "/namehistory name", "Lists the names someone had before.", "V111-56")
+        .help("/namehistory")
+        .args(&[req("name", "login")])
+        .changes(Local, "Asks logs.cyex.app.")
+        .ex(&[ex("/namehistory someone", "Names of someone: oldname (2021/03/04), someone (2023/01/02).")])
+        .errs(&[WHO, NOT_A_NAME, "No user called {login}.", "No past names known for {login}."]),
+    Cmd::new("follow", "/follow name", "Follows a channel.", "V111-56")
+        .help("/follow")
+        .args(&[req("name", "login")])
+        .changes(Twitch, "Follows as the chat’s account.")
+        .ex(&[ex("/follow someone", "You follow someone now.")])
+        .errs(&["Sign in to follow.", WHO, NOT_A_NAME, "No user called {login}."]),
+    Cmd::new("unfollow", "/unfollow name", "Unfollows a channel.", "V111-56")
+        .help("/unfollow")
+        .args(&[req("name", "login")])
+        .changes(Twitch, "Unfollows as the chat’s account.")
+        .ex(&[ex("/unfollow someone", "You unfollowed someone.")])
+        .errs(&["Sign in to follow.", WHO, NOT_A_NAME, "No user called {login}."]),
+    Cmd::new("copy", "/copy text", "Copies text to the clipboard.", "V111-56")
+        .help("/copy")
+        .args(&[req("text", "text")])
+        .changes(Local, "Copies to the clipboard.")
+        .ex(&[ex("/copy $(msg-id)", "(copies that message’s id, from a menu entry)")])
+        .errs(&["Nothing to copy.", "/copy only works in a chat."])
+        .notes("Works in a chat’s input and its menus, not on user card buttons."),
     Cmd::new("block", "/block name", "Blocks someone on Twitch.", "F2")
         .help("/block")
         .args(&[req("name", "login")])

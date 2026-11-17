@@ -6,7 +6,7 @@ use cyex_chat::commands::chain::{split_chain, split_foreach};
 use cyex_chat::commands::{self, Host, Items, Params, taint};
 
 use super::super::super::typed::{self, INVISIBLE};
-use super::super::{Place, reserved};
+use super::super::{MenuContext, Place, menu_values, reserved};
 use super::*;
 
 struct NoHost;
@@ -51,8 +51,21 @@ fn ran(name: &str, args: &str) -> Did {
     Did::Run(name.into(), args.into())
 }
 
-/// The user's own commands in these tests: a `/say` that repeats its words.
-const CUSTOM: &[(&str, &str)] = &[("say", "$1-"), ("out", "/timeout $1 60")];
+/// The user's own commands in these tests: a `/say` that repeats its words. V111-56 And
+/// Chatterino's imported ones, which read what the menu was opened on.
+const CUSTOM: &[(&str, &str)] = &[
+    ("say", "$1-"),
+    ("out", "/timeout $1 60"),
+    ("pinit", "/pin $(msg-id)"),
+    ("msgid", "/copy $(msg-id)"),
+    ("fol", "/follow $(nick)"),
+    ("q", "/echo \"$(msg)\" - $if(nick,$(nick),someone)"),
+];
+
+thread_local! {
+    /// V111-56 Like `Place::menu`: what the clicked entry was opened on.
+    static MENU: std::cell::RefCell<Option<MenuContext>> = const { std::cell::RefCell::new(None) };
+}
 
 fn fill(body: &str, args: &str) -> Result<String, String> {
     let mut p = Params::new(args);
@@ -98,7 +111,10 @@ fn line_at(text: &str, custom: bool, guarded: bool, did: &mut Vec<Did>) -> Resul
         (marked.to_owned(), marked.to_owned())
     };
     if custom && let Some((_, body)) = CUSTOM.iter().find(|c| c.0 == cmd) {
-        return line_at(&fill_with(body, Params::new(&words), guarded)?, false, guarded, did);
+        // Like `params`: a menu's values reach the commands it runs.
+        let mut p = Params::new(&words);
+        MENU.with(|m| m.borrow().as_ref().map(|ctx| menu_values(&mut p, ctx)));
+        return line_at(&fill_with(body, p, guarded)?, false, guarded, did);
     }
     match cmd.as_str() {
         "chain" => split_chain(&args).iter().try_for_each(|part| line_at(part, true, guarded, did)),
@@ -160,19 +176,29 @@ fn place(taint: bool) -> Place {
         ui: true,
         plugins: Vec::new(),
         taint,
+        menu: None,
     }
 }
 
 /// V110-F94 What a menu entry or usercard button `entry` does, clicked on evilname's message
 /// `msg`: filled like `menu_at` fills it, run where `place` says.
 fn clicked(entry: &str, msg: &str, place: &Place) -> Result<Vec<Did>, String> {
+    let ctx = MenuContext {
+        login: Some("evilname".into()),
+        user_id: Some("7".into()),
+        display: Some("/EvilName".into()),
+        msg_id: Some("m1".into()),
+        msg: Some(msg.into()),
+        msg_time: None,
+    };
     let mut p = Params::new("evilname");
-    for (k, v) in [("nick", "evilname"), ("display-nick", "/EvilName"), ("user-id", "7"), ("msg-id", "m1"), ("msg", msg)] {
-        p.set(k, v);
-    }
+    menu_values(&mut p, &ctx);
+    MENU.with(|m| *m.borrow_mut() = Some(ctx));
     let mut did = Vec::new();
     let guarded = place.guarded();
-    line_at(&fill_with(entry, p, guarded)?, true, guarded, &mut did)?;
+    let ran = fill_with(entry, p, guarded).and_then(|l| line_at(&l, true, guarded, &mut did));
+    MENU.with(|m| *m.borrow_mut() = None);
+    ran?;
     Ok(unmarked(did))
 }
 
@@ -392,4 +418,23 @@ fn v110_f99_a_translation_of_the_message_is_text() {
     assert_eq!(sent(false, "/me typed".into()), "/me typed");
     assert_eq!(after_first_word("3  /me hi"), "/me hi");
     assert_eq!(after_first_word("3"), "");
+}
+
+/// V111-56 A command of yours run from a menu reads what the menu was opened on, like
+/// Chatterino's `{msg.id}`; typed, the same values are empty.
+#[test]
+fn v111_56_menu_values_reach_your_commands() {
+    let typed = |text: &str| {
+        let mut did = Vec::new();
+        line_at(text, true, false, &mut did).map(|()| unmarked(did))
+    };
+    assert_eq!(menu("/pinit", "hi"), Ok(vec![ran("pin", "m1")]));
+    assert_eq!(menu("/msgid", "hi"), Ok(vec![ran("copy", "m1")]));
+    assert_eq!(menu("/fol", "hi"), Ok(vec![ran("follow", "evilname")]));
+    assert_eq!(menu("/q", "/ban x"), Ok(vec![ran("echo", "\"/ban x\" - evilname")]));
+    assert_eq!(typed("/pinit"), Ok(vec![ran("pin", "")]));
+    assert_eq!(typed("/fol"), Ok(vec![ran("follow", "")]));
+    assert_eq!(typed("/q"), Ok(vec![ran("echo", "\"\" - someone")]));
+    // Chatterino's menu passes the message as the words: still only said, never run.
+    assert_eq!(menu("/say $(msg)", "/ban x"), Ok(vec![hidden("/ban x")]));
 }

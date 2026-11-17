@@ -147,6 +147,7 @@ pub async fn run(
                 ui: false,
                 plugins: place.plugins.clone(),
                 taint: place.taint,
+                menu: place.menu.clone(),
             };
             line(app, &there, command, None, true, depth + 1).await
         }
@@ -155,6 +156,37 @@ pub async fn run(
             let login = login_arg(args)?;
             crate::windows::open_usercard(app, place.channel(), &login).map_err(|e| e.to_string())?;
             done
+        }
+        // V111-56 Chatterino's /follow, /unfollow, /namehistory and /copy, so its commands run here.
+        "follow" | "unfollow" => {
+            let login = login_arg(args)?;
+            let account = place.account().ok_or("Sign in to follow.")?.to_owned();
+            let id = user_id(app, &login).await?;
+            let on = name == "follow";
+            crate::tabs::follow::set(app, &id, &account, on)
+                .await
+                .map_err(|e| format!("Couldn’t {name}: {e}"))?;
+            let text = if on { format!("You follow {login} now.") } else { format!("You unfollowed {login}.") };
+            local(app, &place.key, NoticeKind::Info, &text);
+            done
+        }
+        "namehistory" => {
+            let login = login_arg(args)?;
+            let id = user_id(app, &login).await?;
+            let names = crate::chat::usercard::name_history(app, &id).await?;
+            local(app, &place.key, NoticeKind::Info, &names_line(&login, &names));
+            done
+        }
+        "copy" => {
+            let text = args.trim();
+            if text.is_empty() {
+                return Err("Nothing to copy.".into());
+            }
+            // The chat view copies it; a usercard button or a timer has no window to ask.
+            if !place.ui {
+                return Err("/copy only works in a chat.".into());
+            }
+            Ok(Some(UiAction::Copy { text: text.to_owned() }))
         }
         "logs" => {
             // V108-N17 Also the "Open in logs" menu entry; the page needs a user, so no name says who.
@@ -342,6 +374,8 @@ pub(super) const OWN: &[&str] = &[
     "spam",
     // V110-N13
     "poll", "prediction",
+    // V111-56
+    "follow", "unfollow", "namehistory", "copy",
 ];
 
 /// V107-Mb The app’s commands that never write to Twitch or 7TV: they show, open or change
@@ -354,6 +388,8 @@ const LOCAL: &[&str] = &[
     "poll", "prediction",
     // V111-03 Reads 7TV only.
     "whoadded",
+    // V111-56 Reads the logs; copies here.
+    "namehistory", "copy",
 ];
 
 /// V107-Mb A built-in that writes to Twitch (or 7TV) as the account: anything not [`LOCAL`],
@@ -391,6 +427,8 @@ pub(super) const SIGNED_IN: &[&str] = &["me", "tl", "vote", "color", "cosmetics"
     "steal", "yoink",
     // V110-C69
     "spam",
+    // V111-56
+    "follow", "unfollow",
 ];
 
 /// V1041-01 Who may run a built-in (1.57): Twitch's mod commands as they parse, `/nuke` any
@@ -481,6 +519,21 @@ fn set_var(app: &AppHandle, args: &str) -> Result<(), String> {
                 c.vars.insert(key, value.clone()).as_deref() != Some(value.as_str())
             }
         })
+}
+
+/// V111-56 `/namehistory`'s line: "Names of bob: rob (2021/03/04), bob (2023/01/02)."
+fn names_line(login: &str, names: &[cyex_twitch::logs::NameChange]) -> String {
+    if names.is_empty() {
+        return format!("No past names known for {login}.");
+    }
+    let list: Vec<String> = names
+        .iter()
+        .map(|n| match n.first_seen.get(..10) {
+            Some(day) if day.as_bytes().get(4) == Some(&b'-') => format!("{} ({})", n.login, day.replace('-', "/")),
+            _ => n.login.clone(),
+        })
+        .collect();
+    format!("Names of {login}: {}.", list.join(", "))
 }
 
 async fn user_id(app: &AppHandle, login: &str) -> Result<String, String> {
@@ -607,6 +660,20 @@ fn roles_channel(args: &str) -> Result<Option<String>, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn v111_56_name_history_line() {
+        let n = |login: &str, at: &str| cyex_twitch::logs::NameChange {
+            login: login.into(),
+            first_seen: at.into(),
+            last_seen: at.into(),
+        };
+        assert_eq!(names_line("bob", &[]), "No past names known for bob.");
+        assert_eq!(
+            names_line("bob", &[n("rob", "2021-03-04T10:00:00Z"), n("bob", "x")]),
+            "Names of bob: rob (2021/03/04), bob."
+        );
+    }
 
     #[test]
     fn v111_49_failed_mod_commands_get_a_line_naming_the_target() {

@@ -47,6 +47,7 @@ pub fn restore(app: &AppHandle) {
             ui: false,
             plugins: Vec::new(),
             taint: false,
+            menu: None,
         };
         schedule(app, place, t.id, t.at_ms, t.command, true);
     }
@@ -148,7 +149,7 @@ fn begin(app: &AppHandle, place: &Place, s: TimerStart) -> Result<(), String> {
 fn schedule(app: &AppHandle, place: Place, id: String, at: i64, command: String, keep: bool) {
     // Fires later, when no window is waiting for an answer. V110-F94 The line a guarded
     // `/timer` keeps is all the entry's own text (`guard::args`): it runs as typed.
-    let place = Place { ui: false, taint: false, ..place };
+    let place = Place { ui: false, taint: false, menu: None, ..place };
     let (app2, place2, id2, cmd2) = (app.clone(), place.clone(), id.clone(), command.clone());
     let task = tauri::async_runtime::spawn(async move {
         let wait = (at - now_ms()).max(0) as u64;

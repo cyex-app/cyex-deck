@@ -38,8 +38,12 @@ pub struct Incoming {
     /// `/name body`.
     pub row: String,
     pub notes: Vec<String>,
-    /// Chatterino showed it in the message menu: our entry (`.label=body`) or why there's none.
+    /// V111-56 What it does here, in plain words.
+    pub does: String,
+    /// Chatterino showed it in the message menu: our entry (`.label=/name`) or why there's none.
     pub menu: Option<Result<String, String>>,
+    /// V111-56 The entry when the name stays cyex's or yours: the body itself, if it maps.
+    pub menu_kept: Option<String>,
 }
 
 /// What the file holds, in its order.
@@ -73,6 +77,8 @@ pub struct CommandItem {
     /// What goes in the list.
     pub row: String,
     pub notes: Vec<String>,
+    /// V111-56 What it does here, in plain words.
+    pub does: String,
     pub conflict: Conflict,
     /// Your row with that name.
     pub yours: Option<String>,
@@ -80,6 +86,8 @@ pub struct CommandItem {
     pub menu: Option<String>,
     /// Why Chatterino's menu entry can't come along.
     pub menu_note: Option<String>,
+    /// V111-56 The entry that comes along when the name stays cyex's or yours.
+    pub menu_kept: Option<String>,
 }
 
 /// What importing would do, before the choices.
@@ -131,7 +139,8 @@ enum Piece {
 }
 
 /// The variables `COMMAND_VARS` knows (case matters there too). Anything else in braces is text.
-const VARS: [&str; 15] = [
+/// V111-56 With `{user.id}` and `{user.display_name}` from newer builds.
+const VARS: [&str; 17] = [
     "channel.name",
     "channel.id",
     "channel",
@@ -140,6 +149,8 @@ const VARS: [&str; 15] = [
     "my.id",
     "my.name",
     "user.name",
+    "user.id",
+    "user.display_name",
     "user",
     "msg.id",
     "msg-id",
@@ -161,11 +172,12 @@ struct Match {
     body: Body,
 }
 
-fn is_name_char(c: char) -> bool {
-    c.is_ascii_alphabetic() || c == '.' || c == '-'
+/// V111-56 `[a-zA-Z_.-][a-zA-Z0-9_.-]*`, as newer builds read names (`{user.display_name}`).
+fn is_name_char(c: char, first: bool) -> bool {
+    c.is_ascii_alphabetic() || matches!(c, '.' | '-' | '_') || (!first && c.is_ascii_digit())
 }
 
-/// `({{)*{(\d+\+?|([a-zA-Z.-]+)(?:;(.+?))?)}` at `q`: the end and the body.
+/// `({{)*{(\d+\+?|([a-zA-Z_.-][a-zA-Z0-9_.-]*)(?:;(.+?))?)}` at `q`: the end and the body.
 fn braces_at(s: &[char], q: usize) -> Option<(usize, Body)> {
     let mut b = q;
     while s.get(b) == Some(&'{') {
@@ -186,11 +198,11 @@ fn braces_at(s: &[char], q: usize) -> Option<(usize, Body)> {
         let close = e + usize::from(plus);
         return (s.get(close) == Some(&'}')).then_some((close + 1, Body::Digits { digits, plus }));
     }
-    if !is_name_char(first) {
+    if !is_name_char(first, true) {
         return None;
     }
-    let mut e = b;
-    while s.get(e).is_some_and(|&c| is_name_char(c)) {
+    let mut e = b + 1;
+    while s.get(e).is_some_and(|&c| is_name_char(c, false)) {
         e += 1;
     }
     let name: String = s[b..e].iter().collect();
@@ -308,13 +320,6 @@ fn pieces(func: &str) -> Vec<Piece> {
 
 // ---- Our syntax ----
 
-/// Where the command runs: typed in a chat, or from the message menu.
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum Place {
-    Typed,
-    Menu,
-}
-
 /// `{` that would start one of our 7TV variables (`commands::vars`).
 fn opens_var(rest: &[char]) -> bool {
     let Some(close) = rest.iter().position(|&c| c == '}') else {
@@ -355,35 +360,45 @@ fn value(name: &str, alt: Option<&str>, never_empty: bool) -> String {
     }
 }
 
-/// A Chatterino variable in our syntax, `Err` when there's no match.
-fn var(name: &str, alt: Option<&str>, place: Place) -> Result<String, String> {
-    let alt_text = || alt.map(|a| escape(a, false)).unwrap_or_default();
-    Ok(match (name, place) {
-        ("channel.name" | "channel", _) => value("chan", alt, true),
-        ("channel.id", _) => return Err("Uses {channel.id}, which has no match here.".into()),
-        ("stream.game", _) => value("streamgame", alt, false),
-        ("stream.title", _) => value("streamtitle", alt, false),
-        ("my.id", _) => value("my-user-id", alt, false),
-        ("my.name", _) => value("my-nick", alt, false),
-        // Typed, Chatterino has no message: these give their alt text.
-        (_, Place::Typed) => alt_text(),
-        ("user.name" | "user", Place::Menu) => value("nick", alt, false),
-        ("msg.id" | "msg-id", Place::Menu) => value("msg-id", alt, false),
-        ("msg.text" | "message", Place::Menu) => value("msg", alt, false),
-        ("input.text", Place::Menu) => return Err("Uses the text in the input box.".into()),
-        (_, Place::Menu) => return Err("Uses the word you clicked.".into()),
-    })
+/// V111-56 Chatterino's variables that come from the message or name a menu was opened on.
+/// Here a menu entry hands them to every command it runs, so typed they're empty (or the alt
+/// text) and from the menu they're filled in, as in Chatterino.
+fn from_menu(name: &str) -> bool {
+    matches!(
+        name,
+        "user.name" | "user" | "user.id" | "user.display_name" | "msg.id" | "msg-id" | "msg.text" | "message"
+    )
 }
 
-/// The pieces as a body of ours.
-fn body(pieces: &[Piece], place: Place) -> Result<String, String> {
+/// A Chatterino variable in our syntax. `{input.text}` and `{element.copytext}` have nothing
+/// to fill them here: their alt text.
+fn var(name: &str, alt: Option<&str>) -> String {
+    match name {
+        "channel.name" | "channel" => value("chan", alt, true),
+        // V111-56
+        "channel.id" => value("chan-id", alt, false),
+        "stream.game" => value("streamgame", alt, false),
+        "stream.title" => value("streamtitle", alt, false),
+        "my.id" => value("my-user-id", alt, false),
+        "my.name" => value("my-nick", alt, false),
+        "user.name" | "user" => value("nick", alt, false),
+        "user.id" => value("user-id", alt, false),
+        "user.display_name" => value("display-nick", alt, false),
+        "msg.id" | "msg-id" => value("msg-id", alt, false),
+        "msg.text" | "message" => value("msg", alt, false),
+        _ => alt.map(|a| escape(a, false)).unwrap_or_default(),
+    }
+}
+
+/// The pieces as a body of ours. `inline`: for a menu entry that runs the body itself, where
+/// Chatterino's words are the message (`{1+}` is our `$(msg)`).
+fn body(pieces: &[Piece], inline: bool) -> Result<String, String> {
     let mut out = String::new();
     for (i, p) in pieces.iter().enumerate() {
         match p {
             Piece::Text(t) => out.push_str(&escape(t, false)),
             Piece::Word { from, rest } => {
-                if place == Place::Menu {
-                    // Chatterino passes the message as the words: all of it is our $(msg).
+                if inline {
                     if *from == 1 && *rest {
                         out.push_str("$(msg)");
                         continue;
@@ -399,10 +414,120 @@ fn body(pieces: &[Piece], place: Place) -> Result<String, String> {
                     out.push_str(&format!("${from}{tail}"));
                 }
             }
-            Piece::Var { name, alt } => out.push_str(&var(name, alt.as_deref(), place)?),
+            Piece::Var { name, alt } => out.push_str(&var(name, alt.as_deref())),
         }
     }
     Ok(out)
+}
+
+/// V111-56 Commands Chatterino (or a common plugin) has under another name: ours, or `""`
+/// when the text goes out as it is.
+const ALIASES: [(&str, &str); 3] = [("pinmessage", "pin"), ("unpinmessage", "unpin"), ("send", "")];
+
+/// The `/command` the func starts with, when the whole word is text (not half a placeholder).
+fn head(ps: &[Piece]) -> Option<String> {
+    let Some(Piece::Text(t)) = ps.first() else { return None };
+    let whole = ps.len() == 1 || t.trim_start().contains(char::is_whitespace);
+    let first = t.split_whitespace().next()?;
+    let cmd = first.strip_prefix('/').filter(|c| !c.is_empty() && !c.starts_with('/'))?;
+    whole.then(|| cmd.to_owned())
+}
+
+/// V111-56 Swaps a Chatterino command for ours (`ALIASES`); the note says so.
+fn map_head(ps: &mut Vec<Piece>) -> Option<String> {
+    let cmd = head(ps)?;
+    let lower = cmd.to_ascii_lowercase();
+    let (_, ours) = ALIASES.iter().find(|(from, _)| *from == lower)?;
+    let Some(Piece::Text(t)) = ps.first_mut() else { return None };
+    let rest = t.trim_start()[1 + cmd.len()..].to_owned();
+    let note = if ours.is_empty() {
+        *t = rest.trim_start().to_owned();
+        format!("Sends the text itself; cyex has no /{cmd}.")
+    } else {
+        *t = format!("/{ours}{rest}");
+        format!("Runs /{ours}, cyex’s name for /{cmd}.")
+    };
+    if t.is_empty() {
+        ps.remove(0);
+    }
+    Some(note)
+}
+
+/// What one of our commands does, for the dialog.
+fn describe(cmd: &str) -> Option<&'static str> {
+    Some(match cmd {
+        "pin" => "Pins a message.",
+        "unpin" => "Takes the pin down.",
+        "copy" => "Copies it to the clipboard.",
+        "translate" => "Translates it; only you see that.",
+        "tl" => "Sends it translated.",
+        "follow" => "Follows that channel.",
+        "unfollow" => "Unfollows that channel.",
+        "namehistory" => "Lists their past names.",
+        "user" | "usercard" => "Opens their user card.",
+        "logs" => "Opens their logs.",
+        "me" => "Sends it as an action.",
+        "echo" => "Shows a line only you see.",
+        "w" | "whisper" => "Sends a whisper.",
+        "ban" => "Bans someone.",
+        "timeout" => "Times someone out.",
+        "delete" => "Deletes a message.",
+        "shoutout" | "so" => "Gives a shoutout.",
+        _ => return None,
+    })
+}
+
+/// "a", "a and b", "a, b and c".
+fn and_list(items: &[String]) -> String {
+    match items {
+        [] => String::new(),
+        [one] => one.clone(),
+        [rest @ .., last] => format!("{} and {last}", rest.join(", ")),
+    }
+}
+
+/// V111-56 What the command does here, in plain words: what it runs, and where its message
+/// values come from.
+fn does(ps: &[Piece], in_menu: bool, known: &dyn Fn(&str) -> bool, own: &dyn Fn(&str) -> bool) -> String {
+    let mut out = match head(ps) {
+        Some(cmd) => {
+            let lower = cmd.to_ascii_lowercase();
+            match describe(&lower) {
+                Some(d) if known(&lower) => d.to_owned(),
+                _ if known(&lower) => format!("Runs /{cmd}."),
+                _ if own(&lower) => format!("Runs your /{cmd}."),
+                _ => format!("Can’t run here: cyex has no /{cmd}."),
+            }
+        }
+        None if matches!(ps.first(), Some(Piece::Word { .. })) => "Sends what you type after it.".to_owned(),
+        None => "Sends it to chat.".to_owned(),
+    };
+    let mut seen: Vec<String> = Vec::new();
+    let mut alt = false;
+    for p in ps {
+        if let Piece::Var { name, alt: a } = p
+            && from_menu(name)
+        {
+            let shown = format!("{{{name}}}");
+            if !seen.contains(&shown) {
+                seen.push(shown);
+            }
+            alt |= a.is_some();
+        }
+    }
+    if !seen.is_empty() {
+        let typed = match (seen.len(), alt) {
+            (1, false) => "it’s empty",
+            (1, true) => "it’s the text after the ;",
+            (_, false) => "they’re empty",
+            (_, true) => "they’re empty or the text after the ;",
+        };
+        out.push_str(&format!(" From a menu it fills in {}; typed, {typed}.", and_list(&seen)));
+    }
+    if in_menu && ps.iter().any(|p| matches!(p, Piece::Word { .. })) {
+        out.push_str(" From the message menu, the message counts as what you type after it.");
+    }
+    out
 }
 
 /// Chatterino's name as ours (`/name`), with a note when it changed, or why it can't be one.
@@ -454,10 +579,20 @@ fn label(name: &str) -> Option<String> {
     (!l.is_empty() && !l.chars().all(|c| c == '-')).then_some(l)
 }
 
-fn incoming(raw_name: &str, raw_func: &str, in_menu: bool, known: &dyn Fn(&str) -> bool) -> Result<Incoming, String> {
+fn incoming(
+    raw_name: &str,
+    raw_func: &str,
+    in_menu: bool,
+    known: &dyn Fn(&str) -> bool,
+    own: &dyn Fn(&str) -> bool,
+) -> Result<Incoming, String> {
     let (ours, name_note) = name(raw_name)?;
     let mut notes: Vec<String> = name_note.into_iter().collect();
     let mut func = raw_func.trim().to_owned();
+    // V111-56 JavaScript, as some Chatterino builds run it.
+    if func.starts_with("#js") {
+        return Err("Runs JavaScript, which cyex doesn’t run.".into());
+    }
     if func.contains(['\n', '\r']) {
         func = func.split(['\r', '\n']).filter(|l| !l.trim().is_empty()).collect::<Vec<_>>().join(" ");
         notes.push("Line breaks became spaces.".into());
@@ -465,37 +600,40 @@ fn incoming(raw_name: &str, raw_func: &str, in_menu: bool, known: &dyn Fn(&str) 
     if func.is_empty() {
         return Err("Sends nothing.".into());
     }
-    let ps = pieces(&func);
-    let typed = body(&ps, Place::Typed)?;
+    let mut ps = pieces(&func);
+    let unfilled = ps.iter().find_map(|p| match p {
+        Piece::Var { name, .. } if !from_menu(name) && var(name, None).is_empty() => Some(format!("{{{name}}}")),
+        _ => None,
+    });
+    notes.extend(map_head(&mut ps));
+    let typed = body(&ps, false)?;
     let typed = typed.trim();
     if typed.is_empty() {
-        return Err("Sends nothing.".into());
+        return Err(match unfilled {
+            Some(v) => format!("Only uses {v}, which cyex doesn’t fill in."),
+            None => "Sends nothing.".into(),
+        });
+    }
+    if let Some(v) = unfilled {
+        notes.push(format!("{v} stays empty here."));
     }
     let row = format!("{ours} {typed}");
     if row.chars().count() > ROW_MAX {
         return Err("Over 2.000 characters.".into());
     }
-    // What it runs first, when that's a command this app doesn't have.
-    if let Some(Piece::Text(t)) = ps.first() {
-        let t = t.trim_start();
-        // The whole first word is text, not half a placeholder.
-        let whole = ps.len() == 1 || t.contains(char::is_whitespace);
-        let first = t.split_whitespace().next().unwrap_or("");
-        if whole
-            && let Some(cmd) = first.strip_prefix('/').filter(|c| !c.is_empty() && !c.starts_with('/'))
-            && !known(&cmd.to_ascii_lowercase())
-        {
-            notes.push(format!("Runs /{cmd}, which isn’t a command here."));
-        }
-    }
+    let words = ps.iter().any(|p| matches!(p, Piece::Word { .. }));
+    let l = label(&ours);
+    // V111-56 The entry runs the command by its name with the message as its words, the way
+    // Chatterino's menu runs it. When the name stays cyex's or yours, the entry runs the body.
     let menu = in_menu.then(|| {
-        let l = label(&ours).ok_or_else(|| "Its name can’t be a menu label.".to_owned())?;
-        let b = body(&ps, Place::Menu)?;
-        let entry = format!(".{l}={b}");
-        if entry.chars().count() > ROW_MAX {
-            return Err("Over 2.000 characters.".into());
-        }
-        Ok(entry)
+        let l = l.as_deref().ok_or_else(|| "Its name can’t be a menu label.".to_owned())?;
+        let tail = if words { " $(msg)" } else { "" };
+        Ok(format!(".{l}={ours}{tail}"))
+    });
+    let menu_kept = l.filter(|_| in_menu).and_then(|l| {
+        let b = body(&ps, true).ok()?;
+        let entry = format!(".{l}={}", b.trim());
+        (entry.chars().count() <= ROW_MAX).then_some(entry)
     });
     let key = ours[1..].to_ascii_lowercase();
     Ok(Incoming {
@@ -503,7 +641,9 @@ fn incoming(raw_name: &str, raw_func: &str, in_menu: bool, known: &dyn Fn(&str) 
         key,
         row,
         notes,
+        does: does(&ps, in_menu, known, own),
         menu,
+        menu_kept,
     })
 }
 
@@ -519,6 +659,15 @@ pub fn parse(text: &str, known: &dyn Fn(&str) -> bool) -> Result<Found, NotComma
         Value::Array(a) => a,
         _ => return Err(NotCommands),
     };
+    // V111-56 A command that runs another one from the same file.
+    let names: HashSet<String> = list
+        .iter()
+        .take(MAX_READ)
+        .filter_map(|e| e.get("name")?.as_str())
+        .filter_map(|n| name(n).ok())
+        .map(|(ours, _)| ours[1..].to_ascii_lowercase())
+        .collect();
+    let own = |n: &str| names.contains(n);
     let mut found = Found::default();
     let mut seen: HashMap<String, String> = HashMap::new();
     for (i, entry) in list.into_iter().enumerate() {
@@ -536,7 +685,7 @@ pub fn parse(text: &str, known: &dyn Fn(&str) -> bool) -> Result<Found, NotComma
         };
         let func = o.get("func").and_then(Value::as_str).unwrap_or("");
         let in_menu = o.get("showInMsgContextMenu").and_then(Value::as_bool).unwrap_or(false);
-        match incoming(raw_name, func, in_menu, known) {
+        match incoming(raw_name, func, in_menu, known, &own) {
             Ok(c) => {
                 // Chatterino uses the first of a name; here case doesn't count either.
                 if let Some(first) = seen.get(&c.key) {
@@ -609,10 +758,12 @@ pub fn plan(found: &Found, current: &Commands, reserved: &dyn Fn(&str) -> bool) 
                 name: c.name.clone(),
                 row: c.row.clone(),
                 notes: c.notes.clone(),
+                does: c.does.clone(),
                 conflict,
                 yours: at.map(|i| current.lines[i].text.clone()),
                 menu,
                 menu_note,
+                menu_kept: c.menu_kept.clone(),
             }
         })
         .collect();
@@ -651,6 +802,10 @@ pub fn apply(
         let (kind, at) = conflict(&c.key, &mine, reserved);
         if kind != Conflict::None && !take.contains(&id) {
             result.kept += 1;
+            // V111-56 The name stays theirs; Chatterino's menu entry still comes, as its body.
+            if menu && let Some(entry) = c.menu_kept {
+                entries.push(entry);
+            }
             continue;
         }
         if let Some(i) = at {
@@ -686,14 +841,24 @@ pub fn apply(
     result
 }
 
+/// A submenu entry's `.label`, or the whole row.
+fn entry_key(row: &str) -> &str {
+    let row = row.trim();
+    match row.split_once('=') {
+        Some((label, _)) if row.starts_with('.') => label,
+        _ => row,
+    }
+}
+
 /// Puts `entries` under the `@Commands` submenu (made at the end when there's none), leaving
-/// out any the menu has already. Added and cut.
+/// out any the menu has already (V111-56: by label, so an import again doesn't add a twin).
+/// Added and cut.
 fn add_menu(rows: &mut Vec<CommandRow>, entries: Vec<String>) -> (u32, u32) {
-    let have: HashSet<String> = rows.iter().map(|r| r.text.trim().to_owned()).collect();
+    let have: HashSet<String> = rows.iter().map(|r| entry_key(&r.text).to_owned()).collect();
     let mut seen = HashSet::new();
     let fresh: Vec<String> = entries
         .into_iter()
-        .filter(|e| !have.contains(e.as_str()) && seen.insert(e.clone()))
+        .filter(|e| !have.contains(entry_key(e)) && seen.insert(entry_key(e).to_owned()))
         .collect();
     if fresh.is_empty() {
         return (0, 0);

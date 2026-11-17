@@ -24,6 +24,8 @@ export function outcome(p: CommandPreview, take: ReadonlySet<number>): Outcome {
   for (const i of p.items) {
     if (isConflict(i) && !take.has(i.id)) {
       o.kept++;
+      // V111-56 The name stays; its menu entry runs Chatterino's body instead.
+      if (i.menuKept) o.menu++;
       continue;
     }
     if (i.conflict === 'yours') o.replaced++;
@@ -38,6 +40,12 @@ export function outcome(p: CommandPreview, take: ReadonlySet<number>): Outcome {
 }
 
 const plural = (n: number, one: string, many = `${one}s`) => `${formatNumber(n)} ${n === 1 ? one : many}`;
+
+/** V111-56 What a name-in-use pick does. */
+export function pickText(i: CommandItem, taken: boolean): string {
+  if (taken) return i.conflict === 'yours' ? 'Replaces yours.' : 'Chatterino’s runs instead of cyex’s.';
+  return i.menuKept ? 'Not imported. Its menu entry can still come.' : 'Not imported.';
+}
 
 /** "12 commands, 3 already there." */
 export function headline(p: CommandPreview): string {

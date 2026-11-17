@@ -1,6 +1,7 @@
 <!-- V111-06 Commands from Chatterino's commands.json: pick the file, see each command as it
      comes in (notes on what changed, names in use, what can't come and why), then import. The
-     toast has Undo. Chatterino's message-menu commands can come along, off by default. -->
+     toast has Undo. Chatterino's message-menu commands can come along; V111-56 on by default,
+     and each command says what it does here. -->
 <script lang="ts">
   import Button from '../../../components/Button.svelte';
   import Checkbox from '../../../components/Checkbox.svelte';
@@ -14,7 +15,7 @@
   import { formatNumber } from '../../../lib/format';
   import { settings } from '../../../lib/settings.svelte';
   import { toast } from '../../../lib/toast.svelte';
-  import { headline, isConflict, limitText, outcome, resultText } from './commandImport';
+  import { headline, isConflict, limitText, outcome, pickText, resultText } from './commandImport';
   import { failedImport } from './report';
 
   const MAX_SKIPPED = 20;
@@ -30,11 +31,13 @@
   let preview = $state<CommandPreview | null>(null);
   let busy = $state(false);
   let take = $state<Set<number>>(new Set());
-  let menu = $state(false);
+  let menu = $state(true);
 
   const result = $derived(preview ? outcome(preview, take) : null);
   const conflicts = $derived(preview ? preview.items.filter(isConflict) : []);
-  const canImport = $derived(!!result && result.added + result.replaced > 0);
+  const count = $derived(result ? result.added + result.replaced : 0);
+  // V111-56 Menu entries alone (every name kept) are an import too.
+  const canImport = $derived(!!result && (count > 0 || (menu && result.menu > 0)));
   const limit = $derived(preview && result ? limitText(preview, result) : null);
 
   async function pick() {
@@ -44,7 +47,7 @@
       if (!p) return;
       preview = p;
       take = new Set();
-      menu = false;
+      menu = true;
     } catch (e) {
       toast.error(errorText(e));
     } finally {
@@ -111,6 +114,7 @@
         {#each preview.items as i (i.id)}
           <li>
             <code>{i.row}</code>
+            <span class="does">{i.does}</span>
             {#each i.notes as n, k (k)}<span class="why">{n}</span>{/each}
             {#if i.conflict === 'yours'}
               <span class="why">You have <code>{i.yours}</code></span>
@@ -125,7 +129,7 @@
                 onchange={(v) => choose(i, v)}
               />
               <!-- V111-55 Say what the pick does: the count in the button was the only change. -->
-              <span class="why">{take.has(i.id) ? (i.conflict === 'yours' ? 'Replaces yours.' : 'Chatterino’s runs instead of cyex’s.') : 'Not imported.'}</span>
+              <span class="why">{pickText(i, take.has(i.id))}</span>
             {/if}
             {#if i.menuNote}<span class="why">Not for the message menu: {i.menuNote}</span>{/if}
           </li>
@@ -153,7 +157,7 @@
     {/if}
     {#snippet footer()}
       <Button variant="ghost" disabled={busy} onclick={close}>Cancel</Button>
-      <Button variant="primary" disabled={busy || !canImport} onclick={run}>{canImport ? `Import ${formatNumber(result.added + result.replaced)}` : 'Import'}</Button>
+      <Button variant="primary" disabled={busy || !canImport} onclick={run}>{count > 0 ? `Import ${formatNumber(count)}` : 'Import'}</Button>
     {/snippet}
   </Dialog>
 {/if}
@@ -162,6 +166,11 @@
   .head {
     margin: 0 0 8px;
     font-weight: 600;
+  }
+  .does {
+    display: block;
+    margin: 2px 0;
+    font-size: var(--text-hint);
   }
   .why {
     display: block;

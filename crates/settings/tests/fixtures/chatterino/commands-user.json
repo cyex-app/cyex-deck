@@ -1,0 +1,11 @@
+{
+    "commands": [
+        {"name": "/pin", "func": "/pinmessage {msg.id}", "showInMsgContextMenu": true},
+        {"name": "/tl", "func": "/translate {1+}", "showInMsgContextMenu": true},
+        {"name": "/channels", "func": "#js const re = await fetch(\"https://logs.ivr.fi/channels\"); return re.body.channels.length", "showInMsgContextMenu": false},
+        {"name": "/repeat", "func": "/send {1+}", "showInMsgContextMenu": true},
+        {"name": "/follow", "func": "/follow {user.name}", "showInMsgContextMenu": true},
+        {"name": "/namehistory", "func": "/namehistory {user.name}", "showInMsgContextMenu": true},
+        {"name": "/msgid", "func": "/copy {msg.id}", "showInMsgContextMenu": true}
+    ]
+}

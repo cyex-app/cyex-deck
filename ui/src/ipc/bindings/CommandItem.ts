@@ -9,7 +9,11 @@ name: string,
 /**
  * What goes in the list.
  */
-row: string, notes: Array<string>, conflict: Conflict, 
+row: string, notes: Array<string>, 
+/**
+ * V111-56 What it does here, in plain words.
+ */
+does: string, conflict: Conflict, 
 /**
  * Your row with that name.
  */
@@ -21,4 +25,8 @@ menu: string | null,
 /**
  * Why Chatterino's menu entry can't come along.
  */
-menuNote: string | null, };
+menuNote: string | null, 
+/**
+ * V111-56 The entry that comes along when the name stays cyex's or yours.
+ */
+menuKept: string | null, };

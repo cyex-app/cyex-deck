@@ -3,17 +3,25 @@ import { test } from 'node:test';
 
 import type { CommandItem } from '../../../ipc/bindings/CommandItem';
 import type { CommandPreview } from '../../../ipc/bindings/CommandPreview';
-import { headline, limitText, outcome, resultText } from './commandImport.ts';
+import { headline, limitText, outcome, pickText, resultText } from './commandImport.ts';
 
-const item = (id: number, name: string, conflict: CommandItem['conflict'] = 'none', menu: string | null = null): CommandItem => ({
+const item = (
+  id: number,
+  name: string,
+  conflict: CommandItem['conflict'] = 'none',
+  menu: string | null = null,
+  menuKept: string | null = null,
+): CommandItem => ({
   id,
   name,
   row: `${name} x`,
   notes: [],
+  does: 'Sends it to chat.',
   conflict,
   yours: conflict === 'yours' ? `${name} mine` : null,
   menu,
   menuNote: null,
+  menuKept,
 });
 
 const preview = (items: CommandItem[], room = 500): CommandPreview => ({ items, skipped: [], room, menuRoom: 500, limit: 500, unread: 0 });
@@ -22,6 +30,17 @@ test('conflicts keep yours unless taken', () => {
   const p = preview([item(0, '/a'), item(1, '/b', 'yours', '.b=x'), item(2, '/ban', 'builtIn'), item(3, '/c', 'none', '.c=y')]);
   assert.deepEqual(outcome(p, new Set()), { added: 2, replaced: 0, kept: 2, cut: [], menu: 1 });
   assert.deepEqual(outcome(p, new Set([1, 2])), { added: 3, replaced: 1, kept: 0, cut: [], menu: 2 });
+});
+
+test('V111-56 a kept name still brings its menu entry', () => {
+  const pin = item(0, '/pin', 'builtIn', '.pin=/pin', '.pin=/pin $(msg-id)');
+  const p = preview([pin, item(1, '/x', 'yours', '.x=/x')]);
+  assert.deepEqual(outcome(p, new Set()), { added: 0, replaced: 0, kept: 2, cut: [], menu: 1 });
+  assert.deepEqual(outcome(p, new Set([0])), { added: 1, replaced: 0, kept: 1, cut: [], menu: 1 });
+  assert.equal(pickText(pin, false), 'Not imported. Its menu entry can still come.');
+  assert.equal(pickText(pin, true), 'Chatterino’s runs instead of cyex’s.');
+  assert.equal(pickText(item(1, '/x', 'yours'), false), 'Not imported.');
+  assert.equal(pickText(item(1, '/x', 'yours'), true), 'Replaces yours.');
 });
 
 test('the limit cuts the last new ones; a replace needs no room', () => {

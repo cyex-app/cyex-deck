@@ -156,7 +156,10 @@ mod tests {
         assert_eq!(run(&rows[1], "", &[("streamgame", "Celeste")]), "Playing Celeste as nobody");
         assert_eq!(run(&rows[2], "x y", &[]), "costs $5 \\o/ {paint} a,b) {x}} x-y");
         assert_eq!(run(&rows[3], "", &[]), "\"\" - someone");
-        let menu = found.commands[3].menu.clone().unwrap().unwrap();
+        // V111-56 From a menu the same row reads the message.
+        assert_eq!(run(&rows[3], "", &[("msg", "hello there"), ("nick", "bob")]), "\"hello there\" - bob");
+        assert_eq!(found.commands[3].menu, Some(Ok(".quote=/quote".into())));
+        let menu = found.commands[3].menu_kept.clone().unwrap();
         let entry = menu.strip_prefix(".quote=").unwrap();
         let items = commands::parse(entry).unwrap();
         let mut p = Params::new("bob");
@@ -166,6 +169,36 @@ mod tests {
         let mut empty = Params::new("");
         empty.set("msg", "hi");
         assert_eq!(commands::run(&items, &empty, &mut NoHost).unwrap(), "\"hi\" - someone");
+    }
+
+    /// V111-56 The user's commands.json, against the app's own command names: one row each,
+    /// filled from a menu, empty typed.
+    #[test]
+    fn a_real_file_runs_typed_and_from_the_menu() {
+        let file = include_str!("../../../crates/settings/tests/fixtures/chatterino/commands-user.json");
+        let found = parse_commands(file, &reserved).unwrap();
+        let rows: Vec<String> = found.commands.iter().map(|c| c.row.clone()).collect();
+        assert!(CommandList::new(&rows).errors.is_empty());
+        let menu = [("msg-id", "m1"), ("msg", "hello there"), ("nick", "bob")];
+        let cases = [
+            ("/pin /pin $(msg-id)", "/pin m1", "/pin"),
+            ("/tl /translate $1-", "/translate hello there", "/translate"),
+            ("/repeat $1-", "hello there", ""),
+            ("/follow /follow $(nick)", "/follow bob", "/follow"),
+            ("/namehistory /namehistory $(nick)", "/namehistory bob", "/namehistory"),
+            ("/msgid /copy $(msg-id)", "/copy m1", "/copy"),
+        ];
+        assert_eq!(rows, cases.map(|c| c.0));
+        for (row, from_menu, typed) in cases {
+            // From the menu the entry passes the message as the words.
+            assert_eq!(run(row, "hello there", &menu), from_menu, "{row}");
+            assert_eq!(run(row, "", &[]).trim(), typed, "{row}");
+        }
+        // Every command they run is one here, and nothing says "can't run here".
+        for c in &found.commands {
+            assert!(!c.does.starts_with("Can’t run"), "{}: {}", c.name, c.does);
+        }
+        assert_eq!(found.skipped.len(), 1, "the #js one");
     }
 
     #[test]
