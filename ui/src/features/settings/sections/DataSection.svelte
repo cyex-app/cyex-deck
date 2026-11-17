@@ -252,9 +252,9 @@
 
   /** D2 "2026/10/16 · Today"; V1052-03 snapshots read "Before restore · Today". */
   function dayName(id: string): string {
-    // V111-51 "before-0.1.10-from-0.1.9" reads "Before 0.1.10".
+    // V111-51 "before-0.1.10-from-0.1.9" reads "Before the update to 0.1.10".
     const ver = /^before-(?!restore-)([^-]+)-from-/.exec(id);
-    if (ver) return `Before ${ver[1]}`;
+    if (ver) return `Before the update to ${ver[1]}`;
     const snap = /^before-restore-(\d{4})-(\d{2})-(\d{2})-(\d{2})?(\d{2})?/.exec(id);
     const date = snap ? `${snap[1]}/${snap[2]}/${snap[3]}` : id;
     const day = (back: number) => {

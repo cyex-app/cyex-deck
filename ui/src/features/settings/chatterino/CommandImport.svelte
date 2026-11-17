@@ -23,7 +23,7 @@
     { value: 'take', label: 'Use Chatterino’s' },
   ] as const;
   const BUILT_IN = [
-    { value: 'keep', label: 'Keep built-in' },
+    { value: 'keep', label: 'Keep cyex’s' },
     { value: 'take', label: 'Use Chatterino’s' },
   ] as const;
 
@@ -102,7 +102,7 @@
     {#if conflicts.length > 1}
       <div class="all">
         <span class="why">Names in use:</span>
-        <Button small variant="ghost" onclick={() => all('keep')}>Keep all mine</Button>
+        <Button small variant="ghost" onclick={() => all('keep')}>Keep all current</Button>
         <Button small variant="ghost" onclick={() => all('take')}>Use all Chatterino’s</Button>
       </div>
     {/if}
@@ -115,7 +115,7 @@
             {#if i.conflict === 'yours'}
               <span class="why">You have <code>{i.yours}</code></span>
             {:else if i.conflict === 'builtIn'}
-              <span class="why">A built-in has this name. Chatterino’s would run instead of it.</span>
+              <span class="why">cyex has its own command with this name.</span>
             {/if}
             {#if isConflict(i)}
               <Segmented
@@ -124,6 +124,8 @@
                 label={`${i.name}: name in use`}
                 onchange={(v) => choose(i, v)}
               />
+              <!-- V111-55 Say what the pick does: the count in the button was the only change. -->
+              <span class="why">{take.has(i.id) ? (i.conflict === 'yours' ? 'Replaces yours.' : 'Chatterino’s runs instead of cyex’s.') : 'Not imported.'}</span>
             {/if}
             {#if i.menuNote}<span class="why">Not for the message menu: {i.menuNote}</span>{/if}
           </li>
@@ -151,7 +153,7 @@
     {/if}
     {#snippet footer()}
       <Button variant="ghost" disabled={busy} onclick={close}>Cancel</Button>
-      <Button variant="primary" disabled={busy || !canImport} onclick={run}>Import</Button>
+      <Button variant="primary" disabled={busy || !canImport} onclick={run}>{canImport ? `Import ${formatNumber(result.added + result.replaced)}` : 'Import'}</Button>
     {/snippet}
   </Dialog>
 {/if}
