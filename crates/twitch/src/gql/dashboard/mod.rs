@@ -5,6 +5,7 @@
 
 pub mod ads;
 mod channel;
+pub mod commands;
 pub mod community;
 pub mod content;
 pub mod feed;

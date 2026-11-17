@@ -68,23 +68,34 @@ pub async fn command(app: &AppHandle, account: &str, login: &str, cmd: ModComman
             super::roles::command(app, &actor, &who, role, on).await
         }
         C::SetLead { login: who, on } => super::roles::command(app, &actor, &who, Role::LeadMod, on).await,
+        // V111-50 Announce, shoutout and shield: GQL twins from Twitch's own chat commands.
         C::Announce { color, text } => {
-            let (auth, room) = helix_for(&actor)?;
-            let http = http(app);
-            cyex_twitch::helix::modes::announce(&http, auth, room, &text, color).await.map_err(helix_err)?;
+            twin(
+                &actor,
+                async |a, r| cyex_twitch::helix::modes::announce(&http(app), a, r, &text, color).await,
+                async |g| dash::commands::announce(&http(app), g, &actor.channel_id, &text, color).await,
+            )
+            .await?;
             Ok(None)
         }
         C::Shoutout { login: who } => {
             let to = user_id(app, &who).await?;
-            let (auth, room) = helix_for(&actor)?;
-            let http = http(app);
-            cyex_twitch::helix::modes::shoutout(&http, auth, room, &to).await.map_err(helix_err)?;
+            // On its own channel the account is the caller too (Twitch's input goes by login).
+            twin(
+                &actor,
+                async |a, r| cyex_twitch::helix::modes::shoutout(&http(app), a, r, &to).await,
+                async |g| dash::commands::shoutout(&http(app), g, &actor.channel, &actor.channel, &who).await,
+            )
+            .await?;
             Ok(Some(format!("Shouted out {who}.")))
         }
         C::Shield(on) => {
-            let (auth, room) = helix_for(&actor)?;
-            let http = http(app);
-            hm::set_shield(&http, auth, room, on).await.map_err(helix_err)?;
+            twin(
+                &actor,
+                async |a, r| hm::set_shield(&http(app), a, r, on).await,
+                async |g| dash::commands::set_shield(&http(app), g, &actor.channel_id, on).await,
+            )
+            .await?;
             Ok(Some(if on { "Shield mode on.".into() } else { "Shield mode off.".into() }))
         }
         C::Pin { msg_id, secs } => pin(app, &actor, &msg_id, secs).await.map(|()| Some("Pinned.".into())),
@@ -135,7 +146,7 @@ pub async fn command(app: &AppHandle, account: &str, login: &str, cmd: ModComman
 }
 
 /// A Helix mod auth and room, or the line that says the account needs the Twitch sign-in.
-/// V111-47 (announce, shoutout and shield have no GQL twin in the repo.)
+/// V111-50 /clear still needs it: Twitch's web client sends /clear over IRC, not GQL.
 fn helix_for<'a>(actor: &'a Actor) -> Result<(cyex_twitch::helix::Auth<'a>, cyex_twitch::helix::Room<'a>), String> {
     actor.helix_any().ok_or_else(|| Needs::Helix.into())
 }
@@ -147,7 +158,8 @@ fn own_channel(actor: &Actor) -> bool {
 
 /// V111-47 Runs a command over Helix, or over its GQL twin on the account's own channel when
 /// there's no Twitch sign-in or Helix refused the token (`needs::route`). Else says which
-/// sign-in is missing. The twins are the Stream manager's calls, no new GQL operations.
+/// sign-in is missing. The twins are the Stream manager's calls, plus (V111-50) Twitch's own
+/// chat-command mutations in `dash::commands`.
 async fn twin<T>(
     actor: &Actor,
     helix: impl AsyncFnOnce(cyex_twitch::helix::Auth<'_>, cyex_twitch::helix::Room<'_>) -> cyex_twitch::Result<T>,

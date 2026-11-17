@@ -19,10 +19,18 @@ fn refused(code: &str) -> String {
         return format!("You can run the next ad in {}:{:02}.", secs / 60, secs % 60);
     }
     let line = match code {
-        "FORBIDDEN" | "USER_NOT_AUTHORIZED" | "USER_UNAUTHORIZED" | "AUTH_FAILURE" => {
-            "Twitch didn’t allow that."
-        }
-        "RATE_LIMITED" | "REQUESTS_THROTTLED" => "Too fast. Try again in a moment.",
+        // V111-50 UNAUTHORIZED (announce), PERMISSION_DENIED (shoutout).
+        "FORBIDDEN" | "USER_NOT_AUTHORIZED" | "USER_UNAUTHORIZED" | "AUTH_FAILURE" | "UNAUTHORIZED"
+        | "PERMISSION_DENIED" => "Twitch didn’t allow that.",
+        // V111-50 TOO_FAST: shield mode flipped too quickly.
+        "RATE_LIMITED" | "REQUESTS_THROTTLED" | "TOO_FAST" => "Too fast. Try again in a moment.",
+        "FAILED_MESSAGE_ENFORCEMENTS" => "Twitch won’t post that as an announcement.",
+        "ALREADY_SHOUTING_OUT" => "You shouted them out recently. Try again later.",
+        "MAX_SHOUTOUTS_REACHED" => "Too many shoutouts for now. Try again later.",
+        "CANNOT_SHOUTOUT_BROADCASTER" => "You can’t shout out yourself.",
+        "CANNOT_SHOUTOUT_CHANNEL" => "That channel can’t get a shoutout.",
+        "OFFLINE_BROADCASTER" => "Shoutouts only work while you’re live.",
+        "INVALID_TARGET_CHANNEL" => "No such channel.",
         "STATUS_TOO_LONG" => "The title is too long.",
         "STATUS_USES_BANNED_WORDS" | "AUTOMOD_FAILED" => "Twitch blocked some words in that.",
         "LANGUAGE_NOT_VALID" => "Twitch doesn’t know that language.",
@@ -70,6 +78,10 @@ mod tests {
         assert_eq!(r("SOMETHING_NEW"), "Twitch turned that down (SOMETHING_NEW).");
         assert_eq!(r("UNKNOWN"), "Twitch turned that down.");
         assert_eq!(r("NOT_DONE"), "Twitch didn’t confirm that. Refresh to check.");
+        // V111-50 The chat-command twins' codes.
+        assert_eq!(r("ALREADY_SHOUTING_OUT"), "You shouted them out recently. Try again later.");
+        assert_eq!(r("TOO_FAST"), "Too fast. Try again in a moment.");
+        assert_eq!(r("PERMISSION_DENIED"), "Twitch didn’t allow that.");
         let stale = Error::Api {
             status: 200,
             message: r#"Cannot query field "startAd" on type "Mutation"."#.into(),

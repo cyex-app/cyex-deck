@@ -168,7 +168,7 @@ pub(super) const CMDS: &[Cmd] = &[
         &[ex("/announce Stream starts at 8", "")],
     )
     .args(&[req("message", "text")])
-    .errs(&["Usage: /announce message"]),
+    .errs(&["Usage: /announce message", "Needs the Twitch sign-in."]),
     tw(
         "announceblue",
         "/announceblue message",
@@ -177,7 +177,7 @@ pub(super) const CMDS: &[Cmd] = &[
         &[ex("/announceblue Be nice", "")],
     )
     .args(&[req("message", "text")])
-    .errs(&["Usage: /announceblue message"]),
+    .errs(&["Usage: /announceblue message", "Needs the Twitch sign-in."]),
     tw(
         "announcegreen",
         "/announcegreen message",
@@ -186,7 +186,7 @@ pub(super) const CMDS: &[Cmd] = &[
         &[ex("/announcegreen Giveaway soon", "")],
     )
     .args(&[req("message", "text")])
-    .errs(&["Usage: /announcegreen message"]),
+    .errs(&["Usage: /announcegreen message", "Needs the Twitch sign-in."]),
     tw(
         "announceorange",
         "/announceorange message",
@@ -195,7 +195,7 @@ pub(super) const CMDS: &[Cmd] = &[
         &[ex("/announceorange Rules changed", "")],
     )
     .args(&[req("message", "text")])
-    .errs(&["Usage: /announceorange message"]),
+    .errs(&["Usage: /announceorange message", "Needs the Twitch sign-in."]),
     tw(
         "announcepurple",
         "/announcepurple message",
@@ -204,7 +204,7 @@ pub(super) const CMDS: &[Cmd] = &[
         &[ex("/announcepurple Welcome", "")],
     )
     .args(&[req("message", "text")])
-    .errs(&["Usage: /announcepurple message"]),
+    .errs(&["Usage: /announcepurple message", "Needs the Twitch sign-in."]),
     tw(
         "shoutout",
         "/shoutout name",
@@ -214,7 +214,7 @@ pub(super) const CMDS: &[Cmd] = &[
     )
     .alias(&["so"])
     .args(&[NAME])
-    .errs(&[USAGE_NAME, "No user called {login}."]),
+    .errs(&[USAGE_NAME, "No user called {login}.", "Needs the Twitch sign-in."]),
     tw(
         "raid",
         "/raid name",
@@ -251,14 +251,16 @@ pub(super) const CMDS: &[Cmd] = &[
         "Shield mode on.",
         "1.49",
         &[ex("/shield", "Shield mode on.")],
-    ),
+    )
+    .errs(&["Needs the Twitch sign-in."]),
     tw(
         "shieldoff",
         "/shieldoff",
         "Shield mode off.",
         "1.49",
         &[ex("/shieldoff", "Shield mode off.")],
-    ),
+    )
+    .errs(&["Needs the Twitch sign-in."]),
     tw(
         "monitor",
         "/monitor name",
