@@ -167,12 +167,14 @@ pub fn open(app: &AppHandle, channel: &str, login: &str) -> tauri::Result<()> {
         .and_then(|p| p.geometry);
     let w = saved.map(|g| f64::from(g.width)).filter(|w| WIDTHS.contains(w)).unwrap_or(SIZE.0);
     let h = saved.map(|g| f64::from(g.height)).filter(|h| HEIGHTS.contains(h)).unwrap_or(SIZE.1);
+    // V111-18 On a short screen the minimum (and the height) give way to the work area.
+    let (min_h, h) = fit_height(h, work_height(app));
     let url = WebviewUrl::App(format!("index.html#/panel/{route}").into());
     let window = super::builder(app, &label, url)
         // V102-14 The channel: the name is on the card already.
         .title(format!("#{channel}"))
         .inner_size(w, h)
-        .min_inner_size(*WIDTHS.start(), *HEIGHTS.start())
+        .min_inner_size(*WIDTHS.start(), min_h)
         .max_inner_size(*WIDTHS.end(), *HEIGHTS.end())
         .skip_taskbar(true)
         .center()
@@ -194,6 +196,28 @@ pub fn open(app: &AppHandle, channel: &str, login: &str) -> tauri::Result<()> {
     icons::apply(&window.as_ref().window());
     window.show()?;
     window.set_focus()
+}
+
+/// V111-18 The work area height (logical px) of the monitor the card opens on: the one under
+/// the mouse, else the main window's, else the primary.
+fn work_height(app: &AppHandle) -> Option<f64> {
+    let by_mouse = app.cursor_position().ok().and_then(|c| app.monitor_from_point(c.x, c.y).ok().flatten());
+    let m = by_mouse
+        .or_else(|| app.get_webview_window(super::MAIN).and_then(|w| w.current_monitor().ok().flatten()))
+        .or_else(|| app.primary_monitor().ok().flatten())?;
+    let s = super::geometry::screen(&m);
+    Some(f64::from(s.work.h) / s.scale)
+}
+
+/// V111-18 The smallest height a card may be resized to and the height it opens at, for a work
+/// area `work` px tall (logical): 680 where it fits, else the work area, never under `MIN_FIT`.
+fn fit_height(h: f64, work: Option<f64>) -> (f64, f64) {
+    const MIN_FIT: f64 = 420.0;
+    let Some(work) = work.map(f64::floor) else {
+        return (*HEIGHTS.start(), h);
+    };
+    let min = HEIGHTS.start().min(work).max(MIN_FIT);
+    (min, h.min(work).max(min))
 }
 
 /// V111-19 Where the pinned usercards are (physical px), the last one first, and the work area of
@@ -280,7 +304,18 @@ pub fn near_cursor(app: &AppHandle, w: f64, h: f64) -> Option<PhysicalPosition<i
 
 #[cfg(test)]
 mod tests {
-    use super::{Rect, clear_spot, is_card, is_popup, settings_key};
+    use super::{Rect, clear_spot, fit_height, is_card, is_popup, settings_key};
+
+    /// V111-18 680 stays where it fits; a short work area (1080p at 150 % is 672) lowers it.
+    #[test]
+    fn v111_18_the_min_height_gives_way_to_the_work_area() {
+        assert_eq!(fit_height(680.0, Some(1040.0)), (680.0, 680.0));
+        assert_eq!(fit_height(900.0, Some(1040.0)), (680.0, 900.0));
+        assert_eq!(fit_height(680.0, Some(672.5)), (672.0, 672.0));
+        assert_eq!(fit_height(900.0, Some(728.0)), (680.0, 728.0));
+        assert_eq!(fit_height(680.0, Some(100.0)), (420.0, 420.0));
+        assert_eq!(fit_height(680.0, None), (680.0, 680.0));
+    }
 
     const WORK: Rect = Rect { x: 0, y: 0, w: 1920, h: 1040 };
     const SIZE: (i32, i32) = (380, 680);

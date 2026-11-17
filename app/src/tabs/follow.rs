@@ -30,13 +30,15 @@ pub async fn set(app: &AppHandle, channel_id: &str, account: &str, follow: bool)
     done.map_err(|e| error_text(&e))
 }
 
+const REFUSED_SIGN_IN: &str = "Twitch didn’t accept the sign-in. Sign in again in Settings → Accounts.";
+
 /// V105-07 A sentence that reads after "Couldn't follow: ".
 fn error_text(e: &cyex_twitch::Error) -> String {
     match e.api_message() {
         None => "Twitch didn’t answer.".into(),
-        Some(_) if e.is_integrity() => {
-            crate::needs::NEEDS_GQL.into()
-        }
+        // V111-47 The account has Extra Twitch features; Twitch turned the token away, so the
+        // answer is a new sign-in, not the "Needs Extra Twitch features." line (it has an Add button).
+        Some(_) if e.is_integrity() => REFUSED_SIGN_IN.into(),
         Some("TOO_MANY_FOLLOWS") => "You follow too many channels.".into(),
         Some("FORBIDDEN") | Some("FOLLOW_BLOCKED") => "Twitch didn’t allow it.".into(),
         Some(code) => format!("Twitch said {code}."),
@@ -62,7 +64,8 @@ mod tests {
         );
         assert_eq!(error_text(&api("FOLLOW_BLOCKED")), "Twitch didn’t allow it.");
         assert_eq!(error_text(&api("FORBIDDEN")), "Twitch didn’t allow it.");
-        assert_eq!(error_text(&api("integrity check failed")), "Needs Extra Twitch features.");
+        let refused = error_text(&api("integrity check failed"));
+        assert!(refused.contains("Sign in again") && refused != crate::needs::NEEDS_GQL);
         assert_eq!(error_text(&api("WHATEVER")), "Twitch said WHATEVER.");
     }
 

@@ -87,7 +87,8 @@ pub fn load_blocked(app: AppHandle) {
         let http = app.state::<crate::auth::Auth>().http.clone();
         let mut lists = Vec::new();
         for id in crate::auth::accounts(&app).list.iter().map(|a| a.user_id.clone()) {
-            // V111-47 Helix first; when it fails and a GQL token exists, the list comes over GQL.
+            // V111-47 Helix first; the list comes over GQL when there is no Helix sign-in or
+            // Helix refused the token (needs::use_gql), not on any other Helix error.
             let helix_ids = if let Some((token, client_id)) =
                 crate::auth::helix_scoped(&app, &id, "user:read:blocked_users")
             {
@@ -96,15 +97,21 @@ pub fn load_blocked(app: AppHandle) {
             } else {
                 None
             };
-            let gql_auth = crate::auth::gql_token(&app, &id);
-            let ids = match (helix_ids, gql_auth) {
-                (Some(Ok(ids)), _) => Ok(ids),
-                (Some(Err(e)), None) => Err(e),
-                (Some(Err(_)) | None, Some((token, client_id))) => {
-                    let auth = crate::auth::gql_auth(&token, &client_id);
-                    gql::blocks::blocked_ids(&http, auth).await
+            let ids = match helix_ids {
+                Some(Ok(ids)) => Ok(ids),
+                failed => {
+                    let err = failed.and_then(Result::err);
+                    let gql = crate::auth::gql_token(&app, &id)
+                        .filter(|_| crate::needs::use_gql(err.as_ref().map(|e| e.status())));
+                    match (gql, err) {
+                        (Some((token, client_id)), _) => {
+                            let auth = crate::auth::gql_auth(&token, &client_id);
+                            gql::blocks::blocked_ids(&http, auth).await
+                        }
+                        (None, Some(e)) => Err(e),
+                        (None, None) => continue,
+                    }
                 }
-                (None, None) => continue,
             };
             match ids {
                 Ok(ids) => lists.push((id, ids.into_iter().collect())),

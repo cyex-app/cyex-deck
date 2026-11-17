@@ -114,6 +114,22 @@ pub(super) fn put_seventv(pool: &ws::Pool<EventApi>, c: &mut Channel, ch: sevent
     swap_seventv_set(pool, c, ch.set);
 }
 
+/// V111-14 7TV says the channel has no account: the kept account and set go, with their
+/// topics. Call it under the Emotes lock like [`put_seventv`].
+pub(super) fn clear_seventv(pool: &ws::Pool<EventApi>, c: &mut Channel) {
+    for topic in take_seventv(c) {
+        pool.remove(&topic);
+    }
+}
+
+/// The channel's 7TV account and sets taken out; the topics they held.
+fn take_seventv(c: &mut Channel) -> Vec<SevenTopic> {
+    let mut topics: Vec<SevenTopic> = c.seventv_user.take().map(SevenTopic::User).into_iter().collect();
+    topics.extend(c.sets.iter().filter(|s| s.provider == Provider::Seventv).map(|s| SevenTopic::Set(s.id.clone())));
+    c.sets.retain(|s| s.provider != Provider::Seventv);
+    topics
+}
+
 /// Swaps the channel's 7TV set and its topic, under the Emotes lock (V107-R1). The new
 /// topic goes on before the old comes off, so the same set stays subscribed.
 fn swap_seventv_set(pool: &ws::Pool<EventApi>, c: &mut Channel, set: Option<EmoteSet>) {
@@ -520,6 +536,30 @@ mod tests {
         assert!(!inner.live("c", 3).is_some_and(|c| still_newest(c, a)));
         // A rejoin is another generation.
         assert!(inner.live("c", 4).is_none());
+    }
+
+    /// V111-14 7TV answering "no account" drops the kept account and set (and their topics),
+    /// leaving BTTV's and FFZ's sets.
+    #[test]
+    fn v111_14_no_7tv_account_clears_the_kept_one() {
+        let set = |p, id: &str| Arc::new(EmoteSet::new(id, p, Scope::Channel, Vec::new()));
+        let mut c = Channel {
+            id: "1".into(),
+            generation: 1,
+            retry: None,
+            sets: vec![set(Provider::Seventv, "s7"), set(Provider::Bttv, "b")],
+            seventv_user: Some("u7".into()),
+            seventv_switch: 0,
+            ffz_badges: Default::default(),
+            lookup: Arc::default(),
+            whole: false,
+            ready: tokio::sync::watch::channel(false).0,
+        };
+        let topics = take_seventv(&mut c);
+        assert_eq!(topics, [SevenTopic::User("u7".into()), SevenTopic::Set("s7".into())]);
+        assert!(c.seventv_user.is_none());
+        assert_eq!(c.sets.iter().map(|s| s.id.as_str()).collect::<Vec<_>>(), ["b"]);
+        assert!(take_seventv(&mut c).is_empty());
     }
 
     fn own(inner: &super::super::Inner, name: &str) -> String {

@@ -50,13 +50,13 @@ pub struct Room {
     pub badges: RoomBadges,
 }
 
-/// `None` when the channel has no FFZ room (404 or 500, B7: not retried). Paced
+/// `None` when the channel has no FFZ room (404; V111-14 a 500 is an error). Paced
 /// (V107-P2); S2 in the background it fails fast, the emote retry queue asks again.
 pub async fn room(http: &Http, twitch_id: &str, lane: Lane) -> Result<Option<Room>> {
     parse_room(&room_raw(http, twitch_id, lane).await?).map_err(Error::Decode)
 }
 
-/// V111-14 [`room`]'s answer as FFZ sent it; `null` without a room (404 or 500).
+/// V111-14 [`room`]'s answer as FFZ sent it; `null` without a room (404).
 pub async fn room_raw(http: &Http, twitch_id: &str, lane: Lane) -> Result<Value> {
     let opts = Opts {
         lane,
@@ -67,11 +67,15 @@ pub async fn room_raw(http: &Http, twitch_id: &str, lane: Lane) -> Result<Value>
         .get_json_paced_with(Service::Ffz, opts, &format!("{API}/room/id/{twitch_id}"))
         .await
     {
-        Err(Error::Api {
-            status: 404 | 500, ..
-        }) => Ok(Value::Null),
+        Err(e) if no_room(&e) => Ok(Value::Null),
         r => r,
     }
+}
+
+/// V111-14 Only a 404 says the channel has no room. A 500 is FFZ failing: the caller treats it
+/// as a failed ask, so the kept copy stays on disk and on screen.
+fn no_room(e: &Error) -> bool {
+    matches!(e, Error::Api { status: 404, .. })
 }
 
 /// V111-14 A [`room_raw`] answer; `None` without a room. V108-C31 Tests read two answers
@@ -300,6 +304,15 @@ mod tests {
         let r: Value = fixture("room.json");
         assert!(parse_room(&r).unwrap().unwrap().set.is_some());
         assert!(parse_room(&Value::Null).unwrap().is_none());
+    }
+
+    /// V111-14 A 500 is not "no room": it would delete the kept copy.
+    #[test]
+    fn v111_14_only_a_404_is_no_room() {
+        let api = |status| Error::Api { status, message: String::new() };
+        assert!(no_room(&api(404)));
+        assert!(!no_room(&api(500)));
+        assert!(!no_room(&api(503)));
     }
 
     #[test]

@@ -485,7 +485,8 @@ pub async fn block_user(app: &AppHandle, account: &str, login: &str, on: bool) -
     let account = account.to_owned();
     let target = user_id(app, login).await?;
     let http = app.state::<crate::auth::Auth>().http.clone();
-    // V111-47 Helix first; when it fails and a GQL token exists, GQL tries the same.
+    // V111-47 Helix first; GQL tries the same when there is no Helix sign-in or Helix refused
+    // the token (needs::use_gql), not on any other Helix error.
     let helix_res = if let Some((token, client_id)) =
         crate::auth::helix_scoped(app, &account, "user:manage:blocked_users")
     {
@@ -498,18 +499,25 @@ pub async fn block_user(app: &AppHandle, account: &str, login: &str, on: bool) -
     } else {
         None
     };
-    let result = match (helix_res, crate::auth::gql_token(app, &account)) {
-        (Some(Ok(())), _) => Ok(()),
-        (Some(Err(e)), None) => Err(e),
-        (Some(Err(_)) | None, Some((token, client_id))) => {
-            let auth = crate::auth::gql_auth(&token, &client_id);
-            if on {
-                gql::blocks::block(&http, auth, &target).await
-            } else {
-                gql::blocks::unblock(&http, auth, &target).await
+    let result = match helix_res {
+        Some(Ok(())) => Ok(()),
+        failed => {
+            let err = failed.and_then(Result::err);
+            let gql = crate::auth::gql_token(app, &account)
+                .filter(|_| crate::needs::use_gql(err.as_ref().map(|e| e.status())));
+            match (gql, err) {
+                (Some((token, client_id)), _) => {
+                    let auth = crate::auth::gql_auth(&token, &client_id);
+                    if on {
+                        gql::blocks::block(&http, auth, &target).await
+                    } else {
+                        gql::blocks::unblock(&http, auth, &target).await
+                    }
+                }
+                (None, Some(e)) => Err(e),
+                (None, None) => return Err("This account can’t block people. Sign in again in Settings → Accounts.".into()),
             }
         }
-        (None, None) => return Err("This account can’t block people. Sign in again in Settings → Accounts.".into()),
     };
     result.map_err(|e| e.to_string())?;
     super::super::rules::note_block(app, &account, &target, on);

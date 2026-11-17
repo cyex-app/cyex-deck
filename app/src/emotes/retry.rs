@@ -166,11 +166,12 @@ pub(super) fn merge_part(app: &AppHandle, login: &str, generation: u64, asked: W
         if !came.any() {
             return true;
         }
-        // No 7TV account: nothing to put in (none was there either).
-        if came.seventv
-            && let Some(ch) = got.seventv.take()
-        {
-            load::put_seventv(&state.seventv, c, ch);
+        // V111-14 No 7TV account: a kept account and set from an earlier visit go.
+        if came.seventv {
+            match got.seventv.take() {
+                Some(ch) => load::put_seventv(&state.seventv, c, ch),
+                None => load::clear_seventv(&state.seventv, c),
+            }
         }
         put(c, came, got);
         inner.rebuild(login);

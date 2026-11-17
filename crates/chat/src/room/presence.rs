@@ -14,6 +14,10 @@ use crate::model::{Notice, NoticeKind, Presence, RoomEvent};
 /// How long a line keeps taking names, from its first.
 const WINDOW_MS: i64 = 10_000;
 
+/// V111-07 A line takes this many names; the next one starts another. A burst of joins would
+/// otherwise rewrite (and resend) an ever longer line for every name.
+const MAX_NAMES: usize = 50;
+
 /// A joins or leaves line still taking names.
 pub(super) struct Open {
     id: String,
@@ -48,7 +52,7 @@ fn fill(notice: &mut Notice, joined: bool, list: &[String]) {
 impl Room {
     pub(super) fn presence(&mut self, login: String, joined: bool, now_ms: i64) -> Option<RoomEvent> {
         let slot = if joined { &mut self.presence.joined } else { &mut self.presence.parted };
-        if let Some(open) = slot.as_mut().filter(|o| now_ms - o.since_ms < WINDOW_MS)
+        if let Some(open) = slot.as_mut().filter(|o| now_ms - o.since_ms < WINDOW_MS && o.names.len() < MAX_NAMES)
             && let Some(line) = self.buffer.iter_mut().rev().find(|m| m.id == open.id)
         {
             if !open.seen.insert(login.clone()) {
@@ -142,6 +146,19 @@ mod tests {
         }
         let all: Vec<String> = (0..14).map(|i| format!("user{i}")).collect();
         assert_eq!(text(&last[0]), format!("joined: {}", all.join(", ")));
+    }
+
+    /// V111-07 A join burst starts a new line past 50 names, and every name is on some line.
+    #[test]
+    fn a_burst_starts_a_new_line_past_fifty_names() {
+        let mut r = room();
+        let events: Vec<RoomEvent> = (0..120).flat_map(|i| join(&mut r, &format!("u{i}"), i)).collect();
+        let lines: Vec<&RoomEvent> = events.iter().filter(|e| matches!(e, RoomEvent::Message { .. })).collect();
+        assert_eq!(lines.len(), 3);
+        let last = events.last().unwrap();
+        assert_eq!(text(last).matches(", ").count() + 1, 20);
+        assert_eq!(text(&events[49]).matches(", ").count() + 1, 50);
+        assert_eq!(text(&events[50]), "joined: u50");
     }
 
     #[test]

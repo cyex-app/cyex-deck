@@ -67,9 +67,23 @@ pub fn helix_refused(status: u16) -> bool {
     matches!(status, 401 | 403)
 }
 
+/// V111-47 Whether an action with a GQL twin goes over GQL after Helix: `helix` is `None` without
+/// a Helix sign-in, else the status of its failure (`None` inside for no status, e.g. no
+/// network). Only a missing sign-in or a refused token moves on; any other Helix error stands.
+pub fn use_gql(helix: Option<Option<u16>>) -> bool {
+    helix.is_none_or(|status| status.is_some_and(helix_refused))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn v111_47_gql_follows_only_a_missing_or_refused_helix() {
+        assert!(use_gql(None));
+        assert!(use_gql(Some(Some(401))) && use_gql(Some(Some(403))));
+        assert!(!use_gql(Some(Some(429))) && !use_gql(Some(Some(500))) && !use_gql(Some(None)));
+    }
 
     #[test]
     fn v111_47_the_two_texts_are_the_contract() {

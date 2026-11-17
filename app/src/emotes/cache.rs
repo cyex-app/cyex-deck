@@ -125,7 +125,7 @@ pub fn write(dir: &Path, key: &Key, body: Option<&Value>, now: u64) {
     if bytes.len() as u64 > MAX_FILE {
         return;
     }
-    let tmp = dir.join(format!("{name}.tmp"));
+    let tmp = dir.join(temp_name(&name));
     let done = fs::create_dir_all(dir)
         .and_then(|()| fs::write(&tmp, &bytes))
         .and_then(|()| fs::rename(&tmp, &path));
@@ -133,6 +133,15 @@ pub fn write(dir: &Path, key: &Key, body: Option<&Value>, now: u64) {
         let _ = fs::remove_file(&tmp);
         eprintln!("emotes: couldn't keep {name}: {e}");
     }
+}
+
+/// V111-14 A temp name no other write shares: two writes of one key (a retry and a join, or a
+/// second app) would otherwise share one `.tmp` and one's rename could take the other's half file.
+/// It still ends in `.tmp`, so `trim` clears leftovers.
+fn temp_name(name: &str) -> String {
+    use std::sync::atomic::{AtomicU64, Ordering};
+    static N: AtomicU64 = AtomicU64::new(0);
+    format!("{name}.{}-{}.tmp", std::process::id(), N.fetch_add(1, Ordering::Relaxed))
 }
 
 /// Drops files past [`MAX_AGE`] (by file date), leftover temp files, and, past `cap`
@@ -232,6 +241,13 @@ mod tests {
     }
 
     const DAY: u64 = 24 * 60 * 60;
+
+    #[test]
+    fn v111_14_temp_names_are_never_shared() {
+        let (a, b) = (temp_name("ffz-channel-1.json"), temp_name("ffz-channel-1.json"));
+        assert_ne!(a, b);
+        assert!(a.starts_with("ffz-channel-1.json.") && a.ends_with(".tmp"));
+    }
 
     #[test]
     fn v111_14_keys_make_plain_file_names() {

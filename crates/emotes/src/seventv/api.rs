@@ -18,6 +18,7 @@ static BASE: std::sync::OnceLock<String> = std::sync::OnceLock::new();
 #[cfg(feature = "mocks")]
 pub fn use_mock(base: &str) {
     let _ = BASE.set(format!("{}/v4/gql", base.trim_end_matches('/')));
+    let _ = V3_BASE.set(format!("{}/v3", base.trim_end_matches('/')));
 }
 fn gql_url() -> &'static str {
     #[cfg(feature = "mocks")]
@@ -27,6 +28,16 @@ fn gql_url() -> &'static str {
     GQL
 }
 const V3: &str = "https://7tv.io/v3";
+/// Test hygiene: with the mock set, the v3 calls (presences, event-api bridge) go to it too.
+#[cfg(feature = "mocks")]
+static V3_BASE: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+fn v3_url() -> &'static str {
+    #[cfg(feature = "mocks")]
+    if let Some(b) = V3_BASE.get() {
+        return b;
+    }
+    V3
+}
 
 const ITEM: &str = "items { id alias addedAt addedById flags { zeroWidth } \
     emote { defaultName aspectRatio ownerId \
@@ -197,7 +208,7 @@ pub fn presence_body(channel_id: &str, passive: bool) -> Value {
 pub async fn post_presence(http: &Http, seventv_user: &str, channel_id: &str, passive: bool) -> Result<()> {
     let body = presence_body(channel_id, passive);
     let _: Value = http
-        .post_json(&format!("{V3}/users/{seventv_user}/presences"), &body)
+        .post_json(&format!("{}/users/{seventv_user}/presences", v3_url()), &body)
         .await?;
     Ok(())
 }
@@ -207,7 +218,7 @@ pub async fn post_presence(http: &Http, seventv_user: &str, channel_id: &str, pa
 pub async fn avatars(http: &Http, logins: &[String]) -> Result<HashMap<String, Avatar>> {
     let ids: Vec<String> = logins.iter().map(|l| format!("username:{l}")).collect();
     let items: Vec<RawBridgeItem> = http
-        .post_json(&format!("{V3}/bridge/event-api"), &json!({ "identifiers": ids }))
+        .post_json(&format!("{}/bridge/event-api", v3_url()), &json!({ "identifiers": ids }))
         .await?;
     Ok(items.into_iter().filter_map(RawBridgeItem::avatar).collect())
 }
