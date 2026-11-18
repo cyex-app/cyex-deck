@@ -12,6 +12,11 @@ pub(super) struct Variable {
     pub syntax: &'static str,
     /// everywhere|menus|usercard|automations
     pub scope: &'static [&'static str],
+    /// V111-59 Where it has a value: typed|menu|usercard|automation. Mod buttons run no
+    /// commands of yours, so they aren't one.
+    pub filled: &'static [&'static str],
+    /// V111-59 The Chatterino placeholders it stands for, which the import turns into it.
+    pub chatterino: &'static [&'static str],
     pub value: &'static str,
     pub empty: &'static str,
     pub examples: &'static [Example],

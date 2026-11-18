@@ -34,6 +34,9 @@ pub struct General {
     pub sound: Sound,
     /// V107-Mo The last settings searches, newest first. Local only (not in exports).
     pub recent_searches: Vec<String>,
+    /// V111-60 The one-time Coming from Chatterino hint was shown and closed, or an import
+    /// from Settings › Import ran. Not a setting.
+    pub chatterino_offered: bool,
 }
 
 impl Default for General {
@@ -52,6 +55,7 @@ impl Default for General {
             updates: Updates::default(),
             sound: Sound::default(),
             recent_searches: Vec::new(),
+            chatterino_offered: false,
         }
     }
 }

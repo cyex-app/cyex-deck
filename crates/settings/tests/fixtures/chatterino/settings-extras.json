@@ -1,0 +1,48 @@
+{
+    "accounts": {
+        "current": "someone",
+        "uid12345": {"username": "someone", "userID": "12345", "clientID": "FAKE-CLIENT", "oauthToken": "FAKE-TOKEN-DO-NOT-USE"}
+    },
+    "appearance": {"theme": {"name": "Dark"}, "messages": {"showTimestamps": true}},
+    "highlighting": {
+        "highlights": [{"pattern": "cyex", "showInMentions": true, "alert": true, "sound": false, "regex": false, "case": false, "soundUrl": "", "color": "#7f7f3f49"}],
+        "users": [{"pattern": "SomeFriend", "showInMentions": true, "alert": true, "sound": false, "regex": false, "case": false, "soundUrl": "", "color": "#7f7f3f49"}],
+        "badges": [],
+        "blacklist": [
+            {"pattern": "Nightbot", "regex": false},
+            {"pattern": "streamelements", "regex": false},
+            {"pattern": ".*bot$", "regex": true},
+            {"pattern": "", "regex": false}
+        ]
+    },
+    "ignore": {
+        "phrases": [
+            {"pattern": "spoiler", "regex": false, "isBlock": true, "replaceWith": "***", "caseSensitive": false},
+            {"pattern": "Kappa", "regex": false, "isBlock": false, "replaceWith": "K", "caseSensitive": true},
+            {"pattern": "(foo|bar)\\d+", "regex": true, "isBlock": false, "replaceWith": "\\1", "caseSensitive": false},
+            {"pattern": "(broken", "regex": true, "isBlock": true, "replaceWith": "", "caseSensitive": false},
+            {"pattern": "  ", "regex": false, "isBlock": true, "replaceWith": "", "caseSensitive": false}
+        ],
+        "enableTwitchBlockedUsers": true,
+        "showBlockedUsers": 0
+    },
+    "pings": {"muted": ["ForSen", "#xqc", "not a channel", ""]},
+    "filtering": {
+        "filters": [
+            {"name": "Subs only", "filter": "author.subbed", "id": "{1b2c3d4e-0000-4000-8000-000000000001}"},
+            {"name": "Broken", "filter": "author.subbed &&", "id": "{1b2c3d4e-0000-4000-8000-000000000002}"},
+            {"name": "", "filter": "message.content contains \"hello\"", "id": "{9a8b7c6d-0000-4000-8000-000000000003}"},
+            {"name": "Empty", "filter": "", "id": "{9a8b7c6d-0000-4000-8000-000000000004}"}
+        ]
+    },
+    "nicknames": [
+        {"name": "Pajlada", "replace": "Pajbot dad", "isRegex": false, "isCaseSensitive": false},
+        {"name": "ghost_user_404", "replace": "Gone", "isRegex": false, "isCaseSensitive": false},
+        {"name": "^mod.*", "replace": "A mod", "isRegex": true, "isCaseSensitive": false},
+        {"name": "pajlada", "replace": "Second one", "isRegex": false, "isCaseSensitive": false},
+        {"name": "two words", "replace": "x", "isRegex": false, "isCaseSensitive": false},
+        {"name": "longname", "replace": "a nickname that is much longer than twenty five", "isRegex": false, "isCaseSensitive": false}
+    ],
+    "moderation": {"actions": [{"pattern": "/timeout {user.name} 600", "icon": ""}]},
+    "behaviour": {"autocompletion": {"emoteCompletionWithColon": true}}
+}

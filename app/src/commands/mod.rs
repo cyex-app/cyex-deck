@@ -4,6 +4,7 @@ mod accounts;
 mod browse;
 mod chat;
 mod chat_extra;
+mod chatterino_all;
 mod chatterino_commands;
 mod clips;
 mod community;
@@ -383,6 +384,10 @@ pub fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static 
         chatterino_commands::commands_chatterino_preview,
         chatterino_commands::commands_chatterino_import,
         chatterino_commands::commands_chatterino_cancel,
+        chatterino_all::chatterino_folder,
+        chatterino_all::chatterino_pick_folder,
+        chatterino_all::chatterino_scan,
+        chatterino_all::chatterino_extras_import,
         settings::settings_all,
         settings::settings_patch,
         settings::settings_prune_blank,

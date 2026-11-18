@@ -31,6 +31,8 @@
   import HighlightsSection from './sections/HighlightsSection.svelte';
   import HotkeysSection from './sections/HotkeysSection.svelte';
   import IgnoresSection from './sections/IgnoresSection.svelte';
+  import ImportSection from './sections/ImportSection.svelte';
+  import ChatterinoHint from './chatterino/ChatterinoHint.svelte';
   import ModerationSection from './sections/ModerationSection.svelte';
   import UsercardSection from './sections/UsercardSection.svelte';
   import MenusSection from './sections/MenusSection.svelte';
@@ -71,6 +73,7 @@
     menus: MenusSection,
     plugins: PluginsSection,
     data: DataSection,
+    import: ImportSection,
     accounts: AccountsSection,
     notifications: NotificationsSection,
     chat: ChatSection,
@@ -378,6 +381,8 @@
       {#if searching}
         <SearchResults {hits} {query} {active} onpick={(hit) => void jump(hit)} onhover={(i) => (active = i)} />
       {:else}
+        <!-- V111-60 Once, while Chatterino is on this PC and nothing came from it yet. -->
+        {#if section !== 'import'}<ChatterinoHint />{/if}
         <Section />
       {/if}
     </div>

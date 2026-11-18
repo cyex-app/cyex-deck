@@ -250,6 +250,23 @@ mod tests {
     }
 
     #[test]
+    fn v111_59_a_looked_up_message_comes_out_marked_and_none_stops_it() {
+        let mut h = TestHost::default();
+        h.looked.insert("last-msg".into(), Some("/ban x | /mod y".into()));
+        h.looked.insert("gone".into(), None);
+        let mut fill = |body: &str| run(&parse(body).unwrap(), &Params::new(""), &mut h);
+        for body in ["$(last-msg)", "q: $(last-msg)", "$if(last-msg,$(last-msg),none)", "$lower($(last-msg))"] {
+            let out = fill(body).unwrap();
+            assert!(taint::has(&out) && !out.trim().starts_with(['/', '.']) && !out.contains('|'), "{body}: {out}");
+        }
+        assert_eq!(taint::clean(&fill("$(last-msg)").unwrap()), "/ban x | /mod y");
+        assert!(fill("/echo $(gone)").is_none());
+        assert!(fill("$if(gone,a,b)").is_none());
+        // Names the host doesn't know are empty, as before.
+        assert_eq!(fill("[$(nosuch)]").unwrap(), "[]");
+    }
+
+    #[test]
     fn chain_bodies_escape_replacements() {
         let body = parse("/chain /echo $1 | /echo b").unwrap();
         let out = run(&body, &Params::new("a|z"), &mut TestHost::default()).unwrap();

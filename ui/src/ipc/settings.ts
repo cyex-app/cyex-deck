@@ -5,16 +5,20 @@ import type { Accounts } from './bindings/Accounts';
 import type { Appearance } from './bindings/Appearance';
 import type { Browse } from './bindings/Browse';
 import type { Chat } from './bindings/Chat';
+import type { ChatterinoFolder } from './bindings/ChatterinoFolder';
+import type { ChatterinoScan } from './bindings/ChatterinoScan';
 import type { Combos } from './bindings/Combos';
 import type { CommandImport } from './bindings/CommandImport';
 import type { CommandPreview } from './bindings/CommandPreview';
 import type { Commands } from './bindings/Commands';
 import type { Emotes } from './bindings/Emotes';
+import type { ExtrasPreview } from './bindings/ExtrasPreview';
 import type { General } from './bindings/General';
 import type { HighlightImport } from './bindings/HighlightImport';
 import type { HighlightPreview } from './bindings/HighlightPreview';
 import type { Highlights } from './bindings/Highlights';
 import type { Hotkeys } from './bindings/Hotkeys';
+import type { ImportKind } from './bindings/ImportKind';
 import type { ImportReport } from './bindings/ImportReport';
 import type { MenuLayouts } from './bindings/MenuLayouts';
 import type { Miner } from './bindings/Miner';
@@ -112,6 +116,14 @@ export const settingsIpc = {
   /** V111-06 Adds the picked commands; `take` lists the conflicts that take Chatterino's. */
   commandsImport: (take: number[], menu: boolean) => invoke<CommandImport>('commands_chatterino_import', { take, menu }),
   commandsCancel: () => invoke<void>('commands_chatterino_cancel'),
+  /** V111-60 Chatterino's settings folder on this PC, or `null`. */
+  chatterinoFolder: () => invoke<ChatterinoFolder | null>('chatterino_folder'),
+  /** V111-60 A portable Chatterino's folder, picked by hand; `null` when cancelled. */
+  chatterinoPickFolder: () => invoke<ChatterinoFolder | null>('chatterino_pick_folder'),
+  /** V111-60 Previews each kind from the folder; then each kind's own import adds it. */
+  chatterinoScan: (path: string, kinds: ImportKind[]) => invoke<ChatterinoScan>('chatterino_scan', { path, kinds }),
+  /** V111-60 Adds the scanned ignores, never highlight, muted chats, filters and nicknames. */
+  extrasImport: () => invoke<ExtrasPreview>('chatterino_extras_import'),
   shareCode: (partitions: Partition[]) => invoke<string>('settings_share_code', { partitions }),
   importCode: (code: string) => invoke<Imported>('settings_import_code', { code }),
   /** V110-A-idea Picks a file and tells what it brings; nothing changes until `applyImport`. `null` when cancelled. */

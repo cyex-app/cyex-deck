@@ -6,7 +6,7 @@ use std::hash::{BuildHasher, Hasher};
 use std::sync::Arc;
 use std::time::Duration;
 
-use cyex_chat::commands::{CommandList, Host, Items, Var, taint};
+use cyex_chat::commands::{CommandList, Host, Items, Params, Var, taint};
 use cyex_settings::Partition;
 use cyex_settings::schema::Commands;
 use tauri::{AppHandle, Manager};
@@ -88,6 +88,10 @@ pub struct AppHost {
     pub vars: VarScope,
     /// V110-F94 A `/set var` value read in this run was stored from someone else's message.
     pub foreign: std::cell::Cell<bool>,
+    /// V111-59 The room `$(last-msg)` looks in.
+    pub key: crate::chat::RoomKey,
+    /// V111-59 Why a lookup stopped the command.
+    pub stop: Option<String>,
 }
 
 impl Host for AppHost {
@@ -112,6 +116,22 @@ impl Host for AppHost {
             }
             _ => None,
         }
+    }
+
+    fn lookup(&mut self, name: &str, p: &Params) -> Option<Option<String>> {
+        let found = super::last_value(name, p, |login| {
+            let chat = self.app.state::<crate::chat::Chat>();
+            let inner = chat.lock();
+            let m = inner.rooms.get(&self.key)?.room.latest_from(login)?;
+            Some((m.id.clone(), cyex_chat::model::plain(&m.body)))
+        })?;
+        Some(match found {
+            Ok(v) => Some(v),
+            Err(why) => {
+                self.stop.get_or_insert(why);
+                None
+            }
+        })
     }
 
     fn foreign(&self) -> bool {

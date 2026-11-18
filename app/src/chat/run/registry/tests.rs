@@ -11,7 +11,7 @@ use super::language::{self, VARIABLES};
 use super::render::{custom_commands, render, roles};
 use super::{all, help_line};
 use crate::chat::run::builtin::{MOD_COMMANDS, OWN};
-use crate::chat::run::{AUTOMATION_VALUES, MENU_VALUES, MSG_TIME, values};
+use crate::chat::run::{AUTOMATION_VALUES, LOOKED_UP, MENU_VALUES, MSG_TIME, values};
 
 fn set<'a>(it: impl IntoIterator<Item = &'a str>) -> BTreeSet<&'a str> {
     it.into_iter().collect()
@@ -87,7 +87,7 @@ fn variables_match_the_code() {
         ..Default::default()
     };
     let p = values("c", Some("1"), &["c".into()], Some(&live), Some(&me));
-    assert_eq!(set(p.keys()), names("everywhere", false), "everywhere");
+    assert_eq!(set(p.keys().into_iter().chain(LOOKED_UP)), names("everywhere", false), "everywhere");
     assert_eq!(
         set(MENU_VALUES.into_iter().chain([MSG_TIME])),
         names("menus", false),
@@ -101,6 +101,26 @@ fn variables_match_the_code() {
         .map(|v| v.syntax)
         .collect();
     assert_eq!(seven_tv, set(FORMS), "7TV forms");
+}
+
+/// V111-59 Every Chatterino placeholder has a variable that says it stands for it, and says
+/// where it has a value.
+#[test]
+fn every_chatterino_placeholder_is_documented() {
+    let documented: BTreeSet<&str> = VARIABLES.iter().flat_map(|v| v.chatterino.iter().copied()).collect();
+    let chatterino: BTreeSet<String> = cyex_settings::chatterino::COMMAND_VARS
+        .iter()
+        .map(|n| format!("{{{n}}}"))
+        .chain(["{1}", "{1+}"].map(String::from))
+        .collect();
+    let missing: Vec<&String> = chatterino.iter().filter(|c| !documented.contains(c.as_str())).collect();
+    assert!(missing.is_empty(), "undocumented: {missing:?}");
+    for v in VARIABLES {
+        assert!(!v.filled.is_empty(), "{}: where it has a value", v.name);
+        for f in v.filled {
+            assert!(["typed", "menu", "usercard", "automation"].contains(f), "{}: {f}", v.name);
+        }
+    }
 }
 
 #[test]

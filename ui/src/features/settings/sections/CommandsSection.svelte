@@ -77,6 +77,8 @@
   {#snippet actions()}<CommandImport />{/snippet}
   Menu entries and usercard buttons are on the
   <Button variant="link" hit onclick={() => (settingsJump.to = 'menus')}>Menus page</Button>.
+  <!-- V111-60 Everything from Chatterino at once. -->
+  More from Chatterino in <Button variant="link" hit onclick={() => (settingsJump.to = 'import')}>Import</Button>.
 </SectionHead>
 
 <SectionHead title={GUIDE.commands.title} setting="commands.lines"><GuideText entry={GUIDE.commands} /></SectionHead>

@@ -16,6 +16,8 @@ export const GROUPS = [
       { id: 'menus', label: 'Menus', icon: 'list', hint: 'Right-click menus. Open one to rearrange it, rename or hide rows, and add groups or entries of your own.' },
       { id: 'plugins', label: 'Plugins', icon: 'puzzle', hint: 'Lua scripts that add commands, change chat lines and more. Each one only gets the permissions you agree to.' },
       { id: 'data', label: 'Backup and sharing', icon: 'archive', hint: 'Move your settings to another PC, share them, or go back to an earlier copy.' },
+      // V111-60 Everything from Chatterino in one place.
+      { id: 'import', label: 'Import', icon: 'download', hint: 'Bring your tabs, highlights, commands and more over from Chatterino. Nothing there changes.' },
     ],
   },
   {

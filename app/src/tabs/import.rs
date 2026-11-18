@@ -57,9 +57,41 @@ pub fn account(app: &AppHandle) -> Result<(String, (String, String)), String> {
 pub async fn preview(app: &AppHandle, path: &Path) -> Result<ImportReport, String> {
     let (account, (token, client_id)) = account(app)?;
     let layout = read(path)?;
+    let found = by_helix(app, &chatterino::names(&layout), &known(app), &token, &client_id).await?;
+    Ok(keep(app, Some(account), layout, found))
+}
+
+/// V111-60 Logins to Twitch users for other imports (nicknames): Helix with the default
+/// account; test builds without one ask public GQL.
+pub async fn look_up(app: &AppHandle, names: &[String]) -> Result<HashMap<String, TabChannel>, String> {
+    match account(app) {
+        Ok((_, (token, client_id))) => by_helix(app, names, &HashMap::new(), &token, &client_id).await,
+        #[cfg(feature = "mocks")]
+        Err(_) => {
+            let http = app.state::<Auth>().http.clone();
+            chatterino::resolve(names, &HashMap::new(), |batch| {
+                let http = &http;
+                async move { by_gql(http, &batch).await }
+            })
+            .await
+            .map_err(lookup_error)
+        }
+        #[cfg(not(feature = "mocks"))]
+        Err(e) => Err(e),
+    }
+}
+
+/// Looks `names` up on Helix, `known` ones aside.
+async fn by_helix(
+    app: &AppHandle,
+    names: &[String],
+    known: &HashMap<String, TabChannel>,
+    token: &str,
+    client_id: &str,
+) -> Result<HashMap<String, TabChannel>, String> {
     let http = app.state::<Auth>().http.clone();
-    let helix_auth = crate::auth::helix_auth(&token, &client_id);
-    let found = chatterino::resolve(&chatterino::names(&layout), &known(app), |batch| {
+    let helix_auth = crate::auth::helix_auth(token, client_id);
+    chatterino::resolve(names, known, |batch| {
         let http = &http;
         async move {
             let logins: Vec<&str> = batch.iter().map(String::as_str).collect();
@@ -77,9 +109,7 @@ pub async fn preview(app: &AppHandle, path: &Path) -> Result<ImportReport, Strin
         }
     })
     .await
-    .map_err(lookup_error)?;
-
-    Ok(keep(app, Some(account), layout, found))
+    .map_err(lookup_error)
 }
 
 /// C1 Test builds: looks the channels up on Twitch's public GQL instead of Helix, so no

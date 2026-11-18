@@ -134,13 +134,15 @@ fn skip(name: &str, reason: &str) -> Skipped {
 #[derive(Clone, Debug, PartialEq, Eq)]
 enum Piece {
     Text(String),
-    Word { from: u32, rest: bool },
+    /// V111-59 With its alt text too (`{2;none}`).
+    Word { from: u32, rest: bool, alt: Option<String> },
     Var { name: &'static str, alt: Option<String> },
 }
 
 /// The variables `COMMAND_VARS` knows (case matters there too). Anything else in braces is text.
-/// V111-56 With `{user.id}` and `{user.display_name}` from newer builds.
-const VARS: [&str; 17] = [
+/// V111-56 With `{user.id}` and `{user.display_name}` from newer builds. V111-59 And
+/// `{time}` and `{user.last_message.*}` (docs/research/chatterino-placeholders.md).
+pub const VARS: [&str; 20] = [
     "channel.name",
     "channel.id",
     "channel",
@@ -158,10 +160,13 @@ const VARS: [&str; 17] = [
     "message",
     "input.text",
     "element.copytext",
+    "time",
+    "user.last_message.id",
+    "user.last_message.text",
 ];
 
 enum Body {
-    Digits { digits: String, plus: bool },
+    Digits { digits: String, plus: bool, alt: Option<String> },
     Name { name: String, alt: Option<String> },
 }
 
@@ -195,8 +200,8 @@ fn braces_at(s: &[char], q: usize) -> Option<(usize, Body)> {
         }
         let digits: String = s[b..e].iter().collect();
         let plus = s.get(e) == Some(&'+');
-        let close = e + usize::from(plus);
-        return (s.get(close) == Some(&'}')).then_some((close + 1, Body::Digits { digits, plus }));
+        let (end, alt) = close(s, e + usize::from(plus))?;
+        return Some((end, Body::Digits { digits, plus, alt }));
     }
     if !is_name_char(first, true) {
         return None;
@@ -206,8 +211,14 @@ fn braces_at(s: &[char], q: usize) -> Option<(usize, Body)> {
         e += 1;
     }
     let name: String = s[b..e].iter().collect();
+    let (end, alt) = close(s, e)?;
+    Some((end, Body::Name { name, alt }))
+}
+
+/// `(?:;(.+?))?}` at `e`: the end and the alt text.
+fn close(s: &[char], e: usize) -> Option<(usize, Option<String>)> {
     match s.get(e) {
-        Some('}') => Some((e + 1, Body::Name { name, alt: None })),
+        Some('}') => Some((e + 1, None)),
         Some(';') => {
             // `.+?`: at least one character, no line break, up to the first "}" after it.
             let from = e + 1;
@@ -223,7 +234,7 @@ fn braces_at(s: &[char], q: usize) -> Option<(usize, Body)> {
                 }
             }
             let alt: String = s[from..j].iter().collect();
-            Some((j + 1, Body::Name { name, alt: Some(alt) }))
+            Some((j + 1, Some(alt)))
         }
         _ => None,
     }
@@ -261,10 +272,11 @@ fn pieces(func: &str) -> Vec<Piece> {
         last = m.end;
         offset = m.end - 1;
         let piece = match m.body {
-            Body::Digits { digits, plus } => match digits.parse::<i32>() {
+            Body::Digits { digits, plus, alt } => match digits.parse::<i32>() {
                 Ok(n) if n > 0 => Some(Piece::Word {
                     from: n.unsigned_abs(),
                     rest: plus,
+                    alt,
                 }),
                 // `{0}` and numbers too big for an int stay as they are.
                 _ => {
@@ -272,6 +284,10 @@ fn pieces(func: &str) -> Vec<Piece> {
                     text.push_str(&digits);
                     if plus {
                         text.push('+');
+                    }
+                    if let Some(a) = alt {
+                        text.push(';');
+                        text.push_str(&a);
                     }
                     text.push('}');
                     None
@@ -366,12 +382,20 @@ fn value(name: &str, alt: Option<&str>, never_empty: bool) -> String {
 fn from_menu(name: &str) -> bool {
     matches!(
         name,
-        "user.name" | "user" | "user.id" | "user.display_name" | "msg.id" | "msg-id" | "msg.text" | "message"
+        "user.name"
+            | "user"
+            | "user.id"
+            | "user.display_name"
+            | "msg.id"
+            | "msg-id"
+            | "msg.text"
+            | "message"
+            | "input.text"
+            | "element.copytext"
     )
 }
 
-/// A Chatterino variable in our syntax. `{input.text}` and `{element.copytext}` have nothing
-/// to fill them here: their alt text.
+/// A Chatterino variable in our syntax.
 fn var(name: &str, alt: Option<&str>) -> String {
     match name {
         "channel.name" | "channel" => value("chan", alt, true),
@@ -386,6 +410,13 @@ fn var(name: &str, alt: Option<&str>) -> String {
         "user.display_name" => value("display-nick", alt, false),
         "msg.id" | "msg-id" => value("msg-id", alt, false),
         "msg.text" | "message" => value("msg", alt, false),
+        // V111-59
+        "input.text" => value("input-text", alt, false),
+        "element.copytext" => value("copy-text", alt, false),
+        "time" => value("time", alt, true),
+        "user.last_message.id" => value("last-msg-id", alt, false),
+        "user.last_message.text" => value("last-msg", alt, false),
+        // Only `VARS` get here.
         _ => alt.map(|a| escape(a, false)).unwrap_or_default(),
     }
 }
@@ -397,17 +428,22 @@ fn body(pieces: &[Piece], inline: bool) -> Result<String, String> {
     for (i, p) in pieces.iter().enumerate() {
         match p {
             Piece::Text(t) => out.push_str(&escape(t, false)),
-            Piece::Word { from, rest } => {
+            Piece::Word { from, rest, alt } => {
                 if inline {
                     if *from == 1 && *rest {
-                        out.push_str("$(msg)");
+                        out.push_str(&value("msg", alt.as_deref(), false));
                         continue;
                     }
                     return Err("Uses single words of the message.".into());
                 }
+                let tail = if *rest { "-" } else { "" };
+                // V111-59 `{2;none}`: the alt text when there's no such word.
+                if let Some(a) = alt {
+                    out.push_str(&format!("$if({from}{tail},${from}{tail},{})", escape(a, true)));
+                    continue;
+                }
                 // `$1` right before a "-" would read as `$1-`.
                 let dash = matches!(pieces.get(i + 1), Some(Piece::Text(t)) if t.starts_with('-'));
-                let tail = if *rest { "-" } else { "" };
                 if *from > 9 || (dash && !rest) {
                     out.push_str(&format!("$({from}{tail})"));
                 } else {
@@ -524,6 +560,10 @@ fn does(ps: &[Piece], in_menu: bool, known: &dyn Fn(&str) -> bool, own: &dyn Fn(
         };
         out.push_str(&format!(" From a menu it fills in {}; typed, {typed}.", and_list(&seen)));
     }
+    // V111-59
+    if ps.iter().any(|p| matches!(p, Piece::Var { name, .. } if name.starts_with("user.last_message"))) {
+        out.push_str(" Reads their newest message in this chat: the name from a menu, else the first word.");
+    }
     if in_menu && ps.iter().any(|p| matches!(p, Piece::Word { .. })) {
         out.push_str(" From the message menu, the message counts as what you type after it.");
     }
@@ -600,22 +640,13 @@ fn incoming(
     if func.is_empty() {
         return Err("Sends nothing.".into());
     }
+    // V111-59 Every Chatterino placeholder has a value of ours now.
     let mut ps = pieces(&func);
-    let unfilled = ps.iter().find_map(|p| match p {
-        Piece::Var { name, .. } if !from_menu(name) && var(name, None).is_empty() => Some(format!("{{{name}}}")),
-        _ => None,
-    });
     notes.extend(map_head(&mut ps));
     let typed = body(&ps, false)?;
     let typed = typed.trim();
     if typed.is_empty() {
-        return Err(match unfilled {
-            Some(v) => format!("Only uses {v}, which cyex doesn’t fill in."),
-            None => "Sends nothing.".into(),
-        });
-    }
-    if let Some(v) = unfilled {
-        notes.push(format!("{v} stays empty here."));
+        return Err("Sends nothing.".into());
     }
     let row = format!("{ours} {typed}");
     if row.chars().count() > ROW_MAX {

@@ -661,6 +661,7 @@
       oninsert={(t) => input?.insertText(t)}
       {onaction}
       onleave={() => input?.focus()}
+      inputText={() => input?.currentText() ?? ''}
     />
     <!-- V108-C35 Over the bottom of the messages, above the message box. -->
     <HypeUnlock account={room.account} channelId={room.state.channelId} oninsert={(t) => input?.insertText(t)} onclosed={() => input?.focus()} />

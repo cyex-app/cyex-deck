@@ -1,23 +1,22 @@
 <!-- V1041-02 Tabs from a Chatterino layout: pick the file, see what goes in and what stays
      out in a dialog, then open them as chat tabs or chat + viewer tabs (the result is a toast),
-     joined as the default account. -->
+     joined as the default account. V111-60 The review is TabsReview, shared with Settings › Import;
+     a line points there. -->
 <script lang="ts">
   import Button from '../../../components/Button.svelte';
-  import Checkbox from '../../../components/Checkbox.svelte';
   import Dialog from '../../../components/Dialog.svelte';
   import SectionHead from '../SectionHead.svelte';
   import type { ImportReport } from '../../../ipc/bindings/ImportReport';
   import { settingsIpc } from '../../../ipc/settings';
-  import { accounts } from '../../../lib/accounts.svelte';
   import { toast } from '../../../lib/toast.svelte';
-  import { counts, failedImport, leftOut, tabsText } from './report';
+  import { settingsJump } from '../menus/place.svelte';
+  import { failedImport, tabsText } from './report';
+  import TabsReview from './TabsReview.svelte';
 
   let report = $state<ImportReport | null>(null);
   let busy = $state(false);
   let viewerTabs = $state(false);
 
-  const account = $derived(accounts.current?.displayName || accounts.current?.login);
-  const lines = $derived(report ? leftOut(report) : []);
   const ready = $derived(!!report && report.tabs > 0);
 
   async function pick() {
@@ -54,7 +53,8 @@
 
 <!-- b-14 The line is the heading's subtitle, so the gap under it matches the other blocks. -->
 <SectionHead title="Import from Chatterino" setting="data:chatterino"
-  >Your Chatterino tabs, in order and with their names. Pick <code>window-layout.json</code> or one of its backups.</SectionHead
+  >Your Chatterino tabs, in order and with their names. Pick <code>window-layout.json</code> or one of its backups.
+  Everything else from Chatterino is in <Button variant="link" hit onclick={() => (settingsJump.to = 'import')}>Import</Button>.</SectionHead
 >
 <div class="actions">
   <Button icon="upload" disabled={busy} onclick={pick}>Pick layout file</Button>
@@ -62,16 +62,7 @@
 
 {#if report}
   <Dialog title="Import tabs" width={460} locked={busy} onsubmit={() => ready && !busy && void run()} onclose={close}>
-    <p class="headline">{report.tabs ? counts(report) : 'Nothing to import.'}</p>
-    {#each lines as line (line.label)}
-      <p class="note"><span class="why">{line.label}:</span> {line.text}</p>
-    {/each}
-    {#if ready}
-      <div class="line">
-        <Checkbox checked={viewerTabs} label="Also open viewer tabs" onchange={(v) => (viewerTabs = v)} />
-      </div>
-      {#if account}<p class="note">Joined as {account}.</p>{/if}
-    {/if}
+    <TabsReview {report} bind:viewerTabs />
     {#snippet footer()}
       <Button variant="ghost" disabled={busy} onclick={close}>Cancel</Button>
       <Button variant="primary" disabled={busy || !ready} onclick={run}>Import</Button>
@@ -80,29 +71,9 @@
 {/if}
 
 <style>
-  /* rb-9 A note: the hint size. */
-  .note {
-    margin: 10px 0;
-    font-size: var(--text-hint);
-    color: var(--dim);
-  }
   code {
     font-family: var(--font-mono);
     font-size: var(--text-hint);
-  }
-  .headline {
-    margin: 0;
-    font-weight: 600;
-  }
-  .why {
-    color: var(--muted);
-    font-weight: 600;
-  }
-  .line {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    margin-top: 10px;
   }
   .actions {
     display: flex;

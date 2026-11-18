@@ -69,11 +69,16 @@ pub async fn commands_chatterino_preview(
         return Ok(None);
     };
     let path = source.into_path().map_err(|e| e.to_string())?;
-    let found = read(&path)?;
+    preview_at(&settings, &path).map(Some)
+}
+
+/// V111-60 The same preview from a known file (Settings › Import reads the Chatterino folder).
+pub(crate) fn preview_at(settings: &Settings, path: &std::path::Path) -> CmdResult<CommandPreview> {
+    let found = read(path)?;
     let current: Commands = settings.read(Partition::Commands);
     let preview = plan_commands(&found, &current, &reserved);
     *picked() = Some(found);
-    Ok(Some(preview))
+    Ok(preview)
 }
 
 /// Adds the picked commands. `take`: ids of conflicts that take Chatterino's; `menu`: also

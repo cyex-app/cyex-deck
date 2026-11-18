@@ -60,6 +60,15 @@ impl Params {
         k
     }
 
+    /// V111-59 The `n`th word (`$n`), empty when there's none.
+    pub fn word(&self, n: usize) -> String {
+        if n == 0 {
+            String::new()
+        } else {
+            self.range(n, false)
+        }
+    }
+
     fn range(&self, from: usize, rest: bool) -> String {
         match self.args.get(from - 1) {
             None => String::new(),
@@ -89,6 +98,13 @@ pub trait Host {
     }
     /// `$input`: asks the user. `None` cancels.
     fn input(&mut self, _message: &str, _initial: &str) -> Option<String> {
+        None
+    }
+    /// V111-59 A value the app looks up only when a body reads it (`$(last-msg)`).
+    /// `None`: not one of those, so it's empty. `Some(None)`: there's none, and the command
+    /// stops (the host says why). What comes back is someone else's text: it counts as
+    /// `foreign`.
+    fn lookup(&mut self, _name: &str, _p: &Params) -> Option<Option<String>> {
         None
     }
     /// V1051-04 A 7TV variable. Empty when it can't be read; never fails.
@@ -238,7 +254,14 @@ fn id(id: &Id, p: &Params, h: &mut dyn Host) -> Option<String> {
                 return Some(v.clone());
             }
             if !name.starts_with('_') {
-                return Some(String::new());
+                return match h.lookup(name, p) {
+                    None => Some(String::new()),
+                    Some(found) => {
+                        // V111-59 Their message: marked like a stored value of theirs.
+                        h.set_foreign(true);
+                        found
+                    }
+                };
             }
             if p.running.contains(name) {
                 return Some("[recursion not allowed]".into());
@@ -480,6 +503,8 @@ pub(super) mod tests {
         pub next_random: u64,
         /// V110-F94 Like the app's host: set when a flagged (`taint::flag`) variable is read.
         pub foreign: std::cell::Cell<bool>,
+        /// V111-59 `lookup`'s answers by name; `None` in the map: there's none.
+        pub looked: HashMap<String, Option<String>>,
     }
 
     impl Host for TestHost {
@@ -492,6 +517,9 @@ pub(super) mod tests {
                 self.foreign.set(true);
             }
             Some(taint::clean(&value))
+        }
+        fn lookup(&mut self, name: &str, _: &Params) -> Option<Option<String>> {
+            self.looked.get(name).cloned()
         }
         fn foreign(&self) -> bool {
             self.foreign.get()

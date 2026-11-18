@@ -688,3 +688,20 @@ fn v111_48_bare_names_follow_chatters_and_joins() {
     let evs = feed(&mut r, "@id=4;user-id=8;tmi-sent-ts=5 :u8!u@u PRIVMSG #chan :hello u777");
     assert!(!mention(&evs));
 }
+
+#[test]
+fn v111_59_latest_from_is_their_newest_chat_line_here() {
+    let mut r = room();
+    feed(&mut r, "@id=a1;user-id=7;tmi-sent-ts=5 :bob!bob@bob PRIVMSG #chan :first");
+    feed(&mut r, "@id=a2;user-id=7;tmi-sent-ts=6 :bob!bob@bob PRIVMSG #chan :second");
+    feed(&mut r, "@id=x1;user-id=8;tmi-sent-ts=7 :eve!eve@eve PRIVMSG #chan :other");
+    // Shared chat: bob in another channel doesn't count.
+    feed(&mut r, "@id=s1;user-id=7;room-id=1;source-room-id=2;tmi-sent-ts=8 :bob!bob@bob PRIVMSG #chan :elsewhere");
+    let got = r.latest_from("BOB").unwrap();
+    assert_eq!((got.id.as_str(), plain(&got.body).as_str()), ("a2", "second"));
+    // A deleted line is skipped.
+    feed(&mut r, "@target-msg-id=a2;login=bob :tmi.twitch.tv CLEARMSG #chan :second");
+    assert_eq!(r.latest_from("bob").unwrap().id, "a1");
+    assert!(r.latest_from("nobody").is_none());
+    assert_eq!(r.latest_from("eve").unwrap().id, "x1");
+}

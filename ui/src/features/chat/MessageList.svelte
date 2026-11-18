@@ -59,6 +59,7 @@
   import DateRow from '../../components/DateRow.svelte';
   import WarnBox from './WarnBox.svelte';
   import { runEntry, toItems, userMenus } from './menus.svelte';
+  import { copyTextAt } from './copyText';
   import { emoteMenu, enterClicks, lineTips, notEmote, openPart, PARTS, type LineHost } from './lineEvents';
   import { fullMessage } from './fullMessage';
   import { plainText } from './text';
@@ -90,11 +91,13 @@
     onaction?: (a: UiAction) => void;
     /** V108-F54 The keyboard selection ended without an action: focus goes back to the box. */
     onleave?: () => void;
+    /** V111-59 The message box's text, for a menu entry's `$(input-text)`. */
+    inputText?: () => string;
     /** V109-C01 The id of the thread this list shows (the thread window): a reply row jumps in the list instead of opening it, and replies to the first line don't repeat it. */
     thread?: string;
   }
 
-  let { room, readKey, canReply, canSend, onreply, onlink, onmention, onprefill, oninsert, onaction, onleave, thread }: Props = $props();
+  let { room, readKey, canReply, canSend, onreply, onlink, onmention, onprefill, oninsert, onaction, onleave, inputText, thread }: Props = $props();
   const hideFor = $derived(thread && room.messages.some((x) => x.id === thread) ? thread : undefined);
 
   const c = $derived(settings.v.chat);
@@ -679,7 +682,8 @@
    * V110-U66 What shows and where comes from the message menu's layout (Settings › Menus). */
   function messageMenu(e: MouseEvent, m: ChatMessage) {
     const login = m.sender?.login ?? '';
-    const ctx = context(m, login);
+    // V111-59 Chatterino's {input.text} and {element.copytext}, for your entries.
+    const ctx = { ...context(m, login), input: inputText?.() || null, copy: copyTextAt(e) };
     const own = userMenus.current.message;
     // V107-R14 Rust's answer for this line (may.rs): user actions on everyone but the
     // broadcaster, who can still be pinned (V101-34) and deleted when Twitch allows it.

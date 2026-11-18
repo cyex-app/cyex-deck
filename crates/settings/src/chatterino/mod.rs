@@ -4,15 +4,18 @@
 //! settings.json: [`parse_highlights`], [`plan_highlights`], [`apply_highlights`].
 //! V111-06 Commands from its commands.json: [`parse_commands`], [`plan_commands`],
 //! [`apply_commands`].
+//! V111-60 Ignores, never highlight, muted chats, filters and nicknames from settings.json:
+//! [`extras`].
 
 mod commands;
+pub mod extras;
 mod highlights;
 mod layout;
 mod plan;
 mod resolve;
 
 pub use commands::{
-    CommandImport, CommandItem, CommandPreview, Conflict, Found as FoundCommands, Incoming, NotCommands,
+    CommandImport, CommandItem, CommandPreview, Conflict, Found as FoundCommands, Incoming, NotCommands, VARS as COMMAND_VARS,
     apply as apply_commands, parse as parse_commands, plan as plan_commands,
 };
 pub use highlights::{

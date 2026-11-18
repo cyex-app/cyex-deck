@@ -57,4 +57,9 @@ sound: Sound,
 /**
  * V107-Mo The last settings searches, newest first. Local only (not in exports).
  */
-recentSearches: Array<string>, };
+recentSearches: Array<string>, 
+/**
+ * V111-60 The one-time Coming from Chatterino hint was shown and closed, or an import
+ * from Settings › Import ran. Not a setting.
+ */
+chatterinoOffered: boolean, };

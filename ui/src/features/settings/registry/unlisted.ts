@@ -31,6 +31,7 @@ export const UNLISTED: Record<string, string> = {
   'general.closeToTrayTold': 'Set once the “still running in the tray” note was shown.',
   'general.updates.skip': 'Set with Skip this version on the update badge.',
   'general.recentSearches': 'The last settings searches, local to this PC.',
+  'general.chatterinoOffered': 'Set once the Chatterino import was offered or used (V111-60).',
   'miner.enabled': 'Started and stopped in the miner.',
   'miner.account': 'Picked in the miner.',
   'miner.source': 'Picked in the miner.',

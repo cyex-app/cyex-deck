@@ -46,7 +46,7 @@ fn the_mapping_table() {
         ("{stream.game;nothing, really)}", "$if(streamgame,$(streamgame),nothing\\, really\\))"),
         ("{my.name} {my.id}", "$(my-nick) $(my-user-id)"),
         // V111-56 One row for typed and the menu: empty (or the alt text) typed, filled from a menu.
-        ("hi {user.name;you}{msg.text}{msg.id}{input.text}{element.copytext}", "hi $if(nick,$(nick),you)$(msg)$(msg-id)"),
+        ("hi {user.name;you}{msg.text}{msg.id}{input.text}{element.copytext}", "hi $if(nick,$(nick),you)$(msg)$(msg-id)$(input-text)$(copy-text)"),
         ("{user.id} {user.display_name;x} {channel.id}", "$(user-id) $if(display-nick,$(display-nick),x) $(chan-id)"),
         ("{user_x} {a1}", "{user_x} {a1}"),
         // Unknown names, `{0}` and huge numbers stay text.
@@ -59,6 +59,10 @@ fn the_mapping_table() {
         // Our own specials are escaped.
         ("costs $5 \\o/ {paint} {combo:Mine} {other}", "costs \\$5 \\\\o/ \\{paint} \\{combo:Mine} {other}"),
         ("{1}{2}", "$1$2"),
+        // V111-59 Words take an alt text too.
+        ("{2;none} {1+;x,y}", "$if(2,$2,none) $if(1-,$1-,x\\,y)"),
+        ("{0;x} {3;}", "{0;x} {3;}"),
+        ("{time} {user.last_message.id} {user.last_message.text;-}", "$(time) $(last-msg-id) $if(last-msg,$(last-msg),-)"),
         ("{a;}}", "{a;}}"),
     ];
     for (func, want) in cases {
@@ -77,7 +81,7 @@ fn the_mapping_table_in_the_menu() {
     assert_eq!(menu_of("say {1+}"), (".x=/x $(msg)".into(), Some(".x=say $(msg)".into())));
     assert_eq!(menu_of("/timeout {1} 1"), (".x=/x $(msg)".into(), None));
     assert_eq!(menu_of("{2+}"), (".x=/x $(msg)".into(), None));
-    assert_eq!(menu_of("x {input.text}"), (".x=/x".into(), Some(".x=x".into())));
+    assert_eq!(menu_of("x {input.text}"), (".x=/x".into(), Some(".x=x $(input-text)".into())));
 }
 
 #[test]
@@ -89,7 +93,7 @@ fn every_body_keeps_to_one_line_and_the_limit() {
     assert_eq!(one("   ").unwrap_err(), "Sends nothing.");
     assert_eq!(one("{user.name}").unwrap(), "$(nick)");
     assert_eq!(one("room {channel.id}").unwrap(), "room $(chan-id)");
-    assert_eq!(one("{input.text}").unwrap_err(), "Only uses {input.text}, which cyex doesn’t fill in.");
+    assert_eq!(one("{input.text}").unwrap(), "$(input-text)");
     assert_eq!(one("#js return 1").unwrap_err(), "Runs JavaScript, which cyex doesn’t run.");
 }
 
@@ -133,6 +137,7 @@ fn reads_the_fixture() {
             ("/привет", "/привет Привет, $1! 🎉"),
             ("/ban", "/ban /ban $1 spam"),
             ("/stream", "/stream /streamlink $(chan)"),
+            ("/paste", "/paste $(input-text)"),
         ]
     );
     let by = |n: &str| f.commands.iter().find(|c| c.name == n).unwrap();
@@ -160,7 +165,6 @@ fn reads_the_fixture() {
             ("/hi", "/hi is above it, so Chatterino never ran this one."),
             ("/two words", "Names with spaces don’t work here."),
             ("/empty", "Sends nothing."),
-            ("/paste", "Only uses {input.text}, which cyex doesn’t fill in."),
             ("/me2", "Sends nothing."),
             ("Row 19", "Not a command."),
             ("Row 20", "Not a command."),
@@ -206,7 +210,7 @@ fn preview_marks_conflicts() {
     assert_eq!(item("/first").menu_note, None);
     assert_eq!(item("/first").menu_kept, None);
     assert_eq!((p.room, p.limit, p.menu_room), (496, 500, 500));
-    assert_eq!(p.skipped.len(), 8);
+    assert_eq!(p.skipped.len(), 7);
     // The preview changed nothing.
     assert_eq!(rows(&current).len(), 4);
 }
@@ -228,7 +232,7 @@ fn apply_keeps_or_takes_per_conflict() {
     };
     let take = ids(&["/hi", "/ban"]);
     let r = apply(f.clone(), &mut c, &reserved, &take, false);
-    assert_eq!((r.added, r.replaced, r.kept, r.menu), (9, 1, 2, 0), "{r:?}");
+    assert_eq!((r.added, r.replaced, r.kept, r.menu), (10, 1, 2, 0), "{r:?}");
     assert!(r.cut.is_empty());
     let got = rows(&c);
     assert_eq!(got[0], "/hi /me waves at $1 and $2-", "replaced in place");
@@ -248,7 +252,7 @@ fn apply_adds_menu_entries_under_one_submenu() {
     };
     let r = apply(f.clone(), &mut c, &reserved, &[], true);
     // /lookup is there already (by its label).
-    assert_eq!((r.menu, r.menu_cut), (2, 0));
+    assert_eq!((r.menu, r.menu_cut), (3, 0));
     let menu: Vec<&str> = c.message_menu.iter().map(|r| r.text.as_str()).collect();
     assert_eq!(
         menu,
@@ -258,6 +262,7 @@ fn apply_adds_menu_entries_under_one_submenu() {
             ".lookup=/user $(nick)",
             ".quote=/quote",
             ".first=/first $(msg)",
+            ".paste=/paste",
             "-"
         ]
     );
@@ -265,7 +270,7 @@ fn apply_adds_menu_entries_under_one_submenu() {
     let mut fresh = Commands::default();
     apply(f, &mut fresh, &reserved, &[], true);
     let menu: Vec<&str> = fresh.message_menu.iter().map(|r| r.text.as_str()).collect();
-    assert_eq!(menu, [SUBMENU, ".lookup=/lookup", ".quote=/quote", ".first=/first $(msg)"]);
+    assert_eq!(menu, [SUBMENU, ".lookup=/lookup", ".quote=/quote", ".first=/first $(msg)", ".paste=/paste"]);
 }
 
 #[test]
@@ -278,7 +283,7 @@ fn the_limit_cuts_the_last_ones_and_says_which() {
     };
     let r = apply(f, &mut c, &reserved, &[], false);
     assert_eq!(r.added, 3);
-    assert_eq!(r.cut, ["/quote", "/first", "/id", "/brace", "!lurk", "/привет", "/stream"]);
+    assert_eq!(r.cut, ["/quote", "/first", "/id", "/brace", "!lurk", "/привет", "/stream", "/paste"]);
     assert_eq!(c.lines.len(), MAX_LINES);
     // No room left over for the note: it gave way to the commands.
     assert!(!rows(&c).contains(&NOTE));

@@ -190,6 +190,8 @@ fn clicked(entry: &str, msg: &str, place: &Place) -> Result<Vec<Did>, String> {
         msg_id: Some("m1".into()),
         msg: Some(msg.into()),
         msg_time: None,
+        input: None,
+        copy: None,
     };
     let mut p = Params::new("evilname");
     menu_values(&mut p, &ctx);
@@ -437,4 +439,238 @@ fn v111_56_menu_values_reach_your_commands() {
     assert_eq!(typed("/q"), Ok(vec![ran("echo", "\"\" - someone")]));
     // Chatterino's menu passes the message as the words: still only said, never run.
     assert_eq!(menu("/say $(msg)", "/ban x"), Ok(vec![hidden("/ban x")]));
+}
+
+/// V111-59 A room for `$(last-msg)`: bob's newest line here is "/ban x" (id b2).
+#[derive(Default)]
+struct Room59 {
+    stop: Option<String>,
+    foreign: std::cell::Cell<bool>,
+}
+
+impl Host for Room59 {
+    fn custom(&self, _: &str) -> Option<Arc<Items>> {
+        None
+    }
+    fn get(&self, _: &str, _: Option<&str>) -> Option<String> {
+        None
+    }
+    fn request(&mut self, _: &str, _: &[(String, String)]) -> Result<String, String> {
+        Err("no".into())
+    }
+    fn lookup(&mut self, name: &str, p: &Params) -> Option<Option<String>> {
+        let found = super::super::last_value(name, p, |login| (login == "bob").then(|| ("b2".into(), "/ban x".into())))?;
+        Some(match found {
+            Ok(v) => Some(v),
+            Err(why) => {
+                self.stop.get_or_insert(why);
+                None
+            }
+        })
+    }
+    fn foreign(&self) -> bool {
+        self.foreign.get()
+    }
+    fn set_foreign(&mut self, on: bool) {
+        self.foreign.set(on);
+    }
+    fn random(&mut self, _: u64) -> u64 {
+        0
+    }
+    fn now_ms(&self) -> i64 {
+        0
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
+enum At {
+    /// `/t @bob, more` typed in the chat box.
+    Typed,
+    /// The message menu on bob's "hello world", with "draft" in the chat box and "world"
+    /// right-clicked.
+    Menu,
+    /// A usercard button on bob's card.
+    Card,
+}
+
+/// Chatterino's `func` as the import makes it: the row's body and the menu entry's command.
+fn imported(func: &str) -> (String, String) {
+    let json = serde_json::json!({ "commands": [{ "name": "/t", "func": func, "showInMsgContextMenu": true }] });
+    let found = cyex_settings::chatterino::parse_commands(&json.to_string(), &reserved).unwrap();
+    let c = &found.commands[0];
+    let body = c.row.strip_prefix("/t ").unwrap().to_owned();
+    let entry = c.menu.clone().unwrap().unwrap();
+    (body, entry.split_once('=').unwrap().1.to_owned())
+}
+
+/// What the app's values are in these tests (`values`), with `ctx` like `params` adds it.
+fn params59(args: &str, ctx: Option<&MenuContext>) -> Params {
+    let live = cyex_twitch::gql::ChannelInfo {
+        id: "99".into(),
+        login: "chan".into(),
+        name: "Chan".into(),
+        avatar: None,
+        offline_image: None,
+        stream: Some(cyex_twitch::gql::StreamInfo {
+            rerun: false,
+            title: "Speedrun".into(),
+            game: Some("Celeste".into()),
+            viewers: 1,
+            started_at: String::new(),
+        }),
+    };
+    let me = cyex_settings::schema::Account {
+        user_id: "7".into(),
+        login: "me".into(),
+        display_name: "Me".into(),
+        ..Default::default()
+    };
+    let mut p = super::super::values("chan", Some("99"), &["chan".into()], Some(&live), Some(&me));
+    if let Some(ctx) = ctx {
+        menu_values(&mut p, ctx);
+    }
+    p.set_args(args);
+    p
+}
+
+/// Runs `body` with `p`: the line it makes, still marked, or why it stopped.
+fn run59(body: &str, mut p: Params, guarded: bool) -> Result<String, String> {
+    p.taint = guarded;
+    let mut h = Room59::default();
+    let out = commands::run(&commands::parse(body).unwrap(), &p, &mut h);
+    match h.stop {
+        Some(why) => Err(why),
+        None => out.ok_or_else(|| "missing".into()),
+    }
+}
+
+/// V111-59 Chatterino's `func`, imported, then run `at` the way the app runs it: the line it
+/// makes (still marked) and whether that line is guarded.
+fn chatterino(func: &str, at: At) -> Result<(String, bool), String> {
+    let (body, entry) = imported(func);
+    let card = MenuContext {
+        login: Some("bob".into()),
+        user_id: Some("5".into()),
+        display: Some("Bob".into()),
+        ..Default::default()
+    };
+    match at {
+        At::Typed => run59(&body, params59("@bob, more", None), false).map(|l| (l, false)),
+        At::Menu => {
+            let ctx = MenuContext {
+                msg_id: Some("m1".into()),
+                msg: Some("hello world".into()),
+                msg_time: Some(1),
+                input: Some("draft".into()),
+                copy: Some("world".into()),
+                ..card
+            };
+            // `menu_at`: the entry is filled, then runs /t with the message as its words.
+            let line = run59(&entry, params59("bob", Some(&ctx)), true)?;
+            let words = line.strip_prefix("/t").ok_or("not /t")?.trim_start();
+            run59(&body, params59(&plain(words), Some(&ctx)), true).map(|l| (l, true))
+        }
+        At::Card => run59(&body, params59("bob", Some(&card)), true).map(|l| (l, true)),
+    }
+}
+
+/// V111-59 Every placeholder Chatterino has (docs/research/chatterino-placeholders.md): what
+/// the import makes of it, and its value typed, from the message menu and from a usercard
+/// button, as Chatterino gives it. `-` is the alt text, where Chatterino has no value.
+#[test]
+fn v111_59_every_chatterino_placeholder_has_its_value() {
+    let cases: &[(&str, &str, [&str; 3])] = &[
+        ("{1}", "$1", ["@bob,", "hello", "bob"]),
+        ("{1+}", "$1-", ["@bob, more", "hello world", "bob"]),
+        ("{2;-}", "$if(2,$2,-)", ["more", "world", "-"]),
+        ("{channel.name}", "$(chan)", ["chan"; 3]),
+        ("{channel}", "$(chan)", ["chan"; 3]),
+        ("{channel.id;-}", "$if(chan-id,$(chan-id),-)", ["99"; 3]),
+        ("{stream.game;-}", "$if(streamgame,$(streamgame),-)", ["Celeste"; 3]),
+        ("{stream.title;-}", "$if(streamtitle,$(streamtitle),-)", ["Speedrun"; 3]),
+        ("{my.name;-}", "$if(my-nick,$(my-nick),-)", ["me"; 3]),
+        ("{my.id;-}", "$if(my-user-id,$(my-user-id),-)", ["7"; 3]),
+        ("{user.name;-}", "$if(nick,$(nick),-)", ["-", "bob", "bob"]),
+        ("{user;-}", "$if(nick,$(nick),-)", ["-", "bob", "bob"]),
+        ("{user.id;-}", "$if(user-id,$(user-id),-)", ["-", "5", "5"]),
+        // Chatterino's usercard leaves this one empty; here the card knows the name.
+        ("{user.display_name;-}", "$if(display-nick,$(display-nick),-)", ["-", "Bob", "Bob"]),
+        ("{msg.id;-}", "$if(msg-id,$(msg-id),-)", ["-", "m1", "-"]),
+        ("{msg-id;-}", "$if(msg-id,$(msg-id),-)", ["-", "m1", "-"]),
+        ("{msg.text;-}", "$if(msg,$(msg),-)", ["-", "hello world", "-"]),
+        ("{message;-}", "$if(msg,$(msg),-)", ["-", "hello world", "-"]),
+        ("{input.text;-}", "$if(input-text,$(input-text),-)", ["-", "draft", "-"]),
+        ("{element.copytext;-}", "$if(copy-text,$(copy-text),-)", ["-", "world", "-"]),
+        ("{user.last_message.id}", "$(last-msg-id)", ["b2"; 3]),
+        ("{user.last_message.text}", "$(last-msg)", ["/ban x"; 3]),
+        // Escapes and names it doesn't know.
+        ("a{{{1}", "a$1", ["a@bob,", "ahello", "abob"]),
+        ("{nope;x} {{b}", "{nope;x} {b}", ["{nope;x} {b}"; 3]),
+    ];
+    for (func, ours, want) in cases {
+        assert_eq!(imported(func).0, *ours, "{func}: import");
+        for (at, want) in [At::Typed, At::Menu, At::Card].into_iter().zip(want) {
+            let (line, _) = chatterino(func, at).unwrap_or_else(|e| panic!("{func} {at:?}: {e}"));
+            assert_eq!(taint::clean(&line), *want, "{func} {at:?}");
+        }
+    }
+    // {time}: the local time, everywhere.
+    assert_eq!(imported("{time}").0, "$(time)");
+    for at in [At::Typed, At::Menu, At::Card] {
+        let (line, _) = chatterino("{time}", at).unwrap();
+        let t = taint::clean(&line);
+        let ok = t.len() == 5 && t.as_bytes()[2] == b':' && t.chars().filter(char::is_ascii_digit).count() == 4;
+        assert!(ok, "{at:?}: {t}");
+    }
+}
+
+/// V111-59 `{user.last_message.*}` reads whose the menu or card is, else the first word, and
+/// stops the command like Chatterino when there's no one or nothing.
+#[test]
+fn v111_59_the_last_message_needs_someone_who_said_something() {
+    let typed = |args: &str| run59("/echo $(last-msg)", params59(args, None), false);
+    assert_eq!(typed("bob").map(|l| taint::clean(&l)), Ok("/echo /ban x".into()));
+    assert_eq!(typed("@bob,").map(|l| taint::clean(&l)), Ok("/echo /ban x".into()));
+    assert_eq!(typed(""), Err("This command needs a username.".into()));
+    assert_eq!(typed("nobody"), Err("No recent message from nobody is in this chat.".into()));
+    // An alt text doesn't help: there's no message to read (Chatterino stops too).
+    assert_eq!(
+        run59("$if(last-msg-id,$(last-msg-id),none)", params59("nobody", None), false),
+        Err("No recent message from nobody is in this chat.".into())
+    );
+}
+
+/// V111-59 The new values come from someone's message or a click: what they hold is said,
+/// never run, wherever the command runs.
+#[test]
+fn v111_59_new_values_never_become_a_command() {
+    let did = |line: &str, guarded: bool| {
+        let mut did = Vec::new();
+        line_at(line, true, guarded, &mut did).map(|()| unmarked(did))
+    };
+    // Typed: bob's newest message is "/ban x".
+    for func in ["{user.last_message.text}", "{user.last_message.text;-}", "/say {user.last_message.text}"] {
+        let (line, guarded) = chatterino(func, At::Typed).unwrap();
+        assert!(taint::has(&line), "{func}");
+        assert_eq!(did(&line, guarded), Ok(vec![hidden("/ban x")]), "{func}");
+    }
+    // The command's own text still runs, with their message as plain words.
+    let (line, guarded) = chatterino("/echo {user.last_message.text}", At::Typed).unwrap();
+    assert_eq!(did(&line, guarded), Ok(vec![ran("echo", "/ban x")]));
+    // From a menu: the chat box's text, the clicked word and their message.
+    let ctx = MenuContext {
+        login: Some("bob".into()),
+        msg: Some("hi".into()),
+        input: Some("/ban x".into()),
+        copy: Some(".mod y".into()),
+        ..Default::default()
+    };
+    for (entry, said) in [("$(input-text)", "/ban x"), ("$(copy-text)", ".mod y"), ("$(last-msg)", "/ban x")] {
+        let line = run59(entry, params59("bob", Some(&ctx)), true).unwrap();
+        assert_eq!(did(&line, true), Ok(vec![hidden(said)]), "{entry}");
+        for bad in [format!("/{entry}"), format!("/chain /echo a | {entry}")] {
+            let line = run59(&bad, params59("bob", Some(&ctx)), true).unwrap();
+            assert_ne!(did(&line, true), Ok(vec![ran("ban", "x")]), "{bad}");
+        }
+    }
 }

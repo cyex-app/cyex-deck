@@ -162,6 +162,13 @@ pub struct MenuContext {
     pub msg: Option<String>,
     #[ts(type = "number | null")]
     pub msg_time: Option<i64>,
+    /// V111-59 Chatterino's `{input.text}`: what the chat box held when the menu opened.
+    #[ts(optional = nullable)]
+    pub input: Option<String>,
+    /// V111-59 `{element.copytext}`: what was right-clicked (a word, an emoji), as copying
+    /// gives it.
+    #[ts(optional = nullable)]
+    pub copy: Option<String>,
 }
 
 /// A line typed in a chat view.
@@ -415,8 +422,11 @@ pub fn room_left(key: &RoomKey) {
 
 /// V1051-04 What a menu entry or user card button adds, in the order of `menu()`'s context
 /// (the registry checks these names), and `msg-time` after them.
-const MENU_VALUES: [&str; 5] = ["nick", "display-nick", "user-id", "msg-id", "msg"];
+const MENU_VALUES: [&str; 7] = ["nick", "display-nick", "user-id", "msg-id", "msg", "input-text", "copy-text"];
 const MSG_TIME: &str = "msg-time";
+/// V111-59 Worked out only when a body reads them (`AppHost::lookup`): Chatterino's
+/// `{user.last_message.id}` and `{user.last_message.text}`.
+const LOOKED_UP: [&str; 2] = ["last-msg-id", "last-msg"];
 /// What an automation adds.
 const AUTOMATION_VALUES: [&str; 2] = ["nick", "count"];
 
@@ -439,7 +449,8 @@ fn params(app: &AppHandle, place: &Place, args: &str) -> Params {
 
 /// V111-56 What the menu entry was picked on, for the entry and every command it runs.
 fn menu_values(p: &mut Params, ctx: &MenuContext) {
-    for (k, v) in MENU_VALUES.into_iter().zip([&ctx.login, &ctx.display, &ctx.user_id, &ctx.msg_id, &ctx.msg]) {
+    let from = [&ctx.login, &ctx.display, &ctx.user_id, &ctx.msg_id, &ctx.msg, &ctx.input, &ctx.copy];
+    for (k, v) in MENU_VALUES.into_iter().zip(from) {
         if let Some(v) = v {
             p.set(k, v.clone());
         }
@@ -460,6 +471,8 @@ fn values(channel: &str, id: Option<&str>, open: &[String], live: Option<&Channe
     }
     p.set("stream", channel);
     p.set("chans", open.join(" "));
+    // V111-59 Chatterino's {time}.
+    p.set("time", clock());
     if let Some(info) = live {
         p.set("streamname", info.name.clone());
         p.set("streamdisplayname", info.name.clone());
@@ -484,6 +497,46 @@ fn values(channel: &str, id: Option<&str>, open: &[String], live: Option<&Channe
     p
 }
 
+/// V111-59 The local time as Chatterino's `{time}` gives it: `HH:mm`.
+fn clock() -> String {
+    let offset = time::UtcOffset::current_local_offset().unwrap_or(time::UtcOffset::UTC);
+    let t = time::OffsetDateTime::now_utc().to_offset(offset);
+    format!("{:02}:{:02}", t.hour(), t.minute())
+}
+
+/// V111-59 Whose newest message `$(last-msg)` reads: the one the menu, usercard or automation
+/// is about, else the first word after the command (`@` and a trailing `,` off), as in
+/// Chatterino.
+fn last_target(p: &Params) -> Option<String> {
+    if let Some(nick) = p.get("nick") {
+        return Some(commands::taint::clean(nick));
+    }
+    let word = commands::taint::clean(&p.word(1));
+    let word = word.strip_prefix('@').unwrap_or(&word);
+    let word = word.strip_suffix(',').unwrap_or(word);
+    (!word.is_empty()).then(|| word.to_owned())
+}
+
+/// V111-59 A `LOOKED_UP` value: `find` gives a login's newest message (id, text) here.
+/// `None`: not one of those names. `Err`: the command stops, saying why.
+fn last_value(
+    name: &str,
+    p: &Params,
+    find: impl FnOnce(&str) -> Option<(String, String)>,
+) -> Option<Result<String, String>> {
+    let [id_key, text_key] = LOOKED_UP;
+    if name != id_key && name != text_key {
+        return None;
+    }
+    let Some(login) = last_target(p) else {
+        return Some(Err("This command needs a username.".into()));
+    };
+    Some(match find(&login) {
+        Some((id, text)) => Ok(if name == id_key { id } else { text }),
+        None => Err(format!("No recent message from {login} is in this chat.")),
+    })
+}
+
 /// Fills in a body typed out as text.
 async fn fill(app: &AppHandle, place: &Place, body: &str, p: Params) -> Result<Option<String>, String> {
     let items = commands::parse(body).map_err(|e| format!("Can’t read that command: {e}"))?;
@@ -506,15 +559,21 @@ async fn run_body(
         runtime: tokio::runtime::Handle::current(),
         vars: VarScope::new(place.account().map(str::to_owned), place.automation),
         foreign: std::cell::Cell::new(false),
+        key: place.key.clone(),
+        stop: None,
     };
-    let (out, notes) = tokio::task::spawn_blocking(move || {
+    let (out, notes, stop) = tokio::task::spawn_blocking(move || {
         let out = commands::run(&body, &p, &mut host);
-        (out, host.vars.notes)
+        (out, host.vars.notes, host.stop)
     })
     .await
     .map_err(|e| e.to_string())?;
     for n in notes {
         local(app, &place.key, NoticeKind::Error, &n);
+    }
+    // V111-59 A lookup found nothing: that's why it stopped.
+    if let Some(why) = stop {
+        return Err(why);
     }
     Ok(out)
 }

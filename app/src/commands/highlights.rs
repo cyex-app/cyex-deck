@@ -69,11 +69,16 @@ pub async fn highlights_chatterino_preview(
         return Ok(None);
     };
     let path = source.into_path().map_err(|e| e.to_string())?;
-    let found = read(&path)?;
+    preview_at(&app, &settings, &path).map(Some)
+}
+
+/// V111-60 The same preview from a known file (Settings › Import reads the Chatterino folder).
+pub(crate) fn preview_at(app: &AppHandle, settings: &Settings, path: &std::path::Path) -> CmdResult<HighlightPreview> {
+    let found = read(path)?;
     let current: Highlights = settings.read(Partition::Highlights);
     let preview = plan_highlights(&found, &current);
-    *lock(&app) = Some(found);
-    Ok(Some(preview))
+    *lock(app) = Some(found);
+    Ok(preview)
 }
 
 /// Adds the picked highlights; duplicates keep yours or take Chatterino's.

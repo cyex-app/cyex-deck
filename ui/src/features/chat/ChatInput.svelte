@@ -360,6 +360,11 @@
     return canChat && !lock && !out;
   }
 
+  /** V111-59 The box's text, for a menu entry's `$(input-text)` (Chatterino's {input.text}). */
+  export function currentText(): string {
+    return text;
+  }
+
   /** Back to the box, e.g. after a pop-up closes. */
   export function focus() {
     box?.focus();

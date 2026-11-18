@@ -186,6 +186,25 @@ impl Room {
         self.buffer.iter().rev().find(|m| m.id == id).cloned()
     }
 
+    /// V111-59 Chatterino's `{user.last_message.*}`: `login`'s newest chat line still in the
+    /// buffer. No notices, whispers or deleted lines, none with a local id, and in shared chat
+    /// only the ones sent in this channel.
+    pub fn latest_from(&self, login: &str) -> Option<Arc<ChatMessage>> {
+        self.buffer
+            .iter()
+            .rev()
+            .find(|m| {
+                m.notice.is_none()
+                    && m.source.is_none()
+                    && !m.id.is_empty()
+                    && !m.id.starts_with("local-")
+                    && !m.has(Flag::Whisper)
+                    && !m.has(Flag::Deleted)
+                    && m.sender.as_ref().is_some_and(|s| s.login.eq_ignore_ascii_case(login))
+            })
+            .cloned()
+    }
+
     pub fn me(&self) -> Option<&Me> {
         self.me.as_ref()
     }

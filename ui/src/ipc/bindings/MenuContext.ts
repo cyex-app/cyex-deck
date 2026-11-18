@@ -3,4 +3,13 @@
 /**
  * S1 Who and what a menu entry was picked on.
  */
-export type MenuContext = { login: string | null, userId: string | null, display: string | null, msgId: string | null, msg: string | null, msgTime: number | null, };
+export type MenuContext = { login: string | null, userId: string | null, display: string | null, msgId: string | null, msg: string | null, msgTime: number | null, 
+/**
+ * V111-59 Chatterino's `{input.text}`: what the chat box held when the menu opened.
+ */
+input?: string | null, 
+/**
+ * V111-59 `{element.copytext}`: what was right-clicked (a word, an emoji), as copying
+ * gives it.
+ */
+copy?: string | null, };
