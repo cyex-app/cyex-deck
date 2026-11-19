@@ -8,16 +8,33 @@ use url::Url;
 /// to sites and image hosts people post links to.
 pub const TRUSTED_HOSTS: &[&str] = &[
     "7tv.app",
+    // V111-61 BTTV and FFZ emote files, linked straight.
+    "cdn.betterttv.net",
     "cdn.discordapp.com",
+    "cdn.frankerfacez.com",
+    // V111-61 kappa.lol's sibling domains (same files, any subdomain, extension optional).
+    "femboy.beauty",
+    // V111-61 Catbox's permanent files (litter.catbox.moe expires, so it's left out).
+    "files.catbox.moe",
+    "gachi.gay",
     "giphy.com",
     "gyazo.com",
     "i.cyex.app",
+    // V111-61 Chatterino's default image uploader.
+    "i.nuuls.com",
+    "i.supa.codes",
     "imgur.com",
     "instagram.com",
     "kappa.lol",
+    // V111-61 Clip and music pages: og tags (SoundCloud through its oEmbed).
+    "kick.com",
     "media.discordapp.net",
+    "medal.tv",
+    "open.spotify.com",
+    "outplayed.tv",
     "redd.it",
     "reddit.com",
+    "soundcloud.com",
     "streamable.com",
     "tenor.com",
     "twitch.tv",
@@ -33,6 +50,8 @@ pub const MEDIA_HOSTS: &[&str] = &[
     "*.cdninstagram.com",
     "*.fbcdn.net",
     "*.giphy.com",
+    // V111-61 SoundCloud artwork (i1.sndcdn.com).
+    "*.sndcdn.com",
     // V111-58 Tenor serves GIF previews from media1.tenor.com and the like.
     "*.tenor.com",
     "*.twimg.com",
@@ -45,6 +64,8 @@ pub const MEDIA_HOSTS: &[&str] = &[
     "i.gyazo.com",
     "i.imgur.com",
     "i.redd.it",
+    // V111-61 Spotify cover art.
+    "i.scdn.co",
     "i.ytimg.com",
     "kappa.lol",
     "media.discordapp.net",
@@ -116,6 +137,45 @@ mod tests {
             "https://cdn.7tv.app/emote/1",
         ] {
             assert!(trusted(u), "{u}");
+        }
+    }
+
+    #[test]
+    fn v111_61_uploader_emote_clip_and_music_hosts() {
+        for u in [
+            "https://kappa.lol/mXYBA",
+            "https://kappa.lol/mXYBA.png",
+            "https://billy.gachi.gay/mXYBA.png",
+            "https://femboy.beauty/mXYBA",
+            "https://i.supa.codes/mXYBA/Kappa.png",
+            "https://i.nuuls.com/AbCde.png",
+            "https://files.catbox.moe/abc123.gif",
+            "https://cdn.betterttv.net/emote/583089f4737a8e61abb0186b/3x",
+            "https://cdn.frankerfacez.com/emote/128054/4",
+            "https://medal.tv/games/valorant/clips/abc/xyz",
+            "https://kick.com/cyex/clips/clip_01ABC",
+            "https://outplayed.tv/valorant/abc",
+            "https://soundcloud.com/rick-astley-official",
+            "https://open.spotify.com/track/4cOdK2wGLETKBW3PvgPWqT",
+        ] {
+            assert!(trusted(u), "{u}");
+        }
+        assert!(trusted_media("https://i1.sndcdn.com/a-t500x500.jpg"));
+        assert!(trusted_media("https://i.scdn.co/image/ab67"));
+        assert!(trusted_media("https://cdn.medal.tv/a.jpg"));
+        // Left out: the parked look-alike, temporary pomf-style hosts, the bare roots.
+        for u in [
+            "https://femboy.lol/mXYBA",
+            "https://litter.catbox.moe/abc.png",
+            "https://catbox.moe/abc.png",
+            "https://n.uguu.se/abc.png",
+            "https://supa.codes/mXYBA",
+            "https://nuuls.com/x.png",
+            "https://spotify.com/x",
+            "https://scdn.co/image/a",
+            "https://prnt.sc/abc123",
+        ] {
+            assert!(!trusted(u) && !trusted_media(u), "{u}");
         }
     }
 
