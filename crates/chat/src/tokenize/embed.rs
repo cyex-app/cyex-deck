@@ -14,7 +14,7 @@ pub const TRUSTED_HOSTS: &[&str] = &[
     "cdn.frankerfacez.com",
     // V111-61 kappa.lol's sibling domains (same files, any subdomain, extension optional).
     "femboy.beauty",
-    // V111-61 Catbox's permanent files (litter.catbox.moe expires, so it's left out).
+    // V111-61 Catbox's files (litter.catbox.moe and uguu.se expire, but are shared too).
     "files.catbox.moe",
     "gachi.gay",
     "giphy.com",
@@ -28,6 +28,7 @@ pub const TRUSTED_HOSTS: &[&str] = &[
     "kappa.lol",
     // V111-61 Clip and music pages: og tags (SoundCloud through its oEmbed).
     "kick.com",
+    "litter.catbox.moe",
     "media.discordapp.net",
     "medal.tv",
     "open.spotify.com",
@@ -39,6 +40,7 @@ pub const TRUSTED_HOSTS: &[&str] = &[
     "tenor.com",
     "twitch.tv",
     "twitter.com",
+    "uguu.se",
     "x.com",
     "youtu.be",
     "youtube.com",
@@ -163,12 +165,11 @@ mod tests {
         assert!(trusted_media("https://i1.sndcdn.com/a-t500x500.jpg"));
         assert!(trusted_media("https://i.scdn.co/image/ab67"));
         assert!(trusted_media("https://cdn.medal.tv/a.jpg"));
-        // Left out: the parked look-alike, temporary pomf-style hosts, the bare roots.
+        assert!(trusted("https://litter.catbox.moe/abc.png") && trusted("https://n.uguu.se/abc.png"));
+        // Left out: the parked look-alike, the bare roots.
         for u in [
             "https://femboy.lol/mXYBA",
-            "https://litter.catbox.moe/abc.png",
             "https://catbox.moe/abc.png",
-            "https://n.uguu.se/abc.png",
             "https://supa.codes/mXYBA",
             "https://nuuls.com/x.png",
             "https://spotify.com/x",
