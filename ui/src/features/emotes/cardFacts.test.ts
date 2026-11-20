@@ -26,6 +26,11 @@ function card(over: Partial<EmoteCard> = {}): EmoteCard {
     channelAvatar: null,
     artistLogin: null,
     setUrl: null,
+    setName: null,
+    createdAt: null,
+    tags: [],
+    channels: null,
+    ownerAvatar: null,
     ...over,
   };
 }
@@ -177,6 +182,7 @@ test('lines held while loading, by provider and kind (fb-4)', () => {
   assert.equal(expectedFacts('seventv', 'reckH'), 4);
   assert.equal(expectedFacts('bttv', 'cvMask'), 1);
   assert.equal(expectedFacts('ffz', 'Hmm'), 2);
+  assert.equal(expectedFacts('cyextv', 'Hello'), 3);
   // Twitch: a channel prefix means a sub, follower or bits emote; else a global.
   for (const n of ['lirikSHUCKS', 'sodaPlead', 'lirik10K', 'elis0']) assert.equal(expectedFacts('twitch', n), 2, n);
   for (const n of ['LUL', 'Kreygasm', 'PogChamp', 'BooHoo', ':)']) assert.equal(expectedFacts('twitch', n), 0, n);
@@ -259,4 +265,51 @@ test('emote pages without the details, as the app builds them (ka-6)', () => {
   assert.equal(emotePage('twitch', 'emotesv2_ab', 'x'), 'https://chatvau.lt/emote/twitch/emotesv2_ab');
   assert.equal(emotePage('ffz', '720507', 'monkaHmm'), 'https://www.frankerfacez.com/emoticon/720507-monkaHmm');
   assert.equal(emotePage('ffz', '1', 'a/b c'), 'https://www.frankerfacez.com/emoticon/1-a%2Fb%20c');
+});
+
+test('cyex.tv: owner with avatar, created, tags, channel count, set (V112-08, V112-09)', () => {
+  const f = cardFacts(
+    card({
+      provider: 'cyextv',
+      owner: 'Kappa Dev',
+      ownerUrl: 'https://cyex.tv/users/01U',
+      ownerAvatar: 'https://cdn.cyex.tv/avatars/01U.webp',
+      createdAt: '2026-11-18T05:34:34',
+      tags: ['wave', 'fixture'],
+      channels: 1234,
+      setUrl: 'https://cyex.tv/sets/S1',
+      setName: 'Main',
+    }),
+    'cyextv',
+  );
+  assert.deepEqual(f, [
+    {
+      label: 'By',
+      value: 'Kappa Dev',
+      link: 'web',
+      url: 'https://cyex.tv/users/01U',
+      tip: 'Opens cyex.tv',
+      avatar: 'https://cdn.cyex.tv/avatars/01U.webp',
+    },
+    { label: 'Created', value: '2026/11/18', tip: '2026/11/18 05:34' },
+    { label: 'Tags', value: 'wave, fixture' },
+    { label: 'In', value: '1.234 channels' },
+    { label: 'Set', value: 'Main', link: 'web', url: 'https://cyex.tv/sets/S1', tip: 'Opens cyex.tv' },
+  ]);
+});
+
+test('cyex.tv: the set date wins over the creation date; one channel is singular', () => {
+  const f = cardFacts(
+    card({ provider: 'cyextv', addedAt: '2026-11-19T10:00:00', createdAt: '2026-11-18T05:34:34', channels: 1 }),
+    'cyextv',
+  );
+  assert.deepEqual(
+    f.map((x) => [x.label, x.value]),
+    [
+      ['Added', '2026/11/19'],
+      ['In', '1 channel'],
+    ],
+  );
+  // 404 on cyex.tv: only what the set gave.
+  assert.deepEqual(cardFacts(card({ provider: 'cyextv' }), 'cyextv'), []);
 });

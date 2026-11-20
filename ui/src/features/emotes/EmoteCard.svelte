@@ -382,8 +382,20 @@
           {:else if f.link === 'web'}
             {@const url = f.url}
             <dd>
-              <button class="fact" use:tooltip={{ label: f.tip, side: 'right' }} onclick={() => open(url)}>
-                <span class="u">{f.value}</span>{@render out()}
+              <button
+                class="fact"
+                class:who={!!f.avatar}
+                use:tooltip={{ label: f.tip, side: 'right' }}
+                onclick={() => open(url)}
+              >
+                <span class="u">{f.value}</span>{#if f.avatar}
+                  <img
+                    class="avatar"
+                    src={f.avatar}
+                    alt=""
+                    onerror={(e) => ((e.currentTarget as HTMLImageElement).hidden = true)}
+                  />
+                {/if}{@render out()}
               </button>
             </dd>
           {:else if f.tip}

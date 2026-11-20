@@ -50,4 +50,24 @@ artistLogin: string | null,
 /**
  * 7TV: the page of the set it came from, when a loaded set has it.
  */
-setUrl: string | null, };
+setUrl: string | null, 
+/**
+ * V112-09 cyex.tv: the set's name, shown on its link.
+ */
+setName: string | null, 
+/**
+ * V112-08 cyex.tv: when the emote was made (ISO). `added_at` is when a set got it.
+ */
+createdAt: string | null, 
+/**
+ * V112-08 cyex.tv: its tags.
+ */
+tags: Array<string>, 
+/**
+ * V112-08 cyex.tv: how many channels use it.
+ */
+channels: number | null, 
+/**
+ * V112-08 cyex.tv: the owner's picture.
+ */
+ownerAvatar: string | null, };

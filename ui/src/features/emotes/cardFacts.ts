@@ -5,7 +5,7 @@ import type { CardFlag } from '../../ipc/bindings/CardFlag';
 import type { EmoteCard } from '../../ipc/bindings/EmoteCard';
 import type { Provider } from '../../ipc/bindings/Provider';
 import { hostOf } from '../../lib/host.ts';
-import { formatDate, formatNumber, formatTime } from '../../lib/format.ts';
+import { formatCount, formatDate, formatNumber, formatTime } from '../../lib/format.ts';
 
 export type Fact =
   /** `tip`: the full date behind a short one. */
@@ -13,7 +13,7 @@ export type Fact =
   /** Opens the channel's tab in the app. `avatar`: the channel's picture. */
   | { label: string; value: string; link: 'channel'; login: string; avatar?: string }
   /** Opens a page in the browser. */
-  | { label: string; value: string; link: 'web'; url: string; tip: string };
+  | { label: string; value: string; link: 'web'; url: string; tip: string; avatar?: string };
 
 export interface Chip {
   text: string;
@@ -29,9 +29,10 @@ export function opensTip(url: string | null): string | null {
   return at ? `Opens ${at}` : null;
 }
 
-function web(label: string, value: string, url: string | null): Fact {
+function web(label: string, value: string, url: string | null, avatar?: string | null): Fact {
   const tip = opensTip(url);
-  return url && tip ? { label, value, link: 'web', url, tip } : { label, value };
+  if (!url || !tip) return { label, value };
+  return avatar ? { label, value, link: 'web', url, tip, avatar } : { label, value, link: 'web', url, tip };
 }
 
 function channel(label: string, value: string, login: string | null, avatar?: string | null): Fact {
@@ -74,7 +75,9 @@ export function cardFacts(info: EmoteCard, provider: Provider): Fact[] {
   if (info.channel && !global) out.push(channel('Channel', info.channel, info.channelLogin, info.channelAvatar));
   if (info.owner) {
     out.push(
-      provider === 'twitch' ? channel('Artist', info.owner, info.artistLogin) : web('By', info.owner, info.ownerUrl),
+      provider === 'twitch'
+        ? channel('Artist', info.owner, info.artistLogin)
+        : web('By', info.owner, info.ownerUrl, info.ownerAvatar),
     );
   } else if (PROFILE[provider] && info.ownerUrl) {
     // ct-11, ka-1 The owner’s name didn’t come with the emote (BTTV never sends it now);
@@ -83,12 +86,17 @@ export function cardFacts(info: EmoteCard, provider: Provider): Fact[] {
   }
   if (info.addedBy) out.push({ label: 'Added by', value: info.addedBy });
   if (added) out.push({ label: provider === 'ffz' ? 'Uploaded' : 'Added', ...added });
-  if (info.setUrl) out.push(web('Set', setName(info.flags), info.setUrl));
+  // V112-08 cyex.tv: made on, when no set says when it was added.
+  const made = added ? null : addedDate(info.createdAt);
+  if (made) out.push({ label: 'Created', ...made });
+  if (info.tags.length) out.push({ label: 'Tags', value: info.tags.join(', ') });
+  if (info.channels !== null) out.push({ label: 'In', value: formatCount(info.channels, 'channel') });
+  if (info.setUrl) out.push(web('Set', info.setName ?? setName(info.flags), info.setUrl));
   return out;
 }
 
 /** fb-4, fa-2 The facts a card usually gets, for the lines held while it loads: 7TV by,
- *  added by, added, set; BTTV by; FFZ by, uploaded; a Twitch channel emote (a lowercase
+ *  added by, added, set; cyex.tv by, added, tags, channels; BTTV by; FFZ by, uploaded; a Twitch channel emote (a lowercase
  *  prefix, `lirikH`) its channel and artist, a global (`LUL`) none. */
 export function expectedFacts(provider: Provider, name: string): number {
   switch (provider) {
@@ -99,7 +107,7 @@ export function expectedFacts(provider: Provider, name: string): number {
     case 'ffz':
       return 2;
     case 'cyextv':
-      return 0;
+      return 3;
     case 'twitch':
       return /^[a-z][a-z0-9]{2,}[A-Z0-9_]/.test(name) ? 2 : 0;
   }

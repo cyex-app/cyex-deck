@@ -307,6 +307,125 @@ impl RawItem {
     }
 }
 
+/// V112-08 What cyex.tv knows about one emote beyond its place in a set: for the card.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct EmoteDetail {
+    /// The emote's own name (a set may rename it).
+    pub name: String,
+    pub owner_id: Option<String>,
+    pub owner: Option<String>,
+    /// The owner's picture, only from cyex.tv's own hosts.
+    pub owner_avatar: Option<String>,
+    /// ISO date.
+    pub created_at: Option<String>,
+    pub tags: Vec<String>,
+    pub channels: Option<u32>,
+    pub animated: bool,
+    pub zero_width: bool,
+    pub wide: bool,
+    pub nsfw: bool,
+    pub private: bool,
+}
+
+/// V112-08 One emote's facts. `None` when cyex.tv has no such approved emote (404).
+pub async fn emote(http: &Http, emote_id: &str, lane: Lane) -> Result<Option<EmoteDetail>> {
+    let opts = Opts {
+        lane,
+        quick: true,
+        ..Opts::default()
+    };
+    let url = format!("{}/emotes/{}", base(), enc(emote_id));
+    match http.get_json_paced_with(Service::Cyextv, opts, &url).await {
+        Err(Error::Api { status: 404, .. }) => Ok(None),
+        Ok(v) => parse_emote(&v).map(Some).map_err(Error::Decode),
+        Err(e) => Err(e),
+    }
+}
+
+/// V112-08 `GET /emotes/{id}`.
+pub fn parse_emote(v: &Value) -> serde_json::Result<EmoteDetail> {
+    let e = RawDetail::deserialize(v)?;
+    let avatar = |a: Option<String>| {
+        let a = a?;
+        let (host, name) = a.rsplit_once('/')?;
+        image_url(host, name)
+    };
+    Ok(EmoteDetail {
+        name: e.name,
+        owner_id: e.owner.as_ref().map(|o| o.id.clone()),
+        owner_avatar: e.owner.as_ref().and_then(|o| avatar(o.avatar.clone())),
+        owner: e.owner.map(|o| o.display_name).filter(|n| !n.is_empty()),
+        created_at: e.created_at,
+        tags: e
+            .tags
+            .into_iter()
+            .map(|t| t.trim().to_owned())
+            .filter(|t| !t.is_empty())
+            .collect(),
+        channels: e.channel_count,
+        animated: e.animated,
+        zero_width: e.flags.zero_width,
+        wide: e.flags.wide,
+        nsfw: e.flags.nsfw,
+        private: e.flags.private,
+    })
+}
+
+#[derive(Deserialize)]
+struct RawDetail {
+    #[serde(default)]
+    name: String,
+    owner: Option<RawDetailOwner>,
+    #[serde(default)]
+    flags: DetailFlags,
+    #[serde(default)]
+    animated: bool,
+    #[serde(default)]
+    tags: Vec<String>,
+    created_at: Option<String>,
+    channel_count: Option<u32>,
+}
+
+#[derive(Deserialize)]
+struct RawDetailOwner {
+    id: String,
+    #[serde(default)]
+    display_name: String,
+    avatar: Option<String>,
+}
+
+#[derive(Default, Deserialize)]
+struct DetailFlags {
+    #[serde(default)]
+    zero_width: bool,
+    #[serde(default)]
+    wide: bool,
+    #[serde(default)]
+    nsfw: bool,
+    #[serde(default)]
+    private: bool,
+}
+
+/// V112-09 A channel's active set id (the set's page is cyex.tv/sets/<id>). `None` without a
+/// channel (404) or an active set.
+pub async fn active_set_id(http: &Http, twitch_id: &str, lane: Lane) -> Result<Option<String>> {
+    let opts = Opts {
+        lane,
+        quick: true,
+        ..Opts::default()
+    };
+    let url = format!("{}/channels/twitch/{}", base(), enc(twitch_id));
+    match http.get_json_paced_with::<Value>(Service::Cyextv, opts, &url).await {
+        Err(Error::Api { status: 404, .. }) => Ok(None),
+        Ok(v) => Ok(v
+            .get("active_set_id")
+            .and_then(Value::as_str)
+            .filter(|s| !s.is_empty())
+            .map(str::to_owned)),
+        Err(e) => Err(e),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -435,5 +554,37 @@ mod tests {
         assert_eq!(image_url(&host, "../x.webp"), None);
         assert_eq!(image_url(&host, "a/b.webp"), None);
         assert_eq!(image_url(&host, ""), None);
+    }
+
+    #[test]
+    fn emote_detail_reads_what_the_card_shows() {
+        let d = parse_emote(&fixture("emote.json")).unwrap();
+        assert_eq!(d.name, "Hello");
+        assert_eq!(d.owner_id.as_deref(), Some("01OWNER"));
+        assert_eq!(d.owner.as_deref(), Some("Kappa Dev"));
+        assert_eq!(
+            d.owner_avatar.as_deref(),
+            Some("https://cdn.cyex.tv/avatars/01OWNER.webp")
+        );
+        assert_eq!(d.created_at.as_deref(), Some("2026-11-18T05:34:34.251Z"));
+        assert_eq!(d.tags, ["fixture", "wave"], "empty tags are dropped");
+        assert_eq!(d.channels, Some(1234));
+        assert!(d.animated && d.zero_width && d.wide && d.nsfw && !d.private);
+    }
+
+    #[test]
+    fn emote_detail_tolerates_missing_fields_and_foreign_avatars() {
+        let d = parse_emote(&json!({ "name": "x" })).unwrap();
+        assert_eq!(d.owner, None);
+        assert_eq!(d.channels, None);
+        assert!(d.tags.is_empty());
+        let d = parse_emote(&json!({
+            "name": "x",
+            "owner": { "id": "1", "display_name": "A", "avatar": "https://evil.test/a.png" }
+        }))
+        .unwrap();
+        assert_eq!(d.owner.as_deref(), Some("A"));
+        assert_eq!(d.owner_avatar, None, "only cyex.tv's own hosts");
+        assert!(parse_emote(&json!([1])).is_err());
     }
 }

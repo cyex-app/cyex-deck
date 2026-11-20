@@ -5,6 +5,7 @@ use std::sync::LazyLock;
 use std::time::Duration;
 
 use cyex_chat::model::Provider;
+use cyex_emotes::cyextv::api as cyextv;
 use cyex_emotes::{Emote, Scope, bttv, seventv};
 use cyex_twitch::gql;
 use cyex_twitch::pace::Lane;
@@ -54,6 +55,16 @@ pub struct EmoteCard {
     pub artist_login: Option<String>,
     /// 7TV: the page of the set it came from, when a loaded set has it.
     pub set_url: Option<String>,
+    /// V112-09 cyex.tv: the set's name, shown on its link.
+    pub set_name: Option<String>,
+    /// V112-08 cyex.tv: when the emote was made (ISO). `added_at` is when a set got it.
+    pub created_at: Option<String>,
+    /// V112-08 cyex.tv: its tags.
+    pub tags: Vec<String>,
+    /// V112-08 cyex.tv: how many channels use it.
+    pub channels: Option<u32>,
+    /// V112-08 cyex.tv: the owner's picture.
+    pub owner_avatar: Option<String>,
 }
 
 /// 1.41 Cards that loaded, per provider, emote and chat (Twitch: any chat), for an hour.
@@ -111,9 +122,12 @@ async fn third_party(
 ) -> (EmoteCard, bool) {
     let found = find(app, login, provider, id);
     let set_id = found.as_ref().map(|f| f.2.clone());
+    let set_name = found.as_ref().and_then(|f| f.3.clone());
     let (mut local, scope) = found
-        .map(|(e, s, _)| (e, Some(s)))
+        .map(|(e, s, _, _)| (e, Some(s)))
         .unwrap_or_else(|| (Emote::new(provider, id, name), None));
+    let mut extra = None;
+    let mut set_url = None;
     let complete = match provider {
         Provider::Seventv => {
             let ask = local.owner.is_none();
@@ -147,9 +161,73 @@ async fn third_party(
             }
             Err(_) => false,
         },
+        Provider::Cyextv => {
+            // V112-08, V112-09 Detail and the set's page id, both lazily, both cached with the card.
+            let (detail, page) = tokio::join!(
+                cyextv::emote(http, cyextv::emote_id(id), Lane::Front),
+                cyextv_set_page(http, scope, set_id.as_deref()),
+            );
+            // The set's adder is an account id with no name to look up here.
+            local.added_by = None;
+            let complete = detail.is_ok() && page.is_ok();
+            // A 404 is an answer: only what the set gave.
+            if let Ok(Some(d)) = detail {
+                cyextv_merge(&mut local, &d, scope.is_none());
+                extra = Some(d);
+            }
+            set_url = page.ok().flatten().map(|s| format!("https://cyex.tv/sets/{s}"));
+            complete
+        }
         _ => true,
     };
-    (third_party_card(&local, scope, personal, set_id.as_deref(), name), complete)
+    let mut card = third_party_card(&local, scope, personal, set_id.as_deref(), name);
+    if let Some(d) = extra {
+        cyextv_fill(&mut card, &d);
+    }
+    if provider == Provider::Cyextv {
+        card.set_url = set_url;
+        card.set_name = set_name.filter(|_| card.set_url.is_some());
+    }
+    (card, complete)
+}
+
+/// V112-09 The id of the set's page on cyex.tv: a personal set's own id; the channel's active
+/// set (the deck's id holds the Twitch id); the global set's page isn't known.
+async fn cyextv_set_page(
+    http: &cyex_twitch::Http,
+    scope: Option<Scope>,
+    set_id: Option<&str>,
+) -> cyex_twitch::Result<Option<String>> {
+    let Some(rest) = set_id.and_then(|s| s.strip_prefix("cyextv-")) else {
+        return Ok(None);
+    };
+    match scope {
+        Some(Scope::Personal) => Ok(Some(rest.to_owned())),
+        Some(Scope::Channel) => cyextv::active_set_id(http, rest, Lane::Front).await,
+        _ => Ok(None),
+    }
+}
+
+/// V112-08 cyex.tv's own facts for an emote no loaded set has: its flags and name; the owner
+/// always.
+fn cyextv_merge(local: &mut Emote, d: &cyextv::EmoteDetail, unknown: bool) {
+    local.owner = d.owner.clone().or(local.owner.take());
+    local.owner_id = d.owner_id.clone().or(local.owner_id.take());
+    if unknown {
+        local.original = (d.name != local.name && !d.name.is_empty()).then(|| d.name.clone());
+        local.animated = d.animated;
+        local.zero_width = d.zero_width;
+        local.nsfw = d.nsfw;
+        local.private = d.private;
+    }
+}
+
+/// V112-08 The card lines only cyex.tv's lookup has.
+fn cyextv_fill(card: &mut EmoteCard, d: &cyextv::EmoteDetail) {
+    card.created_at.clone_from(&d.created_at);
+    card.tags.clone_from(&d.tags);
+    card.channels = d.channels;
+    card.owner_avatar.clone_from(&d.owner_avatar);
 }
 
 /// 1.41 What 7TV's own lookup adds: the owner always; its flags and name when no
@@ -205,6 +283,11 @@ fn third_party_card(
         set_url: set_id
             .filter(|_| provider == Provider::Seventv)
             .map(|s| format!("https://7tv.app/emote-sets/{s}")),
+        set_name: None,
+        created_at: None,
+        tags: Vec::new(),
+        channels: None,
+        owner_avatar: None,
     }
 }
 
@@ -236,6 +319,11 @@ async fn twitch(
         channel_avatar: None,
         artist_login: None,
         set_url: None,
+        set_name: None,
+        created_at: None,
+        tags: Vec::new(),
+        channels: None,
+        owner_avatar: None,
     };
     let Some(mut info) = info else { return Ok(card) };
     // fc-1 / fa-1 The card's own answer lacks the tier for animated tier 2 and 3 emotes (GQL says null);
@@ -292,8 +380,13 @@ fn in_personal(app: &AppHandle, user: &str, provider: Provider, id: &str) -> Opt
         .min_by_key(|s| u8::from(*s != Scope::Personal))
 }
 
-/// The emote as this chat knows it, the kind of set it's in, and that set's id.
-fn find(app: &AppHandle, login: &str, provider: Provider, id: &str) -> Option<(Emote, Scope, String)> {
+/// The emote as this chat knows it, the kind of set it's in, and that set's id and name.
+fn find(
+    app: &AppHandle,
+    login: &str,
+    provider: Provider,
+    id: &str,
+) -> Option<(Emote, Scope, String, Option<String>)> {
     let state = app.state::<Emotes>();
     let inner = state.lock();
     let channel = inner
@@ -310,7 +403,7 @@ fn find(app: &AppHandle, login: &str, provider: Provider, id: &str) -> Option<(E
             s.emotes
                 .iter()
                 .find(|e| e.id == id)
-                .map(|e| ((**e).clone(), s.scope, s.id.clone()))
+                .map(|e| ((**e).clone(), s.scope, s.id.clone(), s.name.clone()))
         })
 }
 
@@ -333,8 +426,12 @@ fn owner_url(provider: Provider, e: &Emote) -> Option<String> {
             url.path_segments_mut().ok()?.pop_if_empty().push(key);
             Some(url.into())
         }
-        // V112-08 The owner's page comes with the emote card.
-        Provider::Cyextv => None,
+        // V112-08 cyex.tv's user page, by account id.
+        Provider::Cyextv => e
+            .owner_id
+            .as_deref()
+            .filter(|k| k.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_'))
+            .map(|k| format!("https://cyex.tv/users/{k}")),
         Provider::Twitch => None,
     }
 }
@@ -383,6 +480,11 @@ mod tests {
             channel_avatar: None,
             artist_login: None,
             set_url: None,
+            set_name: None,
+            created_at: None,
+            tags: Vec::new(),
+            channels: None,
+            owner_avatar: None,
         }
     }
 
@@ -533,5 +635,40 @@ mod tests {
         assert_eq!(tier_in(&c, "b"), Some(2));
         assert_eq!(tier_in(&c, "a"), Some(1));
         assert_eq!(tier_in(&c, "z"), None);
+    }
+
+    #[test]
+    fn cyextv_card_takes_the_lookup() {
+        let d = cyextv::EmoteDetail {
+            name: "Own".into(),
+            owner_id: Some("01U".into()),
+            owner: Some("Maker".into()),
+            owner_avatar: Some("https://cdn.cyex.tv/avatars/01U.webp".into()),
+            created_at: Some("2026-11-18T05:34:34.251Z".into()),
+            tags: vec!["a".into()],
+            channels: Some(1234),
+            nsfw: true,
+            animated: true,
+            ..Default::default()
+        };
+        // Not in a loaded set: the lookup gives the flags and the original name.
+        let mut local = Emote::new(Provider::Cyextv, "01E.key", "shown");
+        cyextv_merge(&mut local, &d, true);
+        assert_eq!(local.original.as_deref(), Some("Own"));
+        assert!(local.nsfw && local.animated);
+        let mut card = third_party_card(&local, None, None, None, "shown");
+        cyextv_fill(&mut card, &d);
+        assert_eq!(card.owner.as_deref(), Some("Maker"));
+        assert_eq!(card.owner_url.as_deref(), Some("https://cyex.tv/users/01U"));
+        assert_eq!(card.page.as_deref(), Some("https://cyex.tv/emotes/01E"));
+        assert_eq!(card.channels, Some(1234));
+        assert_eq!(card.tags, ["a"]);
+        assert!(card.flags.contains(&CardFlag::Nsfw) && card.flags.contains(&CardFlag::Aliased));
+        // In a loaded set: the set's own name and zero-width stay.
+        let mut local = Emote::new(Provider::Cyextv, "01E.key", "shown");
+        local.zero_width = true;
+        cyextv_merge(&mut local, &d, false);
+        assert!(local.zero_width && !local.nsfw && local.original.is_none());
+        assert_eq!(local.owner.as_deref(), Some("Maker"));
     }
 }
