@@ -57,7 +57,10 @@ export const GROUPS: Group[] = [
   {
     key: 'cyextv',
     label: 'cyex.tv',
-    children: [chat('chat.cyextvEmotes', 'Emotes', ['cyextvEmotes'], 'Emotes from cyex.tv channels and sets.')],
+    children: [
+      chat('chat.cyextvEmotes', 'Emotes', ['cyextvEmotes'], 'Emotes from cyex.tv channels and sets.'),
+      chat('chat.cyextvCosmetics', 'Paints and badges', ['cyextvCosmetics'], 'Colorful names and badges from cyex.tv. Shown before 7TV paints.'),
+    ],
   },
   {
     key: 'cyex',

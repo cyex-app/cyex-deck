@@ -22,6 +22,7 @@
   import { coverKey, covered } from './streamerCover';
   import { sevenTvPick } from '../emotes/avatarPick.svelte';
   import { looks } from '../emotes/looks.svelte';
+  import { wornPaint } from '../emotes/wornPaint';
   import { toggleWatch, watched } from './watch';
   import { copy } from '../../lib/clipboard';
   import { copied } from '../../lib/copied.svelte';
@@ -102,9 +103,9 @@
   // V109-F78 7TV only pushes a paint and badge for chatters it met in a chat open here; a card from
   // Mentions, another channel or a pop-out reads that user's profile once, and the look arrives as a push.
   $effect(() => {
-    if (settings.v.chat.paints.seventv && profile.id) void emotesIpc.cardLook(profile.id).catch(() => {});
+    if ((settings.v.chat.paints.seventv || settings.v.chat.cyextvCosmetics) && profile.id) void emotesIpc.cardLook(profile.id).catch(() => {});
   });
-  const paintId = $derived(settings.v.chat.paints.seventv ? (looks.look(profile.id)?.paint ?? null) : null);
+  const paintId = $derived(wornPaint(looks.look(profile.id), settings.v.chat));
   const paint = $derived(looks.paintClass(paintId));
   const paintName = $derived(paint ? looks.paintName(paintId) : null);
   const colorVars = $derived(color ? `--cd:${color.dark};--cl:${color.light}` : '');

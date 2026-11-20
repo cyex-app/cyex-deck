@@ -62,6 +62,8 @@ pub struct Chat {
     pub ffz_emotes: bool,
     /// V112-01 cyex.tv emotes, as `seventv_emotes`.
     pub cyextv_emotes: bool,
+    /// V112-12 cyex.tv paints and badges on other people's names. Off: they aren't looked up.
+    pub cyextv_cosmetics: bool,
     /// V110-E13 The one switch from before for all three: read once, then the three take over.
     /// Never written back.
     #[serde(rename = "thirdPartyEmotes", skip_serializing)]
@@ -216,6 +218,7 @@ impl Default for Chat {
             bttv_emotes: true,
             ffz_emotes: true,
             cyextv_emotes: true,
+            cyextv_cosmetics: true,
             old_third_party_emotes: None,
             unlisted_emotes: UnlistedEmotes::Blur,
             unlisted_chosen: false,
@@ -769,6 +772,14 @@ mod tests {
         assert!(b.cyex && !b.seventv);
         let off: BadgeToggles = serde_json::from_str(r#"{"cyex":false}"#).unwrap();
         assert!(!off.cyex && off.twitch);
+    }
+
+    #[test]
+    fn v112_12_cyextv_cosmetics_start_on_for_old_files() {
+        let c: Chat = serde_json::from_str(r#"{"seventvEmotes":false}"#).unwrap();
+        assert!(c.cyextv_cosmetics && !c.seventv_emotes);
+        let off: Chat = serde_json::from_str(r#"{"cyextvCosmetics":false}"#).unwrap();
+        assert!(!off.cyextv_cosmetics);
     }
 
     #[test]

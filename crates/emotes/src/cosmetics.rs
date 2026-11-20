@@ -64,12 +64,17 @@ pub struct BadgeRef {
 pub struct Look {
     /// 7TV paint id.
     pub paint: Option<String>,
+    /// V112-12 cyex.tv paint id (the deck's, see `cyextv::cosmetics::deck_paint_id`). Kept apart
+    /// from the 7TV one so each switch decides on its own which of them draws.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub cyextv_paint: Option<String>,
     pub badges: Vec<BadgeRef>,
 }
 
 impl Look {
     pub fn is_empty(&self) -> bool {
-        self.paint.is_none() && self.badges.is_empty()
+        self.paint.is_none() && self.cyextv_paint.is_none() && self.badges.is_empty()
     }
 }
 
@@ -83,6 +88,16 @@ pub struct Looks {
     pub paints: Vec<PaintStyle>,
     pub badges: Vec<BadgeDef>,
 }
+
+/// V112-11 What a chatter wears on cyex.tv: the deck's paint id and cyex.tv's badge id.
+#[derive(Default, PartialEq, Eq)]
+struct CyextvUser {
+    paint: Option<String>,
+    badge: Option<String>,
+}
+
+/// V112-11 cyex.tv wearers kept at most, trimmed like the 7TV ones.
+const MAX_CYEXTV_USERS: usize = 20_000;
 
 #[derive(Default)]
 struct SevenUser {
@@ -115,6 +130,8 @@ pub struct Cosmetics {
     seventv: Capped<String, SevenUser, MAX_SEVENTV_USERS>,
     /// FFZ badge ids with their users' Twitch ids, sorted (FFZ's global list is long).
     ffz: Vec<(String, Vec<u64>)>,
+    /// V112-11 cyex.tv paint and badge by user; last set or draw first to stay (S7).
+    cyextv: Capped<String, CyextvUser, MAX_CYEXTV_USERS>,
     /// BTTV badge by user; last set or draw first to stay (S7).
     bttv: Capped<String, String, MAX_BTTV_USERS>,
     /// V108-N06 Extra badge sets: user id → badge ids, one map per loaded set.
@@ -206,6 +223,65 @@ impl Cosmetics {
             self.seventv.remove(user);
         }
         true
+    }
+
+    /// V112-11 What a user wears on cyex.tv, by catalog id (`None`: nothing of that kind).
+    /// True when their look changed.
+    pub fn set_cyextv_user(&mut self, user: &str, badge: Option<&str>, paint: Option<&str>) -> bool {
+        let next = CyextvUser {
+            paint: paint.map(crate::cyextv::cosmetics::deck_paint_id),
+            badge: badge.map(str::to_owned),
+        };
+        if next.paint.is_none() && next.badge.is_none() {
+            return self.cyextv.remove(user).is_some();
+        }
+        let u = self.cyextv.get_or_default(user.to_owned());
+        let changed = *u != next;
+        *u = next;
+        self.cyextv.trim();
+        changed
+    }
+
+    pub fn cyextv_users(&self) -> usize {
+        self.cyextv.len()
+    }
+
+    /// V112-11 The catalog read again: definitions in, those gone out. Returns the users who wear
+    /// anything that came, changed or went (their lines are drawn again).
+    pub fn replace_cyextv_catalog(&mut self, paints: Vec<PaintStyle>, badges: Vec<BadgeDef>) -> Vec<String> {
+        let mut touched_paints = HashSet::new();
+        let mut touched_badges = HashSet::new();
+        let is_ours = |id: &str| id.starts_with(crate::cyextv::cosmetics::PAINT_PREFIX);
+        let new_paints: HashSet<&str> = paints.iter().map(|p| p.id.as_str()).collect();
+        let new_badges: HashSet<&str> = badges.iter().map(|b| b.id.as_str()).collect();
+        for gone in self.paints.keys().filter(|k| is_ours(k) && !new_paints.contains(k.as_str())) {
+            touched_paints.insert(gone.clone());
+        }
+        for gone in self.badges.keys().filter(|k| k.provider == Provider::Cyextv && !new_badges.contains(k.id.as_str())) {
+            touched_badges.insert(gone.id.clone());
+        }
+        self.paints.retain(|k, _| !is_ours(k) || new_paints.contains(k.as_str()));
+        self.badges.retain(|k, _| k.provider != Provider::Cyextv || new_badges.contains(k.id.as_str()));
+        for p in paints {
+            let id = p.id.clone();
+            if self.add_paint(p) {
+                touched_paints.insert(id);
+            }
+        }
+        for b in badges {
+            let id = b.id.clone();
+            if self.add_badge(b) {
+                touched_badges.insert(id);
+            }
+        }
+        self.cyextv
+            .iter()
+            .filter(|(_, u)| {
+                u.paint.as_ref().is_some_and(|p| touched_paints.contains(p))
+                    || u.badge.as_ref().is_some_and(|b| touched_badges.contains(b))
+            })
+            .map(|(k, _)| k.clone())
+            .collect()
     }
 
     pub fn set_ffz_users(&mut self, users: Vec<(String, Vec<u64>)>) {
@@ -338,6 +414,16 @@ impl Cosmetics {
                 });
             }
         }
+        // V112-12 Both providers' badges show; the paints stay apart for the switches to pick.
+        if let Some(u) = self.cyextv.get(user) {
+            look.cyextv_paint = u.paint.clone().filter(|p| self.paints.contains_key(p));
+            if let Some(b) = &u.badge {
+                look.badges.push(BadgeRef {
+                    provider: Provider::Cyextv,
+                    id: b.clone(),
+                });
+            }
+        }
         if let Some(badge) = self.bttv.get(user) {
             look.badges.push(BadgeRef {
                 provider: Provider::Bttv,
@@ -402,6 +488,16 @@ impl Cosmetics {
             .iter()
             .filter_map(|b| self.badges.get(b).cloned())
             .collect();
+        // V112-12 Their cyex.tv paints go with the answer too.
+        let mut ctv: Vec<&String> = out
+            .users
+            .values()
+            .flatten()
+            .filter_map(|l| l.cyextv_paint.as_ref())
+            .collect();
+        ctv.sort();
+        ctv.dedup();
+        out.paints.extend(ctv.into_iter().filter_map(|p| self.paints.get(p).cloned()));
         out
     }
 }
@@ -665,5 +761,62 @@ mod tests {
         }
         assert!(c.seventv.contains_key("0"));
         assert!(!c.seventv.contains_key("1"));
+    }
+
+    fn ctv_paint(id: &str, css: &str) -> PaintStyle {
+        PaintStyle { id: format!("ctv{id}"), name: id.into(), css: css.into(), still: None }
+    }
+
+    // V112-12 A person with a 7TV and a cyex.tv paint and badge: both badges, both paints kept apart.
+    #[test]
+    fn cyextv_and_seventv_cosmetics_sit_side_by_side() {
+        let mut c = Cosmetics::default();
+        c.add_paint(PaintStyle { id: "S1".into(), name: "s".into(), css: "color:red".into(), still: None });
+        c.add_paint(ctv_paint("P1", "color:blue"));
+        c.add_badge(badge(Provider::Seventv, "sb"));
+        c.add_badge(badge(Provider::Cyextv, "B1"));
+        c.set_seventv("1", SevenChange::Paint(Some("S1")));
+        c.set_seventv("1", SevenChange::Badge(Some("sb")));
+        assert!(c.set_cyextv_user("1", Some("B1"), Some("P1")));
+        assert!(!c.set_cyextv_user("1", Some("B1"), Some("P1")), "same again");
+        let l = c.look("1").unwrap();
+        assert_eq!(l.paint.as_deref(), Some("S1"));
+        assert_eq!(l.cyextv_paint.as_deref(), Some("ctvP1"));
+        let ids: Vec<_> = l.badges.iter().map(|b| (b.provider, b.id.as_str())).collect();
+        assert_eq!(ids, [(Provider::Seventv, "sb"), (Provider::Cyextv, "B1")]);
+        let looks = c.looks(["1"]);
+        let mut paints: Vec<_> = looks.paints.iter().map(|p| p.id.as_str()).collect();
+        paints.sort_unstable();
+        assert_eq!(paints, ["S1", "ctvP1"]);
+    }
+
+    // V112-11 A paint the catalog doesn't know yet is skipped until it comes.
+    #[test]
+    fn a_late_cyextv_catalog_finds_its_wearers() {
+        let mut c = Cosmetics::default();
+        c.set_cyextv_user("1", None, Some("P1"));
+        c.set_cyextv_user("2", Some("B1"), None);
+        c.set_cyextv_user("3", None, Some("P2"));
+        assert!(c.look("1").is_none());
+        let mut users = c.replace_cyextv_catalog(vec![ctv_paint("P1", "a")], vec![badge(Provider::Cyextv, "B1")]);
+        users.sort();
+        assert_eq!(users, ["1", "2"]);
+        assert!(c.look("1").unwrap().cyextv_paint.is_some());
+        // Nothing changed: nobody to redraw.
+        assert!(c.replace_cyextv_catalog(vec![ctv_paint("P1", "a")], vec![badge(Provider::Cyextv, "B1")]).is_empty());
+        // A changed definition redraws its wearers, a removed one too.
+        assert_eq!(c.replace_cyextv_catalog(vec![ctv_paint("P1", "b")], vec![badge(Provider::Cyextv, "B1")]), ["1"]);
+        assert_eq!(c.replace_cyextv_catalog(vec![], vec![badge(Provider::Cyextv, "B1")]), ["1"]);
+        assert!(c.look("1").is_none());
+    }
+
+    #[test]
+    fn taking_everything_off_forgets_the_user() {
+        let mut c = Cosmetics::default();
+        c.set_cyextv_user("1", Some("B1"), None);
+        assert_eq!(c.cyextv_users(), 1);
+        assert!(c.set_cyextv_user("1", None, None));
+        assert_eq!(c.cyextv_users(), 0);
+        assert!(!c.set_cyextv_user("1", None, None));
     }
 }

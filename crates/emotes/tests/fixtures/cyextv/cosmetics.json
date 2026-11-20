@@ -1,0 +1,52 @@
+{
+  "badges": [
+    {
+      "id": "01BADGE", "name": "Early", "tooltip": "Early bird",
+      "image": { "host": "https://cdn.cyex.tv/cosmetics/badges/b1", "animated": true, "ready": true, "width": 72, "height": 72,
+        "files": [{"name":"1x.webp"},{"name":"2x.webp"},{"name":"4x.webp"},{"name":"1x_static.webp"},{"name":"4x_static.webp"}] }
+    },
+    {
+      "id": "01PLAIN", "name": "Tester", "tooltip": "",
+      "image": { "host": "https://cdn.cyex.tv/cosmetics/badges/b2", "animated": false, "ready": true, "width": 72, "height": 72,
+        "files": [{"name":"1x.webp"}] }
+    },
+    {
+      "id": "01ELSEWHERE", "name": "Other host", "tooltip": "x",
+      "image": { "host": "https://evil.example/b3", "animated": false, "ready": true, "files": [{"name":"1x.webp"}] }
+    },
+    {
+      "id": "01PENDING", "name": "Pending", "tooltip": "x",
+      "image": { "host": "https://cdn.cyex.tv/cosmetics/badges/b4", "animated": false, "ready": false, "files": [] }
+    }
+  ],
+  "paints": [
+    { "id": "01LINEAR", "name": "Sunset", "kind": "linear_gradient", "angle": 90, "repeat": false, "shape": "circle",
+      "color": "#FF0000", "shadows": [],
+      "stops": [{"at":0,"color":"#FF0000"},{"at":0.5,"color":"#00FF0080"},{"at":1,"color":"#0000FF"}] },
+    { "id": "01RADIAL", "name": "Glow", "kind": "radial_gradient", "angle": 0, "repeat": false, "shape": "ellipse",
+      "color": null, "shadows": [],
+      "stops": [{"at":0,"color":"#111111"},{"at":1,"color":"#EEEEEE"}] },
+    { "id": "01REPEAT", "name": "Stripes", "kind": "linear_gradient", "angle": 0, "repeat": true, "shape": "circle",
+      "color": null, "shadows": [],
+      "stops": [{"at":0,"color":"#000000"},{"at":0.1,"color":"#ffffff"}] },
+    { "id": "01IMAGE", "name": "Photo", "kind": "image", "angle": 0, "repeat": false, "shape": "circle",
+      "color": "#222222", "stops": [], "shadows": [],
+      "image": { "host": "https://cdn.cyex.tv/cosmetics/paints/abc", "animated": false, "ready": true, "width": 256, "height": 64,
+        "files": [{"name":"1x.webp"},{"name":"2x.webp"}] } },
+    { "id": "01ANIMATED", "name": "Moving", "kind": "image", "angle": 0, "repeat": true, "shape": "circle",
+      "color": "#333333", "stops": [], "shadows": [],
+      "image": { "host": "https://cdn.cyex.tv/cosmetics/paints/def", "animated": true, "ready": true, "width": 256, "height": 64,
+        "files": [{"name":"1x.webp"},{"name":"1x_static.webp"}] } },
+    { "id": "01FALLBACK", "name": "One stop", "kind": "linear_gradient", "angle": 45, "repeat": false, "shape": "circle",
+      "color": "#ABCDEF", "shadows": [], "stops": [{"at":0,"color":"#FF0000"}] },
+    { "id": "01SHADOWS", "name": "Shadowy", "kind": "linear_gradient", "angle": 180, "repeat": false, "shape": "circle",
+      "color": null,
+      "stops": [{"at":0,"color":"#000000"},{"at":1,"color":"#ffffff"}],
+      "shadows": [
+        {"x":16,"y":-16,"radius":16,"color":"#000000"},
+        {"x":1.5,"y":0,"radius":0,"color":"#FFFFFF80"},
+        {"x":0,"y":0,"radius":2,"color":"#123456"},
+        {"x":3,"y":3,"radius":3,"color":"#654321"}
+      ] }
+  ]
+}

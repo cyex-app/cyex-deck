@@ -8,4 +8,9 @@ export type Look = {
 /**
  * 7TV paint id.
  */
-paint: string | null, badges: Array<BadgeRef>, };
+paint: string | null, 
+/**
+ * V112-12 cyex.tv paint id (the deck's, see `cyextv::cosmetics::deck_paint_id`). Kept apart
+ * from the 7TV one so each switch decides on its own which of them draws.
+ */
+cyextvPaint?: string, badges: Array<BadgeRef>, };

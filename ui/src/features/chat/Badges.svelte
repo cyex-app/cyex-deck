@@ -41,13 +41,15 @@
   const on = $derived(settings.v.chat.badges);
   /** V108-N06 FFZ:AP, Chatsen, DankChat and Homies, each its own switch. */
   const sets = $derived(settings.v.emotes.badgeSets);
+  /** V112-12 cyex.tv's badges have their own switch (`chat.cyextvCosmetics`, with its paints). */
+  const cyextvOn = $derived(settings.v.chat.cyextvCosmetics);
   const room = $derived(on.ffz ? rooms.get(channel) : undefined);
   const extra = $derived.by(() => {
     if (!userId && override === undefined) return [];
     const look = override !== undefined ? override : looks.look(userId!);
     if (!look) return [];
     return look.badges
-      .filter((b) => badgeOn(b, on, sets))
+      .filter((b) => (b.provider === 'cyextv' ? cyextvOn : badgeOn(b, on, sets)))
       .map((b) => looks.badge(b.provider, b.id))
       .filter((b): b is BadgeDef => !!b);
   });

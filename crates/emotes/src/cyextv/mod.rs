@@ -2,5 +2,6 @@
 //! `docs/research/cyextv.md`. A different provider from the deck's own cyex.app badges.
 
 pub mod api;
+pub mod cosmetics;
 pub mod events;
 pub mod socket;

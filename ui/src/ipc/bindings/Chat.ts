@@ -48,6 +48,10 @@ ffzEmotes: boolean,
  */
 cyextvEmotes: boolean, 
 /**
+ * V112-12 cyex.tv paints and badges on other people's names. Off: they aren't looked up.
+ */
+cyextvCosmetics: boolean, 
+/**
  * 2.4
  */
 unlistedEmotes: UnlistedEmotes, 

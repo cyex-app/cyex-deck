@@ -12,6 +12,11 @@ use tokio::sync::Notify;
 
 use super::Emotes;
 
+mod ctv;
+
+#[allow(unused_imports)] // The cyex.tv socket uses them (V112-13 hook).
+pub use ctv::{apply_user_cosmetics, refresh_catalog};
+
 const EVENT: &str = "emotes:looks";
 const BATCH: Duration = Duration::from_millis(250);
 
@@ -23,6 +28,7 @@ struct Pending {
 
 pub fn spawn(app: AppHandle) {
     app.manage(Pending::default());
+    ctv::spawn(app.clone());
     tauri::async_runtime::spawn(async move {
         loop {
             let pending = app.state::<Pending>();
@@ -57,6 +63,8 @@ pub fn changed(app: &AppHandle, users: impl IntoIterator<Item = String>) {
 pub fn looks_for(app: &AppHandle, users: &[String]) -> Looks {
     // V112-04 Their cyex.tv personal sets, if not asked for yet.
     super::cyextv::want(app, users);
+    // V112-10 Their cyex.tv paints and badges.
+    ctv::want(app, users);
     let state = app.state::<Emotes>();
     let inner = state.lock();
     // B9 Drawn: their personal emotes count as used too, so they outlive the cap.

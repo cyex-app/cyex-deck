@@ -396,6 +396,14 @@ export const CHAT: Entry[] = [
     description: 'Emotes from cyex.tv channels and sets.',
     keywords: ['third-party', 'cyex.tv', 'cyextv'],
   },
+  // V112-12 cyex.tv name paints and badges, one switch.
+  {
+    id: 'chat.cyextvCosmetics',
+    page: 'emotes',
+    label: 'cyex.tv paints and badges',
+    description: 'Colorful names and badges from cyex.tv. A name with a 7TV paint too shows the cyex.tv one.',
+    keywords: ['paint', 'badge', 'name color', 'gradient', 'cosmetics', 'cyex.tv', 'cyextv'],
+  },
   {
     id: 'chat.unlistedEmotes',
     page: 'emotes',

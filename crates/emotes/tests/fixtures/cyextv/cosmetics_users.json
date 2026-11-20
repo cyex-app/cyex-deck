@@ -1,0 +1,8 @@
+{
+  "users": [
+    { "platform_user_id": "4001", "badge_id": "01BADGE", "paint_id": "01LINEAR" },
+    { "platform_user_id": "4002", "badge_id": null, "paint_id": "01IMAGE" },
+    { "platform_user_id": "", "badge_id": "01BADGE", "paint_id": null },
+    { "platform_user_id": "abc", "badge_id": "01BADGE", "paint_id": null }
+  ]
+}

@@ -16,6 +16,7 @@
   import { settings } from '../../lib/settings.svelte';
   import { streamer } from '../../lib/streamer.svelte';
   import { looks } from '../emotes/looks.svelte';
+  import { wornPaint } from '../emotes/wornPaint';
   import Badges from './Badges.svelte';
   import Body from './Body.svelte';
   import { CLIENTS, COSMIC, effectOf, highlightStyle } from './highlight';
@@ -79,7 +80,7 @@
   const nameColor = $derived(sender ? (ownNameColor(c.users[sender.id]?.color) ?? sender.color) : null);
   const colorVars = $derived(nameColor ? `--cd:${nameColor.dark};--cl:${nameColor.light}` : '');
   /** 1.37 The sender's 7TV paint, as a class, and its name for a tip (V101-36). */
-  const paintId = $derived(sender && c.paints.seventv ? (look !== undefined ? (look?.paint ?? null) : (looks.look(sender.id)?.paint ?? null)) : null);
+  const paintId = $derived(sender ? wornPaint(look !== undefined ? look : looks.look(sender.id), c) : null);
   const paint = $derived(looks.paintClass(paintId));
   const paintName = $derived(paint ? looks.paintName(paintId) : null);
   const recipients = $derived(notice?.recipients ?? []);
