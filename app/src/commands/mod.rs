@@ -334,6 +334,8 @@ pub fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static 
         cyextv::cyextv_sign_out,
         cyextv::cyextv_cosmetics,
         cyextv::cyextv_select,
+        cyextv::cyextv_emote_options,
+        cyextv::cyextv_emote_add,
         cosmetics::cosmetics_view,
         cosmetics::cosmetics_allow,
         cosmetics::cosmetics_select,

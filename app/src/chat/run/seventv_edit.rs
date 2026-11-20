@@ -1,4 +1,4 @@
-//! I106-3 `/add`, `/remove`, `/rename`: change the 7TV emotes of the channel this chat is in,
+//! I106-3 `/7add`, `/7remove`, `/7rename` (V112-17: were `/add` …): change the 7TV emotes of the channel this chat is in,
 //! through the same `edit::run` as the menus (consent, session, test-run guard, name check,
 //! one edit per set). Results are local lines or a toast; nothing goes to the channel.
 //! V111-03 A `#channel` word does it in that channel's set instead (the change line goes to
@@ -15,19 +15,19 @@ use crate::emotes::edit::{self, Blocked, EditDone, EditFail, EditOp, Reachabilit
 
 /// The arm in `builtin::run` and `OWN` must list these (checked in builtin's tests).
 #[cfg(test)]
-pub(super) const NAMES: [&str; 6] = ["add", "remove", "rename", "steal", "yoink", "whoadded"];
+pub(super) const NAMES: [&str; 6] = ["7add", "7remove", "7rename", "7steal", "7yoink", "7whoadded"];
 
-const USAGE_ADD: &str = "Say which emote: /add <7TV link or id> [name] [#channel].";
-const USAGE_REMOVE: &str = "Say which emote: /remove <name> [more names] [#channel].";
-const USAGE_RENAME: &str = "Say which emote: /rename <name> [new name] [#channel].";
+const USAGE_ADD: &str = "Say which emote: /7add <7TV link or id> [name] [#channel].";
+const USAGE_REMOVE: &str = "Say which emote: /7remove <name> [more names] [#channel].";
+const USAGE_RENAME: &str = "Say which emote: /7rename <name> [new name] [#channel].";
 // V111-03
-const USAGE_STEAL: &str = "Say which emote and where from: /steal <name> [new name] #channel.";
-const USAGE_WHO: &str = "Say which emote: /whoadded <name> [#channel].";
-const STEAL_HERE: &str = "That’s this chat’s channel. Say where from: /steal <name> #channel.";
-const ONE_CHANNEL: &str = "Name one channel with #.";
-const TOO_MANY: &str = "At most 20 at a time.";
-const MAX_REMOVE: usize = 20;
-const SPACES: &str = "Emote names have no spaces.";
+const USAGE_STEAL: &str = "Say which emote and where from: /7steal <name> [new name] #channel.";
+const USAGE_WHO: &str = "Say which emote: /7whoadded <name> [#channel].";
+const STEAL_HERE: &str = "That’s this chat’s channel. Say where from: /7steal <name> #channel.";
+pub(super) const ONE_CHANNEL: &str = "Name one channel with #.";
+pub(super) const TOO_MANY: &str = "At most 20 at a time.";
+pub(super) const MAX_REMOVE: usize = 20;
+pub(super) const SPACES: &str = "Emote names have no spaces.";
 const NOT_LINK: &str = "That isn’t a 7TV emote link or id.";
 const NO_EMOTE: &str = "No 7TV emote with that id.";
 const ALREADY: &str = "Already in {channel}’s 7TV emotes.";
@@ -89,7 +89,7 @@ fn emote_id(word: &str) -> Option<String> {
 
 /// V111-03 The words without the `#channel` one (anywhere, at most one), and that channel's
 /// login in lower case.
-fn split_channel(args: &str) -> Result<(Vec<&str>, Option<String>), String> {
+pub(super) fn split_channel(args: &str) -> Result<(Vec<&str>, Option<String>), String> {
     let mut words = Vec::new();
     let mut channel = None;
     for w in args.split_whitespace() {
@@ -159,14 +159,14 @@ fn parse(command: &str, args: &str) -> Result<(Parsed, Option<String>), String> 
 
 /// V111-03 Why `pick` found nothing.
 #[derive(Debug, PartialEq, Eq)]
-enum Pick {
+pub(super) enum Pick {
     Missing,
     /// The names that match up to case.
     Ambiguous(Vec<String>),
 }
 
 /// V111-03 The emote named `name`: the exact name, else the only one that matches up to case.
-fn pick<'a>(emotes: &'a [Emote], name: &str) -> Result<&'a Emote, Pick> {
+pub(super) fn pick<'a>(emotes: &'a [Emote], name: &str) -> Result<&'a Emote, Pick> {
     if let Some(e) = emotes.iter().find(|e| e.name == name) {
         return Ok(e);
     }
@@ -178,7 +178,7 @@ fn pick<'a>(emotes: &'a [Emote], name: &str) -> Result<&'a Emote, Pick> {
     }
 }
 
-fn pick_line(p: Pick, channel: &str, name: &str) -> String {
+pub(super) fn pick_line(p: Pick, channel: &str, name: &str) -> String {
     match p {
         Pick::Missing => NO_SUCH.replace("{channel}", channel).replace("{name}", name),
         Pick::Ambiguous(names) => {
@@ -198,7 +198,7 @@ fn source_line(f: SourceFail, channel: &str) -> String {
 }
 
 /// V111-03 "a", "a and b", "a, b and c" (`last` = "and" or "or").
-fn joined(names: &[String], last: &str) -> String {
+pub(super) fn joined(names: &[String], last: &str) -> String {
     match names {
         [] => String::new(),
         [one] => one.clone(),
@@ -283,9 +283,11 @@ pub(super) async fn run(
     name: &str,
     args: &str,
 ) -> Result<Option<UiAction>, String> {
+    // V112-17 `/7add` and the rest: 7TV's commands, the same code as when they were `/add`.
+    let verb = name.strip_prefix('7').unwrap_or(name);
     // V111-03 Read-only: no account, no 7TV sign-in, fine in automations.
-    if name == "whoadded" {
-        let (cmd, other) = parse(name, args)?;
+    if verb == "whoadded" {
+        let (cmd, other) = parse(verb, args)?;
         let Parsed::WhoAdded { name: wanted } = cmd else {
             return Err(USAGE_WHO.into());
         };
@@ -297,7 +299,7 @@ pub(super) async fn run(
     if place.automation {
         return Err(format!("/{name} doesn’t run in automations."));
     }
-    let (cmd, other) = parse(name, args)?;
+    let (cmd, other) = parse(verb, args)?;
     // V111-03 `#` naming this chat's own channel is the same as none.
     let other = other.filter(|c| !c.eq_ignore_ascii_case(place.channel()));
     if matches!(cmd, Parsed::Steal { .. }) && other.is_none() {
@@ -488,7 +490,7 @@ async fn remove_many(
     }
 }
 
-fn add_fail(failed: &mut Vec<(String, Vec<String>)>, reason: String, name: String) {
+pub(super) fn add_fail(failed: &mut Vec<(String, Vec<String>)>, reason: String, name: String) {
     match failed.iter_mut().find(|(r, _)| *r == reason) {
         Some((_, names)) => names.push(name),
         None => failed.push((reason, vec![name])),

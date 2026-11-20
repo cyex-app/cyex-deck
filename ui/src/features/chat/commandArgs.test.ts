@@ -44,6 +44,17 @@ test('V111-03 # completes channels, names know the #channel', () => {
   assert.deepEqual(argMatches({ command: 'add', sub: '#', start: 0, typed: 'fo', quote: false }, ['forsen', 'xqc']), ['forsen']);
 });
 
+test("V112-17 7TV's commands complete like cyex.tv's", () => {
+  assert.deepEqual(at('/7add x #fo|'), { command: '7add', sub: '#', start: 9, typed: 'fo', quote: false });
+  assert.deepEqual(at('/7remove a #Forsen K|'), { command: '7remove', sub: 'forsen', start: 19, typed: 'K', quote: false });
+  assert.deepEqual(at('/7remove a b|'), { command: '7remove', sub: null, start: 11, typed: 'b', quote: false });
+  assert.deepEqual(at('/7steal KE| #forsen'), { command: '7steal', sub: 'forsen', start: 8, typed: 'KE', quote: false });
+  assert.deepEqual(at('/7whoadded K|'), { command: '7whoadded', sub: null, start: 11, typed: 'K', quote: false });
+  assert.equal(at('/7add 01HZX|'), null);
+  assert.equal(at('/7steal KEKW n|'), null);
+  assert.equal(at('/77add x #f|'), null);
+});
+
 test('V1051-04 no argument to complete', () => {
   assert.equal(at('/combo save x|'), null);
   assert.equal(at('/combo rename "a b" c|'), null);

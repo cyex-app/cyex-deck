@@ -3,6 +3,7 @@
 use cyex_emotes::cyextv::gql::Owned;
 use tauri::AppHandle;
 
+use crate::chat::run::CyextvMenuOptions;
 use crate::cyextv::{self, TvCosmetics, TvKind};
 
 /// Resolves with the cyex.tv name; rejects with the line to show ('' when cancelled).
@@ -30,4 +31,16 @@ pub async fn cyextv_cosmetics(app: AppHandle, account: String) -> TvCosmetics {
 #[tauri::command]
 pub async fn cyextv_select(app: AppHandle, account: String, kind: TvKind, id: Option<String>) -> Result<Owned, String> {
     cyextv::select(&app, &account, kind, id).await
+}
+
+/// V112-17 What the emote menu offers for a cyex.tv emote in this chat's channel.
+#[tauri::command]
+pub async fn cyextv_emote_options(app: AppHandle, account: String, login: String, emote_id: String) -> CyextvMenuOptions {
+    crate::chat::run::cyextv_menu_options(&app, &account, &login, &emote_id).await
+}
+
+/// V112-17 Adds the emote to this chat's channel under its own name. Rejects with the line to show.
+#[tauri::command]
+pub async fn cyextv_emote_add(app: AppHandle, account: String, login: String, emote_id: String) -> Result<String, String> {
+    crate::chat::run::cyextv_menu_add(&app, &account, &login, &emote_id).await
 }

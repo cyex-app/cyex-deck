@@ -18,7 +18,7 @@ pub use ask::{name_check, options};
 #[cfg(test)]
 pub(crate) use echo::Echoes;
 pub use here::{
-    SourceFail, channel_emotes, channel_names, emote_facts, here_names, here_target, is_login, loaded_names, names_for,
+    SourceFail, channel_emotes, twitch_id, channel_names, emote_facts, loaded_channel_set, here_names, here_target, is_login, loaded_names, names_for,
     target_for, user_names,
 };
 pub use ops::{Blocked, EditDone, EditFail, EditOp, EditOptions, NameCheck, Reachability};

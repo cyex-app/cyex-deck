@@ -4,8 +4,12 @@
 
 import { complete } from './completion.ts';
 
+/** V112-17 cyex.tv's emote commands, and 7TV's with a 7 in front. */
+type EmoteVerb = 'add' | 'remove' | 'rename' | 'steal' | 'yoink' | 'whoadded';
+export type EmoteCommand = EmoteVerb | `7${EmoteVerb}`;
+
 export interface ArgSpot {
-  command: 'combo' | 'paint' | 'badge' | 'add' | 'remove' | 'rename' | 'steal' | 'yoink' | 'whoadded';
+  command: 'combo' | 'paint' | 'badge' | EmoteCommand;
   sub: string | null;
   start: number;
   typed: string;
@@ -21,7 +25,7 @@ interface Arg {
 
 /** `/combo` sub-commands. Never quoted. */
 const SUBS = ['list', 'save', 'delete', 'rename'];
-const COMMAND = /^\/(combo|paint|badge|add|remove|rename|steal|yoink|whoadded) /i;
+const COMMAND = /^\/(combo|paint|badge|7?add|7?remove|7?rename|7?steal|7?yoink|7?whoadded) /i;
 const OPEN_QUOTE = /["“]/;
 const CLOSE_QUOTE = /["”]/;
 
@@ -53,8 +57,8 @@ function splitArgs(rest: string): Arg[] {
   return out;
 }
 
-/** I106-3 / V111-03 The 7TV emote commands. */
-const EMOTE_COMMANDS = new Set(['add', 'remove', 'rename', 'steal', 'yoink', 'whoadded']);
+/** I106-3 / V111-03 / V112-17 The emote commands, cyex.tv's and 7TV's (`/7add` …). */
+const EMOTE_COMMANDS = new Set(['add', 'remove', 'rename', 'steal', 'yoink', 'whoadded'].flatMap((v) => [v, `7${v}`]));
 
 /** V111-03 A 7TV emote command's word at the caret. A word starting with `#` completes channels
  * (`sub` '#', after the `#`); emote names have no spaces, so the name words are: every one for
@@ -64,9 +68,9 @@ function emoteArg(command: ArgSpot['command'], whole: string, from: number, rest
   const wordStart = rest.search(/\S*$/);
   const typed = rest.slice(wordStart);
   if (typed.startsWith('#')) return { command, sub: '#', start: from + wordStart + 1, typed: typed.slice(1), quote: false };
-  if (command === 'add') return null;
+  if (command === 'add' || command === '7add') return null;
   const before = rest.slice(0, wordStart).split(/\s+/).filter((w) => w && !w.startsWith('#'));
-  if (command !== 'remove' && before.length > 0) return null;
+  if (command !== 'remove' && command !== '7remove' && before.length > 0) return null;
   const channel = whole.split(/\s+/).find((w) => /^#[A-Za-z0-9_]{1,25}$/.test(w));
   return { command, sub: channel ? channel.slice(1).toLowerCase() : null, start: from + wordStart, typed, quote: false };
 }

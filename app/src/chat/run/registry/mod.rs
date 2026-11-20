@@ -33,6 +33,8 @@ pub enum Changes {
     /// A Twitch action.
     Twitch,
     SevenTv,
+    /// V112-17 cyex.tv's emotes.
+    Cyextv,
     Settings,
     Window,
 }
@@ -177,6 +179,7 @@ pub(super) fn all() -> impl Iterator<Item = &'static Cmd> {
         .iter()
         .chain(cosmetics::CMDS)
         .chain(emotes::CMDS)
+        .chain(emotes::SEVENTV)
         .chain(app::AFTER)
         .chain(twitch::CMDS)
 }

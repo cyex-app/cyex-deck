@@ -89,6 +89,23 @@ async fn bearer(app: &AppHandle, account: &str) -> Result<String, CyextvError> {
     got
 }
 
+/// Why a call with the account's Bearer didn't go through.
+#[derive(Debug, PartialEq, Eq)]
+pub(crate) enum CallFail {
+    /// No live access token (signed out, session ended, cyex.tv down while refreshing).
+    Auth(CyextvError),
+    Gql(GqlError),
+}
+
+impl std::fmt::Display for CallFail {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Auth(e) => e.fmt(f),
+            Self::Gql(e) => e.fmt(f),
+        }
+    }
+}
+
 /// V112-15 Runs `call` with the account's Bearer. A 401 drops that access token and tries once
 /// more with a refreshed one. Errs with the line to show.
 pub(crate) async fn with_bearer<T, F, Fut>(app: &AppHandle, account: &str, call: F) -> Result<T, String>
@@ -96,18 +113,32 @@ where
     F: Fn(String) -> Fut,
     Fut: Future<Output = Result<T, GqlError>>,
 {
+    with_bearer_typed(app, account, call).await.map_err(|e| e.to_string())
+}
+
+/// [`with_bearer`] with the reason kept apart (V112-17 the commands word each themselves).
+pub(crate) async fn with_bearer_typed<T, F, Fut>(app: &AppHandle, account: &str, call: F) -> Result<T, CallFail>
+where
+    F: Fn(String) -> Fut,
+    Fut: Future<Output = Result<T, GqlError>>,
+{
     let mut tries = 0;
     loop {
         tries += 1;
-        let token = bearer(app, account).await.map_err(|e| e.to_string())?;
+        let token = bearer(app, account).await.map_err(CallFail::Auth)?;
         match call(token.clone()).await {
             Err(GqlError::SignedOut) => {
                 app.state::<Auth>().cyextv.stale(account, &token);
                 if tries >= 2 {
-                    return Err(GqlError::SignedOut.to_string());
+                    return Err(CallFail::Gql(GqlError::SignedOut));
                 }
             }
-            done => return done.map_err(|e| e.to_string()),
+            done => return done.map_err(CallFail::Gql),
         }
     }
+}
+
+/// V112-17 Whether cyex.tv calls go to a loopback mock (a test run may only write there).
+pub(crate) fn mocked(app: &AppHandle) -> bool {
+    state(app).base != flow::API
 }

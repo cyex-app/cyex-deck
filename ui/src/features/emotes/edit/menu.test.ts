@@ -53,3 +53,47 @@ test('not 7TV or no account: nothing to add', async () => {
   assert.deepEqual(await emoteEditMenu('me', 'kuni', { ...emote, provider: 'bttv' }, h), []);
   assert.deepEqual(await emoteEditMenu(null, 'kuni', emote, h), []);
 });
+
+// V112-17 cyex.tv emotes get "Add to cyex.tv", only where the account may edit.
+const tvEmote = { id: '01E.key', name: 'Hello', provider: 'cyextv' };
+const said: [string, boolean][] = [];
+const tv = (o: { canEdit: boolean; note: string | null }, add = async () => 'Added.') => ({
+  options: async () => o,
+  add,
+  said: (line: string, ok: boolean) => said.push([line, ok]),
+});
+
+test('cyex.tv emote: add entry when the channel is editable', async () => {
+  const r = await emoteEditMenu('me', 'kuni', tvEmote, h, 50, { target: new EventTarget(), tv: tv({ canEdit: true, note: null }) });
+  assert.ok(r);
+  const item = r.find((e) => typeof e === 'object' && 'label' in e);
+  assert.ok(item && typeof item === 'object' && 'label' in item);
+  assert.equal(item.label, 'Add to cyex.tv');
+  assert.ok(!item.disabled);
+  item.run?.();
+  await later(0, 5);
+  assert.deepEqual(said.at(-1), ['Added.', true]);
+});
+
+test('cyex.tv emote: nothing without edit rights, greyed with a reason', async () => {
+  const none = await emoteEditMenu('me', 'kuni', tvEmote, h, 50, { target: new EventTarget(), tv: tv({ canEdit: false, note: null }) });
+  assert.deepEqual(none, []);
+  const grey = await emoteEditMenu('me', 'kuni', tvEmote, h, 50, {
+    target: new EventTarget(),
+    tv: tv({ canEdit: true, note: 'Already in kuni’s cyex.tv emotes.' }),
+  });
+  const item = grey?.find((e) => typeof e === 'object' && 'label' in e);
+  assert.ok(item && typeof item === 'object' && 'disabled' in item && item.disabled);
+});
+
+test('cyex.tv emote: a failed add says why', async () => {
+  const r = await emoteEditMenu('me', 'kuni', tvEmote, h, 50, {
+    target: new EventTarget(),
+    tv: tv({ canEdit: true, note: null }, async () => Promise.reject('You can’t edit kuni’s cyex.tv emotes.')),
+  });
+  const item = r?.find((e) => typeof e === 'object' && 'label' in e);
+  assert.ok(item && typeof item === 'object' && 'run' in item);
+  item.run?.();
+  await later(0, 5);
+  assert.deepEqual(said.at(-1), ['You can’t edit kuni’s cyex.tv emotes.', false]);
+});

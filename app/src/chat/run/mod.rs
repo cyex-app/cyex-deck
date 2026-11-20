@@ -4,11 +4,13 @@
 
 mod builtin;
 mod cosmetics;
+mod cyextv_edit;
 mod guard;
 mod refused;
 mod seventv_edit;
 mod spam;
 pub use builtin::{block_user, reserved};
+pub use cyextv_edit::{CyextvMenuOptions, menu_add as cyextv_menu_add, menu_options as cyextv_menu_options};
 pub mod complete;
 mod host;
 pub(crate) mod reach;

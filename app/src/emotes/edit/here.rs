@@ -116,7 +116,8 @@ pub fn is_login(s: &str) -> bool {
 }
 
 /// V111-03 A channel's Twitch id: an open chat's, else Twitch. `Ok(None)`: no such channel.
-async fn twitch_id(app: &AppHandle, login: &str) -> Result<Option<String>, ()> {
+#[allow(clippy::result_unit_err)]
+pub async fn twitch_id(app: &AppHandle, login: &str) -> Result<Option<String>, ()> {
     if let Some(id) = crate::emotes::channel_id(app, login) {
         return Ok(Some(id));
     }
@@ -173,6 +174,21 @@ fn loaded_set(app: &AppHandle, login: &str) -> Option<Vec<Emote>> {
         .find(|s| s.provider == Provider::Seventv && s.scope == Scope::Channel)?
         .clone();
     Some(set.emotes.iter().map(|e| (**e).clone()).collect())
+}
+
+/// V112-17 An open chat's channel set of that provider, its emotes cloned. `None` also while the
+/// provider is off there.
+pub fn loaded_channel_set(app: &AppHandle, login: &str, provider: Provider) -> Option<Vec<std::sync::Arc<Emote>>> {
+    let st = app.state::<crate::emotes::Emotes>();
+    let inner = st.lock();
+    let set = inner
+        .channels
+        .get(login)?
+        .sets
+        .iter()
+        .find(|s| s.provider == provider && s.scope == Scope::Channel)?
+        .clone();
+    Some(set.emotes.clone())
 }
 
 /// V111-03 Tab for `/steal` and `/whoadded`: an open chat's 7TV emote names, sorted. No network.
