@@ -15,7 +15,7 @@ use std::sync::{Arc, Mutex, MutexGuard};
 
 use cyex_auth::secrets::KeyringStore;
 use cyex_auth::secrets::{MemoryStore, SecretStore};
-use cyex_auth::{AccountView, SevenTvTokens, TokenKind, Vault, views};
+use cyex_auth::{AccountView, CyextvSessions, SevenTvTokens, TokenKind, Vault, views};
 use cyex_settings::Partition;
 use cyex_settings::schema::Accounts;
 use cyex_twitch::Http;
@@ -33,6 +33,8 @@ pub struct Auth {
     pub vault: Vault,
     /// V1051-02 7TV sessions (own keys; a test run keeps them in memory).
     pub seventv: SevenTvTokens,
+    /// V112-14 cyex.tv sessions (own keys; a test run keeps them in memory).
+    pub cyextv: CyextvSessions,
     /// Cancels the Device Code sign-in that's running, if any.
     sign_in: Mutex<Option<watch::Sender<bool>>>,
     /// V108-02 Where the running sign-in's page opened, for "Open again".
@@ -61,7 +63,8 @@ pub fn init(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
     app.manage(Auth {
         http: Http::new()?,
         vault,
-        seventv: SevenTvTokens::new(store),
+        seventv: SevenTvTokens::new(store.clone()),
+        cyextv: CyextvSessions::new(store),
         sign_in: Mutex::default(),
         page: Mutex::default(),
     });
@@ -121,7 +124,7 @@ pub fn update_accounts(app: &AppHandle, f: impl FnOnce(&mut Accounts) -> bool) -
 pub fn snapshot(app: &AppHandle) -> AuthSnapshot {
     let auth = app.state::<Auth>();
     AuthSnapshot {
-        accounts: views(&accounts(app), &auth.vault, &auth.seventv, unix_now()),
+        accounts: views(&accounts(app), &auth.vault, &auth.seventv, &auth.cyextv, unix_now()),
     }
 }
 

@@ -4,4 +4,5 @@
 pub mod api;
 pub mod cosmetics;
 pub mod events;
+pub mod gql;
 pub mod socket;

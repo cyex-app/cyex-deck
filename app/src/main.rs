@@ -17,6 +17,7 @@ mod cosmetics;
 mod connections;
 mod crash;
 mod cyex;
+mod cyextv;
 mod emotes;
 mod feeds;
 mod hermes;
@@ -99,6 +100,7 @@ fn main() {
             streamer::init(handle);
             auth::init(handle)?;
             cyex::init(handle);
+    cyextv::init(handle);
             hermes::init(handle);
             emotes::init(handle);
             cosmetics::init(handle);

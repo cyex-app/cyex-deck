@@ -18,6 +18,8 @@
   import { gate } from '../../lib/gate.svelte';
   import { toast } from '../../lib/toast.svelte';
   import { alsoSevenTv } from './alsoSevenTv.svelte';
+  import { tvSignIn } from './cyextvSignIn.svelte';
+  import { cyextvIpc } from '../../ipc/cyextv';
   import GqlUnlock from './GqlUnlock.svelte';
   import SevenTvPaste from './SevenTvPaste.svelte';
   import ProfileEditor from './ProfileEditor.svelte';
@@ -170,6 +172,21 @@
     {/if}
     {#if account.seventv.consent}
       <ConfirmButton label="Withdraw" confirm="Click to withdraw" variant="ghost" onconfirm={withdraw} />
+    {/if}
+  </div>
+
+  <!-- V112-14 cyex.tv's own sign-in, in the browser. -->
+  <div class="line" data-row="cyextv">
+    <span class="name">cyex.tv</span>
+    <span class="status" class:muted={!account.cyextv.signedIn && !account.cyextv.ended} class:bad={account.cyextv.ended}>
+      {#if account.cyextv.signedIn}{account.cyextv.name ? `Signed in as ${account.cyextv.name}` : 'Signed in'}{:else if tvSignIn.waiting === account.userId}Finish in your browser{:else if account.cyextv.ended}Sign-in ran out{:else}Not signed in{/if}
+    </span>
+    {#if account.cyextv.signedIn}
+      <Button small variant="ghost" onclick={() => attempt(() => cyextvIpc.signOut(account.userId))}>Sign out</Button>
+    {:else if tvSignIn.waiting === account.userId}
+      <Button small variant="ghost" onclick={() => tvSignIn.cancel()}>Cancel</Button>
+    {:else}
+      <Button small onclick={() => void tvSignIn.start(account.userId)}>{account.cyextv.ended ? 'Sign in again' : 'Sign in'}</Button>
     {/if}
   </div>
 

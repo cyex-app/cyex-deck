@@ -209,6 +209,8 @@ pub fn remove_account(app: &AppHandle, user_id: &str) -> Result<(), String> {
     crate::cosmetics::forget_account(app, user_id);
     // V109-B02 And its cyex session (ended on the server, best effort).
     crate::cyex::forget_account(app, user_id);
+    // V112-14 And its cyex.tv session (revoked, best effort).
+    crate::cyextv::forget_account(app, user_id);
     // V108-C01 And the chats it closed.
     crate::chat::forget_account(app, user_id);
     // 3.8 Its Twitch-page sign-in goes too.

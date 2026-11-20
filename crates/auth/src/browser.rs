@@ -85,7 +85,7 @@ pub fn parse_fragment(raw: &str) -> Option<Fragment> {
 }
 
 /// The listener for one sign-in, on 127.0.0.1 only.
-pub struct Listener(TcpListener);
+pub struct Listener(pub(crate) TcpListener);
 
 impl Listener {
     pub fn bind() -> Result<Self, AuthError> {
@@ -187,15 +187,17 @@ impl Listener {
     }
 }
 
-struct Request {
-    method: String,
-    path: String,
-    host: Option<String>,
+pub(crate) struct Request {
+    pub(crate) method: String,
+    pub(crate) path: String,
+    /// What follows `?`, as sent (V112-14 the cyex.tv callback reads it).
+    pub(crate) query: String,
+    pub(crate) host: Option<String>,
     origin: Option<String>,
     body: String,
 }
 
-fn read_request(stream: &TcpStream) -> Option<Request> {
+pub(crate) fn read_request(stream: &TcpStream) -> Option<Request> {
     let mut r = BufReader::new(stream.take(MAX_REQUEST as u64));
     let mut line = String::new();
     r.read_line(&mut line).ok()?;
@@ -203,6 +205,7 @@ fn read_request(stream: &TcpStream) -> Option<Request> {
     let method = parts.next()?.to_owned();
     let target = parts.next()?;
     let path = target.split(['?', '#']).next().unwrap_or(target).to_owned();
+    let query = target.split('#').next().unwrap_or(target).split_once('?').map_or(String::new(), |(_, q)| q.to_owned());
     let (mut host, mut origin, mut length) = (None, None, 0usize);
     loop {
         let mut h = String::new();
@@ -230,6 +233,7 @@ fn read_request(stream: &TcpStream) -> Option<Request> {
     Some(Request {
         method,
         path,
+        query,
         host,
         origin,
         body: String::from_utf8(body).ok()?,
@@ -237,7 +241,7 @@ fn read_request(stream: &TcpStream) -> Option<Request> {
 }
 
 /// DNS rebinding guard: only the names the redirect uses.
-fn host_ok(host: Option<&str>) -> bool {
+pub(crate) fn host_ok(host: Option<&str>) -> bool {
     host.is_some_and(|h| {
         let name = h.rsplit_once(':').map_or(h, |(n, _)| n);
         matches!(name, "localhost" | "127.0.0.1")
@@ -250,7 +254,7 @@ fn origin_ok(origin: &str) -> bool {
         .is_some_and(|h| host_ok(Some(h)))
 }
 
-fn respond(stream: &mut TcpStream, status: &str, kind: &str, body: &str) {
+pub(crate) fn respond(stream: &mut TcpStream, status: &str, kind: &str, body: &str) {
     let head = format!(
         "HTTP/1.1 {status}\r\nContent-Type: {kind}\r\nContent-Length: {}\r\nCache-Control: no-store\r\n\
          Referrer-Policy: no-referrer\r\nX-Content-Type-Options: nosniff\r\nConnection: close\r\n\r\n",
@@ -264,7 +268,7 @@ fn respond(stream: &mut TcpStream, status: &str, kind: &str, body: &str) {
 /// Posts the fragment back, clears it from the address bar, says how it went.
 const PAGE: &str = r#"<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>cyex deck</title><style>:root{color-scheme:dark light}body{margin:0;min-height:100vh;display:grid;place-items:center;font:15px/1.5 "IBM Plex Sans","Segoe UI",system-ui,sans-serif;background:#141414;color:#e8e8e8}@media(prefers-color-scheme:light){body{background:#f5f5f4;color:#1b1b1b}}p{margin:0}</style></head><body><p id="m">Signing in…</p><script>(async()=>{const m=document.getElementById('m');const h=location.hash;history.replaceState(null,'',location.pathname);try{const r=await fetch('/token',{method:'POST',headers:{'Content-Type':'text/plain'},body:h});const t=await r.text();m.textContent=t==='ok'?'Signed in. You can close this tab.':t==='denied'?'Sign-in cancelled. You can close this tab.':'This sign-in is old. Start again in cyex deck.'}catch(e){m.textContent='cyex deck isn’t waiting for this. Start again there.'}})()</script></body></html>"#;
 
-fn encode(s: &str) -> String {
+pub(crate) fn encode(s: &str) -> String {
     let mut out = String::with_capacity(s.len());
     for b in s.bytes() {
         if b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_' | b'.' | b'~') {
@@ -276,7 +280,7 @@ fn encode(s: &str) -> String {
     out
 }
 
-fn decode(s: &str) -> Option<String> {
+pub(crate) fn decode(s: &str) -> Option<String> {
     let bytes = s.as_bytes();
     let mut out = Vec::with_capacity(bytes.len());
     let mut i = 0;

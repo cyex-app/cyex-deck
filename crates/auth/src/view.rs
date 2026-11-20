@@ -4,7 +4,7 @@ use cyex_settings::schema::{Accounts, TokenSource};
 use serde::Serialize;
 use ts_rs::TS;
 
-use crate::{Feature, SevenTvTokens, TokenKind, TokenState, Vault, caps, scopes, seventv};
+use crate::{CyextvSessions, Feature, SevenTvTokens, TokenKind, TokenState, Vault, caps, scopes, seventv};
 
 #[derive(Clone, Debug, Serialize, TS)]
 #[serde(rename_all = "camelCase")]
@@ -21,6 +21,7 @@ pub struct AccountView {
     pub missing_scopes: Vec<String>,
     pub features: Vec<Feature>,
     pub seventv: SevenTvView,
+    pub cyextv: CyextvView,
 }
 
 /// V1051-02 Where an account stands with 7TV. Never the token.
@@ -37,6 +38,18 @@ pub struct SevenTvView {
     pub until: Option<String>,
 }
 
+/// V112-14 Where an account stands with cyex.tv. Never a token.
+#[derive(Clone, Debug, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct CyextvView {
+    pub signed_in: bool,
+    /// The cyex.tv account's name; empty when not signed in or not known yet.
+    pub name: String,
+    /// cyex.tv ended the session: "Sign in again".
+    pub ended: bool,
+}
+
 #[derive(Clone, Debug, Serialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
@@ -49,7 +62,13 @@ pub struct TokenView {
 }
 
 /// `now`: unix seconds, for the 7TV session's `exp`.
-pub fn views(accounts: &Accounts, vault: &Vault, seventv: &SevenTvTokens, now: i64) -> Vec<AccountView> {
+pub fn views(
+    accounts: &Accounts,
+    vault: &Vault,
+    seventv: &SevenTvTokens,
+    cyextv: &CyextvSessions,
+    now: i64,
+) -> Vec<AccountView> {
     accounts
         .list
         .iter()
@@ -71,7 +90,13 @@ pub fn views(accounts: &Accounts, vault: &Vault, seventv: &SevenTvTokens, now: i
                 .map(|m| m.scopes.as_slice());
             let expired = seventv.ended(&a.user_id, now);
             let token = seventv.get(&a.user_id).filter(|_| !expired);
+            let who = cyextv.who(&a.user_id);
             AccountView {
+                cyextv: CyextvView {
+                    signed_in: who.is_some(),
+                    ended: who.is_none() && cyextv.ended(&a.user_id),
+                    name: who.map(|w| w.name).unwrap_or_default(),
+                },
                 seventv: SevenTvView {
                     consent: a.seventv.is_some(),
                     signed_in: token.is_some(),
@@ -122,6 +147,7 @@ mod tests {
         };
         let vault = Vault::new(Arc::new(MemoryStore::default()));
         let tokens = SevenTvTokens::new(Arc::new(MemoryStore::default()));
+        let tv = CyextvSessions::new(Arc::new(MemoryStore::default()));
         let secret = Secret {
             access: "a".into(),
             refresh: None,
@@ -129,7 +155,7 @@ mod tests {
         };
         vault.put("1", TokenKind::Helix, secret).unwrap();
 
-        let v = &views(&accounts, &vault, &tokens, 0)[0];
+        let v = &views(&accounts, &vault, &tokens, &tv, 0)[0];
         assert!(v.is_default && v.missing_scopes.is_empty());
         assert!(v.features.contains(&Feature::SendChat));
         // The GQL token isn't in the credential store, so GQL tools stay hidden.
@@ -137,7 +163,7 @@ mod tests {
         assert!(!v.features.contains(&Feature::Miner));
 
         vault.mark("1", TokenKind::Helix, TokenState::Invalid);
-        assert!(views(&accounts, &vault, &tokens, 0)[0].features.is_empty());
+        assert!(views(&accounts, &vault, &tokens, &tv, 0)[0].features.is_empty());
     }
 
     /// V106-31/32 A rejected or run-out 7TV session reads "Sign in again", not "Not signed in".
@@ -152,7 +178,8 @@ mod tests {
         };
         let vault = Vault::new(Arc::new(MemoryStore::default()));
         let tokens = SevenTvTokens::new(Arc::new(MemoryStore::default()));
-        let v = |now| views(&accounts, &vault, &tokens, now)[0].seventv.clone();
+        let tv = CyextvSessions::new(Arc::new(MemoryStore::default()));
+        let v = |now| views(&accounts, &vault, &tokens, &tv, now)[0].seventv.clone();
         assert!(!v(0).signed_in && !v(0).expired);
         // `{"sub":"01X","exp":2000}`
         let t = SevenTvToken::parse("e30.eyJzdWIiOiIwMVgiLCJleHAiOjIwMDB9.c2ln").unwrap();
@@ -164,5 +191,33 @@ mod tests {
         assert!(!v(0).signed_in && v(0).expired);
         tokens.put("1", &t).unwrap();
         assert!(v(0).signed_in && !v(0).expired);
+    }
+
+    /// V112-14 Signed in shows the cyex.tv name; an ended session says so; never a token.
+    #[tokio::test]
+    async fn the_cyextv_line() {
+        use crate::cyextv::TokenAnswer;
+        use crate::cyextv::sessions::Who;
+        let accounts = Accounts {
+            list: vec![Account {
+                user_id: "1".into(),
+                ..Default::default()
+            }],
+            default_id: None,
+        };
+        let vault = Vault::new(Arc::new(MemoryStore::default()));
+        let tokens = SevenTvTokens::new(Arc::new(MemoryStore::default()));
+        let tv = CyextvSessions::new(Arc::new(MemoryStore::default()));
+        let v = || views(&accounts, &vault, &tokens, &tv, 0)[0].cyextv.clone();
+        assert!(!v().signed_in && !v().ended && v().name.is_empty());
+        let t = TokenAnswer { access: "a".into(), refresh: "r".into(), expires_in: 3600, scope: String::new() };
+        let who = Who { id: "x".into(), name: "Ada".into() };
+        tv.start("1", &t, &who, 0).await.unwrap();
+        assert!(v().signed_in && v().name == "Ada");
+        tv.stale("1", "a");
+        let _ = tv.bearer("1", 0, |_| async { Err(crate::CyextvError::SignedOut) }).await;
+        assert!(!v().signed_in && v().ended);
+        let json = serde_json::to_string(&views(&accounts, &vault, &tokens, &tv, 0)).unwrap();
+        assert!(!json.contains("\"r\""));
     }
 }

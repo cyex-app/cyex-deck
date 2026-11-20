@@ -1,22 +1,31 @@
 <!-- V109-B14 The cyex cosmetics page: a pop-up from the account menu, like the 7TV one. It acts
-     for the default account, or the one picked in the header. -->
+     for the default account, or the one picked in the header.
+     V112-16 A switch on top: cyex.tv (first, the default) or the deck's own cyex cosmetics. -->
 <script lang="ts">
   import Avatar from '../../components/Avatar.svelte';
+  import Segmented from '../../components/Segmented.svelte';
   import Select from '../../components/Select.svelte';
   import { accounts } from '../../lib/accounts.svelte';
   import { accountChoices } from '../cosmetics/accountChoices';
   import CyexCosmetics from './CyexCosmetics.svelte';
+  import CyextvCosmetics from './CyextvCosmetics.svelte';
 
   let chosen = $state<string | null>(null);
   const picked = $derived(
     accounts.list.find((a) => a.userId === chosen) ?? accounts.current ?? accounts.list[0] ?? null,
   );
   const choices = $derived(accountChoices(accounts.list));
+  const SIDES = [
+    { value: 'tv', label: 'cyex.tv' },
+    { value: 'deck', label: 'cyex deck' },
+  ] as const;
+  let side = $state<'tv' | 'deck'>('tv');
 </script>
 
 <div class="view">
   <header>
     <h1>cyex cosmetics</h1>
+    <Segmented label="Which cosmetics" options={SIDES} value={side} onchange={(v) => (side = v)} />
     {#if accounts.list.length > 1 && picked}
       <Select label="Account" width="220px" value={picked.userId} options={choices} onchange={(id) => (chosen = id)} />
     {:else if accounts.list.length === 1}
@@ -26,7 +35,7 @@
   <div class="body">
     {#if picked}
       {#key picked.userId}
-        <CyexCosmetics account={picked} />
+        {#if side === 'tv'}<CyextvCosmetics account={picked} />{:else}<CyexCosmetics account={picked} />{/if}
       {/key}
     {/if}
   </div>

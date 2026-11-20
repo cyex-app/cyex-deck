@@ -38,6 +38,8 @@ keyring = "4.2"
 url = "2"
 # V105-20 The update's SHA-256 (already in the build through wry).
 sha2 = "0.10"
+# V112-14 The cyex.tv sign-in's PKCE verifier and state from the OS (already in the build).
+getrandom = "0.3"
 # V105-20 Verifies the update's minisign signature (verify-only, no other dependencies).
 minisign-verify = "0.2"
 regex = "1"

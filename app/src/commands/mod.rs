@@ -11,6 +11,7 @@ mod community;
 mod content;
 mod cosmetics;
 mod cyex;
+mod cyextv;
 mod emotes;
 pub mod feeds;
 pub mod highlights;
@@ -328,6 +329,11 @@ pub fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static 
         cyex::cyex_badge_history,
         cyex::cyex_badge_restore,
         cyex::cyex_badge_preview,
+        cyextv::cyextv_sign_in,
+        cyextv::cyextv_sign_in_cancel,
+        cyextv::cyextv_sign_out,
+        cyextv::cyextv_cosmetics,
+        cyextv::cyextv_select,
         cosmetics::cosmetics_view,
         cosmetics::cosmetics_allow,
         cosmetics::cosmetics_select,
