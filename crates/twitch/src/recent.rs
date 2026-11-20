@@ -1,4 +1,4 @@
-//! C1 Recent chat history from recent-messages.robotty.de, the service Chatterino uses.
+//! C1 Recent chat history from recent-messages.zneix.eu (V112-20, the user's pick; same API as robotty's), with logs.cyex.app standing in where it has none (C35).
 //! Lines come back as raw IRC, oldest first, tagged `historical=1`.
 
 use serde::Deserialize;
@@ -6,7 +6,7 @@ use serde::Deserialize;
 use crate::pace::{self, Lane, Service};
 use crate::{Error, Http, Result};
 
-const URL: &str = "https://recent-messages.robotty.de/api/v2/recent-messages";
+const URL: &str = "https://recent-messages.zneix.eu/api/v2/recent-messages";
 
 #[derive(Deserialize)]
 struct Response {
