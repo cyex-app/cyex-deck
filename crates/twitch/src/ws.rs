@@ -39,6 +39,40 @@ const WRITE_TIMEOUT: Duration = Duration::from_secs(10);
 #[cfg(test)]
 const WRITE_TIMEOUT: Duration = Duration::from_millis(200);
 
+/// V112-05 Sends `msg` no sooner than `gap` after the last line (`last`).
+async fn send_paced<S>(sink: &mut S, msg: Message, gap: Duration, last: &mut Option<Instant>) -> bool
+where
+    S: futures_util::Sink<Message> + Unpin,
+{
+    if !gap.is_zero() {
+        if let Some(at) = *last {
+            sleep_until(at + gap).await;
+        }
+        *last = Some(Instant::now());
+    }
+    send(sink, msg).await
+}
+
+/// V112-05 Sends every line of one kind of change, paced.
+async fn send_lines<S>(sink: &mut S, lines: Vec<String>, gap: Duration, last: &mut Option<Instant>) -> bool
+where
+    S: futures_util::Sink<Message> + Unpin,
+{
+    for line in lines {
+        if !send_paced(sink, Message::text(line), gap, last).await {
+            return false;
+        }
+    }
+    true
+}
+
+/// V112-05 One change to the topics, as it goes out on the open connection.
+enum Out<T> {
+    Sub(T),
+    Unsub(T),
+    Line(String),
+}
+
 pub(crate) fn config() -> WebSocketConfig {
     WebSocketConfig::default()
         .max_message_size(Some(MAX_MESSAGE))
@@ -64,6 +98,19 @@ pub trait Protocol: Send + 'static {
     }
     fn subscribe(&self, topic: &Self::Topic) -> String;
     fn unsubscribe(&self, topic: &Self::Topic) -> String;
+    /// V112-05 The lines that subscribe to all of `topics`; a protocol with a batch message packs
+    /// several topics into one line (frames are rate-limited there).
+    fn subscribe_many(&self, topics: &[&Self::Topic]) -> Vec<String> {
+        topics.iter().map(|t| self.subscribe(t)).collect()
+    }
+    /// V112-05 The lines that unsubscribe from all of `topics`.
+    fn unsubscribe_many(&self, topics: &[&Self::Topic]) -> Vec<String> {
+        topics.iter().map(|t| self.unsubscribe(t)).collect()
+    }
+    /// V112-05 Least time between two lines sent (a server that limits frames a second).
+    fn frame_gap(&self) -> Duration {
+        Duration::ZERO
+    }
     /// Most topics one connection may hold, counted by `cost`.
     fn limit(&self) -> usize;
     /// F18 What a topic counts toward `limit` in a `Pool`; some cost the server more.
@@ -189,10 +236,11 @@ async fn run<P: Protocol>(
         let gated = p.gated();
         let mut ready = !gated;
         let mut ok = true;
+        let gap = p.frame_gap();
+        let mut last: Option<Instant> = None;
         if ready {
-            for t in &topics {
-                ok &= send(&mut sink, Message::text(p.subscribe(t))).await;
-            }
+            let all: Vec<&P::Topic> = topics.iter().collect();
+            ok &= send_lines(&mut sink, p.subscribe_many(&all), gap, &mut last).await;
             if ok {
                 note_synced(&mut p, &mut synced);
             }
@@ -206,12 +254,11 @@ async fn run<P: Protocol>(
                         match p.read(&text, &events) {
                             Step::Continue => {}
                             Step::Reconnect => break,
-                            Step::Reply(line) => ok = send(&mut sink, Message::text(line)).await,
+                            Step::Reply(line) => ok = send_paced(&mut sink, Message::text(line), gap, &mut last).await,
                             Step::Ready if !ready => {
                                 ready = true;
-                                for t in &topics {
-                                    ok &= send(&mut sink, Message::text(p.subscribe(t))).await;
-                                }
+                                let all: Vec<&P::Topic> = topics.iter().collect();
+                                ok &= send_lines(&mut sink, p.subscribe_many(&all), gap, &mut last).await;
                                 if ok {
                                     note_synced(&mut p, &mut synced);
                                 }
@@ -223,16 +270,44 @@ async fn run<P: Protocol>(
                     Some(Ok(_)) => deadline = Instant::now() + p.idle(),
                 },
                 c = cmds.recv() => {
-                    let Some(c) = c else { return };
-                    let line = match &c {
-                        Cmd::Add(t) if ready && !topics.contains(t) && topics.len() < p.limit() => Some(p.subscribe(t)),
-                        Cmd::Remove(t) if ready && topics.contains(t) => Some(p.unsubscribe(t)),
-                        Cmd::Send(line) => Some(line.clone()),
-                        _ => None,
-                    };
-                    apply(&mut topics, c, p.limit());
-                    if let Some(line) = line {
-                        ok = send(&mut sink, Message::text(line)).await;
+                    let Some(first) = c else { return };
+                    // V112-05 Whatever else is waiting goes out in the same lines.
+                    let mut batch = vec![first];
+                    while batch.len() < 64 {
+                        match cmds.try_recv() {
+                            Ok(c) => batch.push(c),
+                            Err(_) => break,
+                        }
+                    }
+                    let mut out: Vec<Out<P::Topic>> = Vec::new();
+                    for c in batch {
+                        match &c {
+                            Cmd::Add(t) if ready && !topics.contains(t) && topics.len() < p.limit() => out.push(Out::Sub(t.clone())),
+                            Cmd::Remove(t) if ready && topics.contains(t) => out.push(Out::Unsub(t.clone())),
+                            Cmd::Send(line) => out.push(Out::Line(line.clone())),
+                            _ => {}
+                        }
+                        apply(&mut topics, c, p.limit());
+                    }
+                    let mut i = 0;
+                    while ok && i < out.len() {
+                        let mut j = i + 1;
+                        while j < out.len() && std::mem::discriminant(&out[j]) == std::mem::discriminant(&out[i]) {
+                            j += 1;
+                        }
+                        let lines = match &out[i] {
+                            Out::Sub(_) => {
+                                let ts: Vec<&P::Topic> = out[i..j].iter().filter_map(|o| if let Out::Sub(t) = o { Some(t) } else { None }).collect();
+                                p.subscribe_many(&ts)
+                            }
+                            Out::Unsub(_) => {
+                                let ts: Vec<&P::Topic> = out[i..j].iter().filter_map(|o| if let Out::Unsub(t) = o { Some(t) } else { None }).collect();
+                                p.unsubscribe_many(&ts)
+                            }
+                            Out::Line(_) => out[i..j].iter().filter_map(|o| if let Out::Line(l) = o { Some(l.clone()) } else { None }).collect(),
+                        };
+                        ok = send_lines(&mut sink, lines, gap, &mut last).await;
+                        i = j;
                     }
                     if topics.is_empty() {
                         let _ = send(&mut sink, Message::Close(None)).await;

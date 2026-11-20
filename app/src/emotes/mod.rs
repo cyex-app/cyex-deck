@@ -9,6 +9,7 @@ mod card;
 mod card_flags;
 pub mod cyex;
 mod cyextv;
+mod cyextv_live;
 pub mod edit;
 mod extra;
 mod ffz_watch;
@@ -61,6 +62,8 @@ pub struct Emotes {
     inner: Mutex<Inner>,
     /// F18 As many 7TV connections as the chats need.
     seventv: ws::Pool<EventApi>,
+    /// V112-05 cyex.tv's event socket and what it follows.
+    cyextv_live: cyextv_live::Live,
     /// BTTV socket, by channel id.
     bttv: ws::Topics<String>,
     /// Global sets are in (or failed).
@@ -147,6 +150,13 @@ pub fn init(app: &AppHandle) {
         events,
         spawn,
     );
+    // V112-05 cyex.tv's socket; a test run may point it at a mock.
+    #[cfg(feature = "mocks")]
+    if let Ok(url) = std::env::var("CYEX_CYEXTV_WS") {
+        cyex_emotes::cyextv::socket::use_mock(&url);
+    }
+    let (events, cyextv_rx) = tokio::sync::mpsc::unbounded_channel();
+    let cyextv_live = cyextv_live::Live::new(ws::Pool::new(cyex_emotes::cyextv::socket::EventApi::new, events, spawn));
     let (events, bttv_rx) = tokio::sync::mpsc::unbounded_channel();
     let (bttv, task) = ws::start(cyex_emotes::bttv::socket::Socket, events);
     tauri::async_runtime::spawn(task);
@@ -161,12 +171,14 @@ pub fn init(app: &AppHandle) {
             ..Inner::default()
         }),
         seventv,
+        cyextv_live,
         bttv,
         globals_ready: watch::channel(false).0,
     });
     presence::init(app);
     own::init(app);
     live::spawn(app.clone(), rx);
+    cyextv_live::spawn(app.clone(), cyextv_rx);
     providers::spawn_bttv(app.clone(), bttv_rx);
     looks::spawn(app.clone());
     cyextv::spawn(app.clone());
@@ -417,6 +429,10 @@ fn join(app: &AppHandle, login: &str, channel_id: &str, generation: u64) {
                 },
             );
             inner.rebuild(login);
+            // V112-05 With cyex.tv's emotes off nothing of it is followed.
+            if !inner.sets_off.cyextv {
+                state.cyextv_live.add_channel(channel_id);
+            }
             Some(generation)
         }
     };
@@ -439,16 +455,21 @@ fn leave(app: &AppHandle, login: &str, generation: u64) {
     let Some(state) = app.try_state::<Emotes>() else {
         return;
     };
-    let c = {
+    let (c, cyextv_off) = {
         let mut inner = state.lock();
         if inner.channels.get(login).is_none_or(|c| c.generation > generation) {
             return;
         }
-        inner.forget_channel(login)
+        let off = inner.sets_off.cyextv;
+        (inner.forget_channel(login), off)
     };
     let Some(c) = c else {
         return;
     };
+    if !cyextv_off {
+        state.cyextv_live.remove_channel(&c.id);
+    }
+    state.cyextv_live.drop_sets(&c, Scope::Channel);
     for t in SevenTopic::channel(&c.id) {
         state.seventv.remove(&t);
     }
@@ -503,7 +524,13 @@ pub fn on_settings(app: &AppHandle) {
         inner.idle = plan.idle;
         let newly_off = plan.sets_off.minus(was_off);
         if newly_off.any() {
-            drop_sets(&mut inner, &state.seventv, newly_off);
+            drop_sets(&mut inner, &state.seventv, &state.cyextv_live, newly_off);
+        }
+        // V112-05 Back on: its channels are followed again (their sets come with the read below).
+        if was_off.cyextv && !plan.sets_off.cyextv {
+            for c in inner.channels.values() {
+                state.cyextv_live.add_channel(&c.id);
+            }
         }
         inner.rebuild_all();
         let users: Vec<String> = inner.user_sets.keys().cloned().collect();
@@ -529,9 +556,14 @@ pub fn on_settings(app: &AppHandle) {
 }
 
 /// V110-E13 A provider's sets go: global, each channel's and, for 7TV, their socket topics.
-fn drop_sets(inner: &mut Inner, seventv: &ws::Pool<EventApi>, off: Which) {
+fn drop_sets(inner: &mut Inner, seventv: &ws::Pool<EventApi>, cyextv: &cyextv_live::Live, off: Which) {
     inner.globals.retain(|s| !off.has(s.provider));
+    cyextv.sync_global(&inner.globals);
     for c in inner.channels.values_mut() {
+        if off.cyextv {
+            cyextv.remove_channel(&c.id);
+            cyextv.drop_sets(c, Scope::Channel);
+        }
         if off.seventv {
             for s in c.sets.iter().filter(|s| s.provider == Provider::Seventv) {
                 seventv.remove(&SevenTopic::Set(s.id.clone()));

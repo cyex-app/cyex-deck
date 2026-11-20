@@ -387,12 +387,17 @@ type ChangeLine = (String, Option<NoticeEmote>);
 /// Set renamed and size changes read the same way. V111-01 Emote lines carry the emote (a removed
 /// one only as id and name) for its picture.
 fn lines(actor: Option<&str>, c: &SetChange) -> Vec<ChangeLine> {
+    lines_for("7TV", actor, c)
+}
+
+/// V112-06 [`lines`] for any provider, named in the text.
+pub(super) fn lines_for(provider: &str, actor: Option<&str>, c: &SetChange) -> Vec<ChangeLine> {
     let mut out: Vec<ChangeLine> = Vec::new();
     for e in &c.added {
         out.push((
             match actor {
-                Some(a) => format!("{a} added the 7TV emote {}.", e.name),
-                None => format!("The 7TV emote {} was added.", e.name),
+                Some(a) => format!("{a} added the {provider} emote {}.", e.name),
+                None => format!("The {provider} emote {} was added.", e.name),
             },
             Some(e.notice()),
         ));
@@ -400,8 +405,8 @@ fn lines(actor: Option<&str>, c: &SetChange) -> Vec<ChangeLine> {
     for (id, name) in &c.removed {
         out.push((
             match actor {
-                Some(a) => format!("{a} removed the 7TV emote {name}."),
-                None => format!("The 7TV emote {name} was removed."),
+                Some(a) => format!("{a} removed the {provider} emote {name}."),
+                None => format!("The {provider} emote {name} was removed."),
             },
             Some(Emote::new(Provider::Seventv, id.clone(), name.clone()).notice()),
         ));
@@ -410,8 +415,8 @@ fn lines(actor: Option<&str>, c: &SetChange) -> Vec<ChangeLine> {
         if *old != new.name {
             out.push((
                 match actor {
-                    Some(a) => format!("{a} renamed the 7TV emote {old} to {}.", new.name),
-                    None => format!("The 7TV emote {old} is now {}.", new.name),
+                    Some(a) => format!("{a} renamed the {provider} emote {old} to {}.", new.name),
+                    None => format!("The {provider} emote {old} is now {}.", new.name),
                 },
                 Some(new.notice()),
             ));
@@ -420,10 +425,10 @@ fn lines(actor: Option<&str>, c: &SetChange) -> Vec<ChangeLine> {
     if let Some((old, new)) = &c.set_renamed {
         out.push((
             match (actor, old.is_empty()) {
-                (Some(a), false) => format!("{a} renamed the 7TV set {old} to {new}."),
-                (Some(a), true) => format!("{a} renamed the 7TV set to {new}."),
-                (None, false) => format!("The 7TV set {old} is now {new}."),
-                (None, true) => format!("The 7TV set is now {new}."),
+                (Some(a), false) => format!("{a} renamed the {provider} set {old} to {new}."),
+                (Some(a), true) => format!("{a} renamed the {provider} set to {new}."),
+                (None, false) => format!("The {provider} set {old} is now {new}."),
+                (None, true) => format!("The {provider} set is now {new}."),
             },
             None,
         ));
@@ -431,8 +436,8 @@ fn lines(actor: Option<&str>, c: &SetChange) -> Vec<ChangeLine> {
     if let Some((_, size)) = c.capacity {
         out.push((
             match actor {
-                Some(a) => format!("{a} set the 7TV set size to {size}."),
-                None => format!("The 7TV set size is now {size}."),
+                Some(a) => format!("{a} set the {provider} set size to {size}."),
+                None => format!("The {provider} set size is now {size}."),
             },
             None,
         ));
@@ -442,13 +447,18 @@ fn lines(actor: Option<&str>, c: &SetChange) -> Vec<ChangeLine> {
 
 /// V108-C31 The line for a channel switching to another set (or none).
 pub(super) fn switch_line(actor: Option<&str>, name: Option<&str>, off: bool) -> String {
+    switch_line_for("7TV", actor, name, off)
+}
+
+/// V112-06 [`switch_line`] for any provider.
+pub(super) fn switch_line_for(provider: &str, actor: Option<&str>, name: Option<&str>, off: bool) -> String {
     match (actor, name, off) {
-        (Some(a), _, true) => format!("{a} turned off the 7TV emote set."),
-        (None, _, true) => "The 7TV emote set was turned off.".into(),
-        (Some(a), Some(n), _) => format!("{a} switched to the 7TV emote set {n}."),
-        (None, Some(n), _) => format!("The 7TV emote set is now {n}."),
-        (Some(a), None, _) => format!("{a} switched the 7TV emote set."),
-        (None, None, _) => "The 7TV emote set changed.".into(),
+        (Some(a), _, true) => format!("{a} turned off the {provider} emote set."),
+        (None, _, true) => format!("The {provider} emote set was turned off."),
+        (Some(a), Some(n), _) => format!("{a} switched to the {provider} emote set {n}."),
+        (None, Some(n), _) => format!("The {provider} emote set is now {n}."),
+        (Some(a), None, _) => format!("{a} switched the {provider} emote set."),
+        (None, None, _) => format!("The {provider} emote set changed."),
     }
 }
 
@@ -519,6 +529,18 @@ mod tests {
                 "The 7TV emote b is now bee."
             ]
         );
+    }
+
+    #[test]
+    fn v112_06_lines_name_the_provider() {
+        let c = SetChange {
+            set_id: "s".into(),
+            added: vec![emote("3", "c")],
+            ..SetChange::default()
+        };
+        let t: Vec<String> = lines_for("cyex.tv", None, &c).into_iter().map(|(t, _)| t).collect();
+        assert_eq!(t, ["The cyex.tv emote c was added."]);
+        assert_eq!(switch_line_for("cyex.tv", None, Some("Hype"), false), "The cyex.tv emote set is now Hype.");
     }
 
     #[test]

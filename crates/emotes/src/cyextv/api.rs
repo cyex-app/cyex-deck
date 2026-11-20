@@ -23,7 +23,7 @@ static BASE: std::sync::OnceLock<String> = std::sync::OnceLock::new();
 pub fn use_mock(base: &str) {
     let _ = BASE.set(base.trim_end_matches('/').to_owned());
 }
-fn base() -> &'static str {
+pub(super) fn base() -> &'static str {
     #[cfg(feature = "mocks")]
     if let Some(b) = BASE.get() {
         return b;
@@ -43,7 +43,38 @@ pub async fn global_raw(http: &Http) -> Result<Value> {
 }
 
 pub fn parse_global(v: &Value) -> serde_json::Result<EmoteSet> {
-    Ok(RawSet::deserialize(v)?.into_set("cyextv-global".to_owned(), Scope::Global))
+    let set = RawSet::deserialize(v)?;
+    let id = deck_set_id(&set.id);
+    Ok(set.into_set(id, Scope::Global))
+}
+
+/// V112-05 The deck's id for a cyex.tv set: its own id behind a prefix, so a live event's set id
+/// finds the set whatever its scope.
+pub fn deck_set_id(set_id: &str) -> String {
+    format!("cyextv-{set_id}")
+}
+
+/// V112-05 cyex.tv's id inside a [`deck_set_id`].
+pub fn set_id(deck_set_id: &str) -> &str {
+    deck_set_id.strip_prefix("cyextv-").unwrap_or(deck_set_id)
+}
+
+/// V112-05 One set by id, as cyex.tv sent it (a live change re-reads the set).
+pub async fn set_raw(http: &Http, set_id: &str, lane: Lane) -> Result<Value> {
+    let opts = Opts {
+        lane,
+        quick: true,
+        ..Opts::default()
+    };
+    http.get_json_paced_with(Service::Cyextv, opts, &format!("{}/sets/{}", base(), enc(set_id)))
+        .await
+}
+
+/// V112-05 A [`set_raw`] answer in the scope it is used in.
+pub fn parse_set(v: &Value, scope: Scope) -> serde_json::Result<EmoteSet> {
+    let set = RawSet::deserialize(v)?;
+    let id = deck_set_id(&set.id);
+    Ok(set.into_set(id, scope))
 }
 
 /// V112-02 The channel's active set. `None` without a cyex.tv channel (404) or without an
@@ -87,9 +118,11 @@ pub fn parse_channel(twitch_id: &str, v: &Value) -> serde_json::Result<Option<Em
         return Ok(None);
     }
     let answer = RawChannelAnswer::deserialize(v)?;
-    Ok(answer
-        .set
-        .map(|set| set.into_set(format!("cyextv-{twitch_id}"), Scope::Channel)))
+    let _ = twitch_id;
+    Ok(answer.set.map(|set| {
+        let id = deck_set_id(&set.id);
+        set.into_set(id, Scope::Channel)
+    }))
 }
 
 /// V112-04 The personal sets of these Twitch user ids (at most [`MAX_LOOKUP`]).
@@ -118,7 +151,7 @@ pub fn parse_personal(v: &Value) -> serde_json::Result<Vec<(String, EmoteSet)>> 
         .sets
         .into_iter()
         .map(|e| {
-            let id = format!("cyextv-{}", e.set.id);
+            let id = deck_set_id(&e.set.id);
             (e.platform_user_id, e.set.into_set(id, Scope::Personal))
         })
         .filter(|(_, s)| !s.emotes.is_empty())
@@ -440,7 +473,8 @@ mod tests {
     #[test]
     fn global_keeps_the_alias_and_zero_width() {
         let set = parse_global(&fixture("global.json")).unwrap();
-        assert_eq!(set.id, "cyextv-global");
+        assert_eq!(set.id, "cyextv-01GLOBALSET00000000000000");
+        assert_eq!(super::set_id(&set.id), "01GLOBALSET00000000000000");
         assert_eq!(set.scope, Scope::Global);
         let names: Vec<_> = set.emotes.iter().map(|e| e.name.as_str()).collect();
         assert_eq!(names, ["Hello", "wave", "Sparkle"]);
@@ -487,7 +521,7 @@ mod tests {
     #[test]
     fn channel_reads_the_active_set() {
         let set = parse_channel("123", &fixture("channel.json")).unwrap().unwrap();
-        assert_eq!(set.id, "cyextv-123");
+        assert_eq!(set.id, "cyextv-01CHANNELSET00000000000000", "the set's own id, for live events");
         assert_eq!(set.scope, Scope::Channel);
         assert_eq!(set.name.as_deref(), Some("Main"));
         assert_eq!(set.emotes.len(), 1);

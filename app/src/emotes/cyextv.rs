@@ -102,6 +102,17 @@ pub fn want(app: &AppHandle, users: &[String]) {
     }
 }
 
+/// V112-06 These people are asked about again, e.g. after the live socket was down.
+pub fn again(app: &AppHandle, users: &[String]) {
+    if let Some(queue) = app.try_state::<Queue>() {
+        let mut s = queue.state.lock().unwrap_or_else(|p| p.into_inner());
+        for u in users {
+            s.asked.remove(u);
+        }
+    }
+    want(app, users);
+}
+
 async fn look_up(app: &AppHandle, queue: &Queue, batch: Vec<String>) {
     let http = app.state::<Auth>().http.clone();
     let got = api::personal_raw(&http, &batch, Lane::Back)

@@ -173,6 +173,10 @@ pub(super) fn merge_part(app: &AppHandle, login: &str, generation: u64, asked: W
                 None => load::clear_seventv(&state.seventv, c),
             }
         }
+        // V112-05 The new set's topic before the old one's goes.
+        if came.cyextv {
+            state.cyextv_live.swap_channel(c, got.cyextv.as_ref());
+        }
         put(c, came, got);
         inner.rebuild(login);
     }
@@ -264,6 +268,7 @@ fn put_globals(app: &AppHandle, answered: Which, sets: Vec<Arc<EmoteSet>>, tell:
     let logins: Vec<String> = {
         let mut inner = state.lock();
         swap_globals(&mut inner.globals, answered, sets);
+        state.cyextv_live.sync_global(&inner.globals);
         inner.globals_done = inner.globals_done.or(answered);
         if answered.any() {
             inner.rebuild_all();
@@ -287,6 +292,7 @@ fn put_kept_globals(app: &AppHandle, found: Which, sets: Vec<Arc<EmoteSet>>) {
     let logins: Vec<String> = {
         let mut inner = state.lock();
         swap_globals(&mut inner.globals, found, sets);
+        state.cyextv_live.sync_global(&inner.globals);
         inner.rebuild_all();
         inner.channels.keys().cloned().collect()
     };
