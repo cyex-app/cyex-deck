@@ -62,6 +62,7 @@ fn tag(p: Provider) -> Option<&'static str> {
         Provider::Seventv => Some("7tv"),
         Provider::Bttv => Some("bttv"),
         Provider::Ffz => Some("ffz"),
+        Provider::Cyextv => Some("cyextv"),
         Provider::Twitch => None,
     }
 }

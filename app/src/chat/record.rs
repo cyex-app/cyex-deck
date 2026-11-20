@@ -328,6 +328,11 @@ fn emote_asset(provider: Provider, id: &str, animated: bool) -> (String, String)
         ),
         Provider::Seventv => ("seventv", format!("https://cdn.7tv.app/emote/{e}/2x.webp")),
         Provider::Bttv => ("bttv", format!("https://cdn.betterttv.net/emote/{e}/2x.webp")),
+        // V112-01 The id is `<emote>.<picture folder>` (cyex_emotes::cyextv::api::deck_id).
+        Provider::Cyextv => (
+            "cyextv",
+            format!("https://cdn.cyex.tv/emotes/{}/2x.webp", id.split_once('.').map_or(id, |(_, key)| key)),
+        ),
         Provider::Ffz => (
             "ffz",
             format!(

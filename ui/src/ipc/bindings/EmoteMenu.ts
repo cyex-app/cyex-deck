@@ -5,4 +5,8 @@ export type EmoteMenu = { twitch: Array<MenuSection>,
 /**
  * Why Twitch emotes are missing, e.g. signed out.
  */
-twitchNote: string | null, seventv: Array<MenuSection>, bttv: Array<MenuSection>, ffz: Array<MenuSection>, };
+twitchNote: string | null, seventv: Array<MenuSection>, bttv: Array<MenuSection>, ffz: Array<MenuSection>, 
+/**
+ * V112-04 cyex.tv.
+ */
+cyextv: Array<MenuSection>, };

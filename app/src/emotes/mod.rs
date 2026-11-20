@@ -8,6 +8,7 @@ mod cache;
 mod card;
 mod card_flags;
 pub mod cyex;
+mod cyextv;
 pub mod edit;
 mod extra;
 mod ffz_watch;
@@ -168,6 +169,7 @@ pub fn init(app: &AppHandle) {
     live::spawn(app.clone(), rx);
     providers::spawn_bttv(app.clone(), bttv_rx);
     looks::spawn(app.clone());
+    cyextv::spawn(app.clone());
     extra::init(app);
     cyex::init(app);
     ffz_watch::init(app);
@@ -210,6 +212,7 @@ fn priority(c: &ChatSettings) -> Vec<Provider> {
             EmoteSource::Seventv => Some(Provider::Seventv),
             EmoteSource::Bttv => Some(Provider::Bttv),
             EmoteSource::Ffz => Some(Provider::Ffz),
+            EmoteSource::Cyextv => Some(Provider::Cyextv),
             EmoteSource::Emoji => None,
         })
         .filter(|p| *p == Provider::Twitch || !off.has(*p))
@@ -566,6 +569,7 @@ pub fn record_usage(app: &AppHandle, body: &[cyex_chat::model::Fragment]) {
             Provider::Seventv => EmoteSource::Seventv,
             Provider::Bttv => EmoteSource::Bttv,
             Provider::Ffz => EmoteSource::Ffz,
+            Provider::Cyextv => EmoteSource::Cyextv,
         };
         if !used.iter().any(|k| k.source == source && k.id == *id) {
             used.push(EmoteKey {

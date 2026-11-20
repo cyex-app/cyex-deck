@@ -24,6 +24,7 @@ const menu: EmoteMenu = {
   seventv: [{ id: 's', title: 'Channel', avatar: null, emotes: [e('seventv', 'a', 'chanWow')] }],
   bttv: [],
   ffz: [],
+  cyextv: [],
 };
 
 test('locked emotes never reach completion', () => {

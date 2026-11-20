@@ -10,9 +10,9 @@ import { type Candidate, rankEmotes } from './ranking.ts';
 
 export { usageRank } from './ranking.ts';
 
-export type ProviderTab = 'twitch' | 'seventv' | 'bttv' | 'ffz';
+export type ProviderTab = 'twitch' | 'seventv' | 'bttv' | 'ffz' | 'cyextv';
 
-export const PROVIDER_TABS: ProviderTab[] = ['twitch', 'seventv', 'bttv', 'ffz'];
+export const PROVIDER_TABS: ProviderTab[] = ['twitch', 'seventv', 'bttv', 'ffz', 'cyextv'];
 
 /** V105-04 A cell's key: one emote can sit in a set under two names. */
 export function cellKey(m: MenuEmote): string {

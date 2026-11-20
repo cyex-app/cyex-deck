@@ -1,0 +1,126 @@
+{
+  "sets": [
+    {
+      "platform_user_id": "4001",
+      "set": {
+        "id": "01PERSONALSET00000000000",
+        "name": "Personal",
+        "kind": "personal",
+        "owner": null,
+        "capacity": 1000,
+        "emotes": [
+          {
+            "name": "mine",
+            "zero_width": false,
+            "added_at": "2026-11-18T06:00:00.000Z",
+            "added_by": "01OWNER",
+            "emote": {
+              "id": "01MINE00000000000000000000",
+              "name": "Mine",
+              "owner": {
+                "id": "01OWNER",
+                "display_name": "Kappa Dev",
+                "avatar": "https://cdn.cyex.tv/avatars/01OWNER.webp"
+              },
+              "state": "approved",
+              "visibility": "public",
+              "flags": {
+                "zero_width": false,
+                "private": false,
+                "nsfw": false,
+                "wide": false
+              },
+              "animated": false,
+              "tags": [
+                "fixture"
+              ],
+              "host": "https://cdn.cyex.tv/emotes/3f2a9c1d5e7b40a8b6c4d2e1f0a9b8c7d6e5f4a3b2c1d0e9f8a7b6c5d4e3f2a1",
+              "files": [
+                {
+                  "name": "1x.webp",
+                  "format": "webp",
+                  "scale": 1,
+                  "width": 32,
+                  "height": 32,
+                  "size": 1000,
+                  "is_static": false
+                },
+                {
+                  "name": "2x.webp",
+                  "format": "webp",
+                  "scale": 2,
+                  "width": 64,
+                  "height": 64,
+                  "size": 2000,
+                  "is_static": false
+                },
+                {
+                  "name": "4x.webp",
+                  "format": "webp",
+                  "scale": 4,
+                  "width": 128,
+                  "height": 128,
+                  "size": 4000,
+                  "is_static": false
+                }
+              ],
+              "created_at": "2026-11-18T05:34:34.251Z",
+              "channel_count": 3
+            }
+          }
+        ],
+        "visibility": "listed",
+        "listed": true,
+        "slots_used": 1,
+        "created_at": "2026-11-18T05:34:34.251Z"
+      }
+    },
+    {
+      "platform_user_id": "4002",
+      "set": {
+        "id": "01EMPTYSET0000000000000000",
+        "name": "Personal",
+        "kind": "personal",
+        "owner": null,
+        "capacity": 1000,
+        "emotes": [
+          {
+            "name": "Pending",
+            "zero_width": false,
+            "added_at": "2026-11-18T06:00:00.000Z",
+            "added_by": "01OWNER",
+            "emote": {
+              "id": "01PENDING00000000000000000",
+              "name": "Pending",
+              "owner": {
+                "id": "01OWNER",
+                "display_name": "Kappa Dev",
+                "avatar": "https://cdn.cyex.tv/avatars/01OWNER.webp"
+              },
+              "state": "approved",
+              "visibility": "public",
+              "flags": {
+                "zero_width": false,
+                "private": false,
+                "nsfw": false,
+                "wide": false
+              },
+              "animated": false,
+              "tags": [
+                "fixture"
+              ],
+              "host": "",
+              "files": [],
+              "created_at": "2026-11-18T05:34:34.251Z",
+              "channel_count": 3
+            }
+          }
+        ],
+        "visibility": "listed",
+        "listed": true,
+        "slots_used": 1,
+        "created_at": "2026-11-18T05:34:34.251Z"
+      }
+    }
+  ]
+}

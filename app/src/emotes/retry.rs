@@ -85,8 +85,8 @@ fn log_gave_up(failed: Which, what: &str) {
     }
 }
 
-fn names(w: Which) -> [(&'static str, bool); 3] {
-    [("7TV", w.seventv), ("BTTV", w.bttv), ("FFZ", w.ffz)]
+fn names(w: Which) -> [(&'static str, bool); 4] {
+    [("7TV", w.seventv), ("BTTV", w.bttv), ("FFZ", w.ffz), ("cyex.tv", w.cyextv)]
 }
 
 /// Waits `wait`, or less once the channel is on screen. Gives the lane to ask in. B5
@@ -198,6 +198,9 @@ fn put(c: &mut Channel, came: Which, got: Fetched) {
     if came.ffz {
         replace(&mut c.sets, Provider::Ffz, Scope::Channel, got.ffz);
     }
+    if came.cyextv {
+        replace(&mut c.sets, Provider::Cyextv, Scope::Channel, got.cyextv);
+    }
     if let Some(b) = got.badges {
         c.ffz_badges = b;
     }
@@ -299,6 +302,7 @@ fn swap_globals(globals: &mut Vec<Arc<EmoteSet>>, answered: Which, sets: Vec<Arc
         Provider::Seventv => answered.seventv,
         Provider::Bttv => answered.bttv,
         Provider::Ffz => answered.ffz,
+        Provider::Cyextv => answered.cyextv,
         Provider::Twitch => false,
     };
     globals.retain(|s| !swapped(s.provider));
@@ -494,14 +498,14 @@ mod tests {
             (Key::Channel(Provider::Seventv, "1".into()), serde_json::json!({ "x": 1 })),
         ];
         let (found, got) = providers::kept_channel("1", Which::default(), kept);
-        assert_eq!(found, Which { seventv: false, bttv: true, ffz: true });
+        assert_eq!(found, Which { seventv: false, bttv: true, ffz: true, cyextv: false });
         put(&mut c, found, got);
         let ids = |c: &Channel| c.sets.iter().map(|s| s.id.clone()).collect::<Vec<_>>();
         let kept_ids = ids(&c);
         assert!(kept_ids.contains(&"bttv-1".to_owned()) && kept_ids.len() == 2, "{kept_ids:?}");
         // 7TV and BTTV down: what was kept stays.
-        let down = Fetched { failed: Which { seventv: true, bttv: true, ffz: false }, ..Fetched::default() };
-        let asked = Which { seventv: true, bttv: true, ffz: false };
+        let down = Fetched { failed: Which { seventv: true, bttv: true, ffz: false, cyextv: false }, ..Fetched::default() };
+        let asked = Which { seventv: true, bttv: true, ffz: false, cyextv: false };
         put(&mut c, asked.minus(down.failed), down);
         assert_eq!(ids(&c), kept_ids);
         // BTTV back: its fresh set takes the kept one's place.
@@ -517,11 +521,13 @@ mod tests {
             seventv: true,
             bttv: false,
             ffz: true,
+            cyextv: false,
         };
         let failed = Which {
             seventv: false,
             bttv: false,
             ffz: true,
+            cyextv: false,
         };
         let got = asked.minus(failed);
         assert!(got.seventv && !got.bttv && !got.ffz);

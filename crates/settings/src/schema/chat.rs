@@ -60,6 +60,8 @@ pub struct Chat {
     pub bttv_emotes: bool,
     /// V110-E13 FFZ emotes, as `seventv_emotes`.
     pub ffz_emotes: bool,
+    /// V112-01 cyex.tv emotes, as `seventv_emotes`.
+    pub cyextv_emotes: bool,
     /// V110-E13 The one switch from before for all three: read once, then the three take over.
     /// Never written back.
     #[serde(rename = "thirdPartyEmotes", skip_serializing)]
@@ -213,6 +215,7 @@ impl Default for Chat {
             seventv_emotes: true,
             bttv_emotes: true,
             ffz_emotes: true,
+            cyextv_emotes: true,
             old_third_party_emotes: None,
             unlisted_emotes: UnlistedEmotes::Blur,
             unlisted_chosen: false,
@@ -839,7 +842,7 @@ mod tests {
         c.sanitize();
         assert_eq!(
             c.emote_priority,
-            [EmoteSource::Ffz, EmoteSource::Twitch, EmoteSource::Seventv, EmoteSource::Bttv]
+            [EmoteSource::Ffz, EmoteSource::Twitch, EmoteSource::Seventv, EmoteSource::Bttv, EmoteSource::Cyextv]
         );
         assert_eq!(c.emote_size, 50);
     }
@@ -853,7 +856,7 @@ mod tests {
         c.sanitize();
         assert_eq!(
             c.emote_priority,
-            [EmoteSource::Twitch, EmoteSource::Bttv, EmoteSource::Seventv, EmoteSource::Ffz]
+            [EmoteSource::Twitch, EmoteSource::Bttv, EmoteSource::Seventv, EmoteSource::Ffz, EmoteSource::Cyextv]
         );
         assert_eq!(Chat::default().emote_priority, EmoteSource::RANKED);
     }

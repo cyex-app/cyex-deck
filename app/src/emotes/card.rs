@@ -333,6 +333,8 @@ fn owner_url(provider: Provider, e: &Emote) -> Option<String> {
             url.path_segments_mut().ok()?.pop_if_empty().push(key);
             Some(url.into())
         }
+        // V112-08 The owner's page comes with the emote card.
+        Provider::Cyextv => None,
         Provider::Twitch => None,
     }
 }
@@ -350,6 +352,7 @@ fn page(provider: Provider, id: &str, name: &str) -> Option<String> {
                 .push(&format!("{id}-{name}"));
             Some(url.into())
         }
+        Provider::Cyextv => Some(format!("https://cyex.tv/emotes/{}", cyex_emotes::cyextv::api::emote_id(id))),
         Provider::Twitch => Some(format!("https://chatvau.lt/emote/twitch/{id}")),
     }
 }

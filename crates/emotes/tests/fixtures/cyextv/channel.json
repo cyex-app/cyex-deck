@@ -1,0 +1,86 @@
+{
+  "channel": {
+    "platform": "twitch",
+    "platform_channel_id": "123",
+    "login": "somestreamer",
+    "account": {
+      "id": "01OWNER",
+      "display_name": "Kappa Dev",
+      "avatar": "https://cdn.cyex.tv/avatars/01OWNER.webp"
+    },
+    "active_set_id": "01CHANNELSET00000000000000",
+    "allow_personal_emotes": true
+  },
+  "set": {
+    "id": "01CHANNELSET00000000000000",
+    "name": "Main",
+    "kind": "channel",
+    "owner": null,
+    "capacity": 1000,
+    "emotes": [
+      {
+        "name": "Hello",
+        "zero_width": false,
+        "added_at": "2026-11-18T06:00:00.000Z",
+        "added_by": "01OWNER",
+        "emote": {
+          "id": "01HELLO0000000000000000000",
+          "name": "Hello",
+          "owner": {
+            "id": "01OWNER",
+            "display_name": "Kappa Dev",
+            "avatar": "https://cdn.cyex.tv/avatars/01OWNER.webp"
+          },
+          "state": "approved",
+          "visibility": "public",
+          "flags": {
+            "zero_width": false,
+            "private": false,
+            "nsfw": false,
+            "wide": false
+          },
+          "animated": false,
+          "tags": [
+            "fixture"
+          ],
+          "host": "https://cdn.cyex.tv/emotes/3f2a9c1d5e7b40a8b6c4d2e1f0a9b8c7d6e5f4a3b2c1d0e9f8a7b6c5d4e3f2a1",
+          "files": [
+            {
+              "name": "1x.webp",
+              "format": "webp",
+              "scale": 1,
+              "width": 32,
+              "height": 32,
+              "size": 1000,
+              "is_static": false
+            },
+            {
+              "name": "2x.webp",
+              "format": "webp",
+              "scale": 2,
+              "width": 64,
+              "height": 64,
+              "size": 2000,
+              "is_static": false
+            },
+            {
+              "name": "4x.webp",
+              "format": "webp",
+              "scale": 4,
+              "width": 128,
+              "height": 128,
+              "size": 4000,
+              "is_static": false
+            }
+          ],
+          "created_at": "2026-11-18T05:34:34.251Z",
+          "channel_count": 3
+        }
+      }
+    ],
+    "visibility": "listed",
+    "listed": true,
+    "slots_used": 1,
+    "created_at": "2026-11-18T05:34:34.251Z"
+  }
+}

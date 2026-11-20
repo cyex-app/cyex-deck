@@ -35,6 +35,7 @@ const menu: EmoteMenu = {
   seventv: [{ id: 's', title: 'Channel', avatar: null, emotes: [e('seventv', 'a', 'LUL'), e('seventv', 'b', 'xLULx')] }],
   bttv: [],
   ffz: [],
+  cyextv: [],
 };
 
 test('search ranks prefix, then contains, locked last', () => {
@@ -72,6 +73,7 @@ const aliased: EmoteMenu = {
   ],
   bttv: [],
   ffz: [],
+  cyextv: [],
 };
 
 test('V105-04 cellKey differs for one emote under two names', () => {
@@ -111,6 +113,7 @@ test('E5 locked emotes are never usable, so favorites and most used skip them', 
     seventv: [],
     bttv: [],
     ffz: [],
+    cyextv: [],
   };
   const have = usable(m);
   assert.deepEqual([...have.keys()], ['twitch:9']);

@@ -1,0 +1,15 @@
+{
+  "channel": {
+    "platform": "twitch",
+    "platform_channel_id": "123",
+    "login": "somestreamer",
+    "account": {
+      "id": "01OWNER",
+      "display_name": "Kappa Dev",
+      "avatar": "https://cdn.cyex.tv/avatars/01OWNER.webp"
+    },
+    "active_set_id": null,
+    "allow_personal_emotes": true
+  },
+  "set": null
+}

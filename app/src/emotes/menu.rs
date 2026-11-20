@@ -29,6 +29,8 @@ pub struct EmoteMenu {
     pub seventv: Vec<MenuSection>,
     pub bttv: Vec<MenuSection>,
     pub ffz: Vec<MenuSection>,
+    /// V112-04 cyex.tv.
+    pub cyextv: Vec<MenuSection>,
 }
 
 #[derive(Serialize, TS)]
@@ -116,6 +118,7 @@ pub async fn menu(app: &AppHandle, login: &str, account: Option<&str>) -> Result
         seventv: provider(Provider::Seventv),
         bttv: provider(Provider::Bttv),
         ffz: provider(Provider::Ffz),
+        cyextv: provider(Provider::Cyextv),
     })
 }
 

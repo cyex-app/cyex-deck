@@ -56,6 +56,8 @@ export function emotePage(provider: Provider, id: string, name: string): string 
       return `https://betterttv.com/emotes/${encodeURIComponent(id)}`;
     case 'ffz':
       return `https://www.frankerfacez.com/emoticon/${encodeURIComponent(`${id}-${name}`)}`;
+    case 'cyextv':
+      return `https://cyex.tv/emotes/${encodeURIComponent(id.split('.')[0])}`;
     case 'twitch':
       return `https://chatvau.lt/emote/twitch/${encodeURIComponent(id)}`;
   }
@@ -96,6 +98,8 @@ export function expectedFacts(provider: Provider, name: string): number {
       return 1;
     case 'ffz':
       return 2;
+    case 'cyextv':
+      return 0;
     case 'twitch':
       return /^[a-z][a-z0-9]{2,}[A-Z0-9_]/.test(name) ? 2 : 0;
   }

@@ -12,6 +12,7 @@ export const PROVIDER_NAMES: Record<Provider, string> = {
   seventv: '7TV',
   bttv: 'BTTV',
   ffz: 'FFZ',
+  cyextv: 'cyex.tv',
 };
 
 export function emoteKey(source: EmoteSource | Provider, id: string): string {

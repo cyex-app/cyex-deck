@@ -97,3 +97,12 @@ test('A2-11 a badge URL with a space or comma gets no srcset', () => {
   assert.equal(badgeSet({ ...ok, image2x: 'https://x/a b/2' }), undefined);
   assert.equal(badgeSet({ ...ok, image4x: 'https://x/a,b/4' }), undefined);
 });
+
+test('V112-01 cyex.tv pictures come from the folder inside the id; stills only for animated emotes', () => {
+  const id = '01HELLO.abc123';
+  assert.equal(emoteImg('cyextv', id, 'dark', { scale: 2 }).src, 'https://cdn.cyex.tv/emotes/abc123/2x.webp');
+  assert.equal(emoteImg('cyextv', id, 'dark', { scale: 4 }).src, 'https://cdn.cyex.tv/emotes/abc123/4x.webp');
+  const still = { scale: 2 as Scale, still: true };
+  assert.equal(emoteImg('cyextv', id, 'dark', { ...still, animated: true }).src, 'https://cdn.cyex.tv/emotes/abc123/2x_static.webp');
+  assert.equal(emoteImg('cyextv', id, 'dark', still).src, 'https://cdn.cyex.tv/emotes/abc123/2x.webp');
+});

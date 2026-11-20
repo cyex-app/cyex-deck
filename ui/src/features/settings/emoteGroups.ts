@@ -55,6 +55,11 @@ export const GROUPS: Group[] = [
     children: [chat('chat.ffzEmotes', 'Emotes', ['ffzEmotes']), chat('chat.badges.ffz', 'Badges', ['badges', 'ffz'])],
   },
   {
+    key: 'cyextv',
+    label: 'cyex.tv',
+    children: [chat('chat.cyextvEmotes', 'Emotes', ['cyextvEmotes'], 'Emotes from cyex.tv channels and sets.')],
+  },
+  {
     key: 'cyex',
     label: 'cyex',
     children: [chat('chat.badges.cyex', 'Badges', ['badges', 'cyex'], 'Founder, supporter and supporter+ badges from cyex deck.')],

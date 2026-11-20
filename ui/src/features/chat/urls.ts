@@ -79,6 +79,11 @@ function emoteUrl(provider: Provider, id: string, theme: Theme, scale: Scale, f:
       return `https://cdn.7tv.app/emote/${e}/${scale}x${f.animated && f.still ? '_static' : ''}.webp`;
     case 'bttv':
       return `https://cdn.betterttv.net/emote/${e}/${f.animated && f.still ? 'static/' : ''}${scale === 4 ? 3 : scale}x.webp`;
+    case 'cyextv': {
+      // V112-01 The id is `<emote>.<picture folder>`; animated emotes have 1x, 2x and 4x, and `_static` stills.
+      const key = encodeURIComponent(id.slice(id.indexOf('.') + 1));
+      return `https://cdn.cyex.tv/emotes/${key}/${scale}x${f.animated && f.still ? '_static' : ''}.webp`;
+    }
     case 'ffz':
       return `https://cdn.frankerfacez.com/emote/${e}/${f.animated && !f.still ? 'animated/' : ''}${scale}`;
   }

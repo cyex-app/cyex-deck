@@ -224,6 +224,8 @@ pub enum Provider {
     Seventv,
     Bttv,
     Ffz,
+    /// V112-01 cyex.tv emotes.
+    Cyextv,
 }
 
 impl Fragment {

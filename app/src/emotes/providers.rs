@@ -7,6 +7,7 @@ use std::sync::Arc;
 
 use cyex_chat::model::{NoticeEmote, Provider};
 use cyex_emotes::bttv::{self, socket::Event as BttvEvent};
+use cyex_emotes::cyextv;
 use cyex_emotes::ffz::{self, api::RoomBadges};
 use cyex_emotes::seventv;
 use cyex_emotes::{EmoteSet, Scope};
@@ -42,10 +43,11 @@ pub async fn globals(app: &AppHandle, http: &Http, want: Which) -> Globals {
     }
     // V110-E13 A provider whose emotes are off gets no sets; its badges still come.
     let sets = current(app).sets_off.not();
-    let (s, b, f, bb, fb) = tokio::join!(
+    let (s, b, f, c, bb, fb) = tokio::join!(
         ask(want.seventv && sets.seventv, seventv::api::global_raw(http)),
         ask(want.bttv && sets.bttv, bttv::api::global_raw(http)),
         ask(want.ffz && sets.ffz, ffz::api::global_raw(http)),
+        ask(want.cyextv && sets.cyextv, cyextv::api::global_raw(http)),
         ask(want.bttv, bttv::api::badges(http)),
         ask(want.ffz, ffz::api::badges(http))
     );
@@ -55,6 +57,7 @@ pub async fn globals(app: &AppHandle, http: &Http, want: Which) -> Globals {
     let s = s.map(|r| parsed(r, seventv::api::parse_global));
     let b = b.map(|r| parsed(r, bttv::api::parse_global));
     let f = f.map(|r| parsed(r, ffz::api::parse_global));
+    let c = c.map(|r| parsed(r, cyextv::api::parse_global));
     match s {
         Some(Ok((set, v))) => {
             save.push((Key::Global(Provider::Seventv), Some(v)));
@@ -69,6 +72,15 @@ pub async fn globals(app: &AppHandle, http: &Http, want: Which) -> Globals {
             sets.push(Arc::new(set));
         }
         Some(Err(e)) => failed.bttv |= miss(Service::Bttv, "globals", &e),
+        None => {}
+    }
+    // V112-01 cyex.tv's global set.
+    match c {
+        Some(Ok((set, v))) => {
+            save.push((Key::Global(Provider::Cyextv), Some(v)));
+            sets.push(Arc::new(set));
+        }
+        Some(Err(e)) => failed.cyextv |= miss(Service::Cyextv, "globals", &e),
         None => {}
     }
     if let Some(Err(e)) = &bb {
@@ -132,7 +144,7 @@ fn ffz_global(inner: &mut super::Inner, g: ffz::api::Global) -> Vec<Arc<EmoteSet
 /// V111-14 The keys of the global sets `want` asks for (those whose emotes are on).
 pub fn global_keys(app: &AppHandle, want: Which) -> Vec<Key> {
     let on = want.minus(current(app).sets_off);
-    [Provider::Seventv, Provider::Bttv, Provider::Ffz]
+    [Provider::Seventv, Provider::Bttv, Provider::Ffz, Provider::Cyextv]
         .into_iter()
         .filter(|p| on.has(*p))
         .map(Key::Global)
@@ -155,6 +167,12 @@ pub fn kept_globals(app: &AppHandle, kept: Vec<(Key, Value)>) -> (Which, Vec<Arc
             Key::Global(Provider::Bttv) => {
                 if let Ok(set) = bttv::api::parse_global(&v) {
                     found.bttv = true;
+                    sets.push(Arc::new(set));
+                }
+            }
+            Key::Global(Provider::Cyextv) => {
+                if let Ok(set) = cyextv::api::parse_global(&v) {
+                    found.cyextv = true;
                     sets.push(Arc::new(set));
                 }
             }
@@ -184,6 +202,7 @@ fn miss(service: Service, what: &str, e: &cyex_twitch::Error) -> bool {
     let name = match service {
         Service::SevenTv => "7TV",
         Service::Bttv => "BTTV",
+        Service::Cyextv => "cyex.tv",
         _ => "FFZ",
     };
     eprintln!("emotes: no {name} {what}: {}", e.describe(name));
@@ -197,6 +216,8 @@ pub struct Which {
     pub seventv: bool,
     pub bttv: bool,
     pub ffz: bool,
+    /// V112-01 cyex.tv.
+    pub cyextv: bool,
 }
 
 impl Which {
@@ -204,6 +225,7 @@ impl Which {
         seventv: true,
         bttv: true,
         ffz: true,
+        cyextv: true,
     };
 
     /// Everything but these.
@@ -216,12 +238,13 @@ impl Which {
             Provider::Seventv => self.seventv,
             Provider::Bttv => self.bttv,
             Provider::Ffz => self.ffz,
+            Provider::Cyextv => self.cyextv,
             Provider::Twitch => false,
         }
     }
 
     pub fn any(self) -> bool {
-        self.seventv || self.bttv || self.ffz
+        self.seventv || self.bttv || self.ffz || self.cyextv
     }
 
     /// These, without those in `other`.
@@ -230,6 +253,7 @@ impl Which {
             seventv: self.seventv && !other.seventv,
             bttv: self.bttv && !other.bttv,
             ffz: self.ffz && !other.ffz,
+            cyextv: self.cyextv && !other.cyextv,
         }
     }
 
@@ -238,6 +262,7 @@ impl Which {
             seventv: self.seventv || other.seventv,
             bttv: self.bttv || other.bttv,
             ffz: self.ffz || other.ffz,
+            cyextv: self.cyextv || other.cyextv,
         }
     }
 }
@@ -252,8 +277,8 @@ pub struct Plan {
 }
 
 pub fn plan(c: &ChatSettings) -> Plan {
-    let on = Which { seventv: c.seventv_emotes, bttv: c.bttv_emotes, ffz: c.ffz_emotes };
-    let fetch = Which { seventv: on.seventv, bttv: on.bttv || c.badges.bttv, ffz: on.ffz || c.badges.ffz };
+    let on = Which { seventv: c.seventv_emotes, bttv: c.bttv_emotes, ffz: c.ffz_emotes, cyextv: c.cyextv_emotes };
+    let fetch = Which { seventv: on.seventv, bttv: on.bttv || c.badges.bttv, ffz: on.ffz || c.badges.ffz, cyextv: on.cyextv };
     Plan { sets_off: on.not(), idle: fetch.not() }
 }
 
@@ -268,6 +293,8 @@ pub struct Fetched {
     pub seventv: Option<seventv::api::Channel>,
     pub bttv: Option<Arc<EmoteSet>>,
     pub ffz: Option<Arc<EmoteSet>>,
+    /// V112-02 cyex.tv's active set for the channel; `None` also when it has none.
+    pub cyextv: Option<Arc<EmoteSet>>,
     /// FFZ's mod and VIP pictures, when FFZ answered.
     pub badges: Option<RoomBadges>,
     pub failed: Which,
@@ -347,22 +374,45 @@ pub async fn channel_each(
         }
         Some((Which { ffz: true, ..Which::default() }, out))
     };
-    fan_out(s, b, f, on).await;
+    let c = async {
+        if !want.cyextv {
+            return None;
+        }
+        let mut out = Fetched::default();
+        match parsed(cyextv::api::channel_raw(http, id, lane).await, |v| cyextv::api::parse_channel(id, v)) {
+            Ok((s, v)) => {
+                out.save.push((key(Provider::Cyextv), s.is_some().then_some(v)));
+                out.cyextv = s.map(Arc::new);
+            }
+            Err(e) => {
+                out.failed.cyextv = Service::Cyextv.transient(&e);
+                eprintln!("emotes: no cyex.tv emotes for {id}: {}", e.describe("cyex.tv"));
+            }
+        }
+        Some((Which { cyextv: true, ..Which::default() }, out))
+    };
+    fan_out(s, b, f, c, on).await;
 }
 
-/// V111-15 Runs the three together and hands each part to `on` the moment it is done.
-async fn fan_out<S, B, F>(s: S, b: B, f: F, on: impl Fn(Which, Fetched))
+/// V111-15 Runs the four together and hands each part to `on` the moment it is done.
+async fn fan_out<S, B, F, C>(s: S, b: B, f: F, c: C, on: impl Fn(Which, Fetched))
 where
     S: Future<Output = Option<(Which, Fetched)>>,
     B: Future<Output = Option<(Which, Fetched)>>,
     F: Future<Output = Option<(Which, Fetched)>>,
+    C: Future<Output = Option<(Which, Fetched)>>,
 {
     let each = |part: Option<(Which, Fetched)>| {
         if let Some((which, part)) = part {
             on(which, part);
         }
     };
-    tokio::join!(async { each(s.await) }, async { each(b.await) }, async { each(f.await) });
+    tokio::join!(
+        async { each(s.await) },
+        async { each(b.await) },
+        async { each(f.await) },
+        async { each(c.await) }
+    );
 }
 
 impl Fetched {
@@ -371,6 +421,7 @@ impl Fetched {
         self.seventv = self.seventv.take().or(part.seventv);
         self.bttv = self.bttv.take().or(part.bttv);
         self.ffz = self.ffz.take().or(part.ffz);
+        self.cyextv = self.cyextv.take().or(part.cyextv);
         self.badges = self.badges.take().or(part.badges);
         self.failed = self.failed.or(part.failed);
         self.save.extend(part.save);
@@ -389,7 +440,7 @@ fn put_room(out: &mut Fetched, room: Option<ffz::api::Room>, sets_off: Which) {
 
 /// V111-14 The keys of a channel's sets `want` asks for.
 pub fn channel_keys(id: &str, want: Which) -> Vec<Key> {
-    [Provider::Seventv, Provider::Bttv, Provider::Ffz]
+    [Provider::Seventv, Provider::Bttv, Provider::Ffz, Provider::Cyextv]
         .into_iter()
         .filter(|p| want.has(*p))
         .map(|p| Key::Channel(p, id.to_owned()))
@@ -420,6 +471,12 @@ pub fn kept_channel(id: &str, sets_off: Which, kept: Vec<(Key, Value)>) -> (Whic
                 if let Ok(Some(room)) = ffz::api::parse_room(&v) {
                     found.ffz = true;
                     put_room(&mut out, Some(room), sets_off);
+                }
+            }
+            Provider::Cyextv => {
+                if let Ok(Some(s)) = cyextv::api::parse_channel(id, &v) {
+                    found.cyextv = true;
+                    out.cyextv = Some(Arc::new(s));
                 }
             }
             Provider::Twitch => {}
@@ -619,7 +676,7 @@ mod tests {
     use std::time::Duration;
 
     fn only(p: Provider) -> Which {
-        Which { seventv: p == Provider::Seventv, bttv: p == Provider::Bttv, ffz: p == Provider::Ffz }
+        Which { seventv: p == Provider::Seventv, bttv: p == Provider::Bttv, ffz: p == Provider::Ffz, cyextv: p == Provider::Cyextv }
     }
 
     fn named(p: Provider, id: &str) -> Arc<EmoteSet> {
@@ -643,7 +700,7 @@ mod tests {
         let order = Mutex::new(Vec::new());
         let all = Mutex::new(Fetched::default());
         let t = std::time::Instant::now();
-        fan_out(slow, bttv, ffz, |which, part| {
+        fan_out(slow, bttv, ffz, std::future::ready(None), |which, part| {
             order.lock().unwrap().push((which, t.elapsed()));
             all.lock().unwrap().absorb(part);
         })

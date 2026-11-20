@@ -36,6 +36,7 @@
     seventv: c.seventvEmotes,
     bttv: c.bttvEmotes,
     ffz: c.ffzEmotes,
+    cyextv: c.cyextvEmotes,
   });
   const ranked = $derived(c.emotePriority.filter((s) => ON[s] !== false));
 

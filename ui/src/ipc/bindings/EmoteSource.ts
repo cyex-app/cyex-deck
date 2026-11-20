@@ -3,4 +3,4 @@
 /**
  * Where an emote comes from. Emoji (E1) use the emoji itself as id.
  */
-export type EmoteSource = "twitch" | "seventv" | "bttv" | "ffz" | "emoji";
+export type EmoteSource = "twitch" | "seventv" | "bttv" | "ffz" | "cyextv" | "emoji";

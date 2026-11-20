@@ -44,6 +44,10 @@ bttvEmotes: boolean,
  */
 ffzEmotes: boolean, 
 /**
+ * V112-01 cyex.tv emotes, as `seventv_emotes`.
+ */
+cyextvEmotes: boolean, 
+/**
  * 2.4
  */
 unlistedEmotes: UnlistedEmotes, 

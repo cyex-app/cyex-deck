@@ -31,6 +31,7 @@ const kapps: EmoteMenu = {
   seventv: [{ id: 's', title: 'Channel', avatar: null, emotes: [e('seventv', 'x', 'xKappx')] }],
   bttv: [],
   ffz: [],
+  cyextv: [],
 };
 
 test('V107-R7 menu search: exact, then prefix by use, then menu order; a used contains-match stays behind', () => {

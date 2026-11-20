@@ -388,6 +388,14 @@ export const CHAT: Entry[] = [
   { id: 'chat.seventvEmotes', page: 'emotes', label: '7TV emotes', keywords: ['third-party', 'seventv', '7tv'] },
   { id: 'chat.bttvEmotes', page: 'emotes', label: 'BTTV emotes', keywords: ['third-party', 'betterttv', 'bttv'] },
   { id: 'chat.ffzEmotes', page: 'emotes', label: 'FFZ emotes', keywords: ['third-party', 'frankerfacez', 'ffz'] },
+  // V112-01 cyex.tv emotes.
+  {
+    id: 'chat.cyextvEmotes',
+    page: 'emotes',
+    label: 'cyex.tv emotes',
+    description: 'Emotes from cyex.tv channels and sets.',
+    keywords: ['third-party', 'cyex.tv', 'cyextv'],
+  },
   {
     id: 'chat.unlistedEmotes',
     page: 'emotes',

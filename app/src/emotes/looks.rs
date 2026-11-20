@@ -55,6 +55,8 @@ pub fn changed(app: &AppHandle, users: impl IntoIterator<Item = String>) {
 }
 
 pub fn looks_for(app: &AppHandle, users: &[String]) -> Looks {
+    // V112-04 Their cyex.tv personal sets, if not asked for yet.
+    super::cyextv::want(app, users);
     let state = app.state::<Emotes>();
     let inner = state.lock();
     // B9 Drawn: their personal emotes count as used too, so they outlive the cap.

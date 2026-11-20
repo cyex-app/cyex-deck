@@ -26,6 +26,8 @@ pub enum Service {
     Recent,
     /// E2 7TV's emote sets (v4 GQL).
     SevenTv,
+    /// V112-01 cyex.tv emotes (api.cyex.tv, 1200 a minute per IP).
+    Cyextv,
 }
 
 /// Who waits: the tab on screen (and one-off calls) go ahead of background tabs.
@@ -134,11 +136,12 @@ impl Gate {
 
 /// BTTV 4 in flight, FFZ 4 (and E1 8 starts a second: its bucket holds 120 per IP,
 /// shared by every copy running), recent-messages 3 (a small box behind nginx; it
-/// answered 503 under load), E2 7TV 4 at most 10 starts a second.
-static PACERS: [Pacer; 4] = [
+/// answered 503 under load), E2 7TV 4 at most 10 starts a second, V112-01 cyex.tv 4 at most 10 (its limit is 20).
+static PACERS: [Pacer; 5] = [
     Pacer::new(4, 0),
     Pacer::new(4, 125),
     Pacer::new(3, 0),
+    Pacer::new(4, 100),
     Pacer::new(4, 100),
 ];
 
