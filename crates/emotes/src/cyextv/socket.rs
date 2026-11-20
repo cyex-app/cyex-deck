@@ -38,9 +38,9 @@ pub enum Topic {
     Channel(String),
     /// `set:<id>`: emotes changing in one set.
     Set(String),
-    /// `user:twitch:<id>`: one person's cosmetics and personal set (not used yet).
+    /// `user:twitch:<id>`: one person's cosmetics (V112-13).
     User(String),
-    /// `cosmetics`: new and changed badges and paints (not used yet).
+    /// `cosmetics`: new and changed badges and paints (V112-13).
     Cosmetics,
 }
 
@@ -409,7 +409,7 @@ mod tests {
         ));
         // Unknown ops and dispatch types are ignored.
         assert!(matches!(read(&mut api, r#"{"op":"new","d":{}}"#).0, Step::Continue));
-        let (step, got) = read(&mut api, r#"{"op":"dispatch","d":{"id":"5","type":"cosmetic.created","data":{}}}"#);
+        let (step, got) = read(&mut api, r#"{"op":"dispatch","d":{"id":"5","type":"future.thing","data":{}}}"#);
         assert!(matches!(step, Step::Continue) && got.is_empty());
     }
 }

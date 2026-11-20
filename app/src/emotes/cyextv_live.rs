@@ -2,8 +2,8 @@
 //! the set each channel shows and the global set. A set that changed is read again and swapped in
 //! (an event only says which set and emote), and the difference is told in chat as for 7TV (C10).
 //! A channel switching sets reads the channel again. The topics follow the sets held, so they go
-//! when a chat leaves or the provider is switched off. `user:` and `cosmetics` topics are for later
-//! (the socket takes them).
+//! when a chat leaves or the provider is switched off. V112-13 `cosmetics` and the `user:twitch:<id>`
+//! of chatters whose look is drawn (at most `looks`'s bound) carry paint and badge changes.
 
 use std::collections::HashSet;
 use std::sync::{Arc, Mutex};
@@ -48,6 +48,25 @@ impl Live {
     /// A joined channel's own topic: its active set switching.
     pub(super) fn add_channel(&self, twitch_id: &str) {
         self.pool.add(Topic::Channel(twitch_id.to_owned()));
+    }
+
+    /// V112-13 The catalog topic (new and changed paints and badges), or not any more.
+    pub(super) fn follow_catalog(&self, on: bool) {
+        if on {
+            self.pool.add(Topic::Cosmetics);
+        } else {
+            self.pool.remove(&Topic::Cosmetics);
+        }
+    }
+
+    /// V112-13 One chatter's cosmetics topic.
+    pub(super) fn follow_user(&self, twitch_id: &str, on: bool) {
+        let topic = Topic::User(twitch_id.to_owned());
+        if on {
+            self.pool.add(topic);
+        } else {
+            self.pool.remove(&topic);
+        }
     }
 
     pub(super) fn remove_channel(&self, twitch_id: &str) {
@@ -114,6 +133,13 @@ fn handle(app: &AppHandle, e: Event) {
         Event::ActiveSet { twitch_id, set_id } => switched(app, twitch_id, set_id),
         // An emote's own data changed: its sets say so with their own events.
         Event::EmoteUpdated { .. } => {}
+        // V112-13 Paints and badges, live.
+        Event::UserCosmetics {
+            twitch_id,
+            badge_id,
+            paint_id,
+        } => super::looks::apply_user_cosmetics(app, &twitch_id, badge_id.as_deref(), paint_id.as_deref()),
+        Event::Cosmetics => super::looks::refresh_catalog(app),
         Event::Resync => resync(app),
     }
 }
@@ -126,6 +152,21 @@ fn holds(inner: &Inner, deck: &str) -> bool {
             .channels
             .values()
             .any(|c| c.sets.iter().any(|s| s.provider == Provider::Cyextv && s.id == deck))
+}
+
+/// V112-17 A set a command of ours just changed: read again now, so chat shows it without waiting
+/// for the socket. `false` when no chat, global or person holds it (or the provider is off).
+pub(super) fn refresh(app: &AppHandle, set_id: &str) -> bool {
+    let deck = api::deck_set_id(set_id);
+    {
+        let state = app.state::<Emotes>();
+        let inner = state.lock();
+        if inner.sets_off.cyextv || !holds(&inner, &deck) {
+            return false;
+        }
+    }
+    reload(app, deck);
+    true
 }
 
 /// A set changed: read it again (once for a burst of events) and swap it in where it is held.
@@ -314,6 +355,8 @@ fn resync(app: &AppHandle) {
     if !crate::hermes::resync_due("cyextv") {
         return;
     }
+    // V112-13 The catalog and the followed chatters' looks may have changed too.
+    super::looks::resync_cyextv(app);
     let app = app.clone();
     tauri::async_runtime::spawn(async move {
         let which = Which {

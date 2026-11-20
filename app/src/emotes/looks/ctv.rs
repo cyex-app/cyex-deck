@@ -1,9 +1,11 @@
 //! V112-10..11 cyex.tv cosmetics of the people a window draws: the catalog of paints and badges
 //! (read when first needed, then every 5 minutes) and, in batches of at most 100, what each
 //! chatter wears. Someone missing from an answer wears nothing. A person is asked about once a
-//! session; the live socket (`apply_user_cosmetics`) keeps them current after that.
+//! session; the live socket (`apply_user_cosmetics`) keeps them current after that: it follows
+//! `cosmetics` and the `user:twitch:<id>` of the last `MAX_FOLLOWED` people drawn (the oldest topic
+//! goes when a newer person comes, so the count stays bounded), and none while the setting is off.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
@@ -27,6 +29,9 @@ const COOL_OFF: Duration = Duration::from_secs(30);
 const MAX_ASKED: usize = 20_000;
 /// People waiting for a lookup at most (the rest are asked when drawn again).
 const MAX_QUEUE: usize = 2_000;
+/// People whose live topic is held (the 500 a socket takes also hold channels and sets; more
+/// sockets open past that, but this keeps the count small).
+const MAX_FOLLOWED: usize = 300;
 
 #[derive(Default)]
 struct Queue {
@@ -43,6 +48,11 @@ struct State {
     cool_until: Option<Instant>,
     /// The catalog was read at least once.
     have_catalog: bool,
+    /// V112-13 Whose `user:` topic is held, with when they were last drawn (a counter).
+    following: HashMap<String, u64>,
+    seq: u64,
+    /// V112-13 The `cosmetics` topic is held.
+    catalog_topic: bool,
 }
 
 pub fn spawn(app: AppHandle) {
@@ -111,6 +121,7 @@ pub fn want(app: &AppHandle, users: &[String]) {
     if !on(app) {
         return;
     }
+    follow(app, &queue, users);
     let mut s = queue.state.lock().unwrap_or_else(|p| p.into_inner());
     let before = s.waiting.len();
     for u in users.iter().take(500) {
@@ -134,9 +145,94 @@ pub fn want(app: &AppHandle, users: &[String]) {
     }
 }
 
+/// V112-13 These people are drawn: their live topics are held (the oldest go past the bound).
+fn follow(app: &AppHandle, queue: &Queue, users: &[String]) {
+    let (added, dropped, first) = {
+        let mut s = queue.state.lock().unwrap_or_else(|p| p.into_inner());
+        let mut added = Vec::new();
+        for u in users.iter().take(MAX_FOLLOWED).filter(|u| numeric(u)) {
+            s.seq += 1;
+            let seq = s.seq;
+            if s.following.insert(u.clone(), seq).is_none() {
+                added.push(u.clone());
+            }
+        }
+        let mut dropped = Vec::new();
+        while s.following.len() > MAX_FOLLOWED {
+            let Some(old) = s.following.iter().min_by_key(|(_, seq)| **seq).map(|(u, _)| u.clone()) else {
+                break;
+            };
+            s.following.remove(&old);
+            dropped.push(old);
+        }
+        let first = !s.catalog_topic;
+        s.catalog_topic = true;
+        (added, dropped, first)
+    };
+    let live = &app.state::<Emotes>().cyextv_live;
+    if first {
+        live.follow_catalog(true);
+    }
+    for u in &added {
+        live.follow_user(u, true);
+    }
+    for u in &dropped {
+        live.follow_user(u, false);
+    }
+}
+
+fn numeric(id: &str) -> bool {
+    !id.is_empty() && id.bytes().all(|b| b.is_ascii_digit())
+}
+
+/// V112-13 The setting changed: switched off, every live topic of ours goes. (Switched on, they
+/// come back with the next people drawn.)
+pub fn sync(app: &AppHandle) {
+    if on(app) {
+        return;
+    }
+    let Some(queue) = app.try_state::<Queue>() else {
+        return;
+    };
+    let (users, catalog) = {
+        let mut s = queue.state.lock().unwrap_or_else(|p| p.into_inner());
+        let users: Vec<String> = s.following.drain().map(|(u, _)| u).collect();
+        (users, std::mem::take(&mut s.catalog_topic))
+    };
+    let live = &app.state::<Emotes>().cyextv_live;
+    if catalog {
+        live.follow_catalog(false);
+    }
+    for u in &users {
+        live.follow_user(u, false);
+    }
+}
+
+/// V112-13 The server says anything may have changed: the catalog and everyone followed are read
+/// again.
+pub fn resync(app: &AppHandle) {
+    if !on(app) {
+        return;
+    }
+    let Some(queue) = app.try_state::<Queue>() else {
+        return;
+    };
+    {
+        let mut s = queue.state.lock().unwrap_or_else(|p| p.into_inner());
+        let users: Vec<String> = s.following.keys().cloned().collect();
+        for u in users {
+            if s.waiting.len() < MAX_QUEUE && !s.waiting.contains(&u) {
+                s.asked.insert(u.clone());
+                s.waiting.push(u);
+            }
+        }
+    }
+    queue.wake.notify_one();
+    refresh_catalog(app);
+}
+
 /// V112-11 Read the catalog now (a socket event named a paint or badge it doesn't have, or the
 /// socket was down); it is read again every 5 minutes after that.
-#[allow(dead_code)] // The cyex.tv socket calls it (V112-13 hook).
 pub fn refresh_catalog(app: &AppHandle) {
     if let Some(queue) = app.try_state::<Queue>() {
         queue.catalog.notify_one();
@@ -215,7 +311,6 @@ fn put(app: &AppHandle, asked: &[String], wears: Vec<Wear>) {
 
 /// V112-11 A live change: what this Twitch user now wears (catalog ids; `None` takes it off).
 /// For the cyex.tv socket's `user.cosmetics_updated`.
-#[allow(dead_code)] // The cyex.tv socket calls it (V112-13 hook).
 pub fn apply_user_cosmetics(app: &AppHandle, user_id: &str, badge_id: Option<&str>, paint_id: Option<&str>) {
     if !on(app) {
         return;

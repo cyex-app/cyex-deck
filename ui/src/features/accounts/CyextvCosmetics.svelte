@@ -11,7 +11,7 @@
   import { errorText } from '../../lib/errors';
   import { reduced } from '../../lib/motion';
   import { toast } from '../../lib/toast.svelte';
-  import { tvPaintStyle } from '../cosmetics/tvPaint';
+  import { menuSheet } from '../cosmetics/sheet';
   import { tvSignIn } from './cyextvSignIn.svelte';
 
   let { account }: { account: AccountView } = $props();
@@ -24,6 +24,16 @@
 
   const owned = $derived(view?.state === 'ready' ? view.owned : null);
   const waiting = $derived(tvSignIn.waiting === account.userId);
+
+  // V112-19 Paints are drawn the way chat draws them: their classes in one sheet while this is open.
+  const paints = $derived(owned?.paints ?? []);
+  $effect(() => {
+    const styles = paints.flatMap((p) => (p.style ? [p.style] : []));
+    if (!styles.length) return;
+    const sheet = menuSheet(styles);
+    sheet.adopt();
+    return () => sheet.drop();
+  });
 
   async function load() {
     loading = true;
@@ -121,7 +131,7 @@
           {#each owned.paints as p (p.id)}
             {@const on = owned.paintId === p.id}
             <button class="cell" role="radio" aria-checked={on} class:on disabled={saving !== null} use:tooltip={{ label: p.name }} onclick={() => void pick('paint', p.id)}>
-              <span class="who" style={tvPaintStyle(p)}>{account.displayName}</span><span class="nm">{p.name}</span>
+              <span class="who {p.style ? `painted paint-${p.style.id}` : ''}">{account.displayName}</span><span class="nm">{p.name}</span>
             </button>
           {/each}
         </div>

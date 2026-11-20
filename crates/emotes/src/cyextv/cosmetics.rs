@@ -178,6 +178,12 @@ pub fn parse_catalog(v: &Value) -> serde_json::Result<Catalog> {
     Ok(Catalog { paints, badges })
 }
 
+/// V112-19 One paint object (the catalog's shape) as chat draws it; `None` when it can't be read
+/// or has nothing to draw.
+pub fn paint_style(v: &Value) -> Option<PaintStyle> {
+    RawPaint::deserialize(v).ok()?.style()
+}
+
 /// V112-10 Who wears what. A user without an id or with an odd one is dropped.
 pub fn parse_users(v: &Value) -> serde_json::Result<Vec<Wear>> {
     let raw = RawUsers::deserialize(v)?;

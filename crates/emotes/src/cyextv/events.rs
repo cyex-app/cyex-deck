@@ -58,6 +58,14 @@ pub enum Event {
     Personal { set_id: String },
     /// An emote's own data changed (renamed, taken down).
     EmoteUpdated { emote_id: String },
+    /// V112-13 A chatter's paint or badge changed (`user:twitch:<id>`); `None` = nothing worn.
+    UserCosmetics {
+        twitch_id: String,
+        badge_id: Option<String>,
+        paint_id: Option<String>,
+    },
+    /// V112-13 The catalog of paints and badges changed (created, updated or deleted).
+    Cosmetics,
     /// Read what you hold again.
     Resync,
 }
@@ -126,6 +134,12 @@ fn event(kind: &str, data: &Value) -> Option<Event> {
         "emote.updated" => Some(Event::EmoteUpdated {
             emote_id: text("emote_id")?,
         }),
+        "user.cosmetics_updated" => Some(Event::UserCosmetics {
+            twitch_id: text("topic")?.strip_prefix("user:twitch:")?.to_owned(),
+            badge_id: text("badge_id"),
+            paint_id: text("paint_id"),
+        }),
+        "cosmetic.created" | "cosmetic.updated" | "cosmetic.deleted" => Some(Event::Cosmetics),
         "resync" => Some(Event::Resync),
         _ => None,
     }
@@ -280,8 +294,31 @@ mod tests {
     }
 
     #[test]
+    fn cosmetics_events() {
+        let d = dispatch("5", "user.cosmetics_updated", r#"{"topic":"user:twitch:77","badge_id":"B","paint_id":null}"#);
+        assert_eq!(
+            parse(&d),
+            Frame::Dispatch {
+                id: Some(5),
+                event: Some(Event::UserCosmetics {
+                    twitch_id: "77".into(),
+                    badge_id: Some("B".into()),
+                    paint_id: None
+                })
+            }
+        );
+        // Without a user topic there is no one to apply it to.
+        let d = dispatch("5", "user.cosmetics_updated", r#"{"badge_id":"B"}"#);
+        assert_eq!(parse(&d), Frame::Dispatch { id: Some(5), event: None });
+        for kind in ["cosmetic.created", "cosmetic.updated", "cosmetic.deleted"] {
+            let d = dispatch("6", kind, r#"{"topic":"cosmetics","cosmetic_kind":"paint","cosmetic_id":"P"}"#);
+            assert_eq!(parse(&d), Frame::Dispatch { id: Some(6), event: Some(Event::Cosmetics) }, "{kind}");
+        }
+    }
+
+    #[test]
     fn unknown_types_are_ignored() {
-        for kind in ["cosmetic.created", "user.cosmetics_updated", "set.created", "future.thing"] {
+        for kind in ["set.created", "future.thing"] {
             let f = parse(&dispatch("3", kind, "{}"));
             assert_eq!(f, Frame::Dispatch { id: Some(3), event: None }, "{kind}");
         }

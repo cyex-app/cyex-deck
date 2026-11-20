@@ -14,8 +14,7 @@ use super::Emotes;
 
 mod ctv;
 
-#[allow(unused_imports)] // The cyex.tv socket uses them (V112-13 hook).
-pub use ctv::{apply_user_cosmetics, refresh_catalog};
+pub use ctv::{apply_user_cosmetics, refresh_catalog, resync as resync_cyextv, sync as sync_cyextv};
 
 const EVENT: &str = "emotes:looks";
 const BATCH: Duration = Duration::from_millis(250);

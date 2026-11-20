@@ -507,6 +507,8 @@ pub async fn ready(app: &AppHandle, login: &str, limit: Duration) {
 pub fn on_settings(app: &AppHandle) {
     extra::sync(app);
     cyex::sync(app);
+    // V112-13 The cyex.tv paints and badges switch: its socket topics follow it.
+    looks::sync_cyextv(app);
     let Some(state) = app.try_state::<Emotes>() else {
         return;
     };
@@ -708,6 +710,12 @@ pub async fn bot_commands(
         inner.bot_commands.insert(id, cmds.clone());
     }
     Ok(cmds)
+}
+
+/// V112-17 A cyex.tv set was changed by a command: shown at once where it is held. `false` when
+/// nothing holds it.
+pub fn cyextv_set_changed(app: &AppHandle, set_id: &str) -> bool {
+    cyextv_live::refresh(app, set_id)
 }
 
 /// Channel id of a joined channel (V107-R16 the chat's channel registry keeps it).

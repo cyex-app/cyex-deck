@@ -9,6 +9,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value, json};
 use ts_rs::TS;
 
+use crate::seventv::paint::PaintStyle;
+
 /// Where pictures may come from (anything else is dropped).
 const PICTURES: &str = "https://cdn.cyex.tv/";
 /// Largest answer read.
@@ -152,6 +154,9 @@ pub struct Paint {
     pub stops: Vec<Stop>,
     pub shadows: Vec<Shadow>,
     pub image: Option<String>,
+    /// V112-19 The paint as chat draws it (the same conversion as the catalog's): the picker
+    /// shows names with this style. `None` when there is nothing to draw.
+    pub style: Option<PaintStyle>,
 }
 
 /// What you own and show (`OwnedCosmetics`).
@@ -309,7 +314,19 @@ fn paint(p: RawPaint) -> Paint {
             })
             .collect(),
         image: p.image.as_ref().and_then(picture).map(|pic| pic.src),
+        style: None,
     }
+}
+
+/// The chat renderer's style for one GraphQL paint: its answer in the REST catalog's shape.
+fn style_of(v: &Value) -> Option<PaintStyle> {
+    let mut v = v.clone();
+    let kind = v.get("kind").and_then(Value::as_str)?.to_ascii_lowercase();
+    v["kind"] = Value::from(kind);
+    if let Some(img) = v.get_mut("image").and_then(Value::as_object_mut) {
+        img.insert("ready".into(), Value::Bool(true));
+    }
+    super::cosmetics::paint_style(&v)
 }
 
 /// An `OwnedCosmetics` object.
@@ -325,7 +342,20 @@ pub fn parse_owned(v: &Value) -> serde_json::Result<Owned> {
             tooltip: b.tooltip,
         })
         .collect();
-    let paints: Vec<Paint> = raw.paints.into_iter().map(paint).collect();
+    let styles: Vec<Option<PaintStyle>> = v
+        .get("paints")
+        .and_then(Value::as_array)
+        .map(|a| a.iter().map(style_of).collect())
+        .unwrap_or_default();
+    let paints: Vec<Paint> = raw
+        .paints
+        .into_iter()
+        .enumerate()
+        .map(|(i, p)| Paint {
+            style: styles.get(i).cloned().flatten(),
+            ..paint(p)
+        })
+        .collect();
     // Only ids of things owned count as shown.
     let badge_id = raw.badge_id.filter(|id| badges.iter().any(|b| &b.id == id));
     let paint_id = raw.paint_id.filter(|id| paints.iter().any(|p| &p.id == id));
@@ -658,6 +688,11 @@ mod tests {
         let p = &o.paints[1];
         assert_eq!((p.kind.as_str(), p.shape.as_str(), p.color.as_deref()), ("image", "ellipse", None));
         assert_eq!(p.image.as_deref(), Some("https://cdn.cyex.tv/cosmetics/paints/def/1x_static.webp"));
+        // V112-19 The picker draws the chat's way: the same style as the catalog's conversion.
+        let st = o.paints[0].style.as_ref().unwrap();
+        assert_eq!(st.id, "ctvp1");
+        assert!(st.css.contains("linear-gradient(") && st.css.contains("color:#ff0000;"), "{}", st.css);
+        assert_eq!(o.paints[1].style, None, "nothing to draw");
     }
 
     #[test]
