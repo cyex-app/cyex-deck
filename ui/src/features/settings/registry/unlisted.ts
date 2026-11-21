@@ -29,6 +29,7 @@ export const UNLISTED: Record<string, string> = {
   'player.miniCorner': 'Where you drag the mini player.',
   'chat.presenceOnOnce': 'Set once when presence was turned on for everyone.',
   'general.closeToTrayTold': 'Set once the “still running in the tray” note was shown.',
+  'general.updates.skip': 'Set with Skip this version on the update badge.',
   'general.recentSearches': 'The last settings searches, local to this PC.',
   'general.chatterinoOffered': 'Set once the Chatterino import was offered or used (V111-60).',
   'miner.enabled': 'Started and stopped in the miner.',

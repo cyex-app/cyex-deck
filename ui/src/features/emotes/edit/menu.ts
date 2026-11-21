@@ -3,6 +3,7 @@
 
 import type { MenuEntry } from '../../../components/menuItems.ts';
 import type { CyextvMenuOptions } from '../../../ipc/bindings/CyextvMenuOptions';
+import { CYEXTV_READY } from '../../../lib/cyextv.ts';
 import { dismissWatch } from './dismiss.ts';
 import { type EditHandlers, editEntries } from './menuItems.ts';
 import type { editOptionsFor } from './options.ts';
@@ -38,6 +39,8 @@ export interface Deps {
     add: (account: string, login: string, emoteId: string) => Promise<string>;
     said: (line: string, ok: boolean) => void;
   };
+  /** V112-23 cyex.tv is open (`CYEXTV_READY`): until then a cyex.tv emote gets no entries. */
+  ready?: boolean;
 }
 
 /** V112-17 "Add to cyex.tv" for a cyex.tv emote: nothing unless the account may edit this channel's
@@ -59,6 +62,7 @@ export async function emoteEditMenu(
 ): Promise<MenuEntry[] | null> {
   const ask = ++newest;
   if (!account || (emote.provider !== 'seventv' && emote.provider !== 'cyextv')) return [];
+  if (emote.provider === 'cyextv' && !(deps.ready ?? CYEXTV_READY)) return [];
   const stop = dismissWatch(deps.target ?? window);
   if (emote.provider === 'cyextv') {
     const tv = deps.tv ?? (await tvDeps());

@@ -7,12 +7,17 @@ import type { MenuSection } from '../../ipc/bindings/MenuSection';
 import { RANK } from '../chat/completion.ts';
 import { PROVIDER_NAMES, emoteKey } from './emotes.ts';
 import { type Candidate, rankEmotes } from './ranking.ts';
+import { CYEXTV_READY } from '../../lib/cyextv.ts';
 
 export { usageRank } from './ranking.ts';
 
 export type ProviderTab = 'twitch' | 'seventv' | 'bttv' | 'ffz' | 'cyextv';
 
 export const PROVIDER_TABS: ProviderTab[] = ['twitch', 'seventv', 'bttv', 'ffz', 'cyextv'];
+
+/** V112-23 The picker's tabs: cyex.tv's is hidden while cyex.tv is coming soon. */
+export const pickerTabs = (ready: boolean = CYEXTV_READY): ProviderTab[] =>
+  ready ? PROVIDER_TABS : PROVIDER_TABS.filter((t) => t !== 'cyextv');
 
 /** V105-04 A cell's key: one emote can sit in a set under two names. */
 export function cellKey(m: MenuEmote): string {

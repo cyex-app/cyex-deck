@@ -16,6 +16,7 @@
   import { systemIpc } from '../../ipc/system';
   import { windowsIpc } from '../../ipc/windows';
   import { settings } from '../../lib/settings.svelte';
+  import { cyextvOn } from '../../lib/cyextv';
   import { streamer } from '../../lib/streamer.svelte';
   import EarnedBadges from './EarnedBadges.svelte';
   import { suspendedFlag } from './suspended';
@@ -103,7 +104,7 @@
   // V109-F78 7TV only pushes a paint and badge for chatters it met in a chat open here; a card from
   // Mentions, another channel or a pop-out reads that user's profile once, and the look arrives as a push.
   $effect(() => {
-    if ((settings.v.chat.paints.seventv || settings.v.chat.cyextvCosmetics) && profile.id) void emotesIpc.cardLook(profile.id).catch(() => {});
+    if ((settings.v.chat.paints.seventv || cyextvOn(settings.v.chat.cyextvCosmetics)) && profile.id) void emotesIpc.cardLook(profile.id).catch(() => {});
   });
   const paintId = $derived(wornPaint(looks.look(profile.id), settings.v.chat));
   const paint = $derived(looks.paintClass(paintId));

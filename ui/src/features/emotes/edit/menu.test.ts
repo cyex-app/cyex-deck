@@ -64,7 +64,7 @@ const tv = (o: { canEdit: boolean; note: string | null }, add = async () => 'Add
 });
 
 test('cyex.tv emote: add entry when the channel is editable', async () => {
-  const r = await emoteEditMenu('me', 'kuni', tvEmote, h, 50, { target: new EventTarget(), tv: tv({ canEdit: true, note: null }) });
+  const r = await emoteEditMenu('me', 'kuni', tvEmote, h, 50, { target: new EventTarget(), ready: true, tv: tv({ canEdit: true, note: null }) });
   assert.ok(r);
   const item = r.find((e) => typeof e === 'object' && 'label' in e);
   assert.ok(item && typeof item === 'object' && 'label' in item);
@@ -76,10 +76,11 @@ test('cyex.tv emote: add entry when the channel is editable', async () => {
 });
 
 test('cyex.tv emote: nothing without edit rights, greyed with a reason', async () => {
-  const none = await emoteEditMenu('me', 'kuni', tvEmote, h, 50, { target: new EventTarget(), tv: tv({ canEdit: false, note: null }) });
+  const none = await emoteEditMenu('me', 'kuni', tvEmote, h, 50, { target: new EventTarget(), ready: true, tv: tv({ canEdit: false, note: null }) });
   assert.deepEqual(none, []);
   const grey = await emoteEditMenu('me', 'kuni', tvEmote, h, 50, {
     target: new EventTarget(),
+    ready: true,
     tv: tv({ canEdit: true, note: 'Already in kuni’s cyex.tv emotes.' }),
   });
   const item = grey?.find((e) => typeof e === 'object' && 'label' in e);
@@ -89,6 +90,7 @@ test('cyex.tv emote: nothing without edit rights, greyed with a reason', async (
 test('cyex.tv emote: a failed add says why', async () => {
   const r = await emoteEditMenu('me', 'kuni', tvEmote, h, 50, {
     target: new EventTarget(),
+    ready: true,
     tv: tv({ canEdit: true, note: null }, async () => Promise.reject('You can’t edit kuni’s cyex.tv emotes.')),
   });
   const item = r?.find((e) => typeof e === 'object' && 'label' in e);
@@ -96,4 +98,22 @@ test('cyex.tv emote: a failed add says why', async () => {
   item.run?.();
   await later(0, 5);
   assert.deepEqual(said.at(-1), ['You can’t edit kuni’s cyex.tv emotes.', false]);
+});
+
+test('V112-23 cyex.tv coming soon: no "Add to cyex.tv", nothing asked', async () => {
+  let asked = 0;
+  const r = await emoteEditMenu('me', 'kuni', tvEmote, h, 50, {
+    target: new EventTarget(),
+    ready: false,
+    tv: {
+      options: async () => {
+        asked++;
+        return { canEdit: true, note: null };
+      },
+      add: async () => 'added',
+      said: () => {},
+    },
+  });
+  assert.deepEqual(r, []);
+  assert.equal(asked, 0);
 });

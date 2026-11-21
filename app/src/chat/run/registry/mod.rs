@@ -34,6 +34,8 @@ pub enum Changes {
     Twitch,
     SevenTv,
     /// V112-17 cyex.tv's emotes.
+    /// V112-23 Unused while cyex.tv is coming soon (the emote commands are documented as 7TV's).
+    #[allow(dead_code)]
     Cyextv,
     Settings,
     Window,
@@ -179,8 +181,7 @@ pub(super) fn all() -> impl Iterator<Item = &'static Cmd> {
         .iter()
         .chain(cosmetics::CMDS)
         .chain(emotes::CMDS)
-        .chain(emotes::SEVENTV)
-        .chain(app::AFTER)
+            .chain(app::AFTER)
         .chain(twitch::CMDS)
 }
 

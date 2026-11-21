@@ -6,6 +6,7 @@
   import Segmented from '../../components/Segmented.svelte';
   import Select from '../../components/Select.svelte';
   import { accounts } from '../../lib/accounts.svelte';
+  import { CYEXTV_READY, SOON } from '../../lib/cyextv';
   import { accountChoices } from '../cosmetics/accountChoices';
   import CyexCosmetics from './CyexCosmetics.svelte';
   import CyextvCosmetics from './CyextvCosmetics.svelte';
@@ -16,10 +17,11 @@
   );
   const choices = $derived(accountChoices(accounts.list));
   const SIDES = [
-    { value: 'tv', label: 'cyex.tv' },
+    // V112-23 cyex.tv's side waits, and the page opens on the deck's, while cyex.tv is coming soon.
+    { value: 'tv', label: 'cyex.tv', off: !CYEXTV_READY, tip: CYEXTV_READY ? undefined : SOON },
     { value: 'deck', label: 'cyex deck' },
   ] as const;
-  let side = $state<'tv' | 'deck'>('tv');
+  let side = $state<'tv' | 'deck'>(CYEXTV_READY ? 'tv' : 'deck');
 </script>
 
 <div class="view">

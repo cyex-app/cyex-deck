@@ -1,5 +1,5 @@
 //! V112-17/18 `/add`, `/remove`, `/rename`, `/steal` (`/yoink`) and `/whoadded` act on cyex.tv
-//! (7TV's are `/7add` …, `seventv_edit.rs`). The channel's active set is the target; it is edited
+//! (V112-24 when the emote word is cyex.tv's, `emote_route.rs`; else 7TV's, `seventv_edit.rs`). The channel's active set is the target; it is edited
 //! if the account may (`channelEditableSets`), through the cyex.tv session's Bearer
 //! (`crate::cyextv::with_bearer_typed`). Results are local lines; nothing goes to the channel. A
 //! change a chat holds is shown at once by reading its set again (C10 line), else a line here.
@@ -70,8 +70,8 @@ enum Parsed {
     },
 }
 
-/// An emote id typed bare, or in a `cyex.tv/emotes/<id>` link. Ids are one run of 20 to 32
-/// letters and digits (cyex.tv's are 26 characters).
+/// An emote id typed bare, or in a `cyex.tv/emotes/<id>` link. Ids are one run of 15 to 32
+/// letters and digits (V112-24 snowflakes, 15 to 20 digits; older ones 26 characters).
 fn emote_id(word: &str) -> Option<String> {
     const MARK: &str = "cyex.tv/emotes/";
     let lower = word.to_ascii_lowercase();
@@ -91,7 +91,7 @@ fn emote_id(word: &str) -> Option<String> {
         }
         None => word,
     };
-    ((20..=32).contains(&id.len()) && id.bytes().all(|b| b.is_ascii_alphanumeric())).then(|| id.to_owned())
+    ((15..=32).contains(&id.len()) && id.bytes().all(|b| b.is_ascii_alphanumeric())).then(|| id.to_owned())
 }
 
 /// `command` is the verb (`add`, `yoink` …). Also gives the `#channel`.
@@ -668,6 +668,9 @@ mod tests {
         assert_eq!(emote_id("peepoHappy"), None);
         assert_eq!(emote_id("short"), None);
         assert_eq!(emote_id("0123456789012345678-"), None);
+        // V112-24 Snowflakes.
+        assert_eq!(emote_id("1234567890123456789").as_deref(), Some("1234567890123456789"));
+        assert_eq!(emote_id("12345678901234"), None);
     }
 
     #[test]

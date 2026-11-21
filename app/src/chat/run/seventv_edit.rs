@@ -1,4 +1,4 @@
-//! I106-3 `/7add`, `/7remove`, `/7rename` (V112-17: were `/add` …): change the 7TV emotes of the channel this chat is in,
+//! I106-3 `/add`, `/remove`, `/rename`: change the 7TV emotes of the channel this chat is in,
 //! through the same `edit::run` as the menus (consent, session, test-run guard, name check,
 //! one edit per set). Results are local lines or a toast; nothing goes to the channel.
 //! V111-03 A `#channel` word does it in that channel's set instead (the change line goes to
@@ -15,15 +15,15 @@ use crate::emotes::edit::{self, Blocked, EditDone, EditFail, EditOp, Reachabilit
 
 /// The arm in `builtin::run` and `OWN` must list these (checked in builtin's tests).
 #[cfg(test)]
-pub(super) const NAMES: [&str; 6] = ["7add", "7remove", "7rename", "7steal", "7yoink", "7whoadded"];
+pub(super) const NAMES: [&str; 6] = ["add", "remove", "rename", "steal", "yoink", "whoadded"];
 
-const USAGE_ADD: &str = "Say which emote: /7add <7TV link or id> [name] [#channel].";
-const USAGE_REMOVE: &str = "Say which emote: /7remove <name> [more names] [#channel].";
-const USAGE_RENAME: &str = "Say which emote: /7rename <name> [new name] [#channel].";
+const USAGE_ADD: &str = "Say which emote: /add <7TV link or id> [name] [#channel].";
+const USAGE_REMOVE: &str = "Say which emote: /remove <name> [more names] [#channel].";
+const USAGE_RENAME: &str = "Say which emote: /rename <name> [new name] [#channel].";
 // V111-03
-const USAGE_STEAL: &str = "Say which emote and where from: /7steal <name> [new name] #channel.";
-const USAGE_WHO: &str = "Say which emote: /7whoadded <name> [#channel].";
-const STEAL_HERE: &str = "That’s this chat’s channel. Say where from: /7steal <name> #channel.";
+const USAGE_STEAL: &str = "Say which emote and where from: /steal <name> [new name] #channel.";
+const USAGE_WHO: &str = "Say which emote: /whoadded <name> [#channel].";
+const STEAL_HERE: &str = "That’s this chat’s channel. Say where from: /steal <name> #channel.";
 pub(super) const ONE_CHANNEL: &str = "Name one channel with #.";
 pub(super) const TOO_MANY: &str = "At most 20 at a time.";
 pub(super) const MAX_REMOVE: usize = 20;
@@ -283,11 +283,9 @@ pub(super) async fn run(
     name: &str,
     args: &str,
 ) -> Result<Option<UiAction>, String> {
-    // V112-17 `/7add` and the rest: 7TV's commands, the same code as when they were `/add`.
-    let verb = name.strip_prefix('7').unwrap_or(name);
     // V111-03 Read-only: no account, no 7TV sign-in, fine in automations.
-    if verb == "whoadded" {
-        let (cmd, other) = parse(verb, args)?;
+    if name == "whoadded" {
+        let (cmd, other) = parse(name, args)?;
         let Parsed::WhoAdded { name: wanted } = cmd else {
             return Err(USAGE_WHO.into());
         };
@@ -299,7 +297,7 @@ pub(super) async fn run(
     if place.automation {
         return Err(format!("/{name} doesn’t run in automations."));
     }
-    let (cmd, other) = parse(verb, args)?;
+    let (cmd, other) = parse(name, args)?;
     // V111-03 `#` naming this chat's own channel is the same as none.
     let other = other.filter(|c| !c.eq_ignore_ascii_case(place.channel()));
     if matches!(cmd, Parsed::Steal { .. }) && other.is_none() {

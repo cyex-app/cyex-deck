@@ -4,8 +4,4 @@ import type { Update } from "./Update";
 /**
  * What the badge needs after a reload or in another window: the release and "Later" (B4).
  */
-export type UpdateState = { update: Update | null, later: boolean, 
-/**
- * Unix seconds of the last check that got an answer (V112-22).
- */
-checked: number | null, };
+export type UpdateState = { update: Update | null, later: boolean, };

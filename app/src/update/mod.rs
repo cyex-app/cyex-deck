@@ -32,8 +32,6 @@ struct State {
     body: Option<Vec<u8>>,
     /// Unix seconds before which timed checks stay quiet (rate limited).
     wait_until: Option<i64>,
-    /// Unix seconds of the last answer from GitHub, timed or manual (V112-22; memory only).
-    checked: Option<i64>,
 }
 
 #[derive(Default)]
@@ -100,18 +98,13 @@ pub fn available(app: &AppHandle) -> Option<Update> {
 pub struct UpdateState {
     pub update: Option<Update>,
     pub later: bool,
-    /// Unix seconds of the last check that got an answer (V112-22).
-    #[ts(type = "number | null")]
-    pub checked: Option<i64>,
 }
 
 pub fn state(app: &AppHandle) -> UpdateState {
     let updater = app.state::<Updater>();
-    let st = updater.lock();
     UpdateState {
-        update: st.available.clone(),
+        update: updater.lock().available.clone(),
         later: updater.later.load(Ordering::Relaxed),
-        checked: st.checked,
     }
 }
 
@@ -164,18 +157,12 @@ pub async fn check(app: &AppHandle, manual: bool) -> CheckResult {
             st.etag = etag;
             st.body = Some(body.clone());
             st.wait_until = None;
-            st.checked = Some(now());
             body
         }
         Ok(Fetched::NotModified) => {
             eprintln!("update check: 304");
-            let updater = app.state::<Updater>();
-            let mut st = updater.lock();
-            match st.body.clone() {
-                Some(b) => {
-                    st.checked = Some(now());
-                    b
-                }
+            match app.state::<Updater>().lock().body.clone() {
+                Some(b) => b,
                 None => return CheckResult::Failed,
             }
         }

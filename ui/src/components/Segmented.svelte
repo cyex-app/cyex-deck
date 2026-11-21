@@ -1,8 +1,10 @@
 <script lang="ts" generics="T extends string | number">
   import { radioKey } from './select';
+  import { tooltip } from './tooltip.svelte';
 
   interface Props {
-    options: readonly { value: T; label: string }[];
+    /** V112-23 `off`: shown but not pickable, with `tip` (e.g. "Coming soon") on hover. */
+    options: readonly { value: T; label: string; off?: boolean; tip?: string }[];
     value: T;
     label: string;
     onchange: (value: T) => void;
@@ -22,6 +24,7 @@
     const to = radioKey(e, current, options.length);
     if (to === null) return;
     e.preventDefault();
+    if (options[to].off) return;
     onchange(options[to].value);
     (group?.children[to] as HTMLElement | undefined)?.focus();
   }
@@ -35,7 +38,10 @@
       aria-checked={value === option.value}
       tabindex={i === current ? 0 : -1}
       class:on={value === option.value}
-      onclick={() => onchange(option.value)}
+      class:off={option.off}
+      aria-disabled={option.off || undefined}
+      onclick={() => !option.off && onchange(option.value)}
+      use:tooltip={{ label: option.tip ?? option.label, when: () => !!option.tip }}
     >
       <span class="cap-text">{option.label}</span>
     </button>
@@ -84,6 +90,14 @@
   button:active:not(:disabled) {
     opacity: 0.6;
     transition: none;
+  }
+  button.off,
+  button.off:hover {
+    color: var(--dim);
+    cursor: default;
+  }
+  button.off:active {
+    opacity: 1;
   }
   button.on {
     background: var(--accent-dim);

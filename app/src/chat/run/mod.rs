@@ -5,6 +5,7 @@
 mod builtin;
 mod cosmetics;
 mod cyextv_edit;
+mod emote_route;
 mod guard;
 mod refused;
 mod seventv_edit;

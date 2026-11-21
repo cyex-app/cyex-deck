@@ -2,6 +2,10 @@
 // V106-33), Ignores, Filters, Commands, Automations, Recordings.
 
 import type { Entry } from './entry';
+import { CYEXTV_READY } from '../../../lib/cyextv.ts';
+
+/** V112-23 A cyex.tv row's hint: "Coming soon." first while cyex.tv isn't open. */
+const tv = (hint: string): string => (CYEXTV_READY ? hint : `Coming soon. ${hint}`);
 
 /** A built-in highlight's row: one entry for its switch, color, sound, sound file, flash, Mentions tab, pop-up and feed. */
 function builtIn(key: string, label: string, description: string, keywords: string[] = []): Entry {
@@ -393,7 +397,7 @@ export const CHAT: Entry[] = [
     id: 'chat.cyextvEmotes',
     page: 'emotes',
     label: 'cyex.tv emotes',
-    description: 'Emotes from cyex.tv channels and sets.',
+    description: tv('Emotes from cyex.tv channels and sets.'),
     keywords: ['third-party', 'cyex.tv', 'cyextv'],
   },
   // V112-12 cyex.tv name paints and badges, one switch.
@@ -401,7 +405,7 @@ export const CHAT: Entry[] = [
     id: 'chat.cyextvCosmetics',
     page: 'emotes',
     label: 'cyex.tv paints and badges',
-    description: 'Colorful names and badges from cyex.tv. A name with a 7TV paint too shows the cyex.tv one.',
+    description: tv('Colorful names and badges from cyex.tv. A name with a 7TV paint too shows the cyex.tv one.'),
     keywords: ['paint', 'badge', 'name color', 'gradient', 'cosmetics', 'cyex.tv', 'cyextv'],
   },
   {

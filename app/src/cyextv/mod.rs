@@ -17,6 +17,11 @@ use tokio::sync::watch;
 pub use cosmetics::{TvCosmetics, TvKind, select, view};
 pub use sign_in::{cancel, forget_account, sign_in, sign_out};
 
+/// V112-23 The one line anything cyex.tv answers while `cyex_core::CYEXTV_READY` is false.
+pub(crate) const SOON: &str = "cyex.tv emotes are coming soon.";
+/// V112-23 The same for the sign-in and the picker.
+pub(crate) const SOON_TV: &str = "cyex.tv is coming soon.";
+
 use crate::auth::{self, Auth};
 
 /// Mocks builds only: a local cyex.tv (`http://127.0.0.1:<port>`, test data folder only) for the

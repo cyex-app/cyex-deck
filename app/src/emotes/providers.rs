@@ -277,7 +277,18 @@ pub struct Plan {
 }
 
 pub fn plan(c: &ChatSettings) -> Plan {
-    let on = Which { seventv: c.seventv_emotes, bttv: c.bttv_emotes, ffz: c.ffz_emotes, cyextv: c.cyextv_emotes };
+    plan_with(c, cyex_core::CYEXTV_READY)
+}
+
+/// V112-23 [`plan`] with the cyex.tv switch given: off, cyex.tv is idle whatever its setting says
+/// (no sets, no fetch, no live topics, no personal lookups).
+fn plan_with(c: &ChatSettings, cyextv_ready: bool) -> Plan {
+    let on = Which {
+        seventv: c.seventv_emotes,
+        bttv: c.bttv_emotes,
+        ffz: c.ffz_emotes,
+        cyextv: cyextv_ready && c.cyextv_emotes,
+    };
     let fetch = Which { seventv: on.seventv, bttv: on.bttv || c.badges.bttv, ffz: on.ffz || c.badges.ffz, cyextv: on.cyextv };
     Plan { sets_off: on.not(), idle: fetch.not() }
 }
@@ -668,7 +679,7 @@ fn change_channel(
 
 #[cfg(test)]
 mod tests {
-    use super::{Fetched, Which, bttv_added_line, fan_out, plan};
+    use super::{Fetched, Which, bttv_added_line, channel_keys, fan_out, plan, plan_with};
     use cyex_chat::model::Provider;
     use cyex_emotes::{Emote, EmoteSet, Scope};
     use cyex_settings::schema::Chat;
@@ -749,7 +760,7 @@ mod tests {
 
     #[test]
     fn v110_e13_plan_follows_the_switches() {
-        let all = plan(&Chat::default());
+        let all = plan_with(&Chat::default(), true);
         assert_eq!((all.sets_off, all.idle), (Which::default(), Which::default()));
         let mut c = Chat { seventv_emotes: false, bttv_emotes: false, ..Chat::default() };
         let p = plan(&c);
@@ -758,6 +769,25 @@ mod tests {
         assert!(p.idle.seventv && !p.idle.bttv);
         c.badges.bttv = false;
         assert!(plan(&c).idle.bttv);
+    }
+
+    /// V112-23 cyex.tv coming soon: with the switch off its setting (on by default) asks for
+    /// nothing: no sets, nothing fetched, no channel keys. Flipped on, it is as before.
+    #[test]
+    fn v112_23_cyextv_off_plans_nothing() {
+        let c = Chat::default();
+        assert!(c.cyextv_emotes, "the saved default stays on");
+        let off = plan_with(&c, false);
+        assert!(off.sets_off.cyextv && off.idle.cyextv);
+        assert!(!off.sets_off.seventv && !off.idle.ffz);
+        let keys = channel_keys("1", off.idle.not());
+        assert!(keys.iter().all(|k| !matches!(k, super::Key::Channel(Provider::Cyextv, _))), "{keys:?}");
+        assert_eq!(keys.len(), 3);
+        let on = plan_with(&c, true);
+        assert!(!on.sets_off.cyextv && !on.idle.cyextv);
+        assert_eq!(channel_keys("1", on.idle.not()).len(), 4);
+        // The shipped build: `plan` follows the switch.
+        assert_eq!(plan(&c), plan_with(&c, cyex_core::CYEXTV_READY));
     }
 
     #[test]

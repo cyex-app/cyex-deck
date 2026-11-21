@@ -20,7 +20,7 @@
   import { emojiGroups, emojiLabel, findEmoji, type Emoji, type EmojiGroup } from './emoji';
   import EmojiImg from '../chat/EmojiImg.svelte';
   import { type CardTarget, PROVIDER_NAMES, emoteKey, emoteRatio } from './emotes';
-  import { PROVIDER_TABS, type ProviderTab, cellHint, cellKey, pick, searchCapped, tierMark, usable, usageRank } from './menu';
+  import { pickerTabs, type ProviderTab, cellHint, cellKey, pick, searchCapped, tierMark, usable, usageRank } from './menu';
   import EmoteCard from './EmoteCard.svelte';
   import { emoteMenu, forgetEmoteMenu } from './menus';
   import EditBar from './edit/EditBar.svelte';
@@ -77,7 +77,7 @@
   const gifsOk = $derived(showGifTab(gifInfo, room?.state.emoteOnly ?? false));
   const tabs = $derived<Tab[]>([
     'favorites',
-    ...PROVIDER_TABS.filter((t) => t === 'twitch' || (menu?.[t].length ?? 0) > 0),
+    ...pickerTabs().filter((t) => t === 'twitch' || (menu?.[t].length ?? 0) > 0),
     'emoji',
     ...(gifsOk ? (['gifs'] as const) : []),
   ]);

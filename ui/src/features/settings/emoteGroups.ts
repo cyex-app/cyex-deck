@@ -2,6 +2,7 @@
 // already exists (its id and stored key stay); the group's switch is derived from them.
 
 import { BADGE_SETS } from '../emotes/badgeSets.ts';
+import { CYEXTV_READY } from '../../lib/cyextv.ts';
 
 export interface Child {
   /** The registry id, also the row's `data-setting`. */
@@ -17,6 +18,8 @@ export interface Group {
   key: string;
   label: string;
   children: Child[];
+  /** V112-23 Not open yet: its switches show disabled, off, with "Coming soon". */
+  soon?: boolean;
 }
 
 type Values = { chat: unknown; emotes: unknown };
@@ -57,6 +60,7 @@ export const GROUPS: Group[] = [
   {
     key: 'cyextv',
     label: 'cyex.tv',
+    soon: !CYEXTV_READY,
     children: [
       chat('chat.cyextvEmotes', 'Emotes', ['cyextvEmotes'], 'Emotes from cyex.tv channels and sets.'),
       chat('chat.cyextvCosmetics', 'Paints and badges', ['cyextvCosmetics'], 'Colorful names and badges from cyex.tv. Shown before 7TV paints.'),

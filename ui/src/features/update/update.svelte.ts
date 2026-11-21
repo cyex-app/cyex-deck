@@ -21,8 +21,6 @@ class UpdateStore {
   /** "Later": the badge stays, but no timed checks and no pop-over until the next start.
    *  B4 Rust holds it; this mirrors it, read at start so a reload or another window keeps it. */
   later = $state(false);
-  /** V112-22 Unix seconds of the last check that got an answer, timed or manual (null: none yet this run). */
-  checked = $state<number | null>(null);
 
   async start(): Promise<void> {
     if (this.started) return;
@@ -36,15 +34,8 @@ class UpdateStore {
     });
     const s = startState(await updateIpc.state().catch(() => null), pending);
     this.later = s.later;
-    this.checked = s.checked;
     this.available = s.update;
     ready = true;
-  }
-
-  /** V112-22 Reads the check time again (after "Check now", or when Settings opens). */
-  async refresh(): Promise<void> {
-    const s = await updateIpc.state().catch(() => null);
-    if (s) this.checked = s.checked;
   }
 
   async install(): Promise<void> {

@@ -10,6 +10,7 @@
   import { focus } from '../../lib/focus.svelte';
   import { uniqueKeys } from '../../lib/keys';
   import { settings } from '../../lib/settings.svelte';
+  import { CYEXTV_READY } from '../../lib/cyextv';
   import { badgeOn } from '../emotes/badgeSets';
   import { looks } from '../emotes/looks.svelte';
   import { rooms } from '../emotes/rooms.svelte';
@@ -43,7 +44,7 @@
   /** V108-N06 FFZ:AP, Chatsen, DankChat and Homies, each its own switch. */
   const sets = $derived(settings.v.emotes.badgeSets);
   /** V112-12 cyex.tv's badges have their own switch (`chat.cyextvCosmetics`, with its paints). */
-  const cyextvOn = $derived(settings.v.chat.cyextvCosmetics);
+  const cyextvOn = $derived(CYEXTV_READY && settings.v.chat.cyextvCosmetics);
   const room = $derived(on.ffz ? rooms.get(channel) : undefined);
   const extra = $derived.by(() => {
     if (!userId && override === undefined) return [];

@@ -88,6 +88,10 @@ pub fn cancel(app: &AppHandle) {
 
 /// Ends the session on cyex.tv in the background (best effort).
 fn revoke_later(app: &AppHandle, refresh: String) {
+    // V112-23 Coming soon: no call to cyex.tv (the session is still forgotten here).
+    if !cyex_core::CYEXTV_READY {
+        return;
+    }
     let http = app.state::<Auth>().http.clone();
     let base = state(app).base.clone();
     tauri::async_runtime::spawn(async move {

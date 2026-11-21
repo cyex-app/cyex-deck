@@ -62,6 +62,9 @@ pub fn spawn(app: AppHandle) {
         let queue = catalog_app.state::<Queue>();
         loop {
             queue.catalog.notified().await;
+            if !on(&catalog_app) {
+                continue;
+            }
             loop {
                 read_catalog(&catalog_app, &queue).await;
                 // Asked for again right away: not more often than this.
@@ -98,7 +101,12 @@ pub fn spawn(app: AppHandle) {
 }
 
 fn on(app: &AppHandle) -> bool {
-    app.state::<Settings>().read::<ChatSettings>(Partition::Chat).cyextv_cosmetics
+    wanted(&app.state::<Settings>().read::<ChatSettings>(Partition::Chat), cyex_core::CYEXTV_READY)
+}
+
+/// V112-23 The setting counts only while cyex.tv is ready: off, nothing is looked up or followed.
+fn wanted(c: &ChatSettings, cyextv_ready: bool) -> bool {
+    cyextv_ready && c.cyextv_cosmetics
 }
 
 fn take(queue: &Queue) -> (Vec<String>, Option<Duration>) {
@@ -234,6 +242,9 @@ pub fn resync(app: &AppHandle) {
 /// V112-11 Read the catalog now (a socket event named a paint or badge it doesn't have, or the
 /// socket was down); it is read again every 5 minutes after that.
 pub fn refresh_catalog(app: &AppHandle) {
+    if !on(app) {
+        return;
+    }
     if let Some(queue) = app.try_state::<Queue>() {
         queue.catalog.notify_one();
     }
@@ -327,5 +338,24 @@ pub fn apply_user_cosmetics(app: &AppHandle, user_id: &str, badge_id: Option<&st
     }
     if unknown {
         refresh_catalog(app);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use cyex_settings::schema::Chat;
+
+    use super::wanted;
+
+    /// V112-23 cyex.tv coming soon: the saved setting (on by default) starts no lookups, catalog
+    /// reads or live topics until the switch flips.
+    #[test]
+    fn v112_23_cosmetics_wait_for_the_switch() {
+        let c = Chat::default();
+        assert!(c.cyextv_cosmetics, "the saved default stays on");
+        assert!(!wanted(&c, false));
+        assert!(wanted(&c, true));
+        assert!(!wanted(&Chat { cyextv_cosmetics: false, ..Chat::default() }, true));
+        assert_eq!(wanted(&c, cyex_core::CYEXTV_READY), cyex_core::CYEXTV_READY);
     }
 }

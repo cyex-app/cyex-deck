@@ -10,6 +10,7 @@
   import type { EmoteSource } from '../../../ipc/bindings/EmoteSource';
   import type { UnlistedEmotes } from '../../../ipc/bindings/UnlistedEmotes';
   import { settings } from '../../../lib/settings.svelte';
+  import { cyextvOn } from '../../../lib/cyextv';
   import { GROUPS } from '../emoteGroups';
   import ProviderGroup from './ProviderGroup.svelte';
   import { PROVIDER_NAMES } from '../../emotes/emotes';
@@ -36,7 +37,7 @@
     seventv: c.seventvEmotes,
     bttv: c.bttvEmotes,
     ffz: c.ffzEmotes,
-    cyextv: c.cyextvEmotes,
+    cyextv: cyextvOn(c.cyextvEmotes),
   });
   const ranked = $derived(c.emotePriority.filter((s) => ON[s] !== false));
 

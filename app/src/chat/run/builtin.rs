@@ -5,13 +5,14 @@
 
 use cyex_chat::commands::chain::{split_chain, split_foreach};
 use cyex_chat::commands::taint;
-use cyex_chat::model::{ModRole, NoticeKind};
+use cyex_chat::model::{ModRole, NoticeKind, Provider};
 use cyex_moderation::command::Need;
 use cyex_settings::Partition;
 use cyex_settings::schema::{Commands, HiddenUser, Highlights};
 use cyex_twitch::{gql, helix};
 use tauri::{AppHandle, Manager};
 
+use super::emote_route::Service;
 use super::{Place, UiAction, fill, guard, line, local, params, send};
 use crate::settings::Settings;
 
@@ -80,10 +81,12 @@ pub async fn run(
         }
         // V1051-04
         "combo" | "paint" | "badge" => super::cosmetics::run(app, place, name, args).await,
-        // I106-3 V111-03 V112-17 The emote commands: cyex.tv's bare, 7TV's as /7add …
-        _ if emote_service(name).is_some() => match emote_service(name) {
-            Some((EmoteService::SevenTv, _)) => super::seventv_edit::run(app, place, name, args).await,
-            _ => super::cyextv_edit::run(app, place, name, args).await,
+        // I106-3 V111-03 V112-24 The emote commands, for 7TV and cyex.tv: the emote word decides.
+        _ if super::emote_route::VERBS.contains(&name) => match emote_route(app, place, name, args)? {
+            Service::SevenTv => super::seventv_edit::run(app, place, name, args).await,
+            // V112-23 Coming soon: one line, nothing asked.
+            Service::Cyextv if !cyex_core::CYEXTV_READY => Err(crate::cyextv::SOON.into()),
+            Service::Cyextv => super::cyextv_edit::run(app, place, name, args).await,
         },
         "set" => set_var(app, args).map(|()| None),
         // V110-C69 The same line up to 100 times, as fast as Twitch takes it.
@@ -370,8 +373,6 @@ pub(super) const OWN: &[&str] = &[
     "add", "remove", "rename",
     // V111-03
     "steal", "yoink", "whoadded",
-    // V112-17 7TV's own
-    "7add", "7remove", "7rename", "7steal", "7yoink", "7whoadded",
     // V110-C69
     "spam",
     // V110-N13
@@ -388,8 +389,8 @@ const LOCAL: &[&str] = &[
     "unhideuser", "mutepings", "translate", "search", "popout", "cosmetics", "mods", "vips", "roles",
     // V110-N13
     "poll", "prediction",
-    // V111-03 Reads the set only (V112-17 cyex.tv's, and 7TV's as /7whoadded).
-    "whoadded", "7whoadded",
+    // V111-03 Reads the set only.
+    "whoadded",
     // V111-56 Reads the logs; copies here.
     "namehistory", "copy",
 ];
@@ -427,31 +428,23 @@ pub(super) const SIGNED_IN: &[&str] = &["me", "tl", "vote", "color", "cosmetics"
     "add", "remove", "rename",
     // V111-03
     "steal", "yoink",
-    // V112-17
-    "7add", "7remove", "7rename", "7steal", "7yoink",
     // V110-C69
     "spam",
     // V111-56
     "follow", "unfollow",
 ];
 
-/// V112-17 What the emote commands edit.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(super) enum EmoteService {
-    /// `/add`, `/remove`, `/rename`, `/steal` (`/yoink`), `/whoadded`.
-    Cyextv,
-    /// The same with a 7 in front: `/7add` …
-    SevenTv,
-}
-
-/// V112-17 The service and verb of an emote command, or `None` for any other name.
-pub(super) fn emote_service(name: &str) -> Option<(EmoteService, &str)> {
-    const VERBS: [&str; 6] = ["add", "remove", "rename", "steal", "yoink", "whoadded"];
-    if VERBS.contains(&name) {
-        return Some((EmoteService::Cyextv, name));
-    }
-    let verb = name.strip_prefix('7')?;
-    VERBS.contains(&verb).then_some((EmoteService::SevenTv, verb))
+/// V112-24 Which service an emote command goes to: by the id or link, else by whose set in that
+/// chat.s channel has the name (the sets open chats hold; no network).
+fn emote_route(app: &AppHandle, place: &Place, name: &str, args: &str) -> Result<Service, String> {
+    super::emote_route::route(name, args, place.channel(), cyex_core::CYEXTV_READY, |s, login, word| {
+        let provider = match s {
+            Service::SevenTv => Provider::Seventv,
+            Service::Cyextv => Provider::Cyextv,
+        };
+        crate::emotes::edit::loaded_channel_set(app, login, provider)
+            .is_some_and(|set| set.iter().any(|e| e.name.eq_ignore_ascii_case(word)))
+    })
 }
 
 /// V1041-01 Who may run a built-in (1.57): Twitch's mod commands as they parse, `/nuke` any
@@ -816,10 +809,7 @@ mod tests {
         assert!(has(&viewer, &["add", "remove", "rename"]) && none(&anon, &["add", "remove", "rename"]));
         assert!(super::super::seventv_edit::NAMES.iter().all(|n| OWN.contains(n)));
         assert!(super::super::cyextv_edit::NAMES.iter().all(|n| OWN.contains(n)));
-        // V112-17 7TV's are offered like cyex.tv's: signed in, except the read-only one.
-        assert!(has(&viewer, &["7add", "7remove", "7rename", "7steal", "7yoink"]));
-        assert!(none(&anon, &["7add", "7remove", "7rename", "7steal", "7yoink"]));
-        assert!(has(&anon, &["7whoadded"]) && !writes("7whoadded") && writes("7add"));
+        assert!(super::super::emote_route::VERBS.iter().all(|n| OWN.contains(n)));
         // V111-03 /steal writes as you; /whoadded only reads, so anyone may.
         assert!(has(&viewer, &["steal", "yoink"]) && none(&anon, &["steal", "yoink"]));
         assert!(has(&anon, &["whoadded"]) && !writes("whoadded") && writes("steal"));
@@ -827,17 +817,13 @@ mod tests {
         assert!(owner.windows(2).all(|w| w[0] < w[1]));
     }
 
-    /// V112-17 The bare names edit cyex.tv, the 7 ones 7TV (same verb), nothing else is an emote command.
+    /// V112-24 One set of emote commands for both services: the 7 ones (never shipped) are gone.
     #[test]
-    fn emote_commands_route_by_name() {
-        for verb in ["add", "remove", "rename", "steal", "yoink", "whoadded"] {
-            assert_eq!(emote_service(verb), Some((EmoteService::Cyextv, verb)), "{verb}");
+    fn emote_commands_are_one_set() {
+        for verb in super::super::emote_route::VERBS {
             let seven = format!("7{verb}");
-            assert_eq!(emote_service(&seven), Some((EmoteService::SevenTv, verb)), "{seven}");
-            assert!(OWN.contains(&verb) && OWN.contains(&seven.as_str()));
-        }
-        for other in ["", "7", "77add", "7ban", "ban", "adds", "7 add", "paint", "7paint"] {
-            assert_eq!(emote_service(other), None, "{other}");
+            assert!(OWN.contains(&verb) && !OWN.contains(&seven.as_str()), "{verb}");
+            assert!(!SIGNED_IN.contains(&seven.as_str()) && !LOCAL.contains(&seven.as_str()), "{seven}");
         }
     }
 }

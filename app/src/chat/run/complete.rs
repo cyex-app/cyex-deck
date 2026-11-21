@@ -32,8 +32,8 @@ pub async fn args(app: &AppHandle, view: u32, command: &str, sub: Option<&str>) 
     let place = place_of(app, view, false)?;
     // V111-03 The 7TV emote commands: `sub` "#" asks for channels, else it is the `#channel`
     // typed (or none), whose emote names come back.
-    if let Some((service, verb)) = super::builtin::emote_service(command) {
-        return Ok(emote_args(app, place.account(), place.channel(), service, verb, sub));
+    if super::emote_route::VERBS.contains(&command) {
+        return Ok(emote_args(app, place.account(), place.channel(), command, sub));
     }
     let Some(account) = place.account() else {
         return Ok(Vec::new());
@@ -63,30 +63,24 @@ pub async fn args(app: &AppHandle, view: u32, command: &str, sub: Option<&str>) 
     Ok(out)
 }
 
-/// V111-03 Tab for the emote commands. No network. V112-17 cyex.tv's bare ones take the
-/// names of the set an open chat holds; the 7 ones what 7TV lets the account edit.
-fn emote_args(
-    app: &AppHandle,
-    account: Option<&str>,
-    here: &str,
-    service: super::builtin::EmoteService,
-    command: &str,
-    sub: Option<&str>,
-) -> Vec<String> {
-    use super::builtin::EmoteService;
-    use crate::emotes::edit;
-
-    if service == EmoteService::Cyextv {
-        if sub == Some("#") {
-            return edit::channel_names(app, None, here);
+/// V111-03 Tab for the emote commands. No network. V112-24 7TV's names, then (once cyex.tv is
+/// ready) the names of the cyex.tv set an open chat holds.
+fn emote_args(app: &AppHandle, account: Option<&str>, here: &str, command: &str, sub: Option<&str>) -> Vec<String> {
+    let mut names = seventv_args(app, account, here, command, sub);
+    if cyex_core::CYEXTV_READY && sub != Some("#") {
+        let channel = sub.filter(|s| crate::emotes::edit::is_login(s)).unwrap_or(here);
+        if command != "add" && !(matches!(command, "steal" | "yoink") && channel == here) {
+            names.extend(super::cyextv_edit::loaded_names(app, channel));
+            names.sort_unstable();
+            names.dedup();
         }
-        let channel = sub.filter(|s| edit::is_login(s)).unwrap_or(here);
-        return match command {
-            "add" => Vec::new(),
-            "steal" | "yoink" if channel == here => Vec::new(),
-            _ => super::cyextv_edit::loaded_names(app, channel),
-        };
     }
+    names
+}
+
+/// V111-03 7TV's part of [`emote_args`].
+fn seventv_args(app: &AppHandle, account: Option<&str>, here: &str, command: &str, sub: Option<&str>) -> Vec<String> {
+    use crate::emotes::edit;
 
     if sub == Some("#") {
         return edit::channel_names(app, account, here);

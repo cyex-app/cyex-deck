@@ -6,6 +6,7 @@
   import { onMount, untrack } from 'svelte';
   import Icon from '../../../components/Icon.svelte';
   import Row from '../../../components/Row.svelte';
+  import SoonTag from '../../../components/SoonTag.svelte';
   import Toggle from '../../../components/Toggle.svelte';
   import { settings } from '../../../lib/settings.svelte';
   import {
@@ -31,6 +32,8 @@
   const v = $derived(settings.v);
   const on = $derived(masterOn(v, group));
   const single = $derived(group.children.length === 1);
+  // V112-23 Not open yet (cyex.tv): shown off and disabled; the saved values stay.
+  const soon = $derived(!!group.soon);
 
   onMount(() => {
     const pick = (e: Event) => {
@@ -74,10 +77,11 @@
       <button class="fold" aria-expanded={open} onclick={toggle}>
         <Icon name={open ? 'chevronDown' : 'chevronRight'} size={14} />
         <span class="name">{group.label}</span>
-        {#if !open}<span class="dim">{summary(v, group)}</span>{/if}
+        {#if !open && !soon}<span class="dim">{summary(v, group)}</span>{/if}
       </button>
     {/if}
-    <Toggle label="{group.label}: everything" checked={on} onchange={(next) => void master(next)} />
+    {#if soon}<SoonTag hint="cyex.tv isn’t open yet." />{/if}
+    <Toggle label="{group.label}: everything" checked={on && !soon} disabled={soon} onchange={(next) => void master(next)} />
   </div>
   {#if !single && open}
     <div class="kids">
@@ -85,7 +89,8 @@
         <Row setting={`${c.id}`} label={c.label} hint={c.hint}>
           <Toggle
             label="{group.label} {c.label.toLowerCase()}"
-            checked={read(v, c)}
+            checked={read(v, c) && !soon}
+            disabled={soon}
             onchange={(next) => void apply([[c, next]])}
           />
         </Row>

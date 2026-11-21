@@ -9,6 +9,7 @@
   import { focus } from '../../lib/focus.svelte';
   import { density } from '../../lib/density.svelte';
   import { settings } from '../../lib/settings.svelte';
+  import { cyextvOn } from '../../lib/cyextv';
   import { PROVIDER_NAMES, emoteRatio, modLook, type ModLook } from '../emotes/emotes';
   import { hidden } from '../emotes/hidden.svelte';
   import { inStep, moves } from '../emotes/phase';
@@ -28,7 +29,7 @@
 
   function shows(provider: Provider, id: string): boolean {
     // V110-E13 Each service has its own switch.
-    const on = { twitch: c.twitchEmotes, seventv: c.seventvEmotes, bttv: c.bttvEmotes, ffz: c.ffzEmotes, cyextv: c.cyextvEmotes }[provider];
+    const on = { twitch: c.twitchEmotes, seventv: c.seventvEmotes, bttv: c.bttvEmotes, ffz: c.ffzEmotes, cyextv: cyextvOn(c.cyextvEmotes) }[provider];
     if (!on) return false;
     return !hidden.has(provider, id);
   }
