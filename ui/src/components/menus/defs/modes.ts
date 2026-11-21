@@ -4,7 +4,7 @@
 import type { RoomState } from '../../../ipc/bindings/RoomState';
 import type { LengthKind, ModeChange } from '../../../features/chat/roomModes.ts';
 import { formatDuration } from '../../../lib/format.ts';
-import { type MenuDef, SEP } from '../types.ts';
+import type { MenuDef } from '../types.ts';
 import { item } from '../types.ts';
 import { noop, row, type Who } from './make.ts';
 
@@ -52,7 +52,7 @@ export const MODES_DEF: MenuDef<ModesCtx> = {
       { renamable: false },
     ),
   ],
-  defaults: [item('emote'), item('subs'), item('unique'), SEP, item('slow'), item('followers')],
+  defaults: [item('emote'), item('subs'), item('unique'), item('slow'), item('followers')],
 };
 
 export function modesSample(_who: Who): ModesCtx {
