@@ -8,6 +8,7 @@ export function startState(s: UpdateState | null, pending: Update | null | undef
   return {
     update: pending !== undefined ? pending : (s?.update ?? null),
     later: s?.later ?? false,
+    checked: s?.checked ?? null,
   };
 }
 
