@@ -109,9 +109,22 @@ export function pick(item: MenuItem, viaKey = false): void {
     menu.stack = [...menu.stack, { title: item.label, items: tidy(item.items), from: -1, anchor: null }];
     return;
   }
+  if (item.stay) {
+    item.run?.();
+    flip(item);
+    return;
+  }
   if (!confirming.press(item, item.confirm, viaKey)) return;
   shut();
   item.run?.();
+}
+
+/** V112-31 A `stay` row's tick flips in place; the open lists keep their positions. */
+function flip(item: MenuItem): void {
+  menu.stack = menu.stack.map((list) => ({
+    ...list,
+    items: list.items.map((e) => (e === item ? { ...item, checked: !item.checked } : e)),
+  }));
 }
 
 /** V110-U69 Opens row `index` of list `depth` as a flyout at `anchor`, replacing any deeper list. */

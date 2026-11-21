@@ -112,6 +112,23 @@
   display: flex;
   color: var(--accent-text);
 }
+/* V112-31 The box of a `stay` row: empty when off, the accent with a tick when on. */
+.cx-box {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 14px;
+  height: 14px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  transition: background var(--fast), border-color var(--fast);
+}
+.cx-box.on {
+  background: var(--accent);
+  border-color: var(--accent-line);
+  color: var(--accent-ink);
+}
 .cx-warn {
   display: flex;
   color: var(--yellow);

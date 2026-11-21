@@ -355,3 +355,19 @@ test('chat.modes: toggling a row hands over the change', () => {
   m.find((e) => e.label === 'Emote only')!.run!();
   assert.deepEqual(got, [{ kind: 'subs', on: false }, { kind: 'emote', on: true }]);
 });
+
+test('chat.modes: V112-31 every row is a checkbox that keeps the menu open, and repeat picks alternate', () => {
+  const got: unknown[] = [];
+  const asked: unknown[] = [];
+  const m = modesMenu({ slow: 10 }, (c) => got.push(c), (k) => asked.push(k)) as { label: string; stay?: boolean; run?: () => void }[];
+  assert.deepEqual(m.map((e) => e.stay), [true, true, true, true, true]);
+  const emote = m.find((e) => e.label === 'Emote only')!;
+  emote.run!();
+  emote.run!();
+  // Slow is on: the first pick turns it off in place, the next asks for a length.
+  const slow = m.find((e) => e.label === 'Slow mode')!;
+  slow.run!();
+  slow.run!();
+  assert.deepEqual(got, [{ kind: 'emote', on: true }, { kind: 'emote', on: false }, { kind: 'slow', secs: null }]);
+  assert.deepEqual(asked, ['slow']);
+});

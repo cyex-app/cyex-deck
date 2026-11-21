@@ -28,6 +28,9 @@ export interface MenuItem {
   /** A short explanation, shown on hover. */
   note?: string;
   checked?: boolean;
+  /** V112-31 A checkbox row that keeps the menu open: picking runs it and flips its tick, so
+   * several can be set in a row. Drawn as a box on the left. */
+  stay?: boolean;
   danger?: boolean;
   /** A warning sign at the end, e.g. an account that needs signing in again. */
   warn?: boolean;

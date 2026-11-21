@@ -22,7 +22,7 @@
   import IconButton from '../../components/IconButton.svelte';
   import Popover from '../../components/Popover.svelte';
   import ViewerChart from '../channel/ViewerChart.svelte';
-  import { openMenu } from '../../components/menu.svelte';
+  import { closeMenu, openMenu } from '../../components/menu.svelte';
   import { MORE_DEF, type MoreCtx } from '../../components/menus/defs/more';
   import { MODES_DEF } from '../../components/menus/defs/modes';
   import ModeLengthDialog from './ModeLengthDialog.svelte';
@@ -448,7 +448,10 @@
     const ctx = { login, userId: null, display: name ?? login, msgId: null, msg: null, msgTime: null };
     openMenu(
       e.currentTarget as HTMLElement,
-      menuEntries(MODES_DEF, { state: room.state, set: setMode, ask: (kind) => (askLength = { kind, start: lengthStart(kind, lastModes()) }) }, { view: room.view, context: ctx, onaction, values: { chan: login } }),
+      menuEntries(MODES_DEF, { state: room.state, set: setMode, ask: (kind) => {
+        closeMenu();
+        askLength = { kind, start: lengthStart(kind, lastModes()) };
+      } }, { view: room.view, context: ctx, onaction, values: { chan: login } }),
       'start',
     );
   }

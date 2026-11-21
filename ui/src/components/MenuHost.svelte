@@ -341,7 +341,8 @@
               onclick={(e) => choose(entry, d, i, e.detail === 0)}
               use:tooltip={{ label: noteOf(entry) || entry.label, when: () => !!noteOf(entry) || cut(rowAt(d, i)) }}
             >
-              {#if entry.swatch}<span class="cx-swatch" style:background={entry.swatch}></span>
+              {#if entry.stay}<span class="cx-box" class:on={entry.checked}>{#if entry.checked}<Icon name="check" size={12} />{/if}</span>
+              {:else if entry.swatch}<span class="cx-swatch" style:background={entry.swatch}></span>
               {:else if entry.avatar !== undefined}<Avatar src={entry.avatar} name={entry.label} size={18} />
               {:else if entry.icon}<Icon name={entry.icon} size={14} />
               {:else}<span class="cx-blank"></span>{/if}
@@ -349,7 +350,7 @@
               {#if entry.hint}<span class="cx-hint">{entry.hint}</span>{/if}
               {#if entry.lock}<GateFlag kind={entry.lock} still />{/if}
               {#if entry.warn}<span class="cx-warn"><Icon name="alert" size={14} /></span>{/if}
-              {#if entry.checked}<span class="cx-check"><Icon name="check" size={14} /></span>{/if}
+              {#if entry.checked && !entry.stay}<span class="cx-check"><Icon name="check" size={14} /></span>{/if}
               {#if entry.items}<Icon name="chevronRight" size={14} />{/if}
             </button>
           {/if}
