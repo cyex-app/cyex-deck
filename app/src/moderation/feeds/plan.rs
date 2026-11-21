@@ -156,6 +156,20 @@ mod tests {
         assert!(plan(&pairs, tokens, &Refused::new(), &stale).hermes.contains_key(&("gql".into(), "2".into())));
     }
 
+    /// V112-21 A lead mod's room is a mod room (`moderated_open` takes any role, and the
+    /// role comes from the badge whatever `mod=` says): the same feed as a mod's, AutoMod
+    /// included.
+    #[test]
+    fn v112_21_a_lead_mod_gets_a_mods_feed() {
+        let lead = cyex_chat::model::ModRole::of(["lead_moderator"], false, false);
+        assert!(lead.is_some());
+        let pairs = [pair("helix", "1", "a"), pair("gql", "2", "b")];
+        let p = plan(&pairs, tokens, &Refused::new(), &Refused::new());
+        assert!(p.eventsub["helix"].contains_key("1"));
+        assert!(p.hermes.contains_key(&("gql".into(), "2".into())));
+        assert!(p.prompts.is_empty());
+    }
+
     #[test]
     fn v111_17_viewers_get_no_feed() {
         let p = plan(&[], tokens, &Refused::new(), &Refused::new());

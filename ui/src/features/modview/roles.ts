@@ -3,6 +3,9 @@
 
 import type { ModRole } from '../../ipc/bindings/ModRole';
 
+/** V112-21 A badge set that says someone moderates: lead mods (head mods) are mods too. */
+export const isModSet = (set: string): boolean => set === 'moderator' || set === 'lead_moderator';
+
 /** A chatter's role, from their badges. */
 export function roleOf(badges: readonly { set: string }[] | undefined): ModRole | null {
   if (!badges) return null;

@@ -467,6 +467,8 @@ mod tests {
         // The ban family is open to every mod, as V102-11 asks.
         for line in ["ban x", "timeout x 10", "unban x", "warn x be nice"] {
             assert!(ok(line).needs().allows(Some(Moderator)), "{line}");
+            // V112-21 A lead mod gets every mod command.
+            assert!(ok(line).needs().allows(Some(LeadModerator)), "{line}");
             assert!(!ok(line).needs().allows(None), "{line}");
         }
     }

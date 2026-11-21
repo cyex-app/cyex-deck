@@ -293,6 +293,13 @@ fn handle(app: &AppHandle, account: &str, out: Out) {
                 && let Some(cid) = subs::channel_of(&condition)
             {
                 crate::chat::roles::set_moderator_in(app, account, cid, false);
+                // V112-21 A lead mod keeps their role (`Room::set_moderator`): AutoMod and mod
+                // actions go over Hermes then, or the chat says so, never silence.
+                let lead = login_for(app, account, cid)
+                    .is_some_and(|l| crate::chat::roles::role(app, account, &l) == Some(cyex_chat::model::ModRole::LeadModerator));
+                if lead {
+                    refused(app, account, cid, &kind);
+                }
             }
         }
     }

@@ -13,6 +13,7 @@
   import { badgeOn } from '../emotes/badgeSets';
   import { looks } from '../emotes/looks.svelte';
   import { rooms } from '../emotes/rooms.svelte';
+  import { isModSet } from '../modview/roles';
   import { catalogs } from './catalog.svelte';
   import { saved } from './saved';
   import { subHint } from './subTier';
@@ -57,7 +58,6 @@
   const swaps = $derived(
     extra.some((b) => b.replaces) ? new Map(extra.filter((b) => b.replaces).map((b) => [b.replaces!, b])) : NO_SWAPS,
   );
-  const isMod = (set: string) => set === 'moderator' || set === 'lead_moderator';
   /** Provider badges not already drawn in a Twitch badge's place. */
   /** V110-F100 A line can repeat a badge set ("moderator/1,moderator/1"): a keyed each throws on a
    *  repeated key and took the whole chat down with it. */
@@ -65,7 +65,7 @@
   const rest = $derived(
     extra.filter(
       (b) =>
-        !(on.twitch && b.replaces === 'moderator' && badges.some((r) => isMod(r.set))) &&
+        !(on.twitch && b.replaces === 'moderator' && badges.some((r) => isModSet(r.set))) &&
         // V108-C10 An FFZ VIP badge next to the VIP one (Twitch's or the room's) shows twice.
         !(on.twitch && b.replaces === 'vip' && badges.some((r) => r.set === 'vip')),
     ),
@@ -91,8 +91,8 @@
   /** What draws in a Twitch badge's place: FFZ's version, or Twitch's own. */
   function stand(ref: Ref): BadgeDef | undefined {
     // V108-C10 FFZ's bot art is the person's, so it also stands in for another room's mod badge.
-    if (ref.room) return isMod(ref.set) ? swaps.get('moderator') : undefined;
-    if (isMod(ref.set)) return swaps.get('moderator') ?? room?.moderator ?? undefined;
+    if (ref.room) return isModSet(ref.set) ? swaps.get('moderator') : undefined;
+    if (isModSet(ref.set)) return swaps.get('moderator') ?? room?.moderator ?? undefined;
     if (ref.set === 'vip') return room?.vip ?? undefined;
     return undefined;
   }

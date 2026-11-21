@@ -805,6 +805,8 @@ mod tests {
         assert!(none(&m, &["mod", "unmod", "vip", "unvip", "raid", "commercial"]));
         let lead = usable(Some(ModRole::LeadModerator), true);
         assert!(has(&lead, &["mod", "unvip"]) && none(&lead, &["raid", "marker"]));
+        // V112-21 Everything a mod gets, too.
+        assert!(m.iter().all(|c| lead.contains(c)), "a lead mod misses a mod command");
         let owner = usable(Some(ModRole::Broadcaster), true);
         assert!(has(&owner, &["raid", "unraid", "mods", "vips", "commercial", "marker", "ban"]));
         // V1051-04 The 7TV commands are offered signed in, never anonymous.

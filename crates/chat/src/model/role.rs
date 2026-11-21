@@ -85,6 +85,9 @@ mod tests {
         );
         // `mod=1` without a badge (badges hidden), and the channel's own account.
         assert_eq!(ModRole::of([], true, false), Some(ModRole::Moderator));
+        // V112-21 A lead mod is one whatever `mod=` says.
+        assert_eq!(ModRole::of(["lead_moderator"], false, false), Some(ModRole::LeadModerator));
+        assert_eq!(ModRole::of(["subscriber", "lead_moderator"], true, false), Some(ModRole::LeadModerator));
         assert_eq!(ModRole::of(["vip"], false, true), Some(ModRole::Broadcaster));
     }
 

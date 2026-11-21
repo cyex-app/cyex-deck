@@ -45,10 +45,12 @@ impl Room {
 
     /// Twitch says the account is a mod here now, or not anymore (the moderated-channel
     /// check, a mod or unmod event, a revoked mod subscription). A lead moderator stays
-    /// one when told "mod"; the broadcaster is never changed.
+    /// one either way: GQL's `isModerator` answers false for lead mods and an unmod leaves
+    /// the lead role on Twitch (V112-21), so only USERSTATE or our own line takes it away.
+    /// The broadcaster is never changed.
     pub fn set_moderator(&mut self, on: bool) -> Option<RoomEvent> {
         let me = self.me.as_ref()?;
-        if self.owner() || self.role().is_some() == on {
+        if self.owner() || self.role().is_some() == on || self.role() == Some(ModRole::LeadModerator) {
             return None;
         }
         let mut own = self
@@ -151,7 +153,11 @@ mod tests {
         );
         assert!(r.set_moderator(true).is_none());
         assert_eq!(r.role(), Some(ModRole::LeadModerator));
-        assert!(r.set_moderator(false).is_some());
+        // V112-21 Outside news never takes a lead mod's role (GQL says `isModerator: false`).
+        assert!(r.set_moderator(false).is_none());
+        assert_eq!(r.role(), Some(ModRole::LeadModerator));
+        // USERSTATE without the badge does.
+        feed(&mut r, "@badges=;mod=0 :tmi.twitch.tv USERSTATE #chan");
         assert_eq!(r.role(), None);
         // Promoted to lead mod, seen on a line we sent from another app.
         feed(&mut r, "@badges=moderator/1;mod=1 :tmi.twitch.tv USERSTATE #chan");
@@ -160,6 +166,22 @@ mod tests {
             "@badges=lead_moderator/1;display-name=Me;id=a;mod=1;room-id=9;tmi-sent-ts=1;user-id=1 :me!me@me.tmi.twitch.tv PRIVMSG #chan :hi",
         );
         assert_eq!(r.role(), Some(ModRole::LeadModerator));
+    }
+
+    #[test]
+    fn v112_21_lead_mods_are_mods_with_or_without_the_mod_tag() {
+        for raw in [
+            "@badges=lead_moderator/1;mod=0;user-type= :tmi.twitch.tv USERSTATE #chan",
+            "@badges=lead_moderator/1,subscriber/6;mod=1;user-type=mod :tmi.twitch.tv USERSTATE #chan",
+        ] {
+            let mut r = room("chan");
+            feed(&mut r, raw);
+            assert_eq!(r.role(), Some(ModRole::LeadModerator), "{raw}");
+            assert!(r.privileged(), "{raw}");
+            // Twitch's moderated-channel check and an unmod event say "not a mod".
+            assert!(r.set_moderator(false).is_none(), "{raw}");
+            assert!(r.privileged(), "{raw}");
+        }
     }
 
     #[test]
