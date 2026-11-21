@@ -258,23 +258,12 @@
   // V108-C05 The list's own height changed: the message box grew with a long message or a
   // reply bar, or shrank again. At the bottom it stays there; scrolled up, the lines over the
   // box stay over it instead of going under it.
-  const PILL_STRIP = 40; // 8 below + 26 pill + 6 above; keep in step with `.reserve` and `.more`
   let boxHeight = 0;
-  // V110-F06 The strip under the list that the pill sits in (px); see `.reserve`.
-  let reserved = 0;
   const box = new ResizeObserver(() => {
     if (!list) return;
     const was = boxHeight;
     boxHeight = list.clientHeight;
-    const strip = scroll.pill ? PILL_STRIP : 0;
-    const stripDelta = strip - reserved;
-    reserved = strip;
     if (!was || was === boxHeight) return;
-    // Only the pill's strip came or went: the lines stay where they are on screen.
-    if (stripDelta && Math.abs(was - boxHeight - stripDelta) < 1) {
-      measure();
-      return;
-    }
     const top = scroll.resized(metrics(list), was);
     if (Math.abs(top - list.scrollTop) >= 1) {
       stopScroll(list);
@@ -1075,16 +1064,14 @@
     border-top: 2px solid var(--red);
     opacity: 0.7;
   }
-  /* V110-F06 While the pill shows, the list ends above it (8px under + 26px pill + 6px above =
-     PILL_STRIP in the script), so the pill never covers a line or its buttons. The scroll
-     position is kept when the strip comes or goes, so no line moves on screen. */
+  /* V112-26 (user) While the pill shows, the lines run on under it and only the pill's strip
+     (8px under + 26px pill + 6px above) fades them, to a quarter: they stay readable there and
+     the solid pill stands out. The list keeps its height, so no line moves when the pill comes.
+     A mask, not a colour, so it fades to whatever is behind (theme or wallpaper). */
   .reserve {
-    margin-bottom: 40px;
-    /* V111-45 (user) The last lines fade out into the pill's strip instead of a hard edge. A mask,
-       not a colour, so it fades to whatever is behind (theme or wallpaper). */
     /* The scrollbar's 11px (design/tokens.css) is a second, solid layer, so it isn't faded. */
-    -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 32px), transparent), linear-gradient(#000, #000);
-    mask-image: linear-gradient(to bottom, #000 calc(100% - 32px), transparent), linear-gradient(#000, #000);
+    -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 40px), rgb(0 0 0 / 0.25)), linear-gradient(#000, #000);
+    mask-image: linear-gradient(to bottom, #000 calc(100% - 40px), rgb(0 0 0 / 0.25)), linear-gradient(#000, #000);
     -webkit-mask-size: calc(100% - 11px) 100%, 11px 100%;
     mask-size: calc(100% - 11px) 100%, 11px 100%;
     -webkit-mask-position: left top, right top;
