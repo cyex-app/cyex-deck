@@ -6,13 +6,25 @@ import { opensItself, startState } from './updateState.ts';
 const u = (version: string) => ({ version, prerelease: false, notesUrl: '', canInstall: true });
 
 test('B4 later comes from Rust after a reload', () => {
-  assert.deepEqual(startState({ update: u('0.1.6'), later: true }, undefined), { update: u('0.1.6'), later: true });
-  assert.deepEqual(startState(null, undefined), { update: null, later: false });
+  assert.deepEqual(startState({ update: u('0.1.6'), later: true, checked: 5 }, undefined), {
+    update: u('0.1.6'),
+    later: true,
+    checked: 5,
+  });
+  assert.deepEqual(startState(null, undefined), { update: null, later: false, checked: null });
 });
 
 test('B4 an update that came in while reading wins', () => {
-  assert.deepEqual(startState({ update: u('0.1.6'), later: true }, u('0.1.7')), { update: u('0.1.7'), later: true });
-  assert.deepEqual(startState({ update: u('0.1.6'), later: false }, null), { update: null, later: false });
+  assert.deepEqual(startState({ update: u('0.1.6'), later: true, checked: null }, u('0.1.7')), {
+    update: u('0.1.7'),
+    later: true,
+    checked: null,
+  });
+  assert.deepEqual(startState({ update: u('0.1.6'), later: false, checked: 9 }, null), {
+    update: null,
+    later: false,
+    checked: 9,
+  });
 });
 
 test('B4 the pop-over stays shut after later', () => {

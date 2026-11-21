@@ -25,3 +25,22 @@ export function progressText(p: UpdateProgress): string {
       return 'Restarting…';
   }
 }
+
+const RELEASES = 'https://github.com/cyex-app/cyex-deck/releases/tag/';
+
+/** V112-22 The tag a version is published under: the patch is zero-padded, 0.1.7 → v0.1.07. */
+export function releaseTag(version: string): string {
+  const m = /^v?(\d+)\.(\d+)\.(\d+)(.*)$/.exec(version.trim());
+  if (!m) return `v${version.replace(/^v/, '')}`;
+  return `v${m[1]}.${m[2]}.${m[3].padStart(2, '0')}${m[4]}`;
+}
+
+/** The release notes of a version on GitHub. */
+export function releaseNotesUrl(version: string): string {
+  return RELEASES + releaseTag(version);
+}
+
+/** A version as people read it: 0.1.7 → 0.1.07. */
+export function displayVersion(version: string): string {
+  return releaseTag(version).slice(1);
+}

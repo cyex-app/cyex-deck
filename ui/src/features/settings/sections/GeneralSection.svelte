@@ -138,21 +138,6 @@
   {/if}
 </Row>
 
-<SectionHead title="Updates" />
-<Row setting="general.updates.check" label="Check for updates" hint="At startup and every 8 hours.">
-  <Toggle
-    label="Check for updates"
-    checked={g.updates.check}
-    onchange={(v) => settings.patch('general', { updates: { ...g.updates, check: v } })}
-  />
-</Row>
-<Row setting="general.updates.prereleases" label="Include pre-releases" hint="Test builds that come before a release.">
-  <Toggle
-    label="Include pre-releases"
-    checked={g.updates.prereleases}
-    onchange={(v) => settings.patch('general', { updates: { ...g.updates, prereleases: v } })}
-  />
-</Row>
 <ResetSection partition="general" page="general" />
 
 <style>
