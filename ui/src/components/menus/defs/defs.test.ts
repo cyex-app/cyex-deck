@@ -12,9 +12,9 @@ const names = (id: string, who: PreviewAs, patch: object = {}) => {
   return top(resolveMenu(m.def, undefined, { ...m.sample(who), ...patch }));
 };
 
-test('14 menus, each with a unique id', () => {
-  assert.equal(MENU_DEFS.length, 14);
-  assert.equal(new Set(MENU_DEFS.map((d) => d.id)).size, 14);
+test('15 menus, each with a unique id', () => {
+  assert.equal(MENU_DEFS.length, 15);
+  assert.equal(new Set(MENU_DEFS.map((d) => d.id)).size, 15);
 });
 
 for (const { def, sample } of MENUS) {
@@ -247,11 +247,11 @@ test('V110-B8 two rows of one menu never share a name', () => {
   }
 });
 
-test('V110-N9 the manager groups the 14 menus under four headings with short names', () => {
+test('V110-N9 the manager groups the 15 menus under four headings with short names', () => {
   assert.deepEqual(
     MENUS_BY_GROUP.map((g) => [g.group, g.menus.map((m) => m.short)]),
     [
-      ['Chat', ['Names', 'Messages', 'Emotes', 'Chat header', 'Whispers']],
+      ['Chat', ['Names', 'Messages', 'Emotes', 'Chat header', 'Chat modes', 'Whispers']],
       ['Feeds', ['Names', 'Messages']],
       ['Tabs', ['Tabs', 'Tab groups', 'Tab bar', 'Tiles']],
       ['Watching', ['Players', 'Channel cards', 'Clips']],
@@ -303,4 +303,50 @@ test('V111-10 a layout saved before the new defaults still resolves, with every 
   const emote = pick('chat.emote');
   const oldEmote = { nodes: [item('card'), group('seventv', '7TV', [item('edits')], 'seventv'), item('hide')], known: emote.def.items.map((i) => i.id) };
   assert.deepEqual(top(resolveMenu(emote.def, oldEmote, emote.sample('viewer'))), ['Open emote card', 'Add to 7TV channel', 'Hide emote']);
+});
+
+// V112-27 The chat modes menu.
+const modesState = { slow: 0, followersOnly: null as number | null, subsOnly: false, emoteOnly: false, unique: false };
+const modesMenu = (patch: Partial<typeof modesState> = {}, set: (c: unknown) => void = () => {}) => {
+  const m = MENUS.find((x) => x.def.id === 'chat.modes')!;
+  return resolveMenu(m.def, undefined, { state: { ...modesState, ...patch }, set }) as { label: string; checked?: boolean; hint?: string; items?: { label: string; run?: () => void }[]; run?: () => void }[];
+};
+
+test('chat.modes: five rows, each unchecked with nothing on', () => {
+  const list = modesMenu().filter((e) => (e as unknown) !== 'separator');
+  assert.deepEqual(list.map((e) => e.label), ['Emote only', 'Subscribers only', 'Unique chat', 'Slow mode', 'Followers only']);
+  assert.deepEqual(list.map((e) => !!e.checked), [false, false, false, false, false]);
+});
+
+test('chat.modes: checks follow ROOMSTATE', () => {
+  const list = modesMenu({ emoteOnly: true, subsOnly: true, unique: true, slow: 30, followersOnly: 10 }).filter((e) => (e as unknown) !== 'separator');
+  assert.deepEqual(list.map((e) => !!e.checked), [true, true, true, true, true]);
+  assert.equal(list[3].hint, '30s');
+  assert.equal(list[4].hint, '10m');
+  // Any follower is 0 minutes and still on.
+  assert.equal(modesMenu({ followersOnly: 0 }).find((e) => e.label === 'Followers only')!.hint, 'Any');
+});
+
+test('chat.modes: slow and followers offer lengths when off, turn off when on', () => {
+  const off = modesMenu();
+  const slow = off.find((e) => e.label === 'Slow mode')!;
+  assert.deepEqual(slow.items!.map((i) => i.label), ['3s', '5s', '10s', '30s', '1m', '2m', '5m']);
+  const fol = off.find((e) => e.label === 'Followers only')!;
+  assert.deepEqual(fol.items!.map((i) => i.label), ['Any follower', '10m', '30m', '1h', '1d', '1w', '1mo', '3mo']);
+  const got: unknown[] = [];
+  const on = modesMenu({ slow: 5, followersOnly: 30 }, (c) => got.push(c));
+  on.find((e) => e.label === 'Slow mode')!.run!();
+  on.find((e) => e.label === 'Followers only')!.run!();
+  assert.deepEqual(got, [{ kind: 'slow', secs: null }, { kind: 'followers', mins: null }]);
+  assert.equal(on.find((e) => e.label === 'Slow mode')!.items, undefined);
+});
+
+test('chat.modes: picking a length and toggling a row hand over the change', () => {
+  const got: unknown[] = [];
+  const m = modesMenu({ subsOnly: true }, (c) => got.push(c));
+  m.find((e) => e.label === 'Slow mode')!.items![2].run!();
+  m.find((e) => e.label === 'Followers only')!.items![3].run!();
+  m.find((e) => e.label === 'Subscribers only')!.run!();
+  m.find((e) => e.label === 'Emote only')!.run!();
+  assert.deepEqual(got, [{ kind: 'slow', secs: 10 }, { kind: 'followers', mins: 60 }, { kind: 'subs', on: false }, { kind: 'emote', on: true }]);
 });

@@ -421,6 +421,14 @@ export const APP: Entry[] = [
     anchor: 'menus.layouts',
   },
   {
+    id: 'menus:chat.modes',
+    page: 'menus',
+    label: 'Chat modes menu',
+    description: 'The mode chip in a chat’s header, for mods.',
+    keywords: ['menu', 'rearrange', 'modes', 'slow', 'followers', 'subscribers', 'emote only', 'unique', 'r9k', 'header', 'mod'],
+    anchor: 'menus.layouts',
+  },
+  {
     id: 'menus:feed.name',
     page: 'menus',
     label: 'Feed name menu',

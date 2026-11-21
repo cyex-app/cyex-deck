@@ -22,6 +22,7 @@ export type MenuId =
   | 'chat.message'
   | 'chat.emote'
   | 'chat.more'
+  | 'chat.modes'
   | 'feed.name'
   | 'feed.message'
   | 'tabs.tab'

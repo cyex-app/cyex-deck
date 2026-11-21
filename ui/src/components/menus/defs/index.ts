@@ -8,6 +8,7 @@ import { EMOTE_DEF, emoteSample } from './emote.ts';
 import { FEED_MESSAGE_DEF, FEED_NAME_DEF, feedMessageSample, feedNameSample } from './feed.ts';
 import type { Who } from './make.ts';
 import { MESSAGE_DEF, messageSample } from './message.ts';
+import { MODES_DEF, modesSample } from './modes.ts';
 import { MORE_DEF, moreSample } from './more.ts';
 import { NAME_DEF, nameSample } from './name.ts';
 import { PLAYER_DEF, playerSample } from './player.ts';
@@ -51,6 +52,7 @@ export const MENUS: MenuInfo[] = [
   { def: MESSAGE_DEF, group: 'Chat', short: 'Messages', sample: messageSample },
   { def: EMOTE_DEF, group: 'Chat', short: 'Emotes', sample: emoteSample },
   { def: MORE_DEF, group: 'Chat', short: 'Chat header', sample: moreSample },
+  { def: MODES_DEF, group: 'Chat', short: 'Chat modes', sample: modesSample },
   { def: WHISPER_DEF, group: 'Chat', short: 'Whispers', sample: whisperSample },
   { def: FEED_NAME_DEF, group: 'Feeds', short: 'Names', sample: feedNameSample },
   { def: FEED_MESSAGE_DEF, group: 'Feeds', short: 'Messages', sample: feedMessageSample },

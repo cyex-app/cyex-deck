@@ -29,6 +29,7 @@ const OFFERS: Record<string, Placeholder[]> = {
   'chat.message': MESSAGE,
   'chat.emote': ['chan'],
   'chat.more': ['chan'],
+  'chat.modes': [],
   'feed.name': [...USER, 'chan'],
   'feed.message': MESSAGE,
   'tabs.tab': ['chan'],

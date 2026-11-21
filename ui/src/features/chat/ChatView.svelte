@@ -24,6 +24,8 @@
   import ViewerChart from '../channel/ViewerChart.svelte';
   import { openMenu } from '../../components/menu.svelte';
   import { MORE_DEF, type MoreCtx } from '../../components/menus/defs/more';
+  import { MODES_DEF } from '../../components/menus/defs/modes';
+  import { activeModes, canSetModes, modeCommand, withChange, type ModeChange } from './roomModes';
   import type { TileCtx } from '../../components/menus/defs/tile';
   import { menuEntries } from '../../components/menus/use';
   import { copy } from '../../lib/clipboard';
@@ -37,7 +39,7 @@
   import { chatIpc } from '../../ipc/chat';
   import { chatxIpc } from '../../ipc/chatx';
   import { errorText } from '../../lib/errors';
-  import { formatDuration, formatNumber } from '../../lib/format';
+  import { formatNumber } from '../../lib/format';
   import { lockFor } from '../../lib/gate';
   import { bindingOf, useHotkeys } from '../../lib/hotkeys.svelte';
   import { settings } from '../../lib/settings.svelte';
@@ -421,20 +423,30 @@
     return { label: stream.title || 'Live', hint: line.filter(Boolean).join(' · ') };
   });
 
-  const modes = $derived.by(() => {
-    const s = room.state;
-    const list: { label: string; hint: string }[] = [];
-    if (s.slow) list.push({ label: `Slow ${formatDuration(s.slow)}`, hint: 'One message per this long.' });
-    if (s.followersOnly !== null)
-      list.push({
-        label: s.followersOnly ? `Followers ${formatDuration(s.followersOnly * 60)}` : 'Followers',
-        hint: 'Only followers can chat.',
-      });
-    if (s.subsOnly) list.push({ label: 'Sub', hint: 'Only subscribers can chat.' });
-    if (s.emoteOnly) list.push({ label: 'Emotes', hint: 'Emotes only.' });
-    if (s.unique) list.push({ label: 'Unique', hint: 'Messages must be unique.' });
-    return list;
-  });
+  const modes = $derived(activeModes(room.state));
+  // V112-27 Mods and up change the modes from the chip; everyone else reads it.
+  const canModes = $derived(canSetModes(caps));
+
+  /** V112-27 Shows the change at once (like other mod actions); Twitch's ROOMSTATE sets the
+   *  real state, and a refusal puts the old one back. */
+  function setMode(change: ModeChange) {
+    const before = room.state;
+    const shown = withChange(before, change);
+    room.state = shown;
+    chatIpc.send(room.view, modeCommand(change)).catch((e) => {
+      if (room.state === shown) room.state = before;
+      toast.error(errorText(e));
+    });
+  }
+
+  function modesMenu(e: MouseEvent) {
+    const ctx = { login, userId: null, display: name ?? login, msgId: null, msg: null, msgTime: null };
+    openMenu(
+      e.currentTarget as HTMLElement,
+      menuEntries(MODES_DEF, { state: room.state, set: setMode }, { view: room.view, context: ctx, onaction, values: { chan: login } }),
+      'start',
+    );
+  }
 
   function reply(id: string) {
     replyTo = room.find(id) ?? null;
@@ -527,13 +539,28 @@
     <div class="modes">
       {#if filters.length}<span class="mode" use:tooltip={{ label: 'Shown through filters', hint: 'Change them in ⋯ → Filters.' }}>Filtered</span>{/if}
       {#each modes as m (m.label)}
-        <span class="mode room" use:tooltip={{ label: m.label, hint: m.hint }}>{m.label}</span>
+        {#if canModes}
+          <button class="mode room act" aria-haspopup="menu" onclick={modesMenu} use:tooltip={{ label: m.label, hint: m.hint }}>{m.label}</button>
+        {:else}
+          <span class="mode room" use:tooltip={{ label: m.label, hint: m.hint }}>{m.label}</span>
+        {/if}
       {/each}
       <!-- A narrow chat: one short chip, the full list in its tooltip. -->
       {#if modes.length}
-        <span class="mode compact" use:tooltip={{ label: modes.map((m) => m.label).join(' · '), hint: 'Chat modes' }}>
-          <Icon name="lock" size={11} />{modes.length > 1 ? modes.length : ''}
-        </span>
+        {#if canModes}
+          <button class="mode compact act" aria-haspopup="menu" aria-label="Chat modes" onclick={modesMenu} use:tooltip={{ label: modes.map((m) => m.label).join(' · '), hint: 'Change chat modes' }}>
+            <Icon name="lock" size={11} />{modes.length > 1 ? modes.length : ''}
+          </button>
+        {:else}
+          <span class="mode compact" use:tooltip={{ label: modes.map((m) => m.label).join(' · '), hint: 'Chat modes' }}>
+            <Icon name="lock" size={11} />{modes.length > 1 ? modes.length : ''}
+          </span>
+        {/if}
+      {:else if canModes}
+        <!-- V112-27 Nothing on: a quiet way in for mods. -->
+        <button class="mode quiet act" aria-haspopup="menu" aria-label="Chat modes" onclick={modesMenu} use:tooltip={{ label: 'Chat modes', hint: 'Slow, followers-only, subscribers-only and more.' }}>
+          <Icon name="sliders" size={11} /><span class="q-t">Modes</span>
+        </button>
       {/if}
     </div>
     {#if settings.v.chat.rateMeter}<RateMeter {login} />{/if}
@@ -769,6 +796,27 @@
   .mode.compact {
     display: none;
   }
+  /* V112-27 A mod's chip is a button: same look, hover and a focus ring. */
+  button.mode {
+    font-family: inherit;
+    cursor: pointer;
+  }
+  button.mode.act:hover {
+    background: var(--surface-hover);
+    color: var(--text);
+  }
+  button.mode.act:focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: -2px;
+  }
+  .mode.quiet {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: none;
+    border-color: transparent;
+    color: var(--dim);
+  }
   /* V108-F60n Narrow: the buttons slim down and the chips give way before the name does. */
   @container chat (max-width: 280px) {
     header :global(.icon-btn) {
@@ -786,6 +834,9 @@
       display: inline-flex;
       align-items: center;
       gap: 3px;
+    }
+    .q-t {
+      display: none;
     }
   }
   .mode.rec {
