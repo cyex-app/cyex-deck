@@ -25,7 +25,7 @@
   import { openMenu } from '../../components/menu.svelte';
   import { MORE_DEF, type MoreCtx } from '../../components/menus/defs/more';
   import { MODES_DEF } from '../../components/menus/defs/modes';
-  import { activeModes, canSetModes, modeCommand, withChange, type ModeChange } from './roomModes';
+  import { activeModes, canSetModes, lastModes, modeCommand, rememberMode, withChange, type ModeChange } from './roomModes';
   import type { TileCtx } from '../../components/menus/defs/tile';
   import { menuEntries } from '../../components/menus/use';
   import { copy } from '../../lib/clipboard';
@@ -430,6 +430,7 @@
   /** V112-27 Shows the change at once (like other mod actions); Twitch's ROOMSTATE sets the
    *  real state, and a refusal puts the old one back. */
   function setMode(change: ModeChange) {
+    rememberMode(change);
     const before = room.state;
     const shown = withChange(before, change);
     room.state = shown;
@@ -443,7 +444,7 @@
     const ctx = { login, userId: null, display: name ?? login, msgId: null, msg: null, msgTime: null };
     openMenu(
       e.currentTarget as HTMLElement,
-      menuEntries(MODES_DEF, { state: room.state, set: setMode }, { view: room.view, context: ctx, onaction, values: { chan: login } }),
+      menuEntries(MODES_DEF, { state: room.state, set: setMode, last: lastModes() }, { view: room.view, context: ctx, onaction, values: { chan: login } }),
       'start',
     );
   }

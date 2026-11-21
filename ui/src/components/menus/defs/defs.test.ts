@@ -327,13 +327,27 @@ test('chat.modes: checks follow ROOMSTATE', () => {
   assert.equal(modesMenu({ followersOnly: 0 }).find((e) => e.label === 'Followers only')!.hint, 'Any');
 });
 
-test('chat.modes: slow and followers offer lengths when off, turn off when on', () => {
-  const off = modesMenu();
-  const slow = off.find((e) => e.label === 'Slow mode')!;
-  assert.deepEqual(slow.items!.map((i) => i.label), ['3s', '5s', '10s', '30s', '1m', '2m', '5m']);
-  const fol = off.find((e) => e.label === 'Followers only')!;
-  assert.deepEqual(fol.items!.map((i) => i.label), ['Any follower', '10m', '30m', '1h', '1d', '1w', '1mo', '3mo']);
+test('chat.modes: slow and followers open a typed length when off, turn off when on', () => {
   const got: unknown[] = [];
+  const off = modesMenu({}, (c) => got.push(c));
+  const slow = off.find((e) => e.label === 'Slow mode')!;
+  assert.equal(slow.items!.length, 1);
+  const sf = slow.items![0] as unknown as { field: { value: string; focus: boolean; submit(t: string): string | null } };
+  assert.equal(sf.field.value, '30s');
+  assert.equal(sf.field.focus, true);
+  const fol = off.find((e) => e.label === 'Followers only')!;
+  const ff = fol.items![0] as unknown as { field: { value: string; submit(t: string): string | null } };
+  assert.equal(ff.field.value, '0');
+  // Bad or out of range: the message comes back and nothing is sent.
+  assert.equal(sf.field.submit('5m'), 'Slow mode goes from 3 seconds to 2 minutes.');
+  assert.equal(sf.field.submit('x'), 'Slow mode goes from 3 seconds to 2 minutes.');
+  assert.equal(ff.field.submit('4mo'), 'Followers only goes from 0 minutes to 3 months.');
+  assert.deepEqual(got, []);
+  // A good length is sent and closes the menu.
+  assert.equal(sf.field.submit('2m'), null);
+  assert.equal(ff.field.submit('1h'), null);
+  assert.deepEqual(got, [{ kind: 'slow', secs: 120 }, { kind: 'followers', mins: 60 }]);
+  got.length = 0;
   const on = modesMenu({ slow: 5, followersOnly: 30 }, (c) => got.push(c));
   on.find((e) => e.label === 'Slow mode')!.run!();
   on.find((e) => e.label === 'Followers only')!.run!();
@@ -341,12 +355,10 @@ test('chat.modes: slow and followers offer lengths when off, turn off when on', 
   assert.equal(on.find((e) => e.label === 'Slow mode')!.items, undefined);
 });
 
-test('chat.modes: picking a length and toggling a row hand over the change', () => {
+test('chat.modes: toggling a row hands over the change', () => {
   const got: unknown[] = [];
   const m = modesMenu({ subsOnly: true }, (c) => got.push(c));
-  m.find((e) => e.label === 'Slow mode')!.items![2].run!();
-  m.find((e) => e.label === 'Followers only')!.items![3].run!();
   m.find((e) => e.label === 'Subscribers only')!.run!();
   m.find((e) => e.label === 'Emote only')!.run!();
-  assert.deepEqual(got, [{ kind: 'slow', secs: 10 }, { kind: 'followers', mins: 60 }, { kind: 'subs', on: false }, { kind: 'emote', on: true }]);
+  assert.deepEqual(got, [{ kind: 'subs', on: false }, { kind: 'emote', on: true }]);
 });

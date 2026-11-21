@@ -50,6 +50,11 @@
     fieldError = '';
   });
 
+  /** V112-29 A field that asks for the keyboard (with its start text selected) once it is in the list. */
+  function startFocus(node: HTMLInputElement, on: boolean) {
+    if (on) void tick().then(() => requestAnimationFrame(() => node.isConnected && (node.focus({ preventScroll: true }), node.select())));
+  }
+
   function fieldKey(e: KeyboardEvent, item: MenuItem) {
     if (!enterKey(e) || !item.field) return;
     e.preventDefault();
@@ -313,6 +318,8 @@
                 aria-label={entry.label}
                 aria-invalid={!!fieldError}
                 placeholder={entry.field.placeholder}
+                value={entry.field.value ?? ''}
+                use:startFocus={!!entry.field.focus}
                 spellcheck="false"
                 autocomplete="off"
                 oninput={() => (fieldError = '')}
