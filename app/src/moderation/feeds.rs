@@ -358,6 +358,7 @@ pub fn on_hermes(app: &AppHandle, e: &cyex_twitch::hermes::Event) {
         Kind::AutomodQueue => {
             // V106-07 Q2b Held (pending) messages count too, so GQL-only mods see them.
             if let Some(p) = actions::automod_pending(&e.payload) {
+                log_late("hermes", &p.message_id, &p.sent_at, now);
                 let item = HeldItem {
                     message_id: p.message_id,
                     user_id: p.sender.id.clone(),
@@ -505,9 +506,10 @@ fn route(app: &AppHandle, account: &str, channel_id: &str, login: Option<&str>, 
                 login: h.user.login.clone(),
                 display: display(&h.user),
                 text: h.message.text.clone(),
-                reason: held_reason(&h),
+                reason: cyex_moderation::held::eventsub(&h),
                 ts: now,
             };
+            log_late("eventsub", &h.message_id, &h.held_at, now);
             held(app, account, channel_id, login, item);
         }
         Event::HeldDone { message_id, status, moderator } => {
@@ -624,29 +626,23 @@ fn display(u: &events::Who) -> String {
     if u.name.is_empty() { u.login.clone() } else { u.name.clone() }
 }
 
-/// V108-N15 The reason on the wire, for `ui/.../feeds/heldReason.ts`: `automod:<category>[:<level>]`,
-/// `blocked_term[:<flagged text>]` or `blocked_link`. Anything else is passed through.
-fn held_reason(h: &events::Held) -> String {
-    match h.reason.as_str() {
-        "blocked_term" => match flagged_text(&h.message.text, &h.boundaries) {
-            Some(t) => format!("blocked_term:{t}"),
-            None => "blocked_term".into(),
-        },
-        "blocked_link" => "blocked_link".into(),
-        _ => match (&h.category, h.level) {
-            (Some(c), Some(l)) => format!("automod:{c}:{l}"),
-            (Some(c), None) => format!("automod:{c}"),
-            _ => "AutoMod".into(),
-        },
+/// V112-28 With `CYEX_DEBUG_AUTOMOD` set: how long after Twitch's time (EventSub `held_at`,
+/// Hermes `sent_at`) a held message reached the deck. Never in normal output.
+fn log_late(feed: &str, message_id: &str, at: &str, now_ms: i64) {
+    static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    if !*ON.get_or_init(|| std::env::var_os("CYEX_DEBUG_AUTOMOD").is_some()) {
+        return;
+    }
+    match late_ms(at, now_ms) {
+        Some(ms) => eprintln!("automod: {feed} hold {message_id} here {ms} ms after {at}"),
+        None => eprintln!("automod: {feed} hold {message_id} has no time ({at:?})"),
     }
 }
 
-/// The first flagged range of `text` (code points, end inclusive), if it fits.
-fn flagged_text(text: &str, bounds: &[events::Boundary]) -> Option<String> {
-    let b = bounds.first()?;
-    let n = (b.end_pos.checked_sub(b.start_pos)? + 1) as usize;
-    let t: String = text.chars().skip(b.start_pos as usize).take(n).collect();
-    (!t.trim().is_empty()).then_some(t)
+/// Milliseconds from an RFC 3339 time to `now_ms`; none if it doesn't parse.
+fn late_ms(at: &str, now_ms: i64) -> Option<i64> {
+    let t = OffsetDateTime::parse(at.trim(), &Rfc3339).ok()?;
+    Some(now_ms - (t.unix_timestamp_nanos() / 1_000_000) as i64)
 }
 
 fn sent_secs(app: &AppHandle, channel_id: &str, login: &str, now: i64) -> Option<u32> {
@@ -681,28 +677,10 @@ mod tests {
         assert_eq!(left_secs(1_000, 5_000), None);
     }
 
-    // V108-N15
     #[test]
-    fn held_reason_wire_forms() {
-        let mut h = events::Held {
-            message_id: "m".into(),
-            user: events::Who::default(),
-            message: events::Message { text: "you bad word".into(), ..Default::default() },
-            reason: "automod".into(),
-            category: Some("swearing".into()),
-            level: Some(3),
-            boundaries: vec![],
-            terms: vec![],
-            held_at: String::new(),
-        };
-        assert_eq!(held_reason(&h), "automod:swearing:3");
-        h.level = None;
-        assert_eq!(held_reason(&h), "automod:swearing");
-        h.reason = "blocked_term".into();
-        assert_eq!(held_reason(&h), "blocked_term");
-        h.boundaries = vec![events::Boundary { start_pos: 4, end_pos: 6 }];
-        assert_eq!(held_reason(&h), "blocked_term:bad");
-        h.reason = "blocked_link".into();
-        assert_eq!(held_reason(&h), "blocked_link");
+    fn v112_28_late_ms() {
+        assert_eq!(late_ms("1970-01-01T00:00:01Z", 3_500), Some(2_500));
+        assert_eq!(late_ms("1970-01-01T00:00:01.250Z", 1_000), Some(-250));
+        assert_eq!(late_ms("x", 0), None);
     }
 }

@@ -431,7 +431,10 @@ pub struct Pending {
     pub message_id: String,
     pub sender: Who,
     pub text: String,
+    /// `held::hermes`' wire form.
     pub reason: String,
+    /// When the sender sent it (RFC 3339), for the receive-latency debug log (V112-28).
+    pub sent_at: String,
 }
 
 pub fn automod_pending(p: &Value) -> Option<Pending> {
@@ -451,13 +454,10 @@ pub fn automod_pending(p: &Value) -> Option<Pending> {
     let u = msg.get("sender").unwrap_or(&Value::Null);
     let sender = Who { id: s(u, "user_id"), login: s(u, "login"), name: s(u, "display_name") };
     let text = msg.pointer("/content/text").and_then(Value::as_str).unwrap_or_default().to_owned();
-    let reason = d
-        .pointer("/content_classification/category")
-        .and_then(Value::as_str)
-        .filter(|c| !c.is_empty())
-        .unwrap_or("AutoMod")
-        .to_owned();
-    Some(Pending { message_id, sender, text, reason })
+    // V112-28 Why, as `held::hermes` reads it (a blocked term with its text, not "unknown").
+    let reason = crate::held::hermes(d, &text);
+    let sent_at = s(msg, "sent_at");
+    Some(Pending { message_id, sender, text, reason, sent_at })
 }
 
 /// The same topic once a mod decided or Twitch let it go: which message, the status (lowercase) and who.
@@ -769,11 +769,20 @@ mod tests {
                 "message": {"id": "m1", "content": {"text": "hi"}, "sender": {"user_id": "3", "login": "x", "display_name": "X"}}}})
         };
         let p = automod_pending(&held("PENDING")).unwrap();
-        assert_eq!((p.message_id.as_str(), p.reason.as_str(), p.text.as_str()), ("m1", "aggressive", "hi"));
+        assert_eq!((p.message_id.as_str(), p.reason.as_str(), p.text.as_str()), ("m1", "automod:aggressive:2", "hi"));
         assert_eq!((p.sender.id.as_str(), p.sender.login.as_str(), p.sender.name.as_str()), ("3", "x", "X"));
         assert!(automod_pending(&held("pending")).is_some());
         let bare = json!({"type": "automod_caught_message", "data": {"status": "PENDING", "message": {"id": "m2"}}});
         assert_eq!(automod_pending(&bare).unwrap().reason, "AutoMod");
+        // V112-28 A blocked term, as Twitch's client gets it: named, not "unknown".
+        let term = json!({"type": "automod_caught_message", "data": {"status": "PENDING",
+            "content_classification": {"category": "unknown", "level": 0},
+            "caught_message_reason": {"reason": "BlockedTermCaughtMessageReason", "blocked_term_failure": {
+                "contains_private_term": false,
+                "terms_found": [{"term_id": "t1", "is_private": false, "positions_in_message": {"start_pos": 3, "end_pos": 5}}]}},
+            "message": {"id": "m3", "content": {"text": "hi bad"}, "sent_at": "2026-11-21T10:00:00Z"}}});
+        let p = automod_pending(&term).unwrap();
+        assert_eq!((p.reason.as_str(), p.sent_at.as_str()), ("blocked_term:bad", "2026-11-21T10:00:00Z"));
         assert!(automod_pending(&held("DENIED")).is_none());
         assert!(automod_resolved(&held("PENDING")).is_none());
         for (status, want) in [("ALLOWED", "allowed"), ("DENIED", "denied"), ("EXPIRED", "expired")] {

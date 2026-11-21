@@ -6,6 +6,7 @@
 pub mod actions;
 pub mod command;
 pub mod duration;
+pub mod held;
 pub mod log;
 pub mod mass;
 pub mod mass_jobs;
