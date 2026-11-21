@@ -23,9 +23,11 @@
     footer?: Snippet;
     /** V110-N12 False: closing leaves focus where it is instead of back on the opener. Read at close. */
     restore?: boolean;
+    /** V112-30 Fills the nearest positioned parent (one chat) instead of the window, and only a button or Escape closes it. */
+    within?: boolean;
   }
 
-  let { title, width = 420, top = false, onclose, locked = false, onsubmit, children, footer, restore = true }: Props = $props();
+  let { title, width = 420, top = false, onclose, locked = false, onsubmit, children, footer, restore = true, within = false }: Props = $props();
 
   let box = $state<HTMLElement>();
 
@@ -70,7 +72,7 @@
 
 <!-- The backdrop only catches outside clicks; Escape is handled above. -->
 <!-- svelte-ignore a11y_no_static_element_interactions, a11y_click_events_have_key_events -->
-<div class="backdrop" class:top onmousedown={(e) => e.target === e.currentTarget && dismiss()}>
+<div class="backdrop" class:top class:within onmousedown={(e) => !within && e.target === e.currentTarget && dismiss()}>
   <div class="dialog" role="dialog" aria-modal="true" aria-label={title} tabindex="-1" bind:this={box} style:width="{width}px" onkeydown={enter}>
     <header>
       <h2>{title}</h2>
@@ -94,6 +96,9 @@
     padding: 12px;
     background: var(--overlay);
     animation: fade var(--fast) ease-out;
+  }
+  .backdrop.within {
+    position: absolute;
   }
   .backdrop.top {
     align-items: start;

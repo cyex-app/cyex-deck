@@ -119,3 +119,24 @@ export function withChange<S extends Pick<RoomState, 'slow' | 'followersOnly' | 
       return { ...s, followersOnly: c.mins };
   }
 }
+
+/** V112-30 Which length a dialog asks for. */
+export type LengthKind = 'slow' | 'followers';
+
+/** What the dialog shows for each kind. */
+export const LENGTH_ASK: Record<LengthKind, { title: string; label: string; placeholder: string; note: string }> = {
+  slow: { title: 'Slow mode', label: 'Seconds', placeholder: '30', note: SLOW_RANGE_NOTE },
+  followers: { title: 'Followers only', label: 'Time', placeholder: '0, 15m, 1h, 1d, 1w, 3mo', note: FOLLOW_RANGE_NOTE },
+};
+
+/** The dialog's start text: the last length used, or the default. */
+export function lengthStart(kind: LengthKind, last: { slow: number; followers: number }): string {
+  return kind === 'slow' ? String(last.slow) : followText(last.followers);
+}
+
+/** OK in the dialog: the change to send, or the range note to show with nothing sent. */
+export function submitLength(kind: LengthKind, text: string): { change: ModeChange } | { error: string } {
+  const p = kind === 'slow' ? parseSlow(text) : parseFollowers(text);
+  if ('error' in p) return p;
+  return { change: kind === 'slow' ? { kind: 'slow', secs: p.value } : { kind: 'followers', mins: p.value } };
+}

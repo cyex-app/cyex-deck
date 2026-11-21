@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import type { Caps } from '../../ipc/bindings/Caps';
-import { activeModes, canSetModes, followText, lastModes, modeCommand, parseFollowers, parseSlow, rememberMode, slowText, withChange } from './roomModes.ts';
+import { activeModes, canSetModes, followText, lastModes, lengthStart, modeCommand, parseFollowers, parseSlow, rememberMode, slowText, submitLength, withChange } from './roomModes.ts';
 
 const off = { slow: 0, followersOnly: null, subsOnly: false, emoteOnly: false, unique: false };
 
@@ -90,4 +90,20 @@ test('the optimistic state applies the change and leaves the rest', () => {
   assert.deepEqual(withChange(off, { kind: 'followers', mins: 0 }), { ...off, followersOnly: 0 });
   assert.deepEqual(withChange({ ...off, followersOnly: 0 }, { kind: 'followers', mins: null }), off);
   assert.equal(withChange(off, { kind: 'subs', on: true }).subsOnly, true);
+});
+
+test('V112-30 the dialog starts on the last length and sends only a good one', () => {
+  assert.equal(lengthStart('slow', { slow: 45, followers: 60 }), '45');
+  assert.equal(lengthStart('followers', { slow: 45, followers: 60 }), '1h');
+  assert.equal(lengthStart('followers', { slow: 45, followers: 0 }), '0');
+  assert.deepEqual(submitLength('slow', '30'), { change: { kind: 'slow', secs: 30 } });
+  assert.deepEqual(submitLength('slow', '120'), { change: { kind: 'slow', secs: 120 } });
+  assert.deepEqual(submitLength('slow', '2'), { error: SLOW_ERR });
+  assert.deepEqual(submitLength('slow', '121'), { error: SLOW_ERR });
+  assert.deepEqual(submitLength('slow', ''), { error: SLOW_ERR });
+  assert.deepEqual(submitLength('followers', '0'), { change: { kind: 'followers', mins: 0 } });
+  assert.deepEqual(submitLength('followers', '15m'), { change: { kind: 'followers', mins: 15 } });
+  assert.deepEqual(submitLength('followers', '45'), { change: { kind: 'followers', mins: 45 } });
+  assert.deepEqual(submitLength('followers', '3mo'), { change: { kind: 'followers', mins: 129_600 } });
+  assert.deepEqual(submitLength('followers', '4mo'), { error: FOL_ERR });
 });

@@ -51,9 +51,6 @@ export interface MenuItem {
 /** V107 A typed value in a menu, e.g. a custom pin length. */
 export interface MenuField {
   placeholder: string;
-  /** V112-29 Text the field starts with; with `focus` it takes the keyboard, selected, when the list opens. */
-  value?: string;
-  focus?: boolean;
   /** Enter hands it the text: `null` closes the menu, a message keeps it open and shows it. */
   submit: (text: string) => string | null;
 }

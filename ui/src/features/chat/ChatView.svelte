@@ -25,7 +25,8 @@
   import { openMenu } from '../../components/menu.svelte';
   import { MORE_DEF, type MoreCtx } from '../../components/menus/defs/more';
   import { MODES_DEF } from '../../components/menus/defs/modes';
-  import { activeModes, canSetModes, lastModes, modeCommand, rememberMode, withChange, type ModeChange } from './roomModes';
+  import ModeLengthDialog from './ModeLengthDialog.svelte';
+  import { activeModes, canSetModes, lastModes, lengthStart, modeCommand, rememberMode, withChange, type LengthKind, type ModeChange } from './roomModes';
   import type { TileCtx } from '../../components/menus/defs/tile';
   import { menuEntries } from '../../components/menus/use';
   import { copy } from '../../lib/clipboard';
@@ -440,11 +441,14 @@
     });
   }
 
+  /** V112-30 The length dialog, open over this chat only. */
+  let askLength = $state<{ kind: LengthKind; start: string } | null>(null);
+
   function modesMenu(e: MouseEvent) {
     const ctx = { login, userId: null, display: name ?? login, msgId: null, msg: null, msgTime: null };
     openMenu(
       e.currentTarget as HTMLElement,
-      menuEntries(MODES_DEF, { state: room.state, set: setMode, last: lastModes() }, { view: room.view, context: ctx, onaction, values: { chan: login } }),
+      menuEntries(MODES_DEF, { state: room.state, set: setMode, ask: (kind) => (askLength = { kind, start: lengthStart(kind, lastModes()) }) }, { view: room.view, context: ctx, onaction, values: { chan: login } }),
       'start',
     );
   }
@@ -709,6 +713,17 @@
   </div>
   <ResubBanner {account} {login} />
   <ChatInput bind:this={input} {room} bind:replyTo {onsignin} {onaction} />
+  {#if askLength}
+    <ModeLengthDialog
+      kind={askLength.kind}
+      start={askLength.start}
+      onok={(c) => {
+        askLength = null;
+        setMode(c);
+      }}
+      oncancel={() => (askLength = null)}
+    />
+  {/if}
   {#if subscribing && account}<SubDialog {account} {login} onclose={() => (subscribing = false)} />{/if}
 </section>
 

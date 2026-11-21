@@ -307,9 +307,9 @@ test('V111-10 a layout saved before the new defaults still resolves, with every 
 
 // V112-27 The chat modes menu.
 const modesState = { slow: 0, followersOnly: null as number | null, subsOnly: false, emoteOnly: false, unique: false };
-const modesMenu = (patch: Partial<typeof modesState> = {}, set: (c: unknown) => void = () => {}) => {
+const modesMenu = (patch: Partial<typeof modesState> = {}, set: (c: unknown) => void = () => {}, ask: (k: string) => void = () => {}) => {
   const m = MENUS.find((x) => x.def.id === 'chat.modes')!;
-  return resolveMenu(m.def, undefined, { state: { ...modesState, ...patch }, set }) as { label: string; checked?: boolean; hint?: string; items?: { label: string; run?: () => void }[]; run?: () => void }[];
+  return resolveMenu(m.def, undefined, { state: { ...modesState, ...patch }, set, ask }) as { label: string; checked?: boolean; hint?: string; items?: unknown; field?: unknown; run?: () => void }[];
 };
 
 test('chat.modes: five rows, each unchecked with nothing on', () => {
@@ -327,27 +327,20 @@ test('chat.modes: checks follow ROOMSTATE', () => {
   assert.equal(modesMenu({ followersOnly: 0 }).find((e) => e.label === 'Followers only')!.hint, 'Any');
 });
 
-test('chat.modes: slow and followers open a typed length when off, turn off when on', () => {
+test('chat.modes: slow and followers open the length dialog when off, turn off when on', () => {
   const got: unknown[] = [];
-  const off = modesMenu({}, (c) => got.push(c));
+  const asked: unknown[] = [];
+  const off = modesMenu({}, (c) => got.push(c), (k) => asked.push(k));
   const slow = off.find((e) => e.label === 'Slow mode')!;
-  assert.equal(slow.items!.length, 1);
-  const sf = slow.items![0] as unknown as { field: { value: string; focus: boolean; submit(t: string): string | null } };
-  assert.equal(sf.field.value, '30s');
-  assert.equal(sf.field.focus, true);
   const fol = off.find((e) => e.label === 'Followers only')!;
-  const ff = fol.items![0] as unknown as { field: { value: string; submit(t: string): string | null } };
-  assert.equal(ff.field.value, '0');
-  // Bad or out of range: the message comes back and nothing is sent.
-  assert.equal(sf.field.submit('5m'), 'Slow mode goes from 3 seconds to 2 minutes.');
-  assert.equal(sf.field.submit('x'), 'Slow mode goes from 3 seconds to 2 minutes.');
-  assert.equal(ff.field.submit('4mo'), 'Followers only goes from 0 minutes to 3 months.');
+  // Plain items: no submenu, no field.
+  assert.equal(slow.items, undefined);
+  assert.equal(fol.items, undefined);
+  assert.equal(slow.field, undefined);
+  slow.run!();
+  fol.run!();
+  assert.deepEqual(asked, ['slow', 'followers']);
   assert.deepEqual(got, []);
-  // A good length is sent and closes the menu.
-  assert.equal(sf.field.submit('2m'), null);
-  assert.equal(ff.field.submit('1h'), null);
-  assert.deepEqual(got, [{ kind: 'slow', secs: 120 }, { kind: 'followers', mins: 60 }]);
-  got.length = 0;
   const on = modesMenu({ slow: 5, followersOnly: 30 }, (c) => got.push(c));
   on.find((e) => e.label === 'Slow mode')!.run!();
   on.find((e) => e.label === 'Followers only')!.run!();
