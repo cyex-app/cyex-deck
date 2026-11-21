@@ -41,6 +41,12 @@ fn clashed(c: Change, r: &Refusal) -> bool {
         }
 }
 
+/// V112-25 Roles only the channel owner can give or take (Twitch's help: Lead Moderator, Editor
+/// and Artist; the business manager is the owner's too).
+fn owner_only(role: Role) -> bool {
+    !matches!(role, Role::Mod | Role::Vip)
+}
+
 /// The units in the order they run: takes first (they free slots and clear clashes), then
 /// grants in Twitch's role order. Twitch makes a lead mod a mod (seen live 2026/10/21), so
 /// giving both sends lead mod only. A role in both lists is given. V107-Ma Taking mod from
@@ -156,6 +162,11 @@ pub async fn change(t: &impl Twitch, who: &str, holds: &[Role], slots: VipSlots,
     };
     if units.is_empty() {
         return Outcome { done: Vec::new(), line: "Nothing to change.".into(), slots, failed: Vec::new() };
+    }
+    // V112-25 Only the channel owner gives or takes lead mod, editor, artist and agent; a lead
+    // mod (or a mod wearing the plain badge) never can, so nothing is sent.
+    if t.by() != ModRole::Broadcaster && units.iter().any(|u| !u.implied && owner_only(u.main.role)) {
+        return refuse(crate::command::Need::Broadcaster.refusal().into(), slots);
     }
     for c in units.iter().flat_map(|u| u.first.into_iter().chain([u.main])) {
         if let Err(line) = t.path(c.role) {
@@ -423,6 +434,32 @@ mod tests {
         f.path = Err(super::super::NEEDS_GQL);
         assert_eq!(run(&f, &[LeadMod, Mod], unknown(), Wanted::one(Mod, false)).line, super::super::NEEDS_GQL);
         assert!(f.log().is_empty());
+    }
+
+    /// V112-25 A lead mod gives and takes mods and VIPs, never lead mod, editor, artist or agent.
+    #[test]
+    fn v112_25_only_the_owner_changes_lead_mod_editor_artist_and_agent() {
+        for by in [ModRole::Moderator, ModRole::LeadModerator] {
+            for role in [LeadMod, Editor, Artist, Agent] {
+                for on in [true, false] {
+                    let mut f = Fake::new(vec![Ok(())]);
+                    f.by = by;
+                    let o = run(&f, &[], unknown(), Wanted::one(role, on));
+                    assert_eq!(o.line, crate::command::Need::Broadcaster.refusal(), "{by:?} {role:?} {on}");
+                    assert_eq!(o.failed, [role]);
+                    assert!(f.log().is_empty(), "nothing sent");
+                }
+            }
+            for w in [give(&[Mod]), give(&[Vip]), Wanted::one(Mod, false), Wanted::one(Vip, false)] {
+                let mut f = Fake::new(vec![Ok(())]);
+                f.by = by;
+                assert!(run(&f, &[], unknown(), w).ok(), "{by:?} mods and VIPs stay open");
+            }
+        }
+        for role in [LeadMod, Editor, Artist, Agent] {
+            let f = Fake::new(vec![Ok(())]);
+            assert!(run(&f, &[], unknown(), Wanted::one(role, true)).ok(), "{role:?}: the owner");
+        }
     }
 
     #[test]
